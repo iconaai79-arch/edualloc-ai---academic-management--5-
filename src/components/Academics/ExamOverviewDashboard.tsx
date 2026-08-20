@@ -5738,17 +5738,17 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-fade-in no-print">
                     <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
                         {/* Modal Top Bar */}
-                        <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                        <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-indigo-600 rounded-xl">
                                     <DocumentArrowDownIcon className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
                                     <h3 className="font-black text-sm uppercase tracking-wider text-white">
-                                        Academic Exam Overview &mdash; PDF On-Screen Preview
+                                        Academic Exam Overview &mdash; Complete PDF On-Screen Preview
                                     </h3>
                                     <p className="text-[11px] text-slate-400 font-semibold">
-                                        {selectedYearGroup} &bull; {selectedExamObj.title} &bull; {studentPerformanceData.length} Candidates Tested
+                                        {selectedYearGroup} &bull; {selectedExamObj.title} &bull; 16 Structured Sections & Charts &bull; {studentPerformanceData.length} Candidates
                                     </p>
                                 </div>
                             </div>
@@ -5761,7 +5761,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     <PrinterIcon className="w-4 h-4" /> Print PDF
                                 </button>
                                 <button
-                                    onClick={() => alert("Downloading PDF Summary Document...")}
+                                    onClick={() => alert("Downloading Complete Academic Overview PDF Document...")}
                                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <ArrowUpTrayIcon className="w-4 h-4" /> Download
@@ -5777,7 +5777,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
                         {/* Printable PDF Paper Document */}
                         <div className="p-6 overflow-y-auto bg-slate-950/60 flex-1 flex justify-center custom-scrollbar">
-                            <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl space-y-8 font-sans text-xs relative">
+                            <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl space-y-10 font-sans text-xs relative">
                                 {/* Official School Letterhead */}
                                 <div className="border-b-2 border-slate-900 pb-5 flex justify-between items-start">
                                     <div>
@@ -5805,45 +5805,102 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Executive Summary KPI Cards */}
-                                <div className="grid grid-cols-4 gap-4">
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Tested</span>
-                                        <span className="text-xl font-black text-slate-900">{studentPerformanceData.length}</span>
+                                {/* SECTION 1: PERFORMANCE SUMMARY */}
+                                <div className="space-y-4">
+                                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 border-b-2 border-slate-900 pb-1 flex items-center justify-between">
+                                        <span>1. PERFORMANCE SUMMARY</span>
+                                        <span className="text-[10px] font-bold text-indigo-700">{selectedExamObj.type || 'EXAM'}</span>
+                                    </h3>
+                                    <div className="grid grid-cols-4 gap-3">
+                                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">STUDENTS ENROLLED</span>
+                                            <span className="text-xl font-black text-slate-900 mt-1 block">{performanceSummary.testedCount}</span>
+                                            <span className="text-[9px] font-semibold text-slate-500 block">Active Sitting</span>
+                                        </div>
+                                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">MEAN SCORE</span>
+                                            <div className="flex items-center justify-center gap-1.5 mt-1">
+                                                <span className="text-xl font-black text-indigo-700">{performanceSummary.meanScore.toFixed(1)}%</span>
+                                                <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-black">{performanceSummary.meanGrade}</span>
+                                            </div>
+                                            <span className="text-[9px] font-semibold text-slate-500 block">{isPrimaryOrCBC ? 'CBC Scale' : '8-4-4'}</span>
+                                        </div>
+                                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">MEAN POINTS</span>
+                                            <span className="text-xl font-black text-slate-900 mt-1 block">{performanceSummary.meanPoints.toFixed(2)} pts</span>
+                                            <span className="text-[9px] font-semibold text-slate-500 block">Out of {isPrimaryOrCBC ? '4.00' : '12.00'}</span>
+                                        </div>
+                                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">PERFORMANCE INCREASE</span>
+                                            <span className={`text-xl font-black mt-1 block ${performanceDelta.isPositive ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                {performanceDelta.formatted}
+                                            </span>
+                                            <span className="text-[9px] font-semibold text-slate-500 block truncate">Vs {performanceDelta.prevTitle}</span>
+                                        </div>
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Cohort Mean Score</span>
-                                        <span className="text-xl font-black text-indigo-700">{classOverallSummary.meanScoreFormatted}%</span>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Overall Mean Grade</span>
-                                        <span className="text-xl font-black text-emerald-700">{classOverallSummary.grade}</span>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Subjects Evaluated</span>
-                                        <span className="text-xl font-black text-slate-900">{subjectRankings.length}</span>
+
+                                    {/* Spline Chart: Other Exams Mean Scores */}
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                                        <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-600">
+                                            <span>HISTORICAL EXAM TRAJECTORY & MEAN SCORE BENCHMARKS</span>
+                                            <span>Exam Mean (%)</span>
+                                        </div>
+                                        <div className="h-36 w-full flex items-center justify-center">
+                                            <svg viewBox="0 0 500 130" className="w-full h-full overflow-visible">
+                                                <line x1="30" y1="20" x2="480" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                                <line x1="30" y1="60" x2="480" y2="60" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                                <line x1="30" y1="100" x2="480" y2="100" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                                {(() => {
+                                                    const series = comparativeChartData;
+                                                    if (series.length === 0) return null;
+                                                    const step = series.length > 1 ? 420 / (series.length - 1) : 420;
+                                                    const pts = series.map((s, i) => {
+                                                        const x = 40 + i * step;
+                                                        const y = 110 - ((s.score - 40) / 60) * 90;
+                                                        return { x, y: Math.max(15, Math.min(115, y)), label: s.name, val: s.score };
+                                                    });
+                                                    const pathD = pts.reduce((acc, p, i) => i === 0 ? `M ${p.x},${p.y}` : `${acc} L ${p.x},${p.y}`, '');
+                                                    return (
+                                                        <>
+                                                            <path d={pathD} fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" />
+                                                            {pts.map((p, idx) => (
+                                                                <g key={idx}>
+                                                                    <circle cx={p.x} cy={p.y} r="4" fill="#ffffff" stroke="#4f46e5" strokeWidth="2" />
+                                                                    <text x={p.x} y={p.y - 8} textAnchor="middle" className="text-[8px] font-black fill-slate-900">
+                                                                        {p.val.toFixed(1)}%
+                                                                    </text>
+                                                                    <text x={p.x} y="125" textAnchor="middle" className="text-[7px] font-bold fill-slate-500">
+                                                                        {p.label}
+                                                                    </text>
+                                                                </g>
+                                                            ))}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </svg>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* SECTION 1: TOP 10 STUDENTS OVERALL */}
-                                <div className="space-y-3">
-                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
-                                        <span>1. Top 10 Students Overall</span>
-                                        <span className="text-[10px] font-normal text-slate-500 font-mono">Cohort Rankings</span>
+                                {/* SECTION 2: TOP 10 OVERALL STUDENTS */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 flex justify-between">
+                                        <span>2. TOP 10 OVERALL STUDENTS</span>
+                                        <span className="text-[9px] text-slate-500">Cohort Merit List</span>
                                     </h3>
                                     <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
-                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
                                             <tr>
-                                                <th className="p-2 border border-slate-700 w-10 text-center">Rank</th>
-                                                <th className="p-2 border border-slate-700 w-24">Adm No</th>
-                                                <th className="p-2 border border-slate-700">Student Name</th>
-                                                <th className="p-2 border border-slate-700 w-28">Class / Stream</th>
-                                                <th className="p-2 border border-slate-700 w-24 text-center">Total Marks</th>
-                                                <th className="p-2 border border-slate-700 w-24 text-center">Mean Score</th>
-                                                <th className="p-2 border border-slate-700 w-16 text-center">Grade</th>
+                                                <th className="p-2 border border-slate-800 w-10 text-center">Rank</th>
+                                                <th className="p-2 border border-slate-800 w-24">Adm No</th>
+                                                <th className="p-2 border border-slate-800">Student Name</th>
+                                                <th className="p-2 border border-slate-800 w-28">Class / Stream</th>
+                                                <th className="p-2 border border-slate-800 w-20 text-center">Total Marks</th>
+                                                <th className="p-2 border border-slate-800 w-20 text-center">Mean Score</th>
+                                                <th className="p-2 border border-slate-800 w-14 text-center">Grade</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                        <tbody className="divide-y divide-slate-200">
                                             {top10Students.map((st, idx) => (
                                                 <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                     <td className="p-2 border border-slate-200 text-center font-bold">{st.rank}</td>
@@ -5859,30 +5916,64 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     </table>
                                 </div>
 
-                                {/* SECTION 2: TOP STUDENT PER CLASS STREAM */}
-                                <div className="space-y-3">
-                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
-                                        2. Top Student Per Class Stream
+                                {/* SECTION 3: BOTTOM 10 OVERALL STUDENTS */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 flex justify-between">
+                                        <span>3. BOTTOM 10 OVERALL STUDENTS</span>
+                                        <span className="text-[9px] text-slate-500">Target Support Group</span>
                                     </h3>
                                     <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
-                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
                                             <tr>
-                                                <th className="p-2 border border-slate-700 w-10 text-center">▲</th>
-                                                <th className="p-2 border border-slate-700 w-36">Class / Stream</th>
-                                                <th className="p-2 border border-slate-700 w-24">ID</th>
-                                                <th className="p-2 border border-slate-700">Student Name</th>
-                                                <th className="p-2 border border-slate-700 w-24 text-center">Mean Score</th>
-                                                <th className="p-2 border border-slate-700 w-16 text-center">Grade</th>
+                                                <th className="p-2 border border-slate-800 w-10 text-center">Rank</th>
+                                                <th className="p-2 border border-slate-800 w-24">Adm No</th>
+                                                <th className="p-2 border border-slate-800">Student Name</th>
+                                                <th className="p-2 border border-slate-800 w-28">Class / Stream</th>
+                                                <th className="p-2 border border-slate-800 w-20 text-center">Total Marks</th>
+                                                <th className="p-2 border border-slate-800 w-20 text-center">Mean Score</th>
+                                                <th className="p-2 border border-slate-800 w-14 text-center">Grade</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                        <tbody className="divide-y divide-slate-200">
+                                            {bottom10Students.map((st, idx) => (
+                                                <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.rank}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{st.student?.admissionNo || st.student?.id}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.student?.name}</td>
+                                                    <td className="p-2 border border-slate-200">{st.student?.studentClass || selectedYearGroup}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.totalMarks > 0 ? st.totalMarks : '-'}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-700">{st.meanScore.toFixed(1)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.grade}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 4: TOP STUDENT PER CLASS STREAM */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        4. TOP STUDENT PER CLASS STREAM
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-800 w-10 text-center">Rank</th>
+                                                <th className="p-2 border border-slate-800 w-36">Class / Stream</th>
+                                                <th className="p-2 border border-slate-800 w-24">Adm No</th>
+                                                <th className="p-2 border border-slate-800">Student Name</th>
+                                                <th className="p-2 border border-slate-800 w-24 text-center">Mean Score</th>
+                                                <th className="p-2 border border-slate-800 w-16 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
                                             {streamChampions.map((row, idx) => (
                                                 <tr key={row.stream || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                     <td className="p-2 border border-slate-200 text-center font-bold">{row.rank}</td>
                                                     <td className="p-2 border border-slate-200 font-bold">{row.stream}</td>
                                                     <td className="p-2 border border-slate-200 font-mono">{row.admNo}</td>
                                                     <td className="p-2 border border-slate-200 font-bold uppercase">{row.studentName}</td>
-                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.meanScore}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-indigo-700">{row.meanScore}%</td>
                                                     <td className="p-2 border border-slate-200 text-center font-bold">{row.grade}</td>
                                                 </tr>
                                             ))}
@@ -5890,30 +5981,98 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     </table>
                                 </div>
 
-                                {/* SECTION 3: SUBJECT PERFORMANCE RANKING */}
-                                <div className="space-y-3">
-                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
-                                        3. Subject Performance Rankings
+                                {/* SECTION 5: MOST IMPROVED STUDENTS */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-emerald-800 border-b border-emerald-300 pb-1 flex justify-between">
+                                        <span>5. MOST IMPROVED STUDENTS</span>
+                                        <span className="text-[9px] text-emerald-700 font-bold">Positive Progress</span>
                                     </h3>
                                     <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
-                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                        <thead className="bg-emerald-800 text-white font-bold uppercase text-[9px]">
                                             <tr>
-                                                <th className="p-2 border border-slate-700 w-10 text-center">Rank</th>
-                                                <th className="p-2 border border-slate-700">Subject Name</th>
-                                                <th className="p-2 border border-slate-700 w-20 text-center">Code</th>
-                                                <th className="p-2 border border-slate-700 w-20 text-center">Entry</th>
-                                                <th className="p-2 border border-slate-700 w-24 text-center">Mean Marks</th>
-                                                <th className="p-2 border border-slate-700 w-16 text-center">Grade</th>
+                                                <th className="p-2 border border-emerald-700 w-10 text-center">#</th>
+                                                <th className="p-2 border border-emerald-700 w-24">Adm No</th>
+                                                <th className="p-2 border border-emerald-700">Student Name</th>
+                                                <th className="p-2 border border-emerald-700 w-28">Class / Stream</th>
+                                                <th className="p-2 border border-emerald-700 w-24 text-center">Prior Mean</th>
+                                                <th className="p-2 border border-emerald-700 w-24 text-center">Current Mean</th>
+                                                <th className="p-2 border border-emerald-700 w-20 text-center">Deviation</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                        <tbody className="divide-y divide-slate-200">
+                                            {mostImprovedStudents.slice(0, 8).map((st, idx) => (
+                                                <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{idx + 1}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{st.student?.admissionNo || st.student?.id}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.student?.name}</td>
+                                                    <td className="p-2 border border-slate-200">{st.student?.studentClass || selectedYearGroup}</td>
+                                                    <td className="p-2 border border-slate-200 text-center">{st.previousMean.toFixed(1)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-900">{st.currentMean.toFixed(1)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-black text-emerald-700">+{st.change.toFixed(1)}%</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 6: MOST DROPPING STUDENTS */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-rose-800 border-b border-rose-300 pb-1 flex justify-between">
+                                        <span>6. MOST DROPPING STUDENTS</span>
+                                        <span className="text-[9px] text-rose-700 font-bold">Requires Remedial Support</span>
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-rose-900 text-white font-bold uppercase text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-rose-800 w-10 text-center">#</th>
+                                                <th className="p-2 border border-rose-800 w-24">Adm No</th>
+                                                <th className="p-2 border border-rose-800">Student Name</th>
+                                                <th className="p-2 border border-rose-800 w-28">Class / Stream</th>
+                                                <th className="p-2 border border-rose-800 w-24 text-center">Prior Mean</th>
+                                                <th className="p-2 border border-rose-800 w-24 text-center">Current Mean</th>
+                                                <th className="p-2 border border-rose-800 w-20 text-center">Deviation</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {mostDroppingStudents.slice(0, 8).map((st, idx) => (
+                                                <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{idx + 1}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{st.student?.admissionNo || st.student?.id}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.student?.name}</td>
+                                                    <td className="p-2 border border-slate-200">{st.student?.studentClass || selectedYearGroup}</td>
+                                                    <td className="p-2 border border-slate-200 text-center">{st.previousMean.toFixed(1)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-slate-900">{st.currentMean.toFixed(1)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-black text-rose-700">{st.change.toFixed(1)}%</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 7: SUBJECT PERFORMANCE RANKING */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        7. SUBJECT PERFORMANCE RANKING
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-800 w-10 text-center">Rank</th>
+                                                <th className="p-2 border border-slate-800">Subject Name</th>
+                                                <th className="p-2 border border-slate-800 w-20 text-center">Code</th>
+                                                <th className="p-2 border border-slate-800 w-20 text-center">Entry</th>
+                                                <th className="p-2 border border-slate-800 w-24 text-center">Mean Marks</th>
+                                                <th className="p-2 border border-slate-800 w-16 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
                                             {subjectRankings.map((sr, idx) => (
                                                 <tr key={sr.subject?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                     <td className="p-2 border border-slate-200 text-center font-bold">{sr.rank}</td>
                                                     <td className="p-2 border border-slate-200 font-bold uppercase">{sr.subject?.name}</td>
                                                     <td className="p-2 border border-slate-200 text-center font-mono">{sr.subject?.code}</td>
                                                     <td className="p-2 border border-slate-200 text-center">{sr.entry}</td>
-                                                    <td className="p-2 border border-slate-200 text-center font-bold">{sr.meanScoreFormatted}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-indigo-700">{sr.meanScoreFormatted}</td>
                                                     <td className="p-2 border border-slate-200 text-center font-bold">{sr.grade}</td>
                                                 </tr>
                                             ))}
@@ -5921,21 +6080,50 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     </table>
                                 </div>
 
-                                {/* SECTION 4: CLASS PERFORMANCE COMPARISON WITH PREVIOUS EXAMS */}
+                                {/* SECTION 8: CLASS PERFORMANCE COMPARISON WITH PREVIOUS EXAMS */}
                                 <div className="space-y-3">
-                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
-                                        4. Class Performance Comparison With Previous Exams
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        8. CLASS PERFORMANCE COMPARISON WITH PREVIOUS EXAMS
                                     </h3>
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                                        <span className="text-[9px] font-black uppercase text-slate-500 block">Class Stream Performance Spline Visualizer</span>
+                                        <div className="h-32 w-full flex items-center justify-center">
+                                            <svg viewBox="0 0 500 120" className="w-full h-full overflow-visible">
+                                                <line x1="30" y1="20" x2="480" y2="20" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                                <line x1="30" y1="60" x2="480" y2="60" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                                <line x1="30" y1="100" x2="480" y2="100" stroke="#e2e8f0" strokeDasharray="3 3" />
+                                                {classPreviousExamsComparison.splinePaths.map((item, idx) => (
+                                                    <path
+                                                        key={item.stream}
+                                                        d={item.pathD}
+                                                        fill="none"
+                                                        stroke={item.color}
+                                                        strokeWidth="2.5"
+                                                        strokeLinecap="round"
+                                                    />
+                                                ))}
+                                                {classPreviousExamsComparison.examSeries.map((ser, i) => {
+                                                    const step = classPreviousExamsComparison.examSeries.length > 1 ? 400 / (classPreviousExamsComparison.examSeries.length - 1) : 400;
+                                                    const x = 50 + i * step;
+                                                    return (
+                                                        <text key={ser.id} x={x} y="115" textAnchor="middle" className="text-[7.5px] font-bold fill-slate-500">
+                                                            {ser.title}
+                                                        </text>
+                                                    );
+                                                })}
+                                            </svg>
+                                        </div>
+                                    </div>
                                     <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
-                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
                                             <tr>
-                                                <th className="p-2 border border-slate-700 w-36">Class / Stream</th>
+                                                <th className="p-2 border border-slate-800 w-36">Class / Stream</th>
                                                 {classPreviousExamsComparison.examSeries.map(ser => (
-                                                    <th key={ser.id} className="p-2 border border-slate-700 text-center">{ser.title}</th>
+                                                    <th key={ser.id} className="p-2 border border-slate-800 text-center">{ser.title}</th>
                                                 ))}
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                        <tbody className="divide-y divide-slate-200">
                                             {classPreviousExamsComparison.rows.map((row, idx) => (
                                                 <tr key={row.stream} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                     <td className="p-2 border border-slate-200 font-bold uppercase">{row.stream}</td>
@@ -5951,7 +6139,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                             <tr>
                                                 <td className="p-2 border border-slate-300 uppercase">Average</td>
                                                 {classPreviousExamsComparison.examSeries.map(ser => (
-                                                    <td key={ser.id} className="p-2 border border-slate-300 text-center font-mono text-indigo-700">
+                                                    <td key={ser.id} className="p-2 border border-slate-300 text-center font-mono text-indigo-700 font-black">
                                                         {(classPreviousExamsComparison.averages[ser.id] || 0).toFixed(4)}
                                                     </td>
                                                 ))}
@@ -5960,22 +6148,187 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     </table>
                                 </div>
 
-                                {/* SECTION 5: SUBJECT PERFORMANCE PER CLASS */}
+                                {/* SECTION 9: OVERALL PERFORMANCE TREND OVER TIME */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        9. OVERALL PERFORMANCE TREND OVER TIME
+                                    </h3>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                        <div className="h-32 w-full flex items-center justify-center">
+                                            <svg viewBox="0 0 500 110" className="w-full h-full overflow-visible">
+                                                <path
+                                                    d={overallPerformanceTrendData.areaPath}
+                                                    fill="rgba(99, 102, 241, 0.15)"
+                                                />
+                                                <path
+                                                    d={overallPerformanceTrendData.splinePath}
+                                                    fill="none"
+                                                    stroke="#4f46e5"
+                                                    strokeWidth="2.5"
+                                                    strokeLinecap="round"
+                                                />
+                                                {overallPerformanceTrendData.points.map((p, idx) => (
+                                                    <g key={idx}>
+                                                        <circle cx={p.x} cy={p.y} r="4" fill="#ffffff" stroke="#4f46e5" strokeWidth="2" />
+                                                        <text x={p.x} y={p.y - 7} textAnchor="middle" className="text-[8px] font-black fill-slate-900">
+                                                            {p.score.toFixed(1)}%
+                                                        </text>
+                                                        <text x={p.x} y="105" textAnchor="middle" className="text-[7.5px] font-bold fill-slate-500">
+                                                            {p.label}
+                                                        </text>
+                                                    </g>
+                                                ))}
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 10: OVERALL COHORT GRADES DISTRIBUTION */}
                                 <div className="space-y-3">
-                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
-                                        5. Subject Performance Per Class Matrix
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        10. OVERALL COHORT GRADES DISTRIBUTION
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-800">Class</th>
+                                                {gradesDistributionPerClassData.expectedGrades.map(g => (
+                                                    <th key={g} className="p-2 border border-slate-800 text-center">{g}</th>
+                                                ))}
+                                                <th className="p-2 border border-slate-800 text-center">Entry</th>
+                                                <th className="p-2 border border-slate-800 text-center">Mean Marks</th>
+                                                <th className="p-2 border border-slate-800 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {gradesDistributionPerClassData.rows.map((row, idx) => (
+                                                <tr key={row.className} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{row.className}</td>
+                                                    {gradesDistributionPerClassData.expectedGrades.map(g => (
+                                                        <td key={g} className="p-2 border border-slate-200 text-center">{row.counts[g] ?? 0}</td>
+                                                    ))}
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.entry}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-mono font-bold">{row.meanMarks.toFixed(2)}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.grade}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot className="bg-slate-100 font-black border-t-2 border-slate-400">
+                                            <tr>
+                                                <td className="p-2 border border-slate-300 uppercase">Total</td>
+                                                {gradesDistributionPerClassData.expectedGrades.map(g => (
+                                                    <td key={g} className="p-2 border border-slate-300 text-center font-bold">{gradesDistributionPerClassData.totalRow.counts[g] ?? 0}</td>
+                                                ))}
+                                                <td className="p-2 border border-slate-300 text-center font-black">{gradesDistributionPerClassData.totalRow.entry}</td>
+                                                <td className="p-2 border border-slate-300 text-center font-mono font-black">{gradesDistributionPerClassData.totalRow.meanMarks.toFixed(2)}</td>
+                                                <td className="p-2 border border-slate-300 text-center font-black">{gradesDistributionPerClassData.totalRow.grade}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="p-2 border border-slate-300 uppercase">Percentage</td>
+                                                {gradesDistributionPerClassData.expectedGrades.map(g => (
+                                                    <td key={g} className="p-2 border border-slate-300 text-center font-bold">{gradesDistributionPerClassData.percentRow.counts[g] ?? '0%'}</td>
+                                                ))}
+                                                <td colSpan={3} className="p-2 border border-slate-300"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 11: GRADES DISTRIBUTION COMPARISON WITH PREVIOUS EXAMS */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        11. GRADES DISTRIBUTION COMPARISON WITH OTHER PREVIOUS EXAMS
+                                    </h3>
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                                        <span className="text-[9px] font-black uppercase text-slate-500 block">Grade Frequency Comparison Histogram</span>
+                                        <div className="h-32 w-full flex items-center justify-center">
+                                            <svg viewBox="0 0 500 120" className="w-full h-full overflow-visible">
+                                                <line x1="30" y1="100" x2="480" y2="100" stroke="#cbd5e1" strokeWidth="1.5" />
+                                                {(() => {
+                                                    const data = gradesDistributionVsPreviousExamsData;
+                                                    const grades = data.expectedGrades;
+                                                    const series = data.examSeries;
+                                                    const groupW = 420 / grades.length;
+                                                    const colors = ['#4f46e5', '#06b6d4', '#f59e0b', '#10b981'];
+
+                                                    return grades.map((g, gIdx) => {
+                                                        const gX = 40 + gIdx * groupW;
+                                                        const barW = Math.min(18, (groupW - 12) / Math.max(1, series.length));
+
+                                                        return (
+                                                            <g key={g}>
+                                                                {series.map((ser, sIdx) => {
+                                                                    const count = data.rows[sIdx]?.counts[g] || 0;
+                                                                    const barH = Math.min(80, (count / 25) * 80);
+                                                                    const bX = gX + sIdx * barW;
+                                                                    const bY = 100 - barH;
+
+                                                                    return (
+                                                                        <rect
+                                                                            key={ser.id}
+                                                                            x={bX}
+                                                                            y={bY}
+                                                                            width={barW - 2}
+                                                                            height={Math.max(2, barH)}
+                                                                            fill={colors[sIdx % colors.length]}
+                                                                            rx="2"
+                                                                        />
+                                                                    );
+                                                                })}
+                                                                <text x={gX + (series.length * barW) / 2} y="114" textAnchor="middle" className="text-[8px] font-bold fill-slate-700">
+                                                                    {g}
+                                                                </text>
+                                                            </g>
+                                                        );
+                                                    });
+                                                })()}
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-800">Exam Title</th>
+                                                {gradesDistributionVsPreviousExamsData.expectedGrades.map(g => (
+                                                    <th key={g} className="p-2 border border-slate-800 text-center">{g}</th>
+                                                ))}
+                                                <th className="p-2 border border-slate-800 text-center">Entry</th>
+                                                <th className="p-2 border border-slate-800 text-center">Mean Score</th>
+                                                <th className="p-2 border border-slate-800 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {gradesDistributionVsPreviousExamsData.rows.map((row, idx) => (
+                                                <tr key={row.examId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{row.examTitle}</td>
+                                                    {gradesDistributionVsPreviousExamsData.expectedGrades.map(g => (
+                                                        <td key={g} className="p-2 border border-slate-200 text-center">{row.counts[g] ?? 0}</td>
+                                                    ))}
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.entry}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-mono font-bold text-indigo-700">{row.meanScore.toFixed(2)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.grade}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 12: SUBJECT PERFORMANCE PER CLASS */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        12. SUBJECT PERFORMANCE PER CLASS
                                     </h3>
                                     <div className="overflow-x-auto">
                                         <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
-                                            <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                            <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
                                                 <tr>
-                                                    <th className="p-2 border border-slate-700">Class</th>
+                                                    <th className="p-2 border border-slate-800">Class</th>
                                                     {subjectPerformancePerClassData.subjects.map(s => (
-                                                        <th key={s.code} className="p-2 border border-slate-700 text-center">{s.code}</th>
+                                                        <th key={s.code} className="p-2 border border-slate-800 text-center">{s.code}</th>
                                                     ))}
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-200 font-medium">
+                                            <tbody className="divide-y divide-slate-200">
                                                 {subjectPerformancePerClassData.classRows.map((cr, idx) => (
                                                     <tr key={cr.className || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                         <td className="p-2 border border-slate-200 font-bold uppercase">{cr.className}</td>
@@ -5996,7 +6349,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                     {subjectPerformancePerClassData.subjects.map(s => {
                                                         const res = subjectPerformancePerClassData.mGradeSummary[s.code];
                                                         return (
-                                                            <td key={s.code} className="p-2 border border-slate-300 text-center font-mono text-indigo-700">
+                                                            <td key={s.code} className="p-2 border border-slate-300 text-center font-mono text-indigo-700 font-black">
                                                                 {res ? `${res.meanMarks.toFixed(2)} ${res.grade}` : '—'}
                                                             </td>
                                                         );
@@ -6004,6 +6357,124 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                 </tr>
                                             </tfoot>
                                         </table>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 13: GRADES DISTRIBUTION PER SUBJECT */}
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        13. GRADES DISTRIBUTION PER SUBJECT
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-800">Subject Name</th>
+                                                <th className="p-2 border border-slate-800 w-16 text-center">Code</th>
+                                                {gradesDistributionPerSubjectData.expectedGrades.map(g => (
+                                                    <th key={g} className="p-2 border border-slate-800 text-center">{g}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {gradesDistributionPerSubjectData.subjectsData.map((sd, idx) => (
+                                                <tr key={sd.code} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{sd.name}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-mono font-bold">{sd.code}</td>
+                                                    {gradesDistributionPerSubjectData.expectedGrades.map(g => (
+                                                        <td key={g} className="p-2 border border-slate-200 text-center font-semibold">{sd.counts[g] ?? 0}</td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 14: SUBJECT PERFORMANCE COMPARISON WITH PREVIOUS EXAMS */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
+                                        14. SUBJECT PERFORMANCE COMPARISON WITH OTHER PREVIOUS EXAMS
+                                    </h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                            <thead className="bg-slate-900 text-white font-bold uppercase text-[9px]">
+                                                <tr>
+                                                    <th className="p-2 border border-slate-800">Exam Title</th>
+                                                    {subjectPerformanceComparisonVsPreviousData.subjects.map(s => (
+                                                        <th key={s.code} className="p-2 border border-slate-800 text-center">{s.code}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200">
+                                                {subjectPerformanceComparisonVsPreviousData.series.map((ser, idx) => (
+                                                    <tr key={ser.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                        <td className="p-2 border border-slate-200 font-bold uppercase">{ser.title}</td>
+                                                        {subjectPerformanceComparisonVsPreviousData.subjects.map(s => {
+                                                            const sc = subjectPerformanceComparisonVsPreviousData.subjectScores[ser.id]?.[s.code];
+                                                            return (
+                                                                <td key={s.code} className="p-2 border border-slate-200 text-center font-mono font-semibold">
+                                                                    {sc ? `${sc.meanMarks.toFixed(2)} ${sc.grade}` : '—'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 15 & 16: IMPROVEMENT & DROP PER GRADE DISTRIBUTION */}
+                                <div className="grid grid-cols-2 gap-6">
+                                    {/* SECTION 15 */}
+                                    <div className="space-y-2">
+                                        <h3 className="text-xs font-black uppercase tracking-wider text-emerald-800 border-b border-emerald-300 pb-1">
+                                            15. IMPROVEMENT PER GRADE
+                                        </h3>
+                                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-4">
+                                            <div className="w-20 h-20 shrink-0">
+                                                <svg viewBox="0 0 100 100" className="w-full h-full">
+                                                    <circle cx="50" cy="50" r="38" fill="none" stroke="#10b981" strokeWidth="12" />
+                                                    <text x="50" y="54" textAnchor="middle" className="text-[12px] font-black fill-slate-900">
+                                                        {studentImprovementPerGradeData.total}
+                                                    </text>
+                                                </svg>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {studentImprovementPerGradeData.slices.map(sl => (
+                                                    <div key={sl.label} className="flex items-center gap-2 text-[9px]">
+                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: sl.color }} />
+                                                        <span className="font-bold text-slate-700">{sl.label}:</span>
+                                                        <span className="font-black text-slate-900">{sl.count} ({sl.percentage.toFixed(0)}%)</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* SECTION 16 */}
+                                    <div className="space-y-2">
+                                        <h3 className="text-xs font-black uppercase tracking-wider text-rose-800 border-b border-rose-300 pb-1">
+                                            16. DROP PER GRADE
+                                        </h3>
+                                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-4">
+                                            <div className="w-20 h-20 shrink-0">
+                                                <svg viewBox="0 0 100 100" className="w-full h-full">
+                                                    <circle cx="50" cy="50" r="38" fill="none" stroke="#f43f5e" strokeWidth="12" />
+                                                    <text x="50" y="54" textAnchor="middle" className="text-[12px] font-black fill-slate-900">
+                                                        {studentDropPerGradeData.total}
+                                                    </text>
+                                                </svg>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {studentDropPerGradeData.slices.map(sl => (
+                                                    <div key={sl.label} className="flex items-center gap-2 text-[9px]">
+                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: sl.color }} />
+                                                        <span className="font-bold text-slate-700">{sl.label}:</span>
+                                                        <span className="font-black text-slate-900">{sl.count} ({sl.percentage.toFixed(0)}%)</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
