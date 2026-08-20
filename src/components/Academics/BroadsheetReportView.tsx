@@ -411,29 +411,75 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return {};
     });
 
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) { }
+        return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
+    });
+
     useEffect(() => {
         if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
-                .then(records => {
-                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
-                    const storeData = match?.settings || match?.stateData || match?.data;
-                    if (storeData && typeof storeData === 'object') {
-                        setSavedBroadsheets(prev => {
-                            const merged = { ...prev, ...storeData };
-                            try {
-                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch(e) {}
-                            return merged;
-                        });
+            Promise.all([
+                apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => [])
+            ]).then(([imsRecords, allocRecords]) => {
+                const match = (imsRecords || []).find((r: any) => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                const storeData = match?.settings || match?.stateData || match?.data;
+                if (storeData && typeof storeData === 'object') {
+                    setSavedBroadsheets(prev => {
+                        const merged = { ...prev, ...storeData };
+                        try {
+                            localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                        } catch(e) {}
+                        return merged;
+                    });
+                }
+
+                if (allocRecords && allocRecords.length > 0) {
+                    const allocMap: Record<string, string[]> = {};
+                    allocRecords.forEach((rec: any) => {
+                        const cName = rec.className || rec.class_name || rec.id;
+                        const subList = rec.subjects || rec.subject_ids || rec.allocated_subjects || [];
+                        if (cName && Array.isArray(subList)) {
+                            allocMap[cName] = subList;
+                        }
+                    });
+                    if (Object.keys(allocMap).length > 0) {
+                        setClassAllocationsStore(prev => ({ ...prev, ...allocMap }));
                     }
-                })
-                .catch(() => {});
+                }
+            }).catch(() => {});
         }
     }, [currentInstitution]);
 
-    // Active subjects for broadsheet columns (filtered by current exam's entered/tested subjects)
+    // Helper to test if a student mark row key strictly belongs to a specific subject
+    const isSubjectKeyMatch = (k: string, sub: any): boolean => {
+        if (!k || !sub) return false;
+        const kNorm = k.toLowerCase().trim();
+        const subName = (sub.name || (sub as any).title || '').toLowerCase().trim();
+        const subCode = (sub.code || '').toLowerCase().trim();
+        const subId = (sub.id || '').toLowerCase().trim();
+
+        if (kNorm === subId || kNorm === subCode) return true;
+
+        const sClean = subName.replace(/[^a-z0-9]/g, '_');
+        const sCompact = subName.replace(/[^a-z0-9]/g, '');
+        const cCompact = subCode.replace(/[^a-z0-9]/g, '');
+
+        if (kNorm === `subj_${sClean}_p1` || kNorm === `subj_${sClean}` || kNorm === sClean) return true;
+        if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
+
+        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
+        if (kStripped && (kStripped === sCompact || (cCompact && kStripped === cCompact))) return true;
+
+        return false;
+    };
+
+    // Active subjects for broadsheet columns (filtered by class subject allocation & current exam's entered subjects)
     const broadsheetSubjects = useMemo(() => {
-        // 1. All candidate subjects (deduplicated by normalized subject name)
+        // 1. All candidate subjects
         const rawCandidates = subjects.length > 0 ? subjects : [
             { id: 'sub_1', name: 'English', code: 'ENG' },
             { id: 'sub_2', name: 'Kiswahili', code: 'KISW' },
@@ -448,92 +494,98 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             { id: 'sub_11', name: 'Business Studies', code: 'BST' },
         ];
 
+        const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
+        const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
         const isUpperPrimaryGroup = /grade\s*[4-8]|std\s*[4-8]|standard\s*[4-8]/i.test(selectedYearGroup);
         const isLowerPrimaryGroup = /grade\s*[1-3]|std\s*[1-3]|standard\s*[1-3]|pp[1-2]|playgroup/i.test(selectedYearGroup);
 
+        // 2. Filter candidate subjects strictly by class allocations if configured
+        let allocatedSubjectIdentifiers: string[] | null = null;
+        if (yGrpClean && yGrpClean !== 'all') {
+            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
+                const kClean = k.toLowerCase().trim();
+                const kNorm = kClean.replace(/[^a-z0-9]/g, '');
+                return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
+            });
+            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
+                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
+            }
+        }
+
         const candidateList: any[] = [];
         const seenCandidateNames = new Set<string>();
+
         rawCandidates.forEach(sub => {
             const sCode = (sub.code || '').toUpperCase().trim();
             const sName = (sub.name || '').toUpperCase().trim();
-
-            if (isUpperPrimaryGroup) {
-                if (sCode.endsWith('-LP') || sCode.endsWith('_LP') || sName.includes('LOWER PRIMARY') || sName.includes('(LP)')) return;
-            }
-            if (isLowerPrimaryGroup) {
-                if (sCode.endsWith('-UP') || sCode.endsWith('_UP') || sName.includes('UPPER PRIMARY') || sName.includes('(UP)')) return;
-            }
-
+            const subId = (sub.id || '').trim();
             const normName = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            // If class allocations are defined for this year group, verify subject is allocated
+            if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
+                const isAllocated = allocatedSubjectIdentifiers.some(allocId => {
+                    const aClean = String(allocId).toLowerCase().trim();
+                    const aNorm = aClean.replace(/[^a-z0-9]/g, '');
+                    return aClean === subId.toLowerCase() ||
+                           aClean === sName.toLowerCase() ||
+                           aClean === sCode.toLowerCase() ||
+                           (aNorm.length >= 3 && normName.includes(aNorm)) ||
+                           (normName.length >= 3 && aNorm.includes(normName));
+                });
+                if (!isAllocated) return;
+            } else {
+                // Curricula division filter only when no explicit allocation is set
+                if (isUpperPrimaryGroup) {
+                    if (sCode.endsWith('-LP') || sCode.endsWith('_LP') || sName.includes('LOWER PRIMARY') || sName.includes('(LP)')) return;
+                }
+                if (isLowerPrimaryGroup) {
+                    if (sCode.endsWith('-UP') || sCode.endsWith('_UP') || sName.includes('UPPER PRIMARY') || sName.includes('(UP)')) return;
+                }
+            }
+
             if (normName && !seenCandidateNames.has(normName)) {
                 seenCandidateNames.add(normName);
                 candidateList.push(sub);
             }
         });
 
-        // 2. Check if selectedExamObj defines explicit subjects
-        const examSubjNames = (selectedExamObj as any)?.subjects || (selectedExamObj as any)?.examSubjects || (selectedExamObj as any)?.subjectList;
-        if (Array.isArray(examSubjNames) && examSubjNames.length > 0) {
-            const cleanSubjNames = examSubjNames.map((s: any) => String(typeof s === 'string' ? s : s.name || s.code).toLowerCase().replace(/[^a-z0-9]/g, ''));
-            const filtered = candidateList.filter(sub => {
-                const subNameClean = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                const subCodeClean = (sub.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                return cleanSubjNames.some((es: string) => es.includes(subNameClean) || subNameClean.includes(es) || es.includes(subCodeClean));
-            });
-            if (filtered.length > 0) return filtered;
-        }
-
-        // 3. Check if savedBroadsheets has entered marks for this exam
+        // 3. Filter by active marks entered for this exam & class
         const savedRows = savedBroadsheets[selectedExamId];
         if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
-            const activeSubjIds = new Set<string>();
-            candidateList.forEach(sub => {
-                const subName = sub.name || (sub as any).title || '';
-                const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const classRows = yGrpClean && yGrpClean !== 'all'
+                ? savedRows.filter((r: any) => {
+                    const stCls = String(r.class || r.studentClass || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return !stCls || stCls.includes(yGrpNorm) || yGrpNorm.includes(stCls);
+                })
+                : savedRows;
 
-                const hasDataInRows = savedRows.some(stRow => {
-                    return Object.entries(stRow).some(([k, val]) => {
-                        if (['admNo', 'name', 'class', 'kcpe'].includes(k)) return false;
-                        if (val === null || val === undefined || val === '') return false;
-                        const kNorm = k.toLowerCase();
-                        return (
-                            kNorm.includes(sClean) ||
-                            (subNameNorm.length >= 3 && kNorm.includes(subNameNorm)) ||
-                            (subNameNorm.includes('math') && kNorm.includes('math')) ||
-                            (subNameNorm.includes('eng') && kNorm.includes('eng')) ||
-                            (subNameNorm.includes('kisw') && kNorm.includes('kisw')) ||
-                            (subNameNorm.includes('bio') && kNorm.includes('bio')) ||
-                            (subNameNorm.includes('chem') && kNorm.includes('chem')) ||
-                            (subNameNorm.includes('phy') && kNorm.includes('phy'))
-                        );
+            if (classRows.length > 0) {
+                const activeSubjIds = new Set<string>();
+                candidateList.forEach(sub => {
+                    const hasDataInRows = classRows.some(stRow => {
+                        return Object.entries(stRow).some(([k, val]) => {
+                            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo'].includes(k)) return false;
+                            if (val === null || val === undefined || val === '') return false;
+                            if (typeof val === 'number' && val >= 0) {
+                                return isSubjectKeyMatch(k, sub);
+                            }
+                            return false;
+                        });
                     });
+
+                    if (hasDataInRows) {
+                        activeSubjIds.add(sub.id);
+                    }
                 });
 
-                if (hasDataInRows) {
-                    activeSubjIds.add(sub.id);
+                if (activeSubjIds.size > 0) {
+                    return candidateList.filter(sub => activeSubjIds.has(sub.id));
                 }
-            });
-
-            if (activeSubjIds.size > 0) {
-                return candidateList.filter(sub => activeSubjIds.has(sub.id));
             }
         }
 
-        // 4. Default for Grade 6 / Primary when no explicit marks exist yet: primary subjects
-        if (isPrimarySchool) {
-            const primaryKeywords = ['math', 'eng', 'kisw', 'sci', 'env', 'agri', 'cre', 'art', 'social'];
-            const primarySubs = candidateList.filter(sub => {
-                const n = (sub.name || '').toLowerCase();
-                return primaryKeywords.some(kw => n.includes(kw));
-            });
-            if (primarySubs.length > 0) return primarySubs;
-        }
-
         return candidateList;
-    }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool, selectedYearGroup]);
-
-
+    }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool, selectedYearGroup, classAllocationsStore]);
 
     // Student broadsheet list (combining real saved marks and student registry)
     const sampleStudents = useMemo(() => {
@@ -560,28 +612,15 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             let totalPts = 0;
             let validCount = 0;
 
-            broadsheetSubjects.forEach((sub, sIdx) => {
+            broadsheetSubjects.forEach(sub => {
                 let sc = 0;
                 let hasMark = false;
 
-                const subName = sub.name || (sub as any).title || '';
-                const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                const subNameNorm = subName.toLowerCase().replace(/[^a-z0-9]/g, '');
-
                 Object.entries(stRow).forEach(([k, val]) => {
                     if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo'].includes(k)) return;
-                    if (typeof val !== 'number' || isNaN(val)) return;
+                    if (val === null || val === undefined || val === '' || isNaN(val as any)) return;
 
-                    const kNorm = k.toLowerCase();
-                    const isMatch =
-                        kNorm.includes(sClean) ||
-                        (subNameNorm.length >= 3 && kNorm.includes(subNameNorm)) ||
-                        (subNameNorm.includes('math') && (kNorm.includes('math') || kNorm.includes('mathp1') || kNorm.includes('mathp2'))) ||
-                        (subNameNorm.includes('eng') && (kNorm.includes('eng') || kNorm.includes('engp1') || kNorm.includes('engp2'))) ||
-                        (subNameNorm.includes('kisw') && (kNorm.includes('kisw') || kNorm.includes('kiswp1'))) ||
-                        (subNameNorm.includes('bio') && (kNorm.includes('bio') || kNorm.includes('biop1')));
-
-                    if (isMatch) {
+                    if (typeof val === 'number' && isSubjectKeyMatch(k, sub)) {
                         sc += val;
                         hasMark = true;
                     }
@@ -608,7 +647,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     studentClass: realClass
                 },
                 kcpe: 250 + (idx * 5) % 150,
-                entry: broadsheetSubjects.length || 8,
+                entry: validCount > 0 ? validCount : (broadsheetSubjects.length || 1),
                 subjectMarksMap,
                 total,
                 meanScore,
