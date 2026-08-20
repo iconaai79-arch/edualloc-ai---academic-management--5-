@@ -457,6 +457,19 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                     />
                 )}
 
+                {activeSubTab === 'result_slips' && (
+                    <OfficialResultSlipView
+                        assessments={effectiveAssessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
                 {activeSubTab === 'broadsheet' && (
                     <BroadsheetReportView
                         assessments={effectiveAssessments}
