@@ -18,7 +18,8 @@ CREATE INDEX IF NOT EXISTS idx_student_subject_exemptions_key ON public.student_
 -- Enable Row Level Security
 ALTER TABLE public.student_subject_exemptions ENABLE ROW LEVEL SECURITY;
 
--- Public service access policy
+-- Public service access policy (with idempotent drop)
+DROP POLICY IF EXISTS "Allow all operations on student_subject_exemptions" ON public.student_subject_exemptions;
 CREATE POLICY "Allow all operations on student_subject_exemptions"
 ON public.student_subject_exemptions
 FOR ALL
