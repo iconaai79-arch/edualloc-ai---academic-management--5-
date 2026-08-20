@@ -466,7 +466,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
-        // 1. PRIMARY Authority: Persistent Per-Class Allocations Store (configured in Manage Subjects per Class Stream / Lessons & Allocation)
+        // 1. Exam Papers Settings Configurations (currentInstitution.classExamConfigs / class_exam_configs)
+        let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
+        if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
+            try {
+                const savedLocalInst = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
+                if (savedLocalInst) {
+                    const parsed = JSON.parse(savedLocalInst);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        savedConfigs = parsed;
+                    }
+                }
+            } catch (e) { }
+        }
+
+        // 2. PRIMARY Authority: Persistent Per-Class Allocations Store (configured in Manage Subjects per Class Stream / Lessons & Allocation)
         const activeClassAllocationsStore: Record<string, string[]> = (() => {
             try {
                 const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
@@ -551,20 +565,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     return;
                 }
             }
-        }
-
-        // 2. SECONDARY Authority: Configurations from Exam Papers Settings (currentInstitution.classExamConfigs / class_exam_configs)
-        let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
-        if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
-            try {
-                const savedLocalInst = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
-                if (savedLocalInst) {
-                    const parsed = JSON.parse(savedLocalInst);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        savedConfigs = parsed;
-                    }
-                }
-            } catch (e) { }
         }
 
         const matchClassConfig = (c: any, targets: string[]) => {

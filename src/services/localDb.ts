@@ -55,6 +55,10 @@ class LocalDb {
         });
     }
 
+    async upsert(storeName: string, item: any): Promise<void> {
+        return this.put(storeName, item);
+    }
+
     async get(storeName: string, id: string): Promise<any> {
         const db = await this.getDB();
         return new Promise((resolve, reject) => {

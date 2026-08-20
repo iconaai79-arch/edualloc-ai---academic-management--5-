@@ -882,10 +882,10 @@ export const apiService = {
         return apiService.runMigration(sql);
     },
     async uploadFile(bucketOrFile: string | File, pathOrBucket: string, fileOrPath?: File | string, contentType?: string): Promise<string | null> {
+        let file: File | undefined;
         try {
             let activeBucket = 'eduai';
             let path = '';
-            let file: File;
 
             // Parameter normalization if called as uploadFile(file, bucket, path) or uploadFile(bucket, path, file)
             if (bucketOrFile instanceof File || (bucketOrFile && typeof (bucketOrFile as any).name === 'string' && (bucketOrFile as any).size !== undefined)) {
@@ -908,7 +908,7 @@ export const apiService = {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(file);
+                    reader.readAsDataURL(file!);
                 });
             }
 
@@ -941,7 +941,7 @@ export const apiService = {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(file);
+                    reader.readAsDataURL(file!);
                 });
             }
 
@@ -959,11 +959,13 @@ export const apiService = {
             const errMsg = String(err.message || err);
             if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('fetch failed')) {
                 console.warn(`[Storage] Supabase host unreachable during upload exception. Falling back to local Base64 storage.`);
-                return new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result as string);
-                    reader.readAsDataURL(file);
-                });
+                if (file) {
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.readAsDataURL(file!);
+                    });
+                }
             }
             alert(`Upload Service Exception: ${err.message || 'Unknown error'}`);
             return null;
@@ -2715,6 +2717,9 @@ export const apiService = {
             return { success: false, message: "Database service (Supabase) not initialized. Live SMS requires an active backend." };
         }
 
+        const session = apiService.getSession();
+        const effectiveInstId = institutionId || session?.institutionId || (session as any)?.institution_id;
+
         try {
             const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
             let token = data?.session?.access_token;
@@ -2734,7 +2739,6 @@ export const apiService = {
                 if (authToken) {
                     token = authToken;
                 } else {
-                    const session = apiService.getSession();
                     if (session?.id) token = session.id;
                 }
             }
@@ -2751,7 +2755,7 @@ export const apiService = {
                     message, 
                     config, 
                     units, 
-                    institutionId 
+                    institutionId: effectiveInstId 
                 })
             });
 
@@ -2777,12 +2781,12 @@ export const apiService = {
                 )
             );
 
-            if (institutionId && !isSystemAlert && (isLowSmsError || response.ok)) {
+            if (effectiveInstId && !isSystemAlert && (isLowSmsError || response.ok)) {
                 // Asynchronously check balance and alert admin if needed
                 (async () => {
                     try {
                         const instList = await apiService.fetchModuleRecords('institutions', undefined, undefined, { 
-                            filter: { id: institutionId } 
+                            filter: { id: effectiveInstId } 
                         });
                         const inst = instList?.[0];
                         if (inst) {
@@ -2802,7 +2806,7 @@ export const apiService = {
                                 if (inst.phoneNumber) adminPhones.push(inst.phoneNumber);
 
                                 const adminUsers = await apiService.fetchModuleRecords('users', undefined, undefined, {
-                                    filter: { institution_id: institutionId, role: 'admin' }
+                                    filter: { institution_id: effectiveInstId, role: 'admin' }
                                 }).catch(() => []);
 
                                 (adminUsers || []).forEach((u: any) => {
@@ -2823,7 +2827,7 @@ export const apiService = {
                                         `ALERT: Your account SMS balance is low (${smsBalance} units left). Please purchase more units to avoid service disruptions.`, 
                                         undefined, 
                                         1, 
-                                        institutionId, 
+                                        effectiveInstId, 
                                         undefined, 
                                         true
                                     ).catch(() => {});
@@ -2845,7 +2849,19 @@ export const apiService = {
                 };
             }
 
-            if (response.ok && institutionId && !isSystemAlert) {
+            if (response.ok && effectiveInstId && !isSystemAlert) {
+                // Invalidate institution cache so subsequent reads get the updated balance
+                invalidateModuleCache('institutions');
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('eduai_sms_balance_updated', {
+                        detail: {
+                            institutionId: effectiveInstId,
+                            remainingBalance: resData.remainingBalance,
+                            unitsDeducted: resData.unitsDeducted
+                        }
+                    }));
+                }
+
                 const recipientsList = Array.isArray(formattedRecipient)
                     ? formattedRecipient.filter(Boolean).join(', ')
                     : String(formattedRecipient || '').trim();
@@ -2853,7 +2869,7 @@ export const apiService = {
                 if (recipientsList) {
                     apiService.saveModuleRecord('sms_logs', {
                         id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                        institutionId: institutionId,
+                        institutionId: effectiveInstId,
                         recipient: recipientsList,
                         recipients: recipientsList,
                         message: message,

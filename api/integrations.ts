@@ -100,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const subject = getParam('subject');
     const amountStr = getParam('amount');
     const amount = amountStr ? parseFloat(amountStr) : 0;
-    const institutionIdOverride = getParam('institutionId');
+    const institutionIdOverride = getParam('institutionId') || getParam('institution_id') || getParam('instId') || getParam('inst_id');
     const unitsParam = getParam('units');
     const unitsToDeduct = unitsParam ? parseInt(unitsParam) : 1;
     const bodyConfig = paramsMap.config;
@@ -282,13 +282,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (targetUser) {
                     console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient} (Match: ${targetUser.id})`);
-                    // Create a system context but preserve the original role for configuration selection
-                    user = { ...targetUser, id: 'system', originalRole: targetUser.role };
+                    // Create a system context but preserve the original role and institution ID for configuration and deduction
+                    user = {
+                        ...targetUser,
+                        id: 'system',
+                        originalRole: targetUser.role,
+                        institutionId: targetUser.institution_id || targetUser.institutionId || institutionIdOverride,
+                        institution_id: targetUser.institution_id || targetUser.institutionId || institutionIdOverride
+                    };
                     authError = null;
                 } else if (isSystemMessage) {
                     // Critical fix: Allow OTPs/Recovery links even if user lookup fails
                     console.log(`[Auth Bridge] Generic system bypass granted for ${action} to ${recipient}`);
-                    user = { id: 'system', role: 'system', user_metadata: { institutionId: 'SYSTEM' } };
+                    user = {
+                        id: 'system',
+                        role: 'system',
+                        institutionId: institutionIdOverride || 'SYSTEM',
+                        institution_id: institutionIdOverride || 'SYSTEM',
+                        user_metadata: { institutionId: institutionIdOverride || 'SYSTEM' }
+                    };
                     authError = null;
                 } else if (action === 'forgotPassword') {
                     return res.status(404).json({ 
@@ -628,9 +640,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system SMS.' });
             }
 
-            // SMS Balance Check Logic (OTPs bypass this check and are free)
-            const institutionId = institutionIdOverride || user.user_metadata?.institutionId ||
-                (user.role === 'super_admin' ? (paramsMap.institutionId || 'SYSTEM') : (user.institution_id || user.institutionId || 'SYSTEM'));
+            // SMS Balance Check & Deduction Logic:
+            // Ensure tenant institution ID is prioritized over generic system fallback
+            const institutionId = (institutionIdOverride && institutionIdOverride !== 'SYSTEM' && institutionIdOverride !== 'GLOBAL')
+                ? institutionIdOverride
+                : (user.institution_id || user.institutionId || user.user_metadata?.institutionId ||
+                   (user.role === 'super_admin' ? (paramsMap.institutionId || paramsMap.institution_id || 'SYSTEM') : 'SYSTEM'));
 
             console.log(`[SMS Gateway] Target Institution: ${institutionId}`);
 
@@ -657,26 +672,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const recipientCount = normalizedRecipients.length;
             const totalUnitsToDeduct = unitsToDeduct * recipientCount;
 
-            // Define transactional/system messages that can consume the systemSmsBalance
-            const isPropertySystemSms = isSystemMessage || 
-                msgLower.includes('rent invoice') || 
-                msgLower.includes('rent arrears') ||
-                msgLower.includes('invoice #') || 
-                msgLower.includes('payment receipt') || 
-                msgLower.includes('payment notification') || 
-                msgLower.includes('payment reminder') || 
-                msgLower.includes('payment received') ||
-                msgLower.includes('payment of kes') ||
-                msgLower.includes('credentials');
-
             let instBalance = 0;
             let instConfig: any = {};
             let systemSmsBal = 0;
             let deductedFromSystem = 0;
-            let deductedFromGeneral = 0;
+            let deductedFromGeneral = totalUnitsToDeduct;
 
-            // Load institution-specific config if available and not overridden by explicit body config
-            if (institutionId !== 'SYSTEM') {
+            // Load institution-specific config and verify balance
+            if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
                 const { data: institution, error: configError } = await supabase
                     .from('institutions')
                     .select('sms_balance, smsBalance, sms_config, smsConfig')
@@ -688,25 +691,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     instConfig = institution.sms_config || institution.smsConfig || {};
                     systemSmsBal = instConfig.systemSmsBalance || 0;
 
-                    if (isPropertySystemSms) {
+                    // Property bonus units logic (applies exclusively if tenant has systemSmsBalance and is a rent notification)
+                    const isPropertyBonusSms = (msgLower.includes('rent invoice') || msgLower.includes('rent arrears')) && systemSmsBal > 0;
+                    if (isPropertyBonusSms) {
                         if (systemSmsBal >= totalUnitsToDeduct) {
                             deductedFromSystem = totalUnitsToDeduct;
+                            deductedFromGeneral = 0;
                         } else {
                             deductedFromSystem = systemSmsBal;
                             deductedFromGeneral = totalUnitsToDeduct - systemSmsBal;
                         }
                     } else {
                         deductedFromGeneral = totalUnitsToDeduct;
+                        deductedFromSystem = 0;
                     }
 
-                    const availableTotal = instBalance + systemSmsBal;
-
-                    // Check balance for non-system messages, or system messages if they exceed the allocated system balance
-                    if (user.id !== 'system' && availableTotal < totalUnitsToDeduct) {
+                    // For non-system administrative messages, verify tenant has sufficient SMS balance
+                    if (user.id !== 'system' && !isSystemMessage && instBalance < totalUnitsToDeduct) {
                         return res.status(402).json({
                             success: false,
-                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${availableTotal}.`,
-                            balance: availableTotal,
+                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${instBalance}.`,
+                            balance: instBalance,
                             required: totalUnitsToDeduct,
                             buy_url: '/settings?tab=billing'
                         });
@@ -860,7 +865,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Deduct balance and Log (simplified for bulk)
-                if (institutionId && institutionId !== 'SYSTEM' && !isSystemMessage) {
+                let remainingBalance = instBalance;
+                if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
                     if (deductedFromSystem > 0) {
                         const newSystemBal = Math.max(0, (instConfig.systemSmsBalance || 0) - deductedFromSystem);
                         const updatedConfig = { ...instConfig, systemSmsBalance: newSystemBal };
@@ -884,12 +890,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 .maybeSingle();
                             if (currInst) {
                                 const currentBal = currInst.sms_balance ?? currInst.smsBalance ?? 0;
-                                const newBal = Math.max(0, currentBal - deductedFromGeneral);
+                                remainingBalance = Math.max(0, currentBal - deductedFromGeneral);
                                 await supabase
                                     .from('institutions')
-                                    .update({ sms_balance: newBal, smsBalance: newBal })
+                                    .update({ sms_balance: remainingBalance, smsBalance: remainingBalance })
                                     .eq('id', institutionId);
                             }
+                        } else {
+                            remainingBalance = Math.max(0, instBalance - deductedFromGeneral);
                         }
                     }
 
@@ -908,7 +916,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 batch_count: Math.ceil(normalizedRecipients.length / batchSize), 
                                 success_batches: successBatchCount,
                                 deducted_from_system: deductedFromSystem,
-                                deducted_from_general: deductedFromGeneral
+                                deducted_from_general: deductedFromGeneral,
+                                remaining_balance: remainingBalance
                             }
                         });
                     } catch (logErr) {
@@ -919,7 +928,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({
                     success: true,
                     message: `Bulk SMS processing complete. Successfully dispatched ${successBatchCount} of ${Math.ceil(normalizedRecipients.length / batchSize)} batches.`,
-                    recipient_count: normalizedRecipients.length
+                    recipient_count: normalizedRecipients.length,
+                    remainingBalance,
+                    unitsDeducted: totalUnitsToDeduct
                 });
             } else if (provider === 'Sematime') {
                 const accId = smsConfig.accountId || smsConfig.userId || smsConfig.apiKey || '';
@@ -998,7 +1009,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Deduct balance and Log
-                if (institutionId && institutionId !== 'SYSTEM' && !isSystemMessage) {
+                let remainingBalance = instBalance;
+                if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
                     const supabase = getSupabase();
                     if (supabase) {
                         if (deductedFromSystem > 0) {
@@ -1024,12 +1036,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     .maybeSingle();
                                 if (currInst) {
                                     const currentBal = currInst.sms_balance ?? currInst.smsBalance ?? 0;
-                                    const newBal = Math.max(0, currentBal - deductedFromGeneral);
+                                    remainingBalance = Math.max(0, currentBal - deductedFromGeneral);
                                     await supabase
                                         .from('institutions')
-                                        .update({ sms_balance: newBal, smsBalance: newBal })
+                                        .update({ sms_balance: remainingBalance, smsBalance: remainingBalance })
                                         .eq('id', institutionId);
                                 }
+                            } else {
+                                remainingBalance = Math.max(0, instBalance - deductedFromGeneral);
                             }
                         }
 
@@ -1047,19 +1061,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     batch_count: Math.ceil(normalizedRecipients.length / batchSize), 
                                     success_batches: successBatchCount,
                                     deducted_from_system: deductedFromSystem,
-                                    deducted_from_general: deductedFromGeneral
+                                    deducted_from_general: deductedFromGeneral,
+                                    remaining_balance: remainingBalance
                                 }
                             });
                         } catch (logErr) {
-                            console.error('[Sematime Logging] Failed to record log:', logErr);
+                            console.error('[SMS Logging] Failed to record Sematime log:', logErr);
                         }
                     }
                 }
 
                 return res.status(200).json({
                     success: true,
-                    message: `Sematime processing complete. Successfully dispatched ${successBatchCount} of ${Math.ceil(normalizedRecipients.length / batchSize)} batches.`,
-                    recipient_count: normalizedRecipients.length
+                    message: `Sematime dispatch successful (${successBatchCount} batches sent).`,
+                    recipient_count: normalizedRecipients.length,
+                    remainingBalance,
+                    unitsDeducted: totalUnitsToDeduct
                 });
             }
 
@@ -1332,6 +1349,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const urlParams = new URLSearchParams(finalParams);
                         await fetchWithTimeout(`${baseUrl}?${urlParams.toString()}`, { method: 'GET' });
                     }
+
+                    // Deduct 1 unit from the user's institution SMS balance and log
+                    const targetInstId = targetUser.institution_id || targetUser.institutionId || institutionIdOverride;
+                    if (targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL') {
+                        const { error: rpcErr } = await supabase.rpc('decrement_sms_balance', { inst_id: targetInstId, amount: 1 });
+                        if (rpcErr) {
+                            const { data: currInst } = await supabase
+                                .from('institutions')
+                                .select('sms_balance')
+                                .eq('id', targetInstId)
+                                .maybeSingle();
+                            if (currInst) {
+                                const currentBal = currInst.sms_balance ?? 0;
+                                await supabase
+                                    .from('institutions')
+                                    .update({ sms_balance: Math.max(0, currentBal - 1) })
+                                    .eq('id', targetInstId);
+                            }
+                        }
+                        try {
+                            await supabase.from('sms_logs').insert({
+                                id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                                institution_id: targetInstId,
+                                sender_id: targetUser.id,
+                                recipient: phone,
+                                message: 'Password Reset OTP',
+                                units: 1,
+                                status: 'sent',
+                                provider: provider
+                            });
+                        } catch (logErr) {
+                            console.error('[SMS Logging] Failed to record OTP SMS log:', logErr);
+                        }
+                    }
+
                     return res.status(200).json({ success: true, message: 'Verification code sent to your phone.' });
                 } catch (e: any) {
                     return res.status(502).json({ success: false, message: 'Verification code generated but SMS delivery failed.', hint: e.message });
