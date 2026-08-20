@@ -69,7 +69,40 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         [isPrimarySchool]
     );
 
-    // DB Hydration for classes, courses, levels, and allocations
+    // Class name canonicalization to prevent duplicates like 'pp1' and 'PP1'
+    const canonicalizeClassName = (raw: string): string => {
+        if (!raw) return '';
+        const clean = raw.trim();
+        const lower = clean.toLowerCase();
+
+        // Standardize PP1, PP2, Playgroup
+        if (lower === 'pp1' || lower === 'pre-primary 1' || lower === 'preprimary 1' || lower === 'pre primary 1' || lower === 'pre-primary1' || lower === 'pre primary1') return 'PP1';
+        if (lower === 'pp2' || lower === 'pre-primary 2' || lower === 'preprimary 2' || lower === 'pre primary 2' || lower === 'pre-primary2' || lower === 'pre primary2') return 'PP2';
+        if (lower === 'playgroup' || lower === 'play group' || lower === 'daycare' || lower === 'baby class') return 'Playgroup';
+
+        // Standardize Grade X [Stream]
+        const gMatch = lower.match(/^(?:grade|std|standard|class)\s*(\d+)(?:\s*(.+))?$/i);
+        if (gMatch) {
+            const num = gMatch[1];
+            const stream = gMatch[2] ? ` ${gMatch[2].trim().toUpperCase()}` : '';
+            return `Grade ${num}${stream}`;
+        }
+
+        // Standardize Form X [Stream]
+        const fMatch = lower.match(/^(?:form)\s*(\d+)(?:\s*(.+))?$/i);
+        if (fMatch) {
+            const num = fMatch[1];
+            const stream = fMatch[2] ? ` ${fMatch[2].trim().toUpperCase()}` : '';
+            return `Form ${num}${stream}`;
+        }
+
+        if (/^pp\s*1$/i.test(clean)) return 'PP1';
+        if (/^pp\s*2$/i.test(clean)) return 'PP2';
+
+        return clean;
+    };
+
+    // DB Hydration for classes, courses, levels, exam configs, and allocations
     const [fetchedLevels, setFetchedLevels] = useState<any[]>([]);
     const [fetchedCourses, setFetchedCourses] = useState<any[]>([]);
     const [fetchedEnrollments, setFetchedEnrollments] = useState<any[]>([]);
@@ -86,6 +119,19 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         return (currentInstitution as any)?.classSubjectAllocations || {};
     });
 
+    const [classExamConfigsStore, setClassExamConfigsStore] = useState<any[]>(() => {
+        try {
+            const instId = currentInstitution?.id || 'default_inst';
+            const saved = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch(e) {}
+        const cConfigs = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
+        return Array.isArray(cConfigs) ? cConfigs : [];
+    });
+
     const loadAllAcademicsData = () => {
         if (!currentInstitution?.id) return;
         const instId = currentInstitution.id;
@@ -95,8 +141,9 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             apiService.fetchModuleRecords<any>('courses', instId).catch(() => []),
             apiService.fetchModuleRecords<any>('student_enrollments', instId).catch(() => []),
             apiService.fetchModuleRecords<any>('subject_allocations', instId).catch(() => []),
-            apiService.fetchModuleRecords<any>('class_subject_allocations', instId).catch(() => [])
-        ]).then(([lvlRecs, courseRecs, enrRecs, allocRecs, classAllocRecs]) => {
+            apiService.fetchModuleRecords<any>('class_subject_allocations', instId).catch(() => []),
+            apiService.fetchModuleRecords<any>('class_exam_configs', instId).catch(() => [])
+        ]).then(([lvlRecs, courseRecs, enrRecs, allocRecs, classAllocRecs, examConfigRecs]) => {
             if (lvlRecs && lvlRecs.length > 0) setFetchedLevels(lvlRecs);
             if (courseRecs && courseRecs.length > 0) setFetchedCourses(courseRecs);
             if (enrRecs && enrRecs.length > 0) setFetchedEnrollments(enrRecs);
@@ -113,6 +160,10 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             if (match && match.allocations) {
                 setClassAllocationsStore(prev => ({ ...match.allocations, ...prev }));
             }
+
+            if (examConfigRecs && examConfigRecs.length > 0) {
+                setClassExamConfigsStore(examConfigRecs);
+            }
         }).catch(() => {});
     };
 
@@ -123,10 +174,15 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             loadAllAcademicsData();
             try {
                 const instId = currentInstitution?.id || 'default_inst';
-                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
-                if (saved) {
-                    const parsed = JSON.parse(saved);
+                const savedAlloc = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (savedAlloc) {
+                    const parsed = JSON.parse(savedAlloc);
                     if (parsed && typeof parsed === 'object') setClassAllocationsStore(parsed);
+                }
+                const savedExamConf = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
+                if (savedExamConf) {
+                    const parsed = JSON.parse(savedExamConf);
+                    if (Array.isArray(parsed)) setClassExamConfigsStore(parsed);
                 }
             } catch(e) {}
         };
@@ -135,25 +191,43 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         return () => window.removeEventListener('eduai_academics_synced', handleSync);
     }, [currentInstitution?.id]);
 
-    // Dynamically compute configured classes from all available sources
+    // Dynamically compute configured classes from all available sources with case-insensitive canonical deduplication
     const configuredClasses = useMemo(() => {
-        const set = new Set<string>();
+        const classMap = new Map<string, string>();
+
+        const addClass = (raw: string) => {
+            if (!raw || typeof raw !== 'string') return;
+            const clean = raw.trim();
+            if (!clean || clean.startsWith('lvl_') || clean.startsWith('c_')) return;
+
+            // Ignore standalone stream names without grade prefix
+            const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c', 'a', 'b', 'c', 'd']);
+            if (standaloneStreams.has(clean.toLowerCase())) return;
+
+            const canonical = canonicalizeClassName(clean);
+            const key = canonical.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!key) return;
+
+            // Prefer uppercase/capitalized canonical forms
+            if (!classMap.has(key) || /^[A-Z]/.test(canonical)) {
+                classMap.set(key, canonical);
+            }
+        };
 
         // 1. From academicLevels prop & DB
         [...(academicLevels || []), ...fetchedLevels].forEach(l => {
             const name = typeof l === 'string' ? l : (l.name || l.title || l.code);
-            if (name && typeof name === 'string') set.add(name.trim());
+            if (name) addClass(name);
         });
 
         // 2. From courses prop & DB
         [...(courses || []), ...fetchedCourses].forEach(c => {
             const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
-            if (name && typeof name === 'string') set.add(name.trim());
+            if (name) addClass(name);
             if (c.levels && Array.isArray(c.levels)) {
                 c.levels.forEach((l: any) => {
                     if (l && l.name) {
-                        set.add(`${(c.name || '').trim()} (${l.name.trim()})`);
-                        set.add(`${(c.name || '').trim()} ${l.name.trim()}`);
+                        addClass(`${(c.name || '').trim()} ${l.name.trim()}`);
                     }
                 });
             }
@@ -162,27 +236,30 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
         // 3. From users & student enrollments
         [...(users || []), ...fetchedEnrollments].forEach(u => {
             const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).className || (u as any).class || (u as any).grade || u.metadata?.studentClass || u.metadata?.gradeLevel;
-            if (cl && typeof cl === 'string' && cl.trim() && !cl.startsWith('lvl_') && !cl.startsWith('c_')) {
-                set.add(cl.trim());
-            }
+            if (cl) addClass(cl);
         });
 
         // 4. From class_subject_allocations keys
         Object.keys(classAllocationsStore || {}).forEach(k => {
-            if (k && typeof k === 'string' && k.trim()) set.add(k.trim());
+            if (k) addClass(k);
         });
 
-        // 5. From DB subject allocations
+        // 5. From class_exam_configs
+        classExamConfigsStore.forEach(conf => {
+            if (conf.className) addClass(conf.className);
+            if (conf.classId && !conf.classId.startsWith('cls_')) addClass(conf.classId);
+        });
+
+        // 6. From DB subject allocations
         dbAllocations.forEach(a => {
-            if (a.className && a.className.trim()) set.add(a.className.trim());
+            if (a.className) addClass(a.className);
         });
 
-        // 6. Ensure standard Kenya CBC / 8-4-4 grades are available
+        // 7. Ensure standard Kenya CBC / 8-4-4 grades are available
         const defaultCBC = ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
-        defaultCBC.forEach(c => set.add(c));
+        defaultCBC.forEach(c => addClass(c));
 
-        const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
-        const validList = Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
+        const validList = Array.from(classMap.values());
 
         // Sort smartly by grade sequence
         return validList.sort((a, b) => {
@@ -201,7 +278,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             if (rankA !== rankB) return rankA - rankB;
             return a.localeCompare(b);
         });
-    }, [academicLevels, fetchedLevels, courses, fetchedCourses, users, fetchedEnrollments, classAllocationsStore, dbAllocations]);
+    }, [academicLevels, fetchedLevels, courses, fetchedCourses, users, fetchedEnrollments, classAllocationsStore, classExamConfigsStore, dbAllocations]);
 
     // Collapsible tree node expand state
     const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>(() => {
@@ -245,20 +322,69 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
 
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-    // Per-class subject resolver: multi-source merge
-    // Source 0: Persistent class-subject allocations store (classAllocationsStore from DB / modal)
-    // Source 1: Subjects with targetClasses / assignedClasses matching the class
-    // Source 2: DB subject_allocations records
-    // Source 3: Course level subject links
-    // Source 4: Grade applicability rules
+    // Per-class subject resolver with STRICT allocation precedence:
+    // 1. If Exam Paper Configs exist for this class (from Subjects Papers), return exact configured subjects & papers.
+    // 2. Else if Subject Allocations exist for this class (from Class Subject Allocation Manager), return only allocated subjects.
+    // 3. Else if DB subject_allocations exist, return only those.
+    // 4. Else if subjects have explicit targetClasses matching this class, return only those.
+    // 5. Fallback only if no explicit allocations exist at all.
     const getSubjectsForClass = useMemo(() => {
-        return (cName: string): Array<{ name: string; code: string }> => {
-            const seenNames = new Set<string>();
-            const result: Array<{ name: string; code: string }> = [];
-            const clsLower = (cName || '').toLowerCase().trim();
+        return (cName: string): Array<{ name: string; code: string; paperName?: string }> => {
+            const seenKeys = new Set<string>();
+            const result: Array<{ name: string; code: string; paperName?: string }> = [];
+            const clsClean = (cName || '').trim();
+            const clsLower = clsClean.toLowerCase();
+            const clsNorm = clsLower.replace(/[^a-z0-9]/g, '');
 
-            // 0. From classAllocationsStore (Explicit ground truth allocations)
-            const storedAllocations = classAllocationsStore[cName] || classAllocationsStore[clsLower] || [];
+            const addEntry = (name: string, code: string = '', paperName?: string) => {
+                const trimmedName = (name || '').trim();
+                if (!trimmedName) return;
+                const uniqueKey = `${trimmedName.toLowerCase()}_${(paperName || '').toLowerCase()}`;
+                if (!seenKeys.has(uniqueKey)) {
+                    seenKeys.add(uniqueKey);
+                    result.push({
+                        name: trimmedName,
+                        code: code || '',
+                        paperName
+                    });
+                }
+            };
+
+            // --- PRIORITY 1: From classExamConfigsStore (Subjects Papers / Exam Paper Configs) ---
+            const matchedExamConf = classExamConfigsStore.find(conf => {
+                if (!conf) return false;
+                const confNameNorm = (conf.className || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const confIdNorm = (conf.classId || '').toLowerCase().replace(/^cls_/, '').replace(/[^a-z0-9]/g, '');
+                return confNameNorm === clsNorm || confIdNorm === clsNorm;
+            });
+
+            if (matchedExamConf && Array.isArray(matchedExamConf.subjects) && matchedExamConf.subjects.length > 0) {
+                matchedExamConf.subjects.forEach((s: any) => {
+                    const sName = s.subjectName || s.name || '';
+                    const sCode = s.subjectCode || s.code || '';
+                    if (Array.isArray(s.papers) && s.papers.length > 1) {
+                        s.papers.forEach((p: any, pIdx: number) => {
+                            const pName = p.name || `Paper ${pIdx + 1}`;
+                            addEntry(`${sName} - ${pName}`, sCode, pName);
+                        });
+                    } else if (Array.isArray(s.papers) && s.papers.length === 1) {
+                        const pName = s.papers[0].name || '';
+                        addEntry(pName && pName !== 'Paper 1' ? `${sName} (${pName})` : sName, sCode);
+                    } else {
+                        addEntry(sName, sCode);
+                    }
+                });
+
+                if (result.length > 0) return result;
+            }
+
+            // --- PRIORITY 2: From classAllocationsStore (Subject Allocation Manager) ---
+            const allocKey = Object.keys(classAllocationsStore || {}).find(k => {
+                const kNorm = (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return kNorm === clsNorm || k.toLowerCase().trim() === clsLower;
+            });
+
+            const storedAllocations = allocKey ? classAllocationsStore[allocKey] : null;
             if (Array.isArray(storedAllocations) && storedAllocations.length > 0) {
                 storedAllocations.forEach(subIdentifier => {
                     if (!subIdentifier) return;
@@ -269,46 +395,70 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
                         (s.code || '').toLowerCase().trim() === cleanSubId.toLowerCase()
                     );
                     const finalName = matchedSub?.name || cleanSubId;
-                    const finalKey = finalName.toLowerCase().trim();
-                    if (finalKey && !seenNames.has(finalKey)) {
-                        seenNames.add(finalKey);
-                        result.push({
-                            name: finalName,
-                            code: matchedSub?.code || ''
+                    const finalCode = matchedSub?.code || '';
+
+                    if (matchedSub && Array.isArray((matchedSub as any).papers) && (matchedSub as any).papers.length > 1) {
+                        (matchedSub as any).papers.forEach((p: any, pIdx: number) => {
+                            const pName = p.name || `Paper ${pIdx + 1}`;
+                            addEntry(`${finalName} - ${pName}`, finalCode, pName);
                         });
+                    } else {
+                        addEntry(finalName, finalCode);
                     }
                 });
+
+                if (result.length > 0) return result;
             }
 
-            // 1. From subjects with targetClasses / CBC fallback
+            // --- PRIORITY 3: From DB subject_allocations records ---
+            const dbMatches = dbAllocations.filter(a => {
+                const dbNorm = (a.className || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return dbNorm === clsNorm || a.className.toLowerCase().trim() === clsLower;
+            });
+
+            if (dbMatches.length > 0) {
+                dbMatches.forEach(a => {
+                    if (a.subjectName) {
+                        const matched = (subjects || []).find((s: any) =>
+                            (s.name || '').toLowerCase().trim() === a.subjectName.toLowerCase().trim()
+                        );
+                        addEntry(matched?.name || a.subjectName, a.subjectCode || matched?.code || '');
+                    }
+                });
+                if (result.length > 0) return result;
+            }
+
+            // --- PRIORITY 4: From subjects with explicit targetClasses matching this class ---
+            const explicitTargetSubjects = (subjects || []).filter((s: any) => {
+                const targetCls = s.targetClasses || s.assignedClasses || s.classes;
+                if (Array.isArray(targetCls) && targetCls.length > 0) {
+                    return targetCls.some((tc: string) => {
+                        const tcNorm = (tc || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return tcNorm === clsNorm || tc.toLowerCase().trim() === clsLower;
+                    });
+                }
+                return false;
+            });
+
+            if (explicitTargetSubjects.length > 0) {
+                explicitTargetSubjects.forEach((s: any) => {
+                    const sName = (s.name || s.title || '').trim();
+                    addEntry(sName, s.code || '');
+                });
+                if (result.length > 0) return result;
+            }
+
+            // --- PRIORITY 5: Fallback only if NO explicit allocations exist ---
             (subjects || []).forEach((s: any) => {
                 const sName = (s.name || s.title || '').trim();
-                const sNameKey = sName.toLowerCase();
-                if (sNameKey && !seenNames.has(sNameKey) && isSubjectAssignedToClassStream(s, cName, courses)) {
-                    seenNames.add(sNameKey);
-                    result.push({ name: sName, code: s.code || '' });
+                if (sName && isSubjectAssignedToClassStream(s, cName, courses)) {
+                    addEntry(sName, s.code || '');
                 }
             });
 
-            // 2. From DB subject_allocations records
-            dbAllocations
-                .filter(a => a.className.toLowerCase().trim() === clsLower)
-                .forEach(a => {
-                    if (a.subjectName && !seenNames.has(a.subjectName)) {
-                        seenNames.add(a.subjectName);
-                        const matched = (subjects || []).find((s: any) =>
-                            (s.name || '').toLowerCase().trim() === a.subjectName
-                        );
-                        result.push({
-                            name: matched?.name || a.subjectName,
-                            code: a.subjectCode || matched?.code || ''
-                        });
-                    }
-                });
-
             return result;
         };
-    }, [subjects, courses, dbAllocations, classAllocationsStore]);
+    }, [subjects, courses, dbAllocations, classAllocationsStore, classExamConfigsStore]);
 
     const loadedInstIdRef = React.useRef<string | null>(null);
 
@@ -377,9 +527,10 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             type = 'overall';
         } else if (selectedNodeId.includes('_sub_')) {
             const parts = selectedNodeId.split('_sub_');
-            const subPart = parts[1] ? parts[1].replace(/_/g, ' ') : 'Subject';
-            label = subPart.toUpperCase();
-            title = `${subPart.toUpperCase()} GRADING SYSTEM`;
+            const classPart = parts[0].replace(/^class_/, '').replace(/_/g, ' ').toUpperCase();
+            const subPart = parts[1] ? parts[1].replace(/_/g, ' ').toUpperCase() : 'SUBJECT';
+            label = `${subPart} (${classPart})`;
+            title = `${classPart} - ${subPart} GRADING SYSTEM`;
             type = 'subject';
         } else if (selectedNodeId.startsWith('node_custom_')) {
             label = 'Custom Grading System';
