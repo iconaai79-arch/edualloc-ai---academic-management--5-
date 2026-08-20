@@ -1030,31 +1030,115 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     }, [subjectChampions, isPrimaryOrCBC]);
 
     // Class / Stream Performance Ranking
-    const classStreamRankings = useMemo(() => {
+    const { streamRankingsList, classOverallSummary, classStreamGradeDistribution } = useMemo(() => {
         const streamGroup: Record<string, { total: number; count: number }> = {};
+        let totalCohortScore = 0;
+        let totalCohortCount = 0;
 
         studentPerformanceData.forEach(st => {
             if (!st?.student) return;
-            const stName = st.student.studentClass || 'Central Stream';
+            const stName = st.student.studentClass || `${selectedYearGroup} S`;
             if (!streamGroup[stName]) streamGroup[stName] = { total: 0, count: 0 };
             streamGroup[stName].total += st.meanScore;
             streamGroup[stName].count += 1;
+            totalCohortScore += st.meanScore;
+            totalCohortCount += 1;
         });
 
+        // Fallback for single stream or mock data
+        if (Object.keys(streamGroup).length === 0 && studentPerformanceData.length > 0) {
+            const defName = `${selectedYearGroup} S`;
+            const avg = studentPerformanceData.reduce((s, x) => s + x.meanScore, 0) / studentPerformanceData.length;
+            streamGroup[defName] = { total: avg * studentPerformanceData.length, count: studentPerformanceData.length };
+            totalCohortScore = avg * studentPerformanceData.length;
+            totalCohortCount = studentPerformanceData.length;
+        }
+
         const list = Object.entries(streamGroup).map(([stream, data]) => {
-            const meanScore = parseFloat((data.total / Math.max(1, data.count)).toFixed(1));
-            const { grade } = getGradeInfo(meanScore);
+            const meanScore = parseFloat((data.total / Math.max(1, data.count)).toFixed(2));
+            const { grade, points } = getGradeInfo(meanScore);
             return {
                 stream,
                 enrolled: data.count,
                 meanScore,
-                grade
+                meanScoreFormatted: meanScore.toFixed(2),
+                grade,
+                points
             };
         });
 
         list.sort((a, b) => b.meanScore - a.meanScore);
-        return list.map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }, [studentPerformanceData, isPrimaryOrCBC]);
+        const rankedList = list.map((item, idx) => ({ ...item, rank: idx + 1 }));
+
+        const overallMeanScore = totalCohortCount > 0 ? parseFloat((totalCohortScore / totalCohortCount).toFixed(2)) : 0;
+        const { grade: overallGrade } = getGradeInfo(overallMeanScore);
+        const classOverallSummary = {
+            title: `All ${selectedYearGroup}`,
+            enrolled: totalCohortCount,
+            meanScore: overallMeanScore,
+            meanScoreFormatted: overallMeanScore.toFixed(2),
+            grade: overallGrade
+        };
+
+        // Grade Distribution across Streams for 3D Chart in Section 7
+        const counts: Record<string, number> = {};
+        const totalStreams = rankedList.length;
+
+        rankedList.forEach(sr => {
+            const g = sr.grade || 'EE';
+            counts[g] = (counts[g] || 0) + 1;
+        });
+
+        // If only 1 stream exists, show the student-level grade distribution so the donut chart is rich and informative
+        if (totalStreams <= 1 && studentPerformanceData.length > 0) {
+            studentPerformanceData.forEach(st => {
+                const g = st.grade || 'EE';
+                counts[g] = (counts[g] || 0) + 1;
+            });
+        }
+
+        const effectiveTotal = totalStreams > 1 ? totalStreams : studentPerformanceData.length;
+        const expectedGrades = isPrimaryOrCBC ? ['EE', 'ME', 'AE', 'BE'] : ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'];
+        const activeGrades = expectedGrades;
+
+        const colorMap: Record<string, { color: string; light: string; stroke: string }> = {
+            'EE': { color: '#3b82f6', light: '#93c5fd', stroke: '#1d4ed8' },
+            'ME': { color: '#10b981', light: '#6ee7b7', stroke: '#047857' },
+            'AE': { color: '#f59e0b', light: '#fcd34d', stroke: '#b45309' },
+            'BE': { color: '#ef4444', light: '#fca5a5', stroke: '#b91c1c' },
+            'A':  { color: '#3b82f6', light: '#93c5fd', stroke: '#1d4ed8' },
+            'A-': { color: '#6366f1', light: '#a5b4fc', stroke: '#4338ca' },
+            'B+': { color: '#06b6d4', light: '#67e8f9', stroke: '#0e7490' },
+            'B':  { color: '#10b981', light: '#6ee7b7', stroke: '#047857' },
+            'C+': { color: '#f59e0b', light: '#fcd34d', stroke: '#b45309' },
+            'D':  { color: '#f97316', light: '#fdba74', stroke: '#c2410c' },
+            'E':  { color: '#ef4444', light: '#fca5a5', stroke: '#b91c1c' }
+        };
+
+        const allGrades = activeGrades.map(grade => {
+            const count = counts[grade] || 0;
+            const percent = effectiveTotal > 0 ? Math.round((count / effectiveTotal) * 100) : 0;
+            const colors = colorMap[grade] || { color: '#6366f1', light: '#a5b4fc', stroke: '#4338ca' };
+            return {
+                grade,
+                count,
+                percent,
+                ...colors
+            };
+        });
+
+        const slices = allGrades.filter(s => s.count > 0);
+
+        return {
+            streamRankingsList: rankedList,
+            classOverallSummary,
+            classStreamGradeDistribution: {
+                total: effectiveTotal,
+                slices: slices.length > 0 ? slices : allGrades.slice(0, 1),
+                allGrades
+            }
+        };
+    }, [studentPerformanceData, selectedYearGroup, isPrimaryOrCBC]);
 
     // Overall Summary Metrics
     const performanceSummary = useMemo(() => {
@@ -2935,31 +3019,262 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                     </button>
 
                     {expandedSections['sec_7'] && (
-                        <div className="p-6 md:p-8 animate-fade-in overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-800">
-                                    <tr>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Rank</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400">Class Stream Name</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-center">Enrolled Students</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-center">Stream Mean (%)</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 text-right">Stream Grade</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-                                    {classStreamRankings.map(cs => (
-                                        <tr key={cs.stream} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                            <td className="px-6 py-4 font-black text-indigo-600">#{cs.rank}</td>
-                                            <td className="px-6 py-4 font-black text-slate-900 dark:text-white uppercase">{cs.stream}</td>
-                                            <td className="px-6 py-4 text-center text-slate-600 dark:text-slate-300">{cs.enrolled}</td>
-                                            <td className="px-6 py-4 text-center font-black text-slate-900 dark:text-white text-base">{cs.meanScore}%</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-black rounded-xl">{cs.grade}</span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="p-6 md:p-8 animate-fade-in space-y-6">
+                            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                                {/* LEFT: CLASS / STREAM PERFORMANCE RANKING TABLE */}
+                                <div className="xl:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-700 dark:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
+                                                    <th className="py-3.5 px-4 w-16 text-center">Rank ▲</th>
+                                                    <th className="py-3.5 px-4">Class</th>
+                                                    <th className="py-3.5 px-4 w-20 text-center">Entry</th>
+                                                    <th className="py-3.5 px-4 w-28 text-center">Mean Marks</th>
+                                                    <th className="py-3.5 px-4 w-24 text-center">Grade</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
+                                                {streamRankingsList.length > 0 ? (
+                                                    streamRankingsList.map((cs, idx) => (
+                                                        <tr
+                                                            key={cs.stream || idx}
+                                                            className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                                                idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-900/60'
+                                                            }`}
+                                                        >
+                                                            <td className="py-3.5 px-4 text-center font-black text-slate-700 dark:text-slate-300">
+                                                                {cs.rank}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white uppercase truncate">
+                                                                {cs.stream}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center text-slate-600 dark:text-slate-300 font-bold">
+                                                                {cs.enrolled}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center font-black text-slate-900 dark:text-white">
+                                                                {cs.meanScoreFormatted}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center">
+                                                                <span className={`px-2.5 py-1 font-black rounded-lg text-xs ${
+                                                                    ['EE', 'A', 'A-'].includes(cs.grade)
+                                                                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                                                        : ['ME', 'B+', 'B', 'B-'].includes(cs.grade)
+                                                                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                                        : ['AE', 'C+', 'C', 'C-'].includes(cs.grade)
+                                                                        ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                                        : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                                                }`}>
+                                                                    {cs.grade}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={5} className="text-center py-8 text-slate-400 text-xs font-bold">
+                                                            No stream ranking records found for this cohort.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                            {/* AGGREGATE SUMMARY FOOTER ROW */}
+                                            {classOverallSummary && (
+                                                <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80 text-xs font-black">
+                                                    <tr>
+                                                        <td className="py-3.5 px-4 text-center text-slate-400">—</td>
+                                                        <td className="py-3.5 px-4 text-slate-900 dark:text-white uppercase">
+                                                            {classOverallSummary.title}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center text-slate-900 dark:text-white">
+                                                            {classOverallSummary.enrolled}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center text-slate-900 dark:text-white font-black">
+                                                            {classOverallSummary.meanScoreFormatted}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center">
+                                                            <span className="px-2.5 py-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300 rounded-lg text-xs font-black">
+                                                                {classOverallSummary.grade}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            )}
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* RIGHT: 3D GRAPHICAL CLASS STREAM GRADE SPREAD */}
+                                <div className="xl:col-span-5 bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 rounded-3xl p-5 md:p-6 space-y-4 shadow-xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                                            STREAM PERFORMANCE SPREAD (3D)
+                                        </span>
+                                        <span className="px-2 py-0.5 bg-indigo-100/70 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 rounded-full text-[9px] font-black uppercase">
+                                            Cohort Distribution
+                                        </span>
+                                    </div>
+
+                                    {/* 3D ISOMETRIC CYLINDER DONUT CHART */}
+                                    <div className="relative flex flex-col items-center justify-center p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
+                                        {(() => {
+                                            const total = classStreamGradeDistribution.total || 1;
+                                            const slices = classStreamGradeDistribution.slices;
+                                            const radius = 68;
+                                            const innerRadius = 38;
+                                            const cx = 110;
+                                            const cy = 95;
+
+                                            let currentAngle = -Math.PI / 2;
+
+                                            return (
+                                                <svg viewBox="0 0 220 200" className="w-48 h-48 overflow-visible select-none drop-shadow-lg">
+                                                    <defs>
+                                                        {/* 3D Bottom Extrusion Shadow Filter */}
+                                                        <filter id="stream3dShadow" x="-20%" y="-20%" width="140%" height="150%">
+                                                            <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#0f172a" floodOpacity="0.3" />
+                                                        </filter>
+
+                                                        {/* 3D Gradients for Stream Slices */}
+                                                        {slices.map((sl, idx) => (
+                                                            <linearGradient key={sl.grade} id={`streamGrad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="0%" stopColor={sl.light} />
+                                                                <stop offset="60%" stopColor={sl.color} />
+                                                                <stop offset="100%" stopColor={sl.stroke} />
+                                                            </linearGradient>
+                                                        ))}
+
+                                                        {/* 3D Depth Bottom Ring Gradient */}
+                                                        <linearGradient id="streamDepthExtrusion" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.8" />
+                                                            <stop offset="100%" stopColor="#0f172a" stopOpacity="0.95" />
+                                                        </linearGradient>
+                                                    </defs>
+
+                                                    {/* 3D Extruded Depth Layer (Bottom Offset) */}
+                                                    <g filter="url(#stream3dShadow)">
+                                                        <circle
+                                                            cx={cx}
+                                                            cy={cy + 8}
+                                                            r={radius}
+                                                            fill="url(#streamDepthExtrusion)"
+                                                        />
+                                                        <circle
+                                                            cx={cx}
+                                                            cy={cy + 8}
+                                                            r={innerRadius}
+                                                            fill="#0f172a"
+                                                        />
+                                                    </g>
+
+                                                    {/* Top Slices */}
+                                                    {slices.map((sl, idx) => {
+                                                        const sliceAngle = (sl.count / total) * 2 * Math.PI;
+                                                        const startAngle = currentAngle;
+                                                        const endAngle = currentAngle + sliceAngle;
+                                                        currentAngle = endAngle;
+
+                                                        if (sl.count === 0) return null;
+
+                                                        const x1 = cx + radius * Math.cos(startAngle);
+                                                        const y1 = cy + radius * Math.sin(startAngle);
+                                                        const x2 = cx + radius * Math.cos(endAngle);
+                                                        const y2 = cy + radius * Math.sin(endAngle);
+
+                                                        const ix1 = cx + innerRadius * Math.cos(endAngle);
+                                                        const iy1 = cy + innerRadius * Math.sin(endAngle);
+                                                        const ix2 = cx + innerRadius * Math.cos(startAngle);
+                                                        const iy2 = cy + innerRadius * Math.sin(startAngle);
+
+                                                        const largeArc = sliceAngle > Math.PI ? 1 : 0;
+                                                        const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${ix2} ${iy2} Z`;
+
+                                                        return (
+                                                            <path
+                                                                key={sl.grade}
+                                                                d={pathData}
+                                                                fill={`url(#streamGrad-${idx})`}
+                                                                stroke="#ffffff"
+                                                                strokeWidth="2"
+                                                                className="hover:opacity-90 transition-opacity cursor-pointer"
+                                                            />
+                                                        );
+                                                    })}
+
+                                                    {/* Central Core Circle */}
+                                                    <circle
+                                                        cx={cx}
+                                                        cy={cy}
+                                                        r={innerRadius - 2}
+                                                        className="fill-white dark:fill-slate-900"
+                                                    />
+
+                                                    {/* Center Indicator */}
+                                                    <text
+                                                        x={cx}
+                                                        y={cy - 4}
+                                                        textAnchor="middle"
+                                                        className="text-[14px] font-black fill-slate-900 dark:fill-white"
+                                                    >
+                                                        {classStreamGradeDistribution.total}
+                                                    </text>
+                                                    <text
+                                                        x={cx}
+                                                        y={cy + 10}
+                                                        textAnchor="middle"
+                                                        className="text-[8px] font-black uppercase tracking-widest fill-slate-400"
+                                                    >
+                                                        STUDENTS
+                                                    </text>
+                                                </svg>
+                                            );
+                                        })()}
+
+                                        {/* Legend Chips */}
+                                        <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+                                            {classStreamGradeDistribution.slices.map(sl => (
+                                                <div key={sl.grade} className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-50 dark:bg-slate-800 rounded-md text-[10px] font-bold border border-slate-200 dark:border-slate-700 shadow-xs">
+                                                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: sl.color }} />
+                                                    <span className="text-slate-800 dark:text-slate-200">{sl.grade} ({sl.count})</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* MATRIX BREAKDOWN TABLE */}
+                                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-center text-xs">
+                                                <thead>
+                                                    <tr className="bg-slate-600 dark:bg-slate-700 text-white font-bold uppercase text-[10px]">
+                                                        {classStreamGradeDistribution.allGrades.map(sl => (
+                                                            <th key={sl.grade} className="py-2 px-3 font-black whitespace-nowrap">
+                                                                {sl.grade}
+                                                            </th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold text-xs">
+                                                    <tr className="bg-white dark:bg-slate-900">
+                                                        {classStreamGradeDistribution.allGrades.map(sl => (
+                                                            <td key={sl.grade} className="py-2 px-3 font-black text-slate-900 dark:text-white">
+                                                                {sl.count > 0 ? sl.count : '-'}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                    <tr className="bg-slate-50/50 dark:bg-slate-800/20">
+                                                        {classStreamGradeDistribution.allGrades.map(sl => (
+                                                            <td key={sl.grade} className="py-2 px-3 font-black text-indigo-600 dark:text-indigo-400">
+                                                                {sl.count > 0 ? `${sl.percent}%` : '-'}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
