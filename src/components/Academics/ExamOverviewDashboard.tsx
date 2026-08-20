@@ -503,8 +503,17 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 };
             });
 
-            computed.sort((a, b) => b.meanScore - a.meanScore);
-            return computed.map((item, idx) => ({ ...item, rank: idx + 1 }));
+            computed.sort((a, b) => {
+                if (b.meanScore !== a.meanScore) return b.meanScore - a.meanScore;
+                return b.totalMarks - a.totalMarks;
+            });
+            let currentRank = 1;
+            return computed.map((item, idx) => {
+                if (idx > 0 && item.meanScore < computed[idx - 1].meanScore) {
+                    currentRank = idx + 1;
+                }
+                return { ...item, rank: currentRank };
+            });
         }
 
         // 2. Fallback to activeStudents matching class & stream
@@ -555,14 +564,72 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             };
         });
 
-        computed.sort((a, b) => b.meanScore - a.meanScore);
-        return computed.map((item, idx) => ({ ...item, rank: idx + 1 }));
+        computed.sort((a, b) => {
+            if (b.meanScore !== a.meanScore) return b.meanScore - a.meanScore;
+            return b.totalMarks - a.totalMarks;
+        });
+        let currentRank = 1;
+        return computed.map((item, idx) => {
+            if (idx > 0 && item.meanScore < computed[idx - 1].meanScore) {
+                currentRank = idx + 1;
+            }
+            return { ...item, rank: currentRank };
+        });
     }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimaryOrCBC, subjects]);
 
     // Top 10 Students Overall
     const top10Students = useMemo(() => {
         return studentPerformanceData.slice(0, 10);
     }, [studentPerformanceData]);
+
+    // Grade distribution among Top 10 Cohort for 3D Donut Chart
+    const top10GradeDistribution = useMemo(() => {
+        const counts: Record<string, number> = {};
+        const total = top10Students.length;
+
+        top10Students.forEach(st => {
+            const g = st.grade || 'N/A';
+            counts[g] = (counts[g] || 0) + 1;
+        });
+
+        const expectedGrades = isPrimaryOrCBC ? ['EE', 'ME', 'AE', 'BE'] : ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'];
+        const activeGrades = expectedGrades.filter(g => counts[g] > 0);
+        if (activeGrades.length === 0 && Object.keys(counts).length > 0) {
+            Object.keys(counts).forEach(g => activeGrades.push(g));
+        }
+
+        const colorMap: Record<string, { fill: string; stroke: string; light: string; text: string }> = {
+            'EE': { fill: '#3b82f6', stroke: '#1d4ed8', light: '#93c5fd', text: '#1e40af' },
+            'ME': { fill: '#10b981', stroke: '#047857', light: '#6ee7b7', text: '#065f46' },
+            'AE': { fill: '#f59e0b', stroke: '#b45309', light: '#fcd34d', text: '#92400e' },
+            'BE': { fill: '#ef4444', stroke: '#b91c1c', light: '#fca5a5', text: '#991b1b' },
+            'A':  { fill: '#3b82f6', stroke: '#1d4ed8', light: '#93c5fd', text: '#1e40af' },
+            'A-': { fill: '#6366f1', stroke: '#4338ca', light: '#a5b4fc', text: '#3730a3' },
+            'B+': { fill: '#06b6d4', stroke: '#0e7490', light: '#67e8f9', text: '#155e75' },
+            'B':  { fill: '#10b981', stroke: '#047857', light: '#6ee7b7', text: '#065f46' },
+            'C+': { fill: '#f59e0b', stroke: '#b45309', light: '#fcd34d', text: '#92400e' },
+            'D':  { fill: '#f97316', stroke: '#c2410c', light: '#fdba74', text: '#9a3412' },
+            'E':  { fill: '#ef4444', stroke: '#b91c1c', light: '#fca5a5', text: '#991b1b' }
+        };
+
+        const slices = activeGrades.map(grade => {
+            const count = counts[grade] || 0;
+            const percent = total > 0 ? parseFloat(((count / total) * 100).toFixed(1)) : 0;
+            const colors = colorMap[grade] || { fill: '#6366f1', stroke: '#4338ca', light: '#a5b4fc', text: '#3730a3' };
+            return {
+                grade,
+                count,
+                percent,
+                ...colors
+            };
+        });
+
+        return {
+            total,
+            slices,
+            activeGrades
+        };
+    }, [top10Students, isPrimaryOrCBC]);
 
     // Top Student Per Class Stream (Stream Champions)
     const streamChampions = useMemo(() => {
@@ -1588,55 +1655,252 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                     </button>
 
                     {expandedSections['sec_2'] && (
-                        <div className="p-6 md:p-8 animate-fade-in overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-800">
-                                    <tr>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Rank</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Student Name</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Adm No</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest">Stream</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Total Marks</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Mean Score (%)</th>
-                                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Grade</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-                                    {top10Students.filter(row => row?.student).map(row => (
-                                        <tr key={row.student?.id || row.rank} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${
-                                                    row.rank === 1 ? 'bg-amber-100 text-amber-800 font-bold' :
-                                                    row.rank === 2 ? 'bg-slate-200 text-slate-800' :
-                                                    row.rank === 3 ? 'bg-amber-800/10 text-amber-900' : 'bg-slate-100 text-slate-600'
-                                                }`}>
-                                                    {row.rank === 1 ? '🥇 1' : row.rank === 2 ? '🥈 2' : row.rank === 3 ? '🥉 3' : `#${row.rank}`}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap font-black text-slate-900 dark:text-white uppercase">
-                                                {row.student?.name}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-slate-500 font-mono">
-                                                {row.student?.admissionNo || row.student?.id}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-300">
-                                                {(row.student as any)?.studentClass || 'Form 3 Central'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center font-black text-indigo-600 dark:text-indigo-400">
-                                                {row.totalMarks} pts
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center font-black text-slate-900 dark:text-white">
-                                                {row.meanScore}%
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-black rounded-xl border border-emerald-200 dark:border-emerald-800">
-                                                    {row.grade} ({row.points} pts)
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="p-6 md:p-8 animate-fade-in space-y-6">
+                            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                                {/* LEFT: TOP 10 STUDENTS TABLE */}
+                                <div className="xl:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-700 dark:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider">
+                                                    <th className="py-3.5 px-4 w-12 text-center">▲</th>
+                                                    <th className="py-3.5 px-4 w-20">ID</th>
+                                                    <th className="py-3.5 px-4">Name</th>
+                                                    <th className="py-3.5 px-4 w-28">Class</th>
+                                                    <th className="py-3.5 px-4 w-28 text-center">Mean Marks</th>
+                                                    <th className="py-3.5 px-4 w-24 text-center">Grade</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
+                                                {top10Students.length > 0 ? (
+                                                    top10Students.map((row, idx) => (
+                                                        <tr
+                                                            key={row.student?.id || idx}
+                                                            className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                                                idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-900/60'
+                                                            }`}
+                                                        >
+                                                            <td className="py-3.5 px-4 text-center font-black text-slate-700 dark:text-slate-300">
+                                                                {row.rank}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 font-mono text-slate-500 dark:text-slate-400">
+                                                                {row.student?.admissionNo || row.student?.id}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white uppercase truncate max-w-[180px]">
+                                                                {row.student?.name}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 truncate">
+                                                                {(row.student as any)?.studentClass || selectedYearGroup}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center font-black text-slate-900 dark:text-white">
+                                                                {row.totalMarks > 0 ? row.totalMarks : `${row.meanScore}%`}
+                                                            </td>
+                                                            <td className="py-3.5 px-4 text-center">
+                                                                <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-black rounded-lg text-xs">
+                                                                    {row.grade}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={6} className="text-center py-8 text-slate-400 text-xs font-bold">
+                                                            No student performance records found for this cohort.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* RIGHT: 3D GRAPHICAL GRADE DISTRIBUTION */}
+                                <div className="xl:col-span-4 bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 rounded-3xl p-5 md:p-6 space-y-4 shadow-xs">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                                            3D GRADE ANALYSIS
+                                        </span>
+                                        <span className="px-2 py-0.5 bg-indigo-100/70 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 rounded-full text-[9px] font-black uppercase">
+                                            Top {top10Students.length} Cohort
+                                        </span>
+                                    </div>
+
+                                    {/* 3D ISOMETRIC CYLINDER / DONUT CHART */}
+                                    <div className="relative flex flex-col items-center justify-center p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
+                                        {(() => {
+                                            const total = top10GradeDistribution.total || 1;
+                                            const slices = top10GradeDistribution.slices;
+                                            const radius = 68;
+                                            const innerRadius = 38;
+                                            const cx = 110;
+                                            const cy = 95;
+
+                                            let currentAngle = -Math.PI / 2;
+
+                                            return (
+                                                <svg viewBox="0 0 220 200" className="w-48 h-48 overflow-visible select-none drop-shadow-lg">
+                                                    <defs>
+                                                        {/* 3D Bottom Extrusion Shadow Filter */}
+                                                        <filter id="donut3dShadow" x="-20%" y="-20%" width="140%" height="150%">
+                                                            <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#0f172a" floodOpacity="0.3" />
+                                                        </filter>
+
+                                                        {/* 3D Gradients for Slices */}
+                                                        {slices.map((sl, idx) => (
+                                                            <linearGradient key={sl.grade} id={`sliceGrad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="0%" stopColor={sl.light} />
+                                                                <stop offset="60%" stopColor={sl.fill} />
+                                                                <stop offset="100%" stopColor={sl.stroke} />
+                                                            </linearGradient>
+                                                        ))}
+
+                                                        {/* 3D Depth Bottom Ring Gradient */}
+                                                        <linearGradient id="depthExtrusion" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.8" />
+                                                            <stop offset="100%" stopColor="#0f172a" stopOpacity="0.95" />
+                                                        </linearGradient>
+                                                    </defs>
+
+                                                    {/* 3D Extruded Depth Layer (Bottom Offset) */}
+                                                    <g filter="url(#donut3dShadow)">
+                                                        <circle
+                                                            cx={cx}
+                                                            cy={cy + 8}
+                                                            r={radius}
+                                                            fill="url(#depthExtrusion)"
+                                                        />
+                                                        <circle
+                                                            cx={cx}
+                                                            cy={cy + 8}
+                                                            r={innerRadius}
+                                                            fill="#0f172a"
+                                                        />
+                                                    </g>
+
+                                                    {/* Top Donut Slices */}
+                                                    {slices.length === 1 ? (
+                                                        // Single 100% slice (Complete Ring)
+                                                        <g>
+                                                            <path
+                                                                d={`M ${cx} ${cy - radius} A ${radius} ${radius} 0 1 1 ${cx - 0.01} ${cy - radius} L ${cx - 0.01} ${cy - innerRadius} A ${innerRadius} ${innerRadius} 0 1 0 ${cx} ${cy - innerRadius} Z`}
+                                                                fill={`url(#sliceGrad-0)`}
+                                                                stroke={slices[0].stroke}
+                                                                strokeWidth="1"
+                                                            />
+                                                        </g>
+                                                    ) : (
+                                                        slices.map((sl, idx) => {
+                                                            const sliceAngle = (sl.count / total) * 2 * Math.PI;
+                                                            const startAngle = currentAngle;
+                                                            const endAngle = currentAngle + sliceAngle;
+                                                            currentAngle = endAngle;
+
+                                                            const x1 = cx + radius * Math.cos(startAngle);
+                                                            const y1 = cy + radius * Math.sin(startAngle);
+                                                            const x2 = cx + radius * Math.cos(endAngle);
+                                                            const y2 = cy + radius * Math.sin(endAngle);
+
+                                                            const ix1 = cx + innerRadius * Math.cos(endAngle);
+                                                            const iy1 = cy + innerRadius * Math.sin(endAngle);
+                                                            const ix2 = cx + innerRadius * Math.cos(startAngle);
+                                                            const iy2 = cy + innerRadius * Math.sin(startAngle);
+
+                                                            const largeArc = sliceAngle > Math.PI ? 1 : 0;
+                                                            const pathData = `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${ix2} ${iy2} Z`;
+
+                                                            return (
+                                                                <path
+                                                                    key={sl.grade}
+                                                                    d={pathData}
+                                                                    fill={`url(#sliceGrad-${idx})`}
+                                                                    stroke="#ffffff"
+                                                                    strokeWidth="2"
+                                                                    className="hover:opacity-90 transition-opacity cursor-pointer"
+                                                                />
+                                                            );
+                                                        })
+                                                    )}
+
+                                                    {/* Central Core Circle with Specular Glow */}
+                                                    <circle
+                                                        cx={cx}
+                                                        cy={cy}
+                                                        r={innerRadius - 2}
+                                                        className="fill-white dark:fill-slate-900"
+                                                    />
+
+                                                    {/* Center Cohort Text */}
+                                                    <text
+                                                        x={cx}
+                                                        y={cy - 4}
+                                                        textAnchor="middle"
+                                                        className="text-[14px] font-black fill-slate-900 dark:fill-white"
+                                                    >
+                                                        {top10Students.length}
+                                                    </text>
+                                                    <text
+                                                        x={cx}
+                                                        y={cy + 10}
+                                                        textAnchor="middle"
+                                                        className="text-[8px] font-black uppercase tracking-widest fill-slate-400"
+                                                    >
+                                                        STUDENTS
+                                                    </text>
+                                                </svg>
+                                            );
+                                        })()}
+
+                                        {/* Grade Legend Chips */}
+                                        <div className="flex flex-wrap justify-center gap-2 mt-2">
+                                            {top10GradeDistribution.slices.map(sl => (
+                                                <div key={sl.grade} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 shadow-xs">
+                                                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: sl.fill }} />
+                                                    <span className="font-black text-slate-800 dark:text-slate-200">{sl.grade}</span>
+                                                    <span className="text-[10px] text-slate-400">({sl.percent}%)</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* GRADE BREAKDOWN TABLE (AS IN IMAGE) */}
+                                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                                        <table className="w-full text-center text-xs">
+                                            <thead>
+                                                <tr className="bg-slate-600 dark:bg-slate-700 text-white font-bold uppercase text-[11px]">
+                                                    <th className="py-2.5 px-3 text-left font-bold uppercase w-20">Metric</th>
+                                                    {top10GradeDistribution.slices.map(sl => (
+                                                        <th key={sl.grade} className="py-2.5 px-3 font-black">
+                                                            {sl.grade}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold">
+                                                <tr className="bg-white dark:bg-slate-900">
+                                                    <td className="py-2.5 px-3 text-left font-black text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40">
+                                                        Grades
+                                                    </td>
+                                                    {top10GradeDistribution.slices.map(sl => (
+                                                        <td key={sl.grade} className="py-2.5 px-3 font-black text-slate-900 dark:text-white">
+                                                            {sl.count}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                                <tr className="bg-slate-50/50 dark:bg-slate-800/20">
+                                                    <td className="py-2.5 px-3 text-left font-black text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40">
+                                                        Percent
+                                                    </td>
+                                                    {top10GradeDistribution.slices.map(sl => (
+                                                        <td key={sl.grade} className="py-2.5 px-3 font-black text-indigo-600 dark:text-indigo-400">
+                                                            {sl.percent}%
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
