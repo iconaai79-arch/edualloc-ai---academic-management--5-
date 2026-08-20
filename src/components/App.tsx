@@ -6292,14 +6292,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
     }
 
 
-    if (currentUser && activeRole !== 'super_admin' && activeRole !== 'reseller' && !currentUser.isImpersonated) {
+    if (currentUser && activeRole !== 'super_admin' && activeRole !== 'reseller') {
         const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
         const isReseller = inst?.institutionType === 'Reseller' || currentUser.role === 'reseller';
-        const subscriptionExpired = !isReseller && inst && inst.status === 'active' && inst.subscriptionEndsAt && new Date(inst.subscriptionEndsAt) < new Date();
+        const now = new Date();
+        const subEndDate = inst?.subscriptionEndsAt ? new Date(inst.subscriptionEndsAt) : null;
+        const trialEndDate = inst?.trialEndsAt ? new Date(inst.trialEndsAt) : null;
+
+        const isStatusExpired = inst?.status === 'expired' || inst?.status === 'suspended';
+        const isSubscriptionExpired = !isReseller && inst && (
+            isStatusExpired ||
+            (subEndDate !== null && subEndDate < now)
+        );
         const hasOverdueBill = !isReseller && inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
         const isSuspended = !isReseller && inst && inst.status === 'suspended';
 
-        if (inst && !isReseller && (isSuspended || subscriptionExpired || hasOverdueBill)) {
+        if (inst && !isReseller && (isSuspended || isSubscriptionExpired || hasOverdueBill)) {
             return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
                 await apiService.saveModuleRecord('institution_extension_requests', {
                     id: `ext_${Date.now()}`,
@@ -6313,7 +6321,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
             }} />;
         }
 
-        const trialEnded = !isReseller && inst && inst.status === 'trial' && inst.trialEndsAt && new Date(inst.trialEndsAt) < new Date();
+        const trialEnded = !isReseller && inst && (inst.status === 'trial' || !subEndDate) && trialEndDate !== null && trialEndDate < now;
         if (trialEnded) {
             return (
                 <TrialExpiredView
