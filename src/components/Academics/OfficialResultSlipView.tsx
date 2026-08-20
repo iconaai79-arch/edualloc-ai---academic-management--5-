@@ -41,7 +41,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     // Filter States
     const [selectedExamId, setSelectedExamId] = useState<string>('');
-    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('Grade 1');
+    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('PP1');
     const [selectedStream, setSelectedStream] = useState<string>('all');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
@@ -50,9 +50,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         const list = (students.length > 0 ? students : users).filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student' || Boolean((u as any).admissionNumber) || Boolean((u as any).admissionNo)));
         if (list.length > 0) return list;
         return [
-            { id: 'st_288', name: 'Faith Nyambura', admissionNo: '288', studentClass: 'Grade 1 East', gender: 'F' },
-            { id: 'st_289', name: 'Brian Omondi', admissionNo: '289', studentClass: 'Grade 1 East', gender: 'M' },
-            { id: 'st_290', name: 'Amina Kiprop', admissionNo: '290', studentClass: 'Grade 1 West', gender: 'F' }
+            { id: 'st_288', name: 'Chanice Jerotich', admissionNo: '603', studentClass: 'PP1', gender: 'F' },
+            { id: 'st_289', name: 'Brian Omondi', admissionNo: '604', studentClass: 'PP1', gender: 'M' },
+            { id: 'st_290', name: 'Amina Kiprop', admissionNo: '605', studentClass: 'PP1', gender: 'F' }
         ] as any[];
     }, [students, users]);
 
@@ -192,18 +192,47 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
         if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
 
-        if ((subCode.startsWith('kisw') || subName.includes('kisw')) && (kNorm.includes('kisw') || kNorm.includes('insha') || kNorm.includes('lugha'))) return true;
-        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
-        if ((subCode.startsWith('env') || subName.includes('env')) && (kNorm.includes('env') || kNorm.includes('environment'))) return true;
-        if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho') || subName.includes('music')) && 
-            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement') || kNorm.includes('craft'))) return true;
-        if ((subCode.startsWith('math') || subName.includes('math') || subCode === '121' || subCode === '907') && (kNorm.includes('math') || kNorm.includes('numeracy') || kNorm.includes('hesabu'))) return true;
-        if ((subCode.startsWith('eng') || subName.includes('eng') || subCode === '101' || subCode === '901') && (kNorm.includes('eng') || kNorm.includes('literacy') || kNorm.includes('language'))) return true;
+        // Kiswahili matches
+        if ((subCode.startsWith('kisw') || subName.includes('kisw') || subCode === '906' || subCode === '102') && 
+            (kNorm.includes('kisw') || kNorm.includes('insha') || kNorm.includes('lugha') || kNorm.includes('kusoma') || kNorm.includes('sarufi'))) return true;
+
+        // Hygiene & Nutrition
+        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri') || subCode === '903') && 
+            (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health') || kNorm.includes('afya'))) return true;
+
+        // Environmental Activities
+        if ((subCode.startsWith('env') || subName.includes('env') || subCode === '902') && 
+            (kNorm.includes('env') || kNorm.includes('environment') || kNorm.includes('mazingira'))) return true;
+
+        // Creative Arts & Movement
+        if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho') || subName.includes('music') || subName.includes('movement') || subCode === '904' || subCode === '511') && 
+            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement') || kNorm.includes('craft') || kNorm.includes('sanaa'))) return true;
+
+        // Mathematics
+        if ((subCode.startsWith('math') || subName.includes('math') || subCode === '121' || subCode === '907') && 
+            (kNorm.includes('math') || kNorm.includes('numeracy') || kNorm.includes('hesabu'))) return true;
+
+        // English
+        if ((subCode.startsWith('eng') || subName.includes('eng') || subCode === '101' || subCode === '901') && 
+            (kNorm.includes('eng') || kNorm.includes('literacy') || kNorm.includes('language'))) return true;
+
+        // Religious Education (CRE/IRE/HRE)
         if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio') || subCode === '313' || subCode === '911') && 
-            (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio'))) return true;
-        if ((subCode.startsWith('agri') || subName.includes('agri') || subCode === '443') && kNorm.includes('agri')) return true;
-        if ((subCode.startsWith('soc') || subName.includes('social') || subCode === '310' || subCode === '910') && (kNorm.includes('soc') || kNorm.includes('social'))) return true;
-        if ((subCode.startsWith('sci') || subName.includes('science') || subCode === '905' || subCode === '230') && (kNorm.includes('sci') || kNorm.includes('science'))) return true;
+            (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio') || kNorm.includes('dini'))) return true;
+
+        // Agriculture & Nutrition
+        if ((subCode.startsWith('agri') || subName.includes('agri') || subCode === '443') && 
+            (kNorm.includes('agri') || kNorm.includes('kilimo'))) return true;
+
+        // Social Studies
+        if ((subCode.startsWith('soc') || subName.includes('social') || subCode === '310' || subCode === '910') && 
+            (kNorm.includes('soc') || kNorm.includes('social'))) return true;
+
+        // Science
+        if ((subCode.startsWith('sci') || subName.includes('science') || subCode === '905' || subCode === '230') && 
+            (kNorm.includes('sci') || kNorm.includes('science') || kNorm.includes('sayansi'))) return true;
+
+        // Secondary subjects
         if (subCode.startsWith('bio') && kNorm.includes('bio')) return true;
         if (subCode.startsWith('chem') && kNorm.includes('chem')) return true;
         if (subCode.startsWith('phy') && (kNorm.includes('phy') || kNorm.includes('physics'))) return true;
@@ -216,6 +245,66 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         if (subTokens.length > 0 && subTokens.some(tok => kNorm.includes(tok))) return true;
 
         return false;
+    };
+
+    // Robust extractor for student subject marks from a broadsheet row
+    // Prioritizes positive entered marks over placeholder zero keys (e.g. kiswP1: 0)
+    const extractStudentSubjectScore = (row: any, sub: any): { score: number; found: boolean } => {
+        if (!row || typeof row !== 'object' || !sub) return { score: 0, found: false };
+
+        const sName = (sub.name || (sub as any).title || '').toLowerCase().trim();
+        const sCode = (sub.code || '').toLowerCase().trim();
+        const sId = (sub.id || '').toLowerCase().trim();
+        const sClean = sName.replace(/[^a-z0-9]/g, '_');
+        const cClean = sCode.replace(/[^a-z0-9]/g, '_');
+
+        let maxScore = -1;
+        let foundAnyKey = false;
+
+        // High-priority exact key candidates
+        const exactKeys = [
+            sId,
+            sCode,
+            cClean,
+            `subj_${cClean}_p1`,
+            `subj_${cClean}`,
+            `subj_${sClean}_p1`,
+            `subj_${sClean}_paper_1`,
+            `subj_${sClean}`,
+            sClean
+        ].filter(Boolean);
+
+        for (const ek of exactKeys) {
+            if (row[ek] !== undefined && row[ek] !== null && row[ek] !== '') {
+                const num = parseFloat(String(row[ek]));
+                if (!isNaN(num)) {
+                    foundAnyKey = true;
+                    if (num > maxScore) {
+                        maxScore = num;
+                    }
+                }
+            }
+        }
+
+        // Search all keys in row with isSubjectKeyMatch
+        for (const [k, val] of Object.entries(row)) {
+            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'admissionNumber', 'total', 'mean', 'meanScore', 'average', 'studentClass', 'gender', 'studentName'].includes(k)) continue;
+            if (val === null || val === undefined || val === '' || isNaN(Number(val))) continue;
+
+            const numVal = parseFloat(String(val));
+            if (isSubjectKeyMatch(k, sub)) {
+                foundAnyKey = true;
+                if (numVal > maxScore) {
+                    maxScore = numVal;
+                }
+            }
+        }
+
+        if (maxScore >= 0) {
+            return { score: maxScore, found: true };
+        }
+
+        return { score: 0, found: foundAnyKey };
     };
 
     // Helper to resolve REAL allocated teacher for a given stream and subject
@@ -423,7 +512,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         }
 
         if (set.size === 0) {
-            return ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
         }
 
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
@@ -502,7 +591,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return /form\s*[1-4]|high\s*school|secondary/i.test(cls);
     }, [selectedYearGroup]);
 
-    // Active Subjects for Selected Class & Curriculum (STRICTLY FILTERED FOR THIS CLASS)
+    // Active Subjects for Selected Class & Curriculum (STRICTLY FILTERED FOR THIS CLASS & EXAM)
     const activeClassSubjects = useMemo(() => {
         const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
         const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
@@ -522,34 +611,35 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
         // 2. Build default standard curriculum matrix fallback
         let defaultCurriculumSubjects = [
-            { id: 'sub_math', name: 'Mathematical Activities', code: '907' },
-            { id: 'sub_eng', name: 'English Language Activities', code: '901' },
-            { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: '906' },
-            { id: 'sub_env', name: 'Environmental Activities', code: '902' },
-            { id: 'sub_hyg', name: 'Hygiene and Nutrition Activities', code: '903' },
-            { id: 'sub_creat', name: 'Creative Arts Activities', code: '904' },
-            { id: 'sub_cre', name: 'Religious Education Activities', code: '911' }
+            { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW-LP' },
+            { id: 'sub_env', name: 'Environmental Activities', code: 'ENV-LP' },
+            { id: 'sub_hyg', name: 'Hygiene and Nutrition Activities', code: 'HYG-LP' },
+            { id: 'sub_creat', name: 'Movement & Creative Activities', code: 'CREAT-LP' },
+            { id: 'sub_math', name: 'Mathematics Activities', code: 'MATH-LP' },
+            { id: 'sub_eng', name: 'English Language Activities', code: 'ENG-LP' },
+            { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE-LP' }
         ];
 
         if (isPrePrimary) {
             defaultCurriculumSubjects = [
-                { id: 'sub_math', name: 'Mathematical Activities', code: '907' },
-                { id: 'sub_eng', name: 'Language Activities', code: '901' },
-                { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: '906' },
-                { id: 'sub_env', name: 'Environmental Activities', code: '902' },
-                { id: 'sub_creat', name: 'Psychomotor & Creative Activities', code: '904' },
-                { id: 'sub_cre', name: 'Religious Education Activities', code: '911' }
+                { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW-LP' },
+                { id: 'sub_env', name: 'Environmental Activities', code: 'ENV-LP' },
+                { id: 'sub_hyg', name: 'Hygiene & Nutrition Activities', code: 'HYG-LP' },
+                { id: 'sub_creat', name: 'Movement & Creative Activities', code: 'CREAT-LP' },
+                { id: 'sub_math', name: 'Mathematics Activities', code: 'MATH-LP' },
+                { id: 'sub_eng', name: 'Language Activities', code: 'ENG-LP' },
+                { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE-LP' }
             ];
         } else if (isUpperPrimary) {
             defaultCurriculumSubjects = [
-                { id: 'sub_math', name: 'Mathematics', code: '907' },
-                { id: 'sub_eng', name: 'English Language', code: '901' },
-                { id: 'sub_kisw', name: 'Kiswahili Language', code: '906' },
-                { id: 'sub_sci', name: 'Science and Technology', code: '905' },
-                { id: 'sub_agri', name: 'Agriculture and Nutrition', code: '903' },
-                { id: 'sub_soc', name: 'Social Studies', code: '910' },
-                { id: 'sub_creat', name: 'Creative Arts and Sports', code: '904' },
-                { id: 'sub_cre', name: 'Religious Education (CRE/IRE)', code: '911' }
+                { id: 'sub_math', name: 'Mathematics', code: 'MATH-UP' },
+                { id: 'sub_eng', name: 'English Language', code: 'ENG-UP' },
+                { id: 'sub_kisw', name: 'Kiswahili Language', code: 'KISW-UP' },
+                { id: 'sub_sci', name: 'Science and Technology', code: 'SCI-UP' },
+                { id: 'sub_agri', name: 'Agriculture and Nutrition', code: 'AGRI-UP' },
+                { id: 'sub_soc', name: 'Social Studies', code: 'SOC-UP' },
+                { id: 'sub_creat', name: 'Creative Arts and Sports', code: 'CREAT-UP' },
+                { id: 'sub_cre', name: 'Religious Education (CRE/IRE)', code: 'CRE-UP' }
             ];
         } else if (isJuniorSecondary) {
             defaultCurriculumSubjects = [
@@ -580,14 +670,14 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             ];
         }
 
-        // 3. Pool of all possible subject sources
+        // 3. Pool of all possible candidate subjects
         const allCandidates = subjects.length > 0 ? [...subjects] : [...defaultCurriculumSubjects];
 
-        const filteredList: typeof allCandidates = [];
-        const seenCodes = new Set<string>();
-
-        // If explicit class subject allocations exist, filter by them
+        // 4A. If explicit class allocations exist in Lessons & Allocation, STRICTLY use them!
         if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
+            const allocatedList: typeof allCandidates = [];
+            const seen = new Set<string>();
+
             allocatedSubjectIdentifiers.forEach(allocId => {
                 const aClean = String(allocId).toLowerCase().trim();
                 const aNorm = aClean.replace(/[^a-z0-9]/g, '');
@@ -604,17 +694,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
                 if (matchedSub) {
                     const dedupKey = (matchedSub.code || matchedSub.name).toUpperCase().trim();
-                    if (!seenCodes.has(dedupKey)) {
-                        seenCodes.add(dedupKey);
-                        filteredList.push(matchedSub);
+                    if (!seen.has(dedupKey)) {
+                        seen.add(dedupKey);
+                        allocatedList.push(matchedSub);
                     }
                 } else {
-                    // Create subject entry if identifier is a valid name
                     const nameFormatted = allocId.replace(/_/g, ' ');
                     const dedupKey = nameFormatted.toUpperCase();
-                    if (!seenCodes.has(dedupKey)) {
-                        seenCodes.add(dedupKey);
-                        filteredList.push({
+                    if (!seen.has(dedupKey)) {
+                        seen.add(dedupKey);
+                        allocatedList.push({
                             id: `sub_${allocId}`,
                             name: nameFormatted.charAt(0).toUpperCase() + nameFormatted.slice(1),
                             code: allocId.substring(0, 4).toUpperCase()
@@ -622,36 +711,46 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     }
                 }
             });
+
+            if (allocatedList.length > 0) {
+                return allocatedList;
+            }
         }
 
-        // Check broadsheet rows for any additional subjects present in the exam for this class
+        // 4B. If no explicit allocation configured, inspect broadsheet rows for subjects with REAL ENTERED marks (> 0)
         if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach((r: any) => {
+            const classRows = examSavedRows.filter((r: any) => {
                 const stCls = String(r.class || r.studentClass || '').toLowerCase().trim();
-                if (stCls.includes(yGrpClean) || yGrpClean.includes(stCls)) {
-                    Object.keys(r).forEach(k => {
-                        if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'admissionNumber', 'total', 'mean', 'meanScore', 'average', 'studentClass', 'gender', 'studentName'].includes(k)) return;
-                        if (r[k] === null || r[k] === undefined || r[k] === '' || isNaN(Number(r[k]))) return;
-
-                        // Match against candidates
-                        const matched = allCandidates.find(sub => isSubjectKeyMatch(k, sub));
-                        if (matched) {
-                            const dedupKey = (matched.code || matched.name).toUpperCase().trim();
-                            if (!seenCodes.has(dedupKey)) {
-                                seenCodes.add(dedupKey);
-                                filteredList.push(matched);
-                            }
-                        }
-                    });
-                }
+                return !yGrpClean || stCls.includes(yGrpClean) || yGrpClean.includes(stCls);
             });
+
+            if (classRows.length > 0) {
+                const activeSubjsFromMarks: typeof allCandidates = [];
+                const seenKeys = new Set<string>();
+
+                allCandidates.forEach(sub => {
+                    // Only include subject if at least one student in this class has an entered score > 0
+                    const hasPositiveMarks = classRows.some((r: any) => {
+                        const { score, found } = extractStudentSubjectScore(r, sub);
+                        return found && score > 0;
+                    });
+
+                    if (hasPositiveMarks) {
+                        const dedupKey = (sub.code || sub.name).toUpperCase().trim();
+                        if (!seenKeys.has(dedupKey)) {
+                            seenKeys.add(dedupKey);
+                            activeSubjsFromMarks.push(sub);
+                        }
+                    }
+                });
+
+                if (activeSubjsFromMarks.length > 0) {
+                    return activeSubjsFromMarks;
+                }
+            }
         }
 
-        if (filteredList.length > 0) {
-            return filteredList;
-        }
-
-        // Return standard curriculum subjects for this class
+        // 4C. Default standard curriculum fallback
         return defaultCurriculumSubjects;
     }, [subjects, selectedYearGroup, classAllocationsStore, examSavedRows, isPrePrimary, isUpperPrimary, isJuniorSecondary, isSecondary]);
 
@@ -672,7 +771,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 return broadStudents.map((r, idx) => ({
                     id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
                     name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
-                    admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${2000 + idx}`,
+                    admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
                     studentClass: r.class || r.studentClass || selectedYearGroup,
                     gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
                     broadsheetRow: r
@@ -704,16 +803,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
     // Active selected student record
     const activeStudent = useMemo(() => {
         return matchingStudents.find(s => s.id === selectedStudentId) || matchingStudents[0] || {
-            name: 'Faith Nyambura',
-            admissionNo: '288',
-            studentClass: 'Grade 1 East',
+            name: 'Chanice Jerotich',
+            admissionNo: '603',
+            studentClass: 'PP1',
             gender: 'F'
         };
     }, [matchingStudents, selectedStudentId]);
 
     // Student initials badge
     const studentInitials = useMemo(() => {
-        if (!activeStudent?.name) return 'FN';
+        if (!activeStudent?.name) return 'CJ';
         const parts = activeStudent.name.trim().split(/\s+/);
         if (parts.length >= 2) {
             return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -753,23 +852,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
             activeClassSubjects.forEach((sub, subIdx) => {
                 let score = 0;
-                let found = false;
 
                 if (row) {
-                    for (const k of Object.keys(row)) {
-                        if (isSubjectKeyMatch(k, sub)) {
-                            const val = parseFloat(row[k]);
-                            if (!isNaN(val)) {
-                                score = val;
-                                found = true;
-                                break;
-                            }
-                        }
+                    const result = extractStudentSubjectScore(row, sub);
+                    if (result.found) {
+                        score = result.score;
                     }
                 }
 
-                if (!found) {
-                    // Deterministic mock marks based on student admission number / name and subject
+                if (score === 0 && !row) {
+                    // Deterministic mock marks based on student admission number / name and subject if no data
                     const nameLen = (st.name || '').length;
                     const seed = (nameLen * 13 + subIdx * 19 + sIdx * 7) % 36;
                     score = isPrimaryOrCBC ? Math.min(98, 62 + seed) : Math.min(94, 52 + seed);
@@ -808,9 +900,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
         return activeClassSubjects.map((sub, idx) => {
             const subKey = sub.code || sub.name;
-            const code = sub.code || `${900 + idx + 1}`;
+            const code = sub.code || `${sub.name.substring(0, 4).toUpperCase()}-LP`;
             const name = sub.name || (sub as any).title;
-            const percent = studentRecord ? (studentRecord.scores[subKey] ?? 75) : 75;
+            const percent = studentRecord ? (studentRecord.scores[subKey] ?? 0) : 0;
 
             // Check exemption
             const exemptionKey = `${activeStudent.id}_${name.toLowerCase().trim()}`;
@@ -843,7 +935,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     // Cohort Class Mean
     const classMean = useMemo(() => {
-        if (cohortPerformanceMatrix.length === 0) return '65.50';
+        if (cohortPerformanceMatrix.length === 0) return '0.00';
         const sumMeans = cohortPerformanceMatrix.reduce((acc, c) => acc + c.mean, 0);
         return (sumMeans / cohortPerformanceMatrix.length).toFixed(2);
     }, [cohortPerformanceMatrix]);
@@ -1053,13 +1145,13 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             ) : (
                                 <div className="w-16 h-16 rounded-full border-2 border-slate-800 p-1 flex items-center justify-center">
                                     <div className="w-full h-full rounded-full bg-slate-900 text-white font-black text-xl flex items-center justify-center">
-                                        {(currentInstitution?.name || 'CENTRAL SCHOOL').charAt(0)}
+                                        {(currentInstitution?.name || 'NEST ZIWA SCHOOL').charAt(0)}
                                     </div>
                                 </div>
                             )}
                         </div>
                         <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 font-serif">
-                            {currentInstitution?.name || 'CENTRAL SCHOOL'}
+                            {currentInstitution?.name || 'NEST ZIWA SCHOOL'}
                         </h1>
                         <p className="text-xs font-bold uppercase tracking-widest text-slate-700">
                             {currentInstitution?.address || 'P.O BOX 208-30100 ELDORET'}
@@ -1097,11 +1189,11 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             </div>
                             <div className="p-1.5 flex gap-1">
                                 <span className="font-bold text-slate-900">Adm No.</span>
-                                <span className="font-bold text-slate-900">{(activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '288'}</span>
+                                <span className="font-bold text-slate-900">{(activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '603'}</span>
                             </div>
                             <div className="p-1.5 flex gap-1">
                                 <span className="font-bold text-slate-900">Sex:</span>
-                                <span className="font-bold text-slate-900">{(activeStudent as any).gender || (activeStudent as any).sex || '-'}</span>
+                                <span className="font-bold text-slate-900">{(activeStudent as any).gender || (activeStudent as any).sex || 'F'}</span>
                             </div>
                             <div className="p-1.5 flex gap-1">
                                 <span className="font-bold text-slate-900">Class:</span>
@@ -1120,7 +1212,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             <div className="p-1.5 col-span-2 flex gap-1">
                                 <span className="font-bold text-slate-900">Curriculum:</span>
                                 <span className="font-bold text-slate-900 uppercase">
-                                    {isPrimaryOrCBC ? 'CBC Assessment' : '8-4-4 System'}
+                                    {isPrimaryOrCBC ? 'CBC ASSESSMENT' : '8-4-4 SYSTEM'}
                                 </span>
                             </div>
 
@@ -1151,7 +1243,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                         <table className="w-full text-left text-xs border-collapse">
                             <thead>
                                 <tr className="bg-[#4a5568] text-white uppercase text-[11px] font-black border-b border-slate-900">
-                                    <th className="p-2 border-r border-slate-600 text-center w-14">CODE</th>
+                                    <th className="p-2 border-r border-slate-600 text-center w-16">CODE</th>
                                     <th className="p-2 border-r border-slate-600">SUBJECT</th>
                                     <th className="p-2 border-r border-slate-600 text-center w-20">PERCENT</th>
                                     <th className="p-2 border-r border-slate-600 text-center w-16">GRADE</th>
