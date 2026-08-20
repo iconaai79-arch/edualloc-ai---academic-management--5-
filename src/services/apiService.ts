@@ -118,6 +118,9 @@ export const invalidateModuleCache = (module?: string) => {
 };
 
 const _unsupportedServerModules = new Set<string>([
+    'class_subject_allocations',
+    'exam_units',
+    'exam_broadsheets',
     'his_branding',
     'his_consultation_rates',
     'his_hospital_rooms'
@@ -1781,7 +1784,7 @@ export const apiService = {
             }
         }
 
-        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
             const records = ls.get(module);
             const index = records.findIndex((r: any) => r.id === id);
             if (index >= 0) {
@@ -1879,7 +1882,7 @@ export const apiService = {
         } catch(e) {}
 
         // Local storage mode for unsupported server modules
-        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
             if (module === 'users') {
                 const dsStudents = ls.get('ds_students');
                 ls.set('ds_students', (dsStudents || []).filter((s: any) => s && !idsSet.has(s.userId) && !idsSet.has(s.user_id)));
@@ -1995,7 +1998,7 @@ export const apiService = {
         ls.upsert(module, payload);
         try { localDb.upsert(module, payload).catch(() => {}); } catch (_) {}
 
-        if (module === 'exam_units' || module === 'exam_broadsheets') {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || module === 'class_subject_allocations' || _unsupportedServerModules.has(module)) {
             const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || 'default';
             if (_supabase && instId) {
                 const stateData = { id: `${instId}_${module}_${payload.id || 'state'}`, institutionId: instId, moduleId: module, data: payload, updatedAt: new Date().toISOString() };
@@ -2193,7 +2196,7 @@ export const apiService = {
             });
         }
 
-        if (module === 'exam_units' || module === 'exam_broadsheets' || !_supabase) {
+        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
             const records = ls.get(module);
             payload.forEach((item: any) => {
                 const index = records.findIndex((r: any) => r && r.id === item.id);
