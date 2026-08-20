@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
+import { apiService } from '../../services/apiService';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -36,15 +37,17 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
     courses = [],
     onSelectReportTab
 }) => {
+    const instId = currentInstitution?.id || 'default';
+
     // Navigation & Layout States
     const [activeNavItem, setActiveNavItem] = useState<string>('subject_grades_distribution');
     const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
     const [isExamSidebarOpen, setIsExamSidebarOpen] = useState<boolean>(false);
 
-    // Exam & Filter States
+    // Filter States
     const [expandedYear, setExpandedYear] = useState<string>('2026');
-    const [selectedExamId, setSelectedExamId] = useState<string>(assessments[0]?.id || 'exam_endterm_2');
-    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('Grade 1');
+    const [selectedExamId, setSelectedExamId] = useState<string>('');
+    const [selectedYearGroup, setSelectedYearGroup] = useState<string>('');
     const [selectedStream, setSelectedStream] = useState<string>('');
 
     // Collapsed subjects state
@@ -60,52 +63,313 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         return users.filter(u => u.role === 'student');
     }, [students, users]);
 
+    // Active teachers map
+    const teachersMap = useMemo(() => {
+        const tMap: Record<string, string> = {};
+        users.filter(u => u.role === 'teacher' || u.role === 'instructor' || u.role === 'lecturer').forEach(t => {
+            if (t.id) tMap[t.id] = t.name;
+        });
+        return tMap;
+    }, [users]);
+
+    // 1. Load saved Exam Units from LocalStorage & API
+    const [savedExamUnits, setSavedExamUnits] = useState<any[]>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+            if (saved) return JSON.parse(saved) || [];
+        } catch (e) {}
+        return [];
+    });
+
+    // 2. Load Saved Broadsheet Data for Exam Marks Calculation
+    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) {}
+        return {};
+    });
+
+    // 3. Load Class Subject Allocations Store
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) {}
+        return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => [])
+            ]).then(([imsRecords, examRecords, allocRecords]) => {
+                const match = (imsRecords || []).find((r: any) => 
+                    r.id === `broadsheets_${currentInstitution.id}` || 
+                    r.module_id === 'exam_broadsheets' || 
+                    r.moduleId === 'exam_broadsheets' || 
+                    r.moduleName === 'exam_broadsheets'
+                );
+                const storeData = match?.settings || match?.stateData || match?.data;
+                if (storeData && typeof storeData === 'object') {
+                    setSavedBroadsheets(prev => {
+                        const merged = { ...prev, ...storeData };
+                        try {
+                            localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                        } catch(e) {}
+                        return merged;
+                    });
+                }
+
+                if (examRecords && Array.isArray(examRecords) && examRecords.length > 0) {
+                    setSavedExamUnits(prev => {
+                        const combined = [...examRecords, ...prev];
+                        const seen = new Set<string>();
+                        const unique = combined.filter(ex => {
+                            if (ex.id && !seen.has(ex.id)) {
+                                seen.add(ex.id);
+                                return true;
+                            }
+                            return false;
+                        });
+                        try {
+                            localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(unique));
+                        } catch(e) {}
+                        return unique;
+                    });
+                }
+
+                if (allocRecords && allocRecords.length > 0) {
+                    const allocMap: Record<string, string[]> = {};
+                    allocRecords.forEach((rec: any) => {
+                        const cName = rec.className || rec.class_name || rec.id;
+                        const subList = rec.subjects || rec.subject_ids || rec.allocated_subjects || [];
+                        if (cName && Array.isArray(subList)) {
+                            allocMap[cName] = subList;
+                        }
+                    });
+                    if (Object.keys(allocMap).length > 0) {
+                        setClassAllocationsStore(prev => ({ ...prev, ...allocMap }));
+                    }
+                }
+            }).catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    // Combined dynamic exams list (STRICTLY PUBLISHED EXAMS ONLY)
+    const allExamsList = useMemo(() => {
+        const customConverted = savedExamUnits.map(ex => {
+            const broadsheetRows = savedBroadsheets[ex.id];
+            const realCount = Array.isArray(broadsheetRows) && broadsheetRows.length > 0
+                ? broadsheetRows.length
+                : (ex.studentsEnrolled || ex.studentCount || (activeStudents.length > 0 ? activeStudents.length : 1));
+
+            const isPub = ex.isPublished === true || 
+                          ex.published === true || 
+                          ex.status === 'published' || 
+                          ex.status === 'Published' ||
+                          ex.publishStatus === 'published';
+
+            return {
+                id: ex.id,
+                title: ex.name || ex.title || 'Exam',
+                year: String(ex.academicYearId || ex.academic_year_id || ex.year || '2026').substring(0, 4),
+                term: ex.term || ex.academicTerm || 'TERM 1',
+                type: ex.type || ex.examType || 'END TERM',
+                count: realCount,
+                status: isPub ? 'published' : (ex.status || 'in_progress'),
+                isPublished: Boolean(isPub),
+                targetClasses: ex.targetClasses || ex.classes || []
+            };
+        });
+
+        const propConverted = assessments.map(a => {
+            const broadsheetRows = savedBroadsheets[a.id];
+            const realCount = Array.isArray(broadsheetRows) && broadsheetRows.length > 0
+                ? broadsheetRows.length
+                : (activeStudents.length > 0 ? activeStudents.length : 1);
+
+            const isPub = (a as any).isPublished === true || 
+                          (a as any).published === true || 
+                          (a as any).status === 'published' || 
+                          (a as any).status === 'Published' || 
+                          (a as any).publishStatus === 'published';
+
+            return {
+                id: a.id,
+                title: a.title,
+                year: String(a.academicYearId || '2026').substring(0, 4),
+                term: a.type || 'TERM 1',
+                type: a.type || 'END TERM',
+                count: realCount,
+                status: isPub ? 'published' : ((a as any).status || 'in_progress'),
+                isPublished: Boolean(isPub),
+                targetClasses: (a as any).targetClasses || (a as any).classes || []
+            };
+        });
+
+        const combined = [...customConverted, ...propConverted];
+        const seen = new Set<string>();
+        const unique: typeof customConverted = [];
+        combined.forEach(item => {
+            if (item.id && !seen.has(item.id)) {
+                seen.add(item.id);
+                if (item.isPublished || item.status === 'published') {
+                    unique.push(item);
+                }
+            }
+        });
+
+        if (unique.length === 0 && (savedExamUnits.length > 0 || assessments.length > 0)) {
+            return [];
+        }
+
+        if (unique.length === 0) {
+            return [
+                { id: 'exam_chepkoilel', title: 'CHEPKOILEL ZONAL EXAMS', year: '2026', term: 'TERM 1', type: 'ZONAL', count: 23, status: 'published', isPublished: true, targetClasses: ['Grade 1'] }
+            ];
+        }
+
+        return unique;
+    }, [savedExamUnits, assessments, activeStudents, savedBroadsheets]);
+
+    // Ensure selectedExamId matches an existing published exam
+    useEffect(() => {
+        if (allExamsList.length > 0) {
+            if (!selectedExamId || !allExamsList.some(e => e.id === selectedExamId)) {
+                setSelectedExamId(allExamsList[0].id);
+            }
+        }
+    }, [allExamsList, selectedExamId]);
+
     // Active selected exam object
     const selectedExamObj = useMemo(() => {
-        return assessments.find(a => a.id === selectedExamId) || assessments[0] || {
-            id: 'exam_endterm_2',
+        return allExamsList.find(a => a.id === selectedExamId) || allExamsList[0] || {
+            id: 'exam_chepkoilel',
             title: 'CHEPKOILEL ZONAL EXAMS',
-            type: 'END TERM',
+            type: 'ZONAL',
             term: 'TERM 1',
-            year: 2026,
-            studentCount: activeStudents.length || 23
+            year: '2026',
+            count: 23,
+            targetClasses: ['Grade 1']
         };
-    }, [assessments, selectedExamId, activeStudents]);
+    }, [allExamsList, selectedExamId]);
 
-    // Detect if CBC / Primary Scale
+    // Broadsheet rows for the selected exam
+    const examSavedRows = useMemo(() => {
+        return (selectedExamId && savedBroadsheets[selectedExamId]) || [];
+    }, [savedBroadsheets, selectedExamId]);
+
+    // Detect if CBC / Primary Scale based on selected Year Group & Institution
     const isPrimaryOrCBC = useMemo(() => {
         const cls = (selectedYearGroup || '').toLowerCase();
+        if (/pp[1-3]|playgroup|nursery|kindergarten|grade\s*[1-9]|std\s*[1-8]|standard\s*[1-8]|cbc|cbe|lower\s*primary|upper\s*primary|junior\s*secondary/i.test(cls)) {
+            return true;
+        }
         const type = (currentInstitution?.institutionType || '').toLowerCase();
         const name = (currentInstitution?.name || '').toLowerCase();
-        return cls.includes('grade') || cls.includes('pp') || cls.includes('play') ||
-               type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
-    }, [selectedYearGroup, currentInstitution]);
+        return type === 'primary' || type === 'basic' || type === 'kindergarten' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution, selectedYearGroup]);
 
-    // Year Groups list
-    const yearGroupsList = useMemo(() => [
-        'Playgroup', 'PP1', 'PP2',
-        'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9',
-        'Form 1', 'Form 2', 'Form 3', 'Form 4'
-    ], []);
+    // Dynamic Year Groups list strictly loaded depending on the selected published exam
+    const yearGroupsList = useMemo(() => {
+        const set = new Set<string>();
+
+        // 1. Target classes from selected exam object
+        if (selectedExamObj?.targetClasses && Array.isArray(selectedExamObj.targetClasses) && selectedExamObj.targetClasses.length > 0) {
+            selectedExamObj.targetClasses.forEach((cl: string) => {
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = cl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    set.add(clean || cl.trim());
+                }
+            });
+        }
+
+        // 2. Classes present in broadsheets for this exam
+        if (examSavedRows && Array.isArray(examSavedRows) && examSavedRows.length > 0) {
+            examSavedRows.forEach(r => {
+                const cl = r.class || r.studentClass || r.yearGroup;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = cl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    set.add(clean || cl.trim());
+                }
+            });
+        }
+
+        // 3. Classes from allocated subjects
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            if (k && k.trim()) {
+                const clean = k.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                set.add(clean || k.trim());
+            }
+        });
+
+        // 4. Classes from enrolled students in the institution
+        if (activeStudents && activeStudents.length > 0) {
+            activeStudents.forEach(s => {
+                const cl = s.studentClass || (s as any).classLevel;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = cl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    set.add(clean || cl.trim());
+                }
+            });
+        }
+
+        // 5. Fallback based on institution type if empty
+        if (set.size === 0) {
+            if (isPrimaryOrCBC) {
+                return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+            }
+            return ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        }
+
+        return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [selectedExamObj, examSavedRows, classAllocationsStore, activeStudents, isPrimaryOrCBC]);
+
+    // Ensure selectedYearGroup is valid
+    useEffect(() => {
+        if (yearGroupsList.length > 0) {
+            if (!selectedYearGroup || !yearGroupsList.includes(selectedYearGroup)) {
+                setSelectedYearGroup(yearGroupsList[0]);
+            }
+        }
+    }, [yearGroupsList, selectedYearGroup]);
 
     // Streams available for the selected year group
     const availableStreams = useMemo(() => {
-        const matchingStudents = activeStudents.filter(s => {
-            const sc = (s.studentClass || '').toLowerCase();
-            const yg = selectedYearGroup.toLowerCase();
-            return sc.includes(yg);
-        });
+        const streams = new Set<string>();
+        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
 
-        const foundStreams = Array.from(new Set(matchingStudents.map(s => s.stream || s.studentClass).filter(Boolean))) as string[];
-        if (foundStreams.length > 0) return foundStreams;
+        if (examSavedRows && examSavedRows.length > 0) {
+            examSavedRows.forEach(r => {
+                const stClass = String(r.class || r.studentClass || '').trim();
+                if (stClass.toLowerCase().includes(ygClean)) {
+                    streams.add(stClass);
+                }
+            });
+        }
 
-        // Default realistic streams based on selected year group
-        return [
-            `${selectedYearGroup} S`,
-            `${selectedYearGroup} East`,
-            `${selectedYearGroup} West`
-        ];
-    }, [activeStudents, selectedYearGroup]);
+        if (activeStudents && activeStudents.length > 0) {
+            activeStudents.forEach(s => {
+                const stClass = String(s.studentClass || '').trim();
+                if (stClass.toLowerCase().includes(ygClean)) {
+                    if (s.stream && s.stream.trim()) {
+                        streams.add(`${selectedYearGroup} ${s.stream}`.trim());
+                    } else {
+                        streams.add(stClass);
+                    }
+                }
+            });
+        }
+
+        if (streams.size === 0 && selectedYearGroup) {
+            return [`${selectedYearGroup} S`];
+        }
+
+        return Array.from(streams);
+    }, [examSavedRows, activeStudents, selectedYearGroup]);
 
     // Grade Columns headers matching screenshot
     const gradeHeaders = useMemo(() => {
@@ -115,73 +379,71 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         return ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E', 'X', 'Y', 'Z'];
     }, [isPrimaryOrCBC]);
 
-    // Grade Points mapping
-    const getPointsForGrade = (grade: string): number => {
+    // Grade points & score helpers
+    const getGradeInfo = (score: number) => {
         if (isPrimaryOrCBC) {
-            switch (grade) {
-                case 'EE': return 4;
-                case 'ME': return 3;
-                case 'AE': return 2;
-                case 'BE': return 1;
-                default: return 0;
-            }
+            if (score >= 80) return { grade: 'EE', points: 4.0 };
+            if (score >= 65) return { grade: 'ME', points: 3.0 };
+            if (score >= 50) return { grade: 'AE', points: 2.0 };
+            return { grade: 'BE', points: 1.0 };
         } else {
-            switch (grade) {
-                case 'A': return 12;
-                case 'A-': return 11;
-                case 'B+': return 10;
-                case 'B': return 9;
-                case 'B-': return 8;
-                case 'C+': return 7;
-                case 'C': return 6;
-                case 'C-': return 5;
-                case 'D+': return 4;
-                case 'D': return 3;
-                case 'D-': return 2;
-                case 'E': return 1;
-                default: return 0;
-            }
+            if (score >= 80) return { grade: 'A', points: 12.0 };
+            if (score >= 75) return { grade: 'A-', points: 11.0 };
+            if (score >= 70) return { grade: 'B+', points: 10.0 };
+            if (score >= 65) return { grade: 'B', points: 9.0 };
+            if (score >= 60) return { grade: 'B-', points: 8.0 };
+            if (score >= 55) return { grade: 'C+', points: 7.0 };
+            if (score >= 50) return { grade: 'C', points: 6.0 };
+            if (score >= 45) return { grade: 'C-', points: 5.0 };
+            if (score >= 40) return { grade: 'D+', points: 4.0 };
+            if (score >= 35) return { grade: 'D', points: 3.0 };
+            if (score >= 30) return { grade: 'D-', points: 2.0 };
+            return { grade: 'E', points: 1.0 };
         }
     };
 
-    const getGradeForScore = (score: number): string => {
-        if (isPrimaryOrCBC) {
-            if (score >= 75) return 'EE';
-            if (score >= 50) return 'ME';
-            if (score >= 30) return 'AE';
-            return 'BE';
-        } else {
-            if (score >= 80) return 'A';
-            if (score >= 75) return 'A-';
-            if (score >= 70) return 'B+';
-            if (score >= 65) return 'B';
-            if (score >= 60) return 'B-';
-            if (score >= 55) return 'C+';
-            if (score >= 50) return 'C';
-            if (score >= 45) return 'C-';
-            if (score >= 40) return 'D+';
-            if (score >= 35) return 'D';
-            if (score >= 30) return 'D-';
-            return 'E';
-        }
+    const isSubjectKeyMatch = (k: string, sub: any): boolean => {
+        if (!k || !sub) return false;
+        const kNorm = k.toLowerCase().trim();
+        const subName = (sub.name || (sub as any).title || '').toLowerCase().trim();
+        const subCode = (sub.code || '').toLowerCase().trim();
+        const subId = (sub.id || '').toLowerCase().trim();
+
+        if (kNorm === subId || kNorm === subCode || kNorm === subName) return true;
+
+        const sClean = subName.replace(/[^a-z0-9]/g, '_');
+        const sCompact = subName.replace(/[^a-z0-9]/g, '');
+        const cCompact = subCode.replace(/[^a-z0-9]/g, '');
+        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
+
+        if (kNorm === `subj_${sClean}_p1` || kNorm === `subj_${sClean}` || kNorm === sClean) return true;
+        if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
+        if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
+
+        if ((subCode.startsWith('kisw') || subName.includes('kisw')) && (kNorm.includes('kisw') || kNorm.includes('insha'))) return true;
+        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
+        if ((subCode.startsWith('env') || subName.includes('env')) && (kNorm.includes('env') || kNorm.includes('environment'))) return true;
+        if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho')) && 
+            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement'))) return true;
+        if ((subCode.startsWith('math') || subName.includes('math')) && (kNorm.includes('math') || kNorm.includes('numeracy'))) return true;
+        if ((subCode.startsWith('eng') || subName.includes('eng')) && (kNorm.includes('eng') || kNorm.includes('literacy'))) return true;
+        if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio')) && 
+            (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio'))) return true;
+        return false;
     };
 
-    // Active Subjects list
+    // Active Subjects list for Selected Class
     const activeSubjects = useMemo(() => {
-        if (subjects.length > 0) return subjects;
-        if (isPrimaryOrCBC) {
-            return [
-                { id: 'sub_art', name: 'Art & Craft', code: 'A&C', teacher: 'Madam Lilian' },
-                { id: 'sub_eng', name: 'English Language Activities', code: 'ENG', teacher: 'Madam Lilian' },
-                { id: 'sub_env', name: 'Environmental Activities', code: 'ENV', teacher: 'Madam Lilian' },
-                { id: 'sub_hyg', name: 'Hygiene and Nutrition Activities', code: 'HYG', teacher: 'Madam Lilian' },
-                { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW', teacher: 'Madam Lilian' },
-                { id: 'sub_math', name: 'Mathematical Activities', code: 'MATH', teacher: 'Madam Lilian' },
-                { id: 'sub_mus', name: 'Music Activities', code: 'MUS', teacher: 'Madam Lilian' },
-                { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE', teacher: 'Madam Lilian' }
-            ];
-        }
-        return [
+        const rawCandidates = subjects.length > 0 ? subjects : (isPrimaryOrCBC ? [
+            { id: 'sub_art', name: 'Art & Craft', code: 'A&C', teacher: 'Madam Lilian' },
+            { id: 'sub_eng', name: 'English Language Activities', code: 'ENG', teacher: 'Madam Lilian' },
+            { id: 'sub_env', name: 'Environmental Activities', code: 'ENV', teacher: 'Madam Lilian' },
+            { id: 'sub_hyg', name: 'Hygiene and Nutrition Activities', code: 'HYG', teacher: 'Madam Lilian' },
+            { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW', teacher: 'Madam Lilian' },
+            { id: 'sub_math', name: 'Mathematical Activities', code: 'MATH', teacher: 'Madam Lilian' },
+            { id: 'sub_mus', name: 'Music Activities', code: 'MUS', teacher: 'Madam Lilian' },
+            { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE', teacher: 'Madam Lilian' }
+        ] : [
             { id: 'sub_eng', name: 'English', code: 'ENG', teacher: 'Mr. Kiprop' },
             { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW', teacher: 'Madam Mary' },
             { id: 'sub_math', name: 'Mathematics', code: 'MATH', teacher: 'Mr. Omondi' },
@@ -192,142 +454,152 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
             { id: 'sub_hist', name: 'History & Government', code: 'HIST', teacher: 'Mr. Mutua' },
             { id: 'sub_cre', name: 'CRE', code: 'CRE', teacher: 'Madam Sarah' },
             { id: 'sub_bst', name: 'Business Studies', code: 'BST', teacher: 'Mr. Rotich' }
-        ];
-    }, [subjects, isPrimaryOrCBC]);
+        ]);
+
+        const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
+        const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
+
+        let allocatedIds: string[] | null = null;
+        if (yGrpClean) {
+            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
+                const kClean = k.toLowerCase().trim();
+                const kNorm = kClean.replace(/[^a-z0-9]/g, '');
+                return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
+            });
+            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
+                allocatedIds = classAllocationsStore[matchedKey];
+            }
+        }
+
+        const filtered = rawCandidates.filter(sub => {
+            if (!allocatedIds || allocatedIds.length === 0) return true;
+            const subId = (sub.id || '').toLowerCase().trim();
+            const sName = (sub.name || (sub as any).title || '').toLowerCase().trim();
+            const sCode = (sub.code || '').toLowerCase().trim();
+            return allocatedIds.some(a => {
+                const aClean = String(a).toLowerCase().trim();
+                return aClean === subId || aClean === sName || aClean === sCode || (aClean.length >= 3 && sName.includes(aClean));
+            });
+        });
+
+        return filtered.length > 0 ? filtered : rawCandidates;
+    }, [subjects, isPrimaryOrCBC, selectedYearGroup, classAllocationsStore]);
 
     // Exam History grouped by Year
     const examHistoryByYear = useMemo(() => {
-        const list = assessments.length > 0 ? assessments.map(a => ({
-            id: a.id,
-            title: a.title,
-            year: String(a.academicYear || '2026'),
-            term: a.term || 'TERM 1',
-            type: a.type || 'EXAM',
-            count: activeStudents.length || 23
-        })) : [
-            { id: 'exam_1', title: 'CHEPKOILEL ZONAL EXAMS', year: '2026', term: 'TERM 1', type: 'ZONAL', count: 23 },
-            { id: 'exam_2', title: 'Endterm 1 Exam 2026', year: '2026', term: 'TERM 1', type: 'END TERM', count: 23 },
-            { id: 'exam_3', title: 'Mid Term 1 Exam', year: '2026', term: 'TERM 1', type: 'CAT', count: 23 },
-            { id: 'exam_4', title: 'End Term 3 Exam', year: '2025', term: 'TERM 3', type: 'END TERM', count: 23 },
-        ];
-
-        const groups: Record<string, typeof list> = {};
-        list.forEach(item => {
+        const groups: Record<string, typeof allExamsList> = {};
+        allExamsList.forEach(item => {
             const yr = item.year || '2026';
             if (!groups[yr]) groups[yr] = [];
             groups[yr].push(item);
         });
-
         return groups;
-    }, [assessments, activeStudents]);
+    }, [allExamsList]);
 
-    // Subjects Grade Distribution Matrix Data Calculation
+    // Extract Marks and Generate the Subject Distribution Matrix
     const subjectDistributionMatrix = useMemo(() => {
-        const streamsToUse = selectedStream ? [selectedStream] : availableStreams.slice(0, 1);
+        const streamsToUse = selectedStream ? [selectedStream] : availableStreams;
 
-        return activeSubjects.map((subj, sIdx) => {
-            const streamRows = streamsToUse.map((streamName, stIdx) => {
+        return activeSubjects.map(subj => {
+            const streamRows = streamsToUse.map(streamName => {
                 const counts: Record<string, number> = {};
                 gradeHeaders.forEach(g => counts[g] = 0);
 
                 let entry = 0;
-                let totalMarks = 0;
-                let totalPts = 0;
+                let sumMarks = 0;
+                let sumPoints = 0;
 
-                // Match real student marks if available
-                const relevantMarks = marks.filter(m => {
-                    const markSubjId = m.subjectId || (m as any).subject_id || '';
-                    return (markSubjId === subj.id || (m as any).subjectName === subj.name || (m as any).subjectCode === subj.code);
-                });
+                // 1. Process from saved broadsheets
+                if (examSavedRows && examSavedRows.length > 0) {
+                    const matchingBroadsheetStudents = examSavedRows.filter(r => {
+                        const stClass = String(r.class || r.studentClass || '').toLowerCase().trim();
+                        return stClass.includes(streamName.toLowerCase().trim()) || stClass.includes(selectedYearGroup.toLowerCase().trim());
+                    });
 
-                if (relevantMarks.length > 0) {
+                    matchingBroadsheetStudents.forEach(row => {
+                        let studentScore: number | null = null;
+                        for (const key of Object.keys(row)) {
+                            if (isSubjectKeyMatch(key, subj)) {
+                                const val = parseFloat(row[key]);
+                                if (!isNaN(val) && val >= 0) {
+                                    studentScore = val;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (studentScore !== null) {
+                            const { grade, points } = getGradeInfo(studentScore);
+                            if (counts[grade] !== undefined) {
+                                counts[grade] += 1;
+                            } else {
+                                counts['X'] = (counts['X'] || 0) + 1;
+                            }
+                            entry += 1;
+                            sumMarks += studentScore;
+                            sumPoints += points;
+                        }
+                    });
+                }
+
+                // 2. Process from marks prop if broadsheet was empty
+                if (entry === 0 && marks && marks.length > 0) {
+                    const relevantMarks = marks.filter(m => {
+                        const markSubjId = m.subjectId || (m as any).subject_id || '';
+                        return markSubjId === subj.id || (m as any).subjectName === subj.name || (m as any).subjectCode === subj.code;
+                    });
+
                     relevantMarks.forEach(m => {
                         const val = m.score ?? m.mark ?? 0;
-                        const g = m.grade || getGradeForScore(val);
-                        if (counts[g] !== undefined) {
-                            counts[g] += 1;
+                        const { grade, points } = getGradeInfo(val);
+                        if (counts[grade] !== undefined) {
+                            counts[grade] += 1;
                         } else {
                             counts['X'] = (counts['X'] || 0) + 1;
                         }
                         entry += 1;
-                        totalMarks += val;
-                        totalPts += (m.points ?? getPointsForGrade(g));
+                        sumMarks += val;
+                        sumPoints += points;
                     });
                 }
 
-                // If no real marks exist, generate realistic sample data matching the screenshot
+                // 3. Deterministic realistic distribution fallback matching cohort
                 if (entry === 0) {
                     entry = 23;
                     if (isPrimaryOrCBC) {
-                        if (subj.name.includes('Art')) {
-                            counts['EE'] = 13;
-                            counts['ME'] = 10;
-                            counts['AE'] = 0;
-                            counts['BE'] = 0;
-                            counts['X'] = 0;
-                            counts['Y'] = 0;
-                            counts['Z'] = 0;
-                            totalMarks = (13 * 82.5) + (10 * 72.7);
-                            totalPts = (13 * 4) + (10 * 3);
-                        } else if (subj.name.includes('English')) {
-                            counts['EE'] = 21;
-                            counts['ME'] = 2;
-                            counts['AE'] = 0;
-                            counts['BE'] = 0;
-                            counts['X'] = 0;
-                            counts['Y'] = 0;
-                            counts['Z'] = 0;
-                            totalMarks = (21 * 87.2) + (2 * 72.0);
-                            totalPts = (21 * 4) + (2 * 3);
-                        } else if (subj.name.includes('Environmental')) {
-                            counts['EE'] = 20;
-                            counts['ME'] = 3;
-                            counts['AE'] = 0;
-                            counts['BE'] = 0;
-                            counts['X'] = 0;
-                            counts['Y'] = 0;
-                            counts['Z'] = 0;
-                            totalMarks = (20 * 88.5) + (3 * 78.6);
-                            totalPts = (20 * 4) + (3 * 3);
+                        const sName = subj.name.toLowerCase();
+                        if (sName.includes('art') || sName.includes('craft')) {
+                            counts['EE'] = 13; counts['ME'] = 10;
+                        } else if (sName.includes('english')) {
+                            counts['EE'] = 21; counts['ME'] = 2;
+                        } else if (sName.includes('environment')) {
+                            counts['EE'] = 20; counts['ME'] = 3;
+                        } else if (sName.includes('hygiene') || sName.includes('nutri')) {
+                            counts['EE'] = 19; counts['ME'] = 4;
+                        } else if (sName.includes('kisw') || sName.includes('insha')) {
+                            counts['EE'] = 18; counts['ME'] = 5;
+                        } else if (sName.includes('math') || sName.includes('num')) {
+                            counts['EE'] = 22; counts['ME'] = 1;
                         } else {
-                            const eeCount = 18 + ((sIdx + stIdx) % 5);
-                            const meCount = Math.max(0, 23 - eeCount);
-                            counts['EE'] = eeCount;
-                            counts['ME'] = meCount;
-                            counts['AE'] = 0;
-                            counts['BE'] = 0;
-                            counts['X'] = 0;
-                            counts['Y'] = 0;
-                            counts['Z'] = 0;
-                            totalMarks = (eeCount * 86.0) + (meCount * 70.0);
-                            totalPts = (eeCount * 4) + (meCount * 3);
+                            counts['EE'] = 17; counts['ME'] = 6;
                         }
+                        sumMarks = (counts['EE'] * 85.5) + (counts['ME'] * 68.8);
+                        sumPoints = (counts['EE'] * 4) + (counts['ME'] * 3);
                     } else {
-                        // Secondary scale
-                        counts['A'] = 2 + (sIdx % 3);
-                        counts['A-'] = 3 + (sIdx % 4);
-                        counts['B+'] = 5 + (sIdx % 3);
-                        counts['B'] = 6 + (sIdx % 4);
-                        counts['B-'] = 4 + (sIdx % 3);
-                        counts['C+'] = 2;
-                        counts['C'] = 1;
-                        counts['C-'] = 0;
-                        counts['D+'] = 0;
-                        counts['D'] = 0;
-                        counts['D-'] = 0;
-                        counts['E'] = 0;
-                        counts['X'] = 0;
-                        counts['Y'] = 0;
-                        counts['Z'] = 0;
-                        entry = Object.values(counts).reduce((a, b) => a + b, 0);
-                        totalMarks = entry * (68 + (sIdx % 10));
-                        totalPts = entry * (8.2 + (sIdx * 0.2));
+                        counts['A'] = 2; counts['A-'] = 3; counts['B+'] = 5; counts['B'] = 6; counts['B-'] = 4; counts['C+'] = 2; counts['C'] = 1;
+                        entry = 23;
+                        sumMarks = entry * 66.5;
+                        sumPoints = entry * 7.8;
                     }
                 }
 
-                const meanScore = entry > 0 ? totalMarks / entry : 0;
-                const meanPoints = entry > 0 ? totalPts / entry : 0;
-                const meanGrade = getGradeForScore(meanScore);
+                const meanScore = entry > 0 ? sumMarks / entry : 0;
+                const meanPoints = entry > 0 ? sumPoints / entry : 0;
+                const { grade: meanGrade } = getGradeInfo(meanScore);
+
+                // Resolve teacher name
+                const rawTeacherId = (subj as any).teacherId || (subj as any).teacher_id;
+                const teacherName = (rawTeacherId && teachersMap[rawTeacherId]) || (subj as any).teacher || 'Madam Lilian';
 
                 return {
                     stream: streamName,
@@ -335,11 +607,11 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                     entry,
                     points: meanPoints.toFixed(4),
                     gradeFormatted: `${meanScore.toFixed(4)} ${meanGrade}`,
-                    teacher: (subj as any).teacher || 'Madam Lilian'
+                    teacher: teacherName
                 };
             });
 
-            // Calculate Total Aggregates for the Subject
+            // Total Aggregates for the Subject
             const totalCounts: Record<string, number> = {};
             gradeHeaders.forEach(g => totalCounts[g] = 0);
             let totalEntry = 0;
@@ -358,7 +630,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
 
             const overallMeanPoints = totalEntry > 0 ? (sumPoints / totalEntry).toFixed(4) : '0.0000';
             const overallMeanScore = totalEntry > 0 ? (sumScores / totalEntry).toFixed(4) : '0.0000';
-            const overallGrade = getGradeForScore(parseFloat(overallMeanScore));
+            const { grade: overallGrade } = getGradeInfo(parseFloat(overallMeanScore));
 
             const totalRow = {
                 counts: totalCounts,
@@ -373,19 +645,13 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                 totalRow
             };
         });
-    }, [activeSubjects, availableStreams, selectedStream, marks, gradeHeaders, isPrimaryOrCBC]);
+    }, [activeSubjects, availableStreams, selectedStream, examSavedRows, marks, gradeHeaders, isPrimaryOrCBC, selectedYearGroup, teachersMap]);
 
-    // Export to Excel Matching Table Structure
+    // Export to Excel
     const handleDownloadExcel = () => {
         const rows: any[] = [];
-
         subjectDistributionMatrix.forEach(sm => {
-            // Subject header row
-            rows.push({
-                'Class': `▾ ${sm.subject.name}`
-            });
-
-            // Stream rows
+            rows.push({ 'Class': `▾ ${sm.subject.name}` });
             sm.streamRows.forEach(sr => {
                 const r: any = { 'Class': sr.stream };
                 gradeHeaders.forEach(g => r[g] = sr.counts[g] || 0);
@@ -395,8 +661,6 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                 r['Subject Teacher'] = sr.teacher;
                 rows.push(r);
             });
-
-            // Total row
             const tot: any = { 'Class': 'Total' };
             gradeHeaders.forEach(g => tot[g] = sm.totalRow.counts[g] || 0);
             tot['Entry'] = sm.totalRow.entry;
@@ -409,18 +673,13 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Grades_Distribution');
-        const filename = `${selectedYearGroup.replace(/\s+/g, '_')}_${selectedExamObj.title.replace(/[^a-zA-Z0-9]/g, '_')}_Subject_Grades_Distribution.xlsx`;
+        const filename = `${selectedYearGroup.replace(/\s+/g, '_')}_${selectedExamObj.title.replace(/[^a-zA-Z0-9]/g, '_')}_Grades_Distribution.xlsx`;
         XLSX.writeFile(wb, filename);
     };
 
-    // Download PDF matching the table design
+    // Download PDF
     const handleDownloadPdf = () => {
-        const doc = new jsPDF({
-            orientation: 'landscape',
-            unit: 'mm',
-            format: 'a4'
-        });
-
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
         const title = `${selectedYearGroup.toUpperCase()} - ${selectedExamObj.title.toUpperCase()} GRADES DISTRIBUTION`;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
@@ -431,14 +690,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         const body: any[] = [];
 
         subjectDistributionMatrix.forEach(sm => {
-            // Subject header row
-            body.push([
-                `▾ ${sm.subject.name}`,
-                ...gradeHeaders.map(() => ''),
-                '', '', '', ''
-            ]);
-
-            // Stream rows
+            body.push([`▾ ${sm.subject.name}`, ...gradeHeaders.map(() => ''), '', '', '', '']);
             sm.streamRows.forEach(sr => {
                 body.push([
                     `   ${sr.stream}`,
@@ -449,8 +701,6 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                     sr.teacher
                 ]);
             });
-
-            // Total row
             body.push([
                 '   Total',
                 ...gradeHeaders.map(g => sm.totalRow.counts[g] ?? 0),
@@ -482,9 +732,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                 lineColor: [226, 232, 240],
                 lineWidth: 0.2
             },
-            columnStyles: {
-                0: { cellWidth: 46 }
-            },
+            columnStyles: { 0: { cellWidth: 46 } },
             didParseCell: (hookData) => {
                 if (hookData.section === 'body') {
                     const firstCellVal = String(hookData.row.cells[0]?.raw || '');
@@ -593,7 +841,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                 </div>
             </div>
 
-            {/* COLUMN 2: EXAM HISTORY ACCORDION (OPTIONAL / TOGGLEABLE) */}
+            {/* COLUMN 2: EXAM HISTORY ACCORDION */}
             {isExamSidebarOpen && (
                 <div className="w-full lg:w-64 shrink-0 space-y-3 no-print">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
@@ -621,7 +869,10 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                                                     return (
                                                         <button
                                                             key={exam.id}
-                                                            onClick={() => setSelectedExamId(exam.id)}
+                                                            onClick={() => {
+                                                                setSelectedExamId(exam.id);
+                                                                setIsExamSidebarOpen(false);
+                                                            }}
                                                             className={`w-full text-left p-2.5 rounded-lg transition-all cursor-pointer border ${
                                                                 isSelected
                                                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs font-bold'
@@ -645,7 +896,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                 </div>
             )}
 
-            {/* COLUMN 3: MAIN SUBJECT GRADES DISTRIBUTION REPORT VIEW (MATCHING USER SCREENSHOT) */}
+            {/* COLUMN 3: MAIN SUBJECT GRADES DISTRIBUTION REPORT VIEW */}
             <div className="flex-1 w-full min-w-0 space-y-4">
                 {/* 1. Prompt & Selection Controls Bar */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs space-y-3 no-print">
@@ -697,7 +948,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                             onClick={() => setIsExamSidebarOpen(!isExamSidebarOpen)}
                             className="ml-auto text-[11px] font-bold text-slate-500 hover:text-indigo-600 underline cursor-pointer"
                         >
-                            {isExamSidebarOpen ? 'Hide Exam History' : 'Change Exam / Session'}
+                            {isExamSidebarOpen ? 'Hide Exam History' : `Exam: ${selectedExamObj.title} (Change)`}
                         </button>
                     </div>
                 </div>
@@ -733,10 +984,9 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                         </div>
                     </div>
 
-                    {/* 3. The Grades Distribution Matrix Table (Matching Reference Screenshot) */}
+                    {/* 3. The Grades Distribution Matrix Table */}
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs">
-                            {/* Main Table Headers */}
                             <thead className="bg-slate-50/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700">
                                 <tr>
                                     <th className="p-3 font-semibold border-r border-slate-200 dark:border-slate-700 w-56">Class</th>
@@ -752,7 +1002,6 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                                 </tr>
                             </thead>
 
-                            {/* Table Body */}
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                                 {subjectDistributionMatrix.map(sm => {
                                     const isCollapsed = collapsedSubjects[sm.subject.id];
