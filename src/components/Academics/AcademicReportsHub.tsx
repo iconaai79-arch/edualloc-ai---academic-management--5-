@@ -38,6 +38,7 @@ interface AcademicReportsHubProps {
 export type ReportSubTab = 
     | 'exam_analysis'
     | 'subject_grades_analysis'
+    | 'subject_grades_distribution'
     | 'broadsheet'
     | 'result_slips'
     | 'student_progress'
@@ -424,7 +425,8 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
     ];
 
     // If viewing any of the full-width report dashboards that contain their own drawer navigation, render them directly without duplicate outer header
-    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'broadsheet', 'result_slips', 'student_progress', 'report_cards', 'transcripts'].includes(activeSubTab);
+    const isSubjectGradesTab = activeSubTab === 'subject_grades_analysis' || (activeSubTab as string) === 'subject_grades_distribution';
+    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'subject_grades_distribution', 'broadsheet', 'result_slips', 'student_progress', 'report_cards', 'transcripts'].includes(activeSubTab);
 
     if (hasOwnDrawerNav) {
         return (
@@ -442,7 +444,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                     />
                 )}
 
-                {activeSubTab === 'subject_grades_analysis' && (
+                {isSubjectGradesTab && (
                     <SubjectGradesDistributionDashboard
                         assessments={assessments}
                         marks={marks}
@@ -567,7 +569,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                 )}
 
                 {/* 2. SUBJECTS GRADES ANALYSIS / DISTRIBUTION */}
-                {activeSubTab === 'subject_grades_analysis' && (
+                {isSubjectGradesTab && (
                     <SubjectGradesDistributionDashboard
                         assessments={assessments}
                         marks={marks}

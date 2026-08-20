@@ -506,7 +506,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
     const navItems = [
         { id: 'exam_overview', label: 'Exam overview', icon: BarChart3Icon, reportTab: 'exam_analysis' },
         { id: 'inter_school', label: 'Inter-school comparison', icon: SparklesIcon },
-        { id: 'subject_grades_distribution', label: 'Subject grades distribution', icon: ChartPieIcon },
+        { id: 'subject_grades_distribution', label: 'Subject grades distribution', icon: ChartPieIcon, reportTab: 'subject_grades_analysis' },
         { id: 'result_slips', label: 'Result slips', icon: DocumentArrowDownIcon, reportTab: 'result_slips' },
         { id: 'broadsheet', label: 'Broadsheet', icon: GridIcon, reportTab: 'broadsheet' },
         { id: 'marksheet', label: 'Marksheet', icon: BookOpenIcon },
