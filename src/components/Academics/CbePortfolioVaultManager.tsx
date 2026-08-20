@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
 import type { 
-    Institution, User, Subject, Course, CbeRubricLevel, CbePortfolioItem 
+    Institution, User, Subject, Course, AcademicLevel, CbeRubricLevel, CbePortfolioItem 
 } from '../../types';
 import { apiService } from '../../services/apiService';
 import { 
@@ -8,12 +7,14 @@ import {
     Search, Filter, Trash2, Eye, Printer, Award, CheckCircle2, 
     Sparkles, ShieldCheck, Download, Tag, X, UserCheck, Layers
 } from 'lucide-react';
+import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 
 export interface CbePortfolioVaultManagerProps {
     currentInstitution?: Institution | null;
     subjects?: Subject[];
     users?: User[]; // Contains students & teachers
     courses?: Course[];
+    academicLevels?: AcademicLevel[];
     currentUser?: User;
     onLogAction?: (action: string) => Promise<void> | void;
 }
@@ -66,36 +67,154 @@ export const CbePortfolioVaultManager: React.FC<CbePortfolioVaultManagerProps> =
     subjects = [],
     users = [],
     courses = [],
+    academicLevels = [],
     currentUser,
     onLogAction
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
 
-    // Extract all students & teachers
-    const allStudents = useMemo(() => (users || []).filter(u => u && u.role === 'student'), [users]);
+    // Hydrated real students list from database
+    const [fetchedStudents, setFetchedStudents] = useState<any[]>([]);
+    const [fetchedLevels, setFetchedLevels] = useState<any[]>([]);
+    const [fetchedCourses, setFetchedCourses] = useState<any[]>([]);
 
-    // Extract available classes
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('academic_levels', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('courses', currentInstitution.id).catch(() => [])
+            ]).then(([enrRecords, stRecords, userRecords, lvlRecords, courseRecords]) => {
+                if (lvlRecords && lvlRecords.length > 0) setFetchedLevels(lvlRecords);
+                if (courseRecords && courseRecords.length > 0) setFetchedCourses(courseRecords);
+
+                const userById = new Map<string, any>();
+                [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
+                    if (u?.id) userById.set(u.id, u);
+                    if (u?.userId) userById.set(u.userId, u);
+                });
+
+                const list: any[] = [];
+                const seenIds = new Set<string>();
+
+                (enrRecords || []).forEach((enr: any) => {
+                    if (!enr) return;
+                    const linkedUser = (enr.userId ? userById.get(enr.userId) : null) || (enr.user_id ? userById.get(enr.user_id) : null);
+                    const resolvedName =
+                        (linkedUser?.name && !linkedUser.name.toLowerCase().startsWith('student ') ? linkedUser.name : null) ||
+                        enr.metadata?.studentName ||
+                        enr.metadata?.name ||
+                        enr.metadata?.fullName ||
+                        linkedUser?.name ||
+                        enr.name ||
+                        '';
+                    const resolvedAdm = resolveRealStudentAdmNo(enr, undefined, [...(stRecords || []), ...(userRecords || []), ...(users || [])]) ||
+                        resolveRealStudentAdmNo(linkedUser, undefined);
+                    const resolvedClass =
+                        enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.metadata?.class ||
+                        linkedUser?.studentClass || linkedUser?.classLevel || linkedUser?.grade ||
+                        enr.studentClass || enr.gradeLevel || enr.grade || '';
+
+                    const idKey = enr.userId || enr.id;
+                    if (idKey && !seenIds.has(idKey)) {
+                        seenIds.add(idKey);
+                        list.push({
+                            ...enr,
+                            id: idKey,
+                            name: resolvedName,
+                            admissionNumber: resolvedAdm !== 'N/A' ? resolvedAdm : enr.admissionNumber,
+                            studentClass: resolvedClass,
+                            role: 'student'
+                        });
+                    }
+                });
+
+                // Also include user records with role=student
+                [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
+                    if (u && u.role === 'student') {
+                        const idKey = u.id;
+                        if (idKey && !seenIds.has(idKey)) {
+                            seenIds.add(idKey);
+                            const adm = resolveRealStudentAdmNo(u, undefined, enrRecords);
+                            list.push({
+                                ...u,
+                                admissionNumber: adm !== 'N/A' ? adm : u.admissionNumber
+                            });
+                        }
+                    }
+                });
+
+                if (list.length > 0) {
+                    setFetchedStudents(list);
+                }
+            }).catch(() => { });
+        }
+    }, [currentInstitution, users]);
+
+    // Extract all students & teachers
+    const allStudents = useMemo(() => {
+        if (fetchedStudents.length > 0) return fetchedStudents;
+        return (users || []).filter(u => u && u.role === 'student');
+    }, [users, fetchedStudents]);
+
+    // Extract available classes across all sources
     const classList = useMemo(() => {
         const set = new Set<string>();
-        courses.forEach(c => {
-            (c.levels || []).forEach(l => {
-                set.add(`${c.name} ${l.name ? '(' + l.name + ')' : ''}`);
-            });
-        });
-        allStudents.forEach(s => {
-            if (s.studentClass) set.add(s.studentClass);
-        });
-        if (set.size === 0) {
-            set.add('Grade 1 Alpha');
-            set.add('Grade 2 Blue');
-            set.add('Grade 3 West');
-            set.add('Grade 4 North');
-            set.add('Grade 10');
-        }
-        return Array.from(set);
-    }, [courses, allStudents]);
 
-    const [selectedClass, setSelectedClass] = useState<string>(classList[0] || 'Grade 1 Alpha');
+        // 1. Levels from props & DB
+        [...(academicLevels || []), ...fetchedLevels].forEach(l => {
+            if (l && l.name) set.add(l.name.trim());
+        });
+
+        // 2. Courses & Sub-streams from props & DB
+        [...(courses || []), ...fetchedCourses].forEach(c => {
+            if (c && c.name) {
+                set.add(c.name.trim());
+                (c.levels || []).forEach((l: any) => {
+                    if (l && l.name) {
+                        set.add(`${c.name.trim()} (${l.name.trim()})`);
+                        set.add(`${c.name.trim()} ${l.name.trim()}`);
+                    }
+                });
+            }
+        });
+
+        // 3. Classes from Enrolled Students
+        allStudents.forEach(s => {
+            const cl = s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || (s as any).grade || (s as any).gradeLevel || s.metadata?.studentClass || s.metadata?.gradeLevel;
+            if (cl && typeof cl === 'string' && !cl.startsWith('lvl_') && !cl.startsWith('c_')) {
+                set.add(cl.trim());
+            }
+        });
+
+        // 4. Ensure standard Kenya CBC / 8-4-4 grades are available
+        const defaultCBC = ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        defaultCBC.forEach(c => set.add(c));
+
+        // Sort smartly
+        const sorted = Array.from(set).sort((a, b) => {
+            const getRank = (str: string) => {
+                const lower = str.toLowerCase();
+                if (lower.startsWith('pp1') || lower.startsWith('playgroup')) return 1;
+                if (lower.startsWith('pp2')) return 2;
+                const gMatch = lower.match(/grade\s*(\d+)/);
+                if (gMatch) return 10 + parseInt(gMatch[1], 10);
+                const fMatch = lower.match(/form\s*(\d+)/);
+                if (fMatch) return 30 + parseInt(fMatch[1], 10);
+                return 50;
+            };
+            const rankA = getRank(a);
+            const rankB = getRank(b);
+            if (rankA !== rankB) return rankA - rankB;
+            return a.localeCompare(b);
+        });
+
+        return ['All Classes', ...sorted];
+    }, [courses, fetchedCourses, academicLevels, fetchedLevels, allStudents]);
+
+    const [selectedClass, setSelectedClass] = useState<string>('All Classes');
     const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
     const [selectedStudentFilter, setSelectedStudentFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -103,7 +222,10 @@ export const CbePortfolioVaultManager: React.FC<CbePortfolioVaultManagerProps> =
     // Filtered Students for selected class
     const classStudents = useMemo(() => {
         return allStudents.filter(s => {
-            return !selectedClass || s.studentClass === selectedClass || selectedClass.includes(s.studentClass || '');
+            if (!selectedClass || selectedClass === 'All Classes' || selectedClass === 'all') return true;
+            const stClass = (s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || (s as any).grade || s.metadata?.studentClass || '').toLowerCase().trim();
+            const selClean = selectedClass.toLowerCase().trim();
+            return stClass === selClean || stClass.includes(selClean) || selClean.includes(stClass);
         });
     }, [allStudents, selectedClass]);
 
@@ -299,7 +421,7 @@ export const CbePortfolioVaultManager: React.FC<CbePortfolioVaultManagerProps> =
                         >
                             <option value="all">All Learners ({classStudents.length})</option>
                             {classStudents.map(st => (
-                                <option key={st.id} value={st.id}>{st.name} ({st.admissionNumber || 'ADM'})</option>
+                                <option key={st.id} value={st.id}>{st.name} ({resolveRealStudentAdmNo(st, undefined, fetchedStudents)})</option>
                             ))}
                         </select>
                     </div>
@@ -456,7 +578,7 @@ export const CbePortfolioVaultManager: React.FC<CbePortfolioVaultManagerProps> =
                                     className="w-full p-3 bg-slate-50 dark:bg-slate-800 font-bold rounded-2xl border border-slate-200 dark:border-slate-700 outline-none"
                                 >
                                     {classStudents.map(st => (
-                                        <option key={st.id} value={st.id}>{st.name} ({st.admissionNumber || 'ADM'})</option>
+                                        <option key={st.id} value={st.id}>{st.name} ({resolveRealStudentAdmNo(st, undefined, fetchedStudents)})</option>
                                     ))}
                                 </select>
                             </div>

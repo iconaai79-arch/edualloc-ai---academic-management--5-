@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
 import type { 
-    Institution, User, Subject, Course, CbeRubricLevel, CbeStrand, CbeSubStrand, CbeLearningOutcomeAssessment 
+    Institution, User, Subject, Course, AcademicLevel, CbeRubricLevel, CbeStrand, CbeSubStrand, CbeLearningOutcomeAssessment 
 } from '../../types';
 import { apiService } from '../../services/apiService';
 import { 
@@ -17,6 +16,7 @@ export interface CbeStrandRubricManagerProps {
     subjects?: Subject[];
     users?: User[]; // Contains students & teachers
     courses?: Course[];
+    academicLevels?: AcademicLevel[];
     currentUser?: User;
     onLogAction?: (action: string) => Promise<void> | void;
 }
@@ -86,6 +86,7 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
     subjects = [],
     users = [],
     courses = [],
+    academicLevels = [],
     currentUser,
     onLogAction
 }) => {
@@ -93,14 +94,21 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
 
     // Hydrated real students list from database
     const [fetchedStudents, setFetchedStudents] = useState<any[]>([]);
+    const [fetchedLevels, setFetchedLevels] = useState<any[]>([]);
+    const [fetchedCourses, setFetchedCourses] = useState<any[]>([]);
 
     useEffect(() => {
         if (currentInstitution?.id) {
             Promise.all([
                 apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
-            ]).then(([enrRecords, stRecords, userRecords]) => {
+                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('academic_levels', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('courses', currentInstitution.id).catch(() => [])
+            ]).then(([enrRecords, stRecords, userRecords, lvlRecords, courseRecords]) => {
+                if (lvlRecords && lvlRecords.length > 0) setFetchedLevels(lvlRecords);
+                if (courseRecords && courseRecords.length > 0) setFetchedCourses(courseRecords);
+
                 const userById = new Map<string, any>();
                 [...(stRecords || []), ...(userRecords || []), ...(users || [])].forEach(u => {
                     if (u?.id) userById.set(u.id, u);
@@ -171,29 +179,62 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
     }, [users, fetchedStudents]);
     const allTeachers = useMemo(() => (users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'class_supervisor')), [users]);
 
-    // Extract available classes
+    // Extract available classes across all sources
     const classList = useMemo(() => {
         const set = new Set<string>();
-        courses.forEach(c => {
-            if (c.name) set.add(c.name);
-            (c.levels || []).forEach(l => {
-                if (l.name) set.add(l.name);
-                set.add(`${c.name} ${l.name ? '(' + l.name + ')' : ''}`.trim());
-            });
+
+        // 1. Levels from props & DB
+        [...(academicLevels || []), ...fetchedLevels].forEach(l => {
+            if (l && l.name) set.add(l.name.trim());
         });
+
+        // 2. Courses & Sub-streams from props & DB
+        [...(courses || []), ...fetchedCourses].forEach(c => {
+            if (c && c.name) {
+                set.add(c.name.trim());
+                (c.levels || []).forEach((l: any) => {
+                    if (l && l.name) {
+                        set.add(`${c.name.trim()} (${l.name.trim()})`);
+                        set.add(`${c.name.trim()} ${l.name.trim()}`);
+                    }
+                });
+            }
+        });
+
+        // 3. Classes from Enrolled Students
         allStudents.forEach(s => {
-            const cl = s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || s.metadata?.studentClass;
+            const cl = s.studentClass || (s as any).classLevel || (s as any).class_name || (s as any).className || (s as any).class || (s as any).grade || (s as any).gradeLevel || s.metadata?.studentClass || s.metadata?.gradeLevel;
             if (cl && typeof cl === 'string' && !cl.startsWith('lvl_') && !cl.startsWith('c_')) {
                 set.add(cl.trim());
             }
         });
-        if (set.size === 0) {
-            ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Form 1', 'Form 2', 'Form 3'].forEach(c => set.add(c));
-        }
-        return Array.from(set);
-    }, [courses, allStudents]);
 
-    const [selectedClass, setSelectedClass] = useState<string>(classList[0] || 'Grade 1');
+        // 4. Ensure standard Kenya CBC / 8-4-4 grades are available
+        const defaultCBC = ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        defaultCBC.forEach(c => set.add(c));
+
+        // Sort smartly
+        const sorted = Array.from(set).sort((a, b) => {
+            const getRank = (str: string) => {
+                const lower = str.toLowerCase();
+                if (lower.startsWith('pp1') || lower.startsWith('playgroup')) return 1;
+                if (lower.startsWith('pp2')) return 2;
+                const gMatch = lower.match(/grade\s*(\d+)/);
+                if (gMatch) return 10 + parseInt(gMatch[1], 10);
+                const fMatch = lower.match(/form\s*(\d+)/);
+                if (fMatch) return 30 + parseInt(fMatch[1], 10);
+                return 50;
+            };
+            const rankA = getRank(a);
+            const rankB = getRank(b);
+            if (rankA !== rankB) return rankA - rankB;
+            return a.localeCompare(b);
+        });
+
+        return ['All Classes', ...sorted];
+    }, [courses, fetchedCourses, academicLevels, fetchedLevels, allStudents]);
+
+    const [selectedClass, setSelectedClass] = useState<string>('All Classes');
     const [selectedSubjectId, setSelectedSubjectId] = useState<string>(subjects[0]?.id || 'sub_math');
     const [selectedStrandId, setSelectedStrandId] = useState<string>('');
     const [selectedSubStrandId, setSelectedSubStrandId] = useState<string>('');

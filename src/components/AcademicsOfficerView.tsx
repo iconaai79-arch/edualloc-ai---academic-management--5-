@@ -649,6 +649,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             subjects={subjects}
                             users={users}
                             courses={courses}
+                            academicLevels={academicLevels}
                             currentUser={currentUser}
                             onLogAction={onLogAction}
                         />
@@ -657,6 +658,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             currentInstitution={currentInstitution}
                             users={users}
                             courses={courses}
+                            academicLevels={academicLevels}
                             currentUser={currentUser}
                             onLogAction={onLogAction}
                         />
@@ -666,6 +668,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             subjects={subjects}
                             users={users}
                             courses={courses}
+                            academicLevels={academicLevels}
                             currentUser={currentUser}
                             onLogAction={onLogAction}
                         />
