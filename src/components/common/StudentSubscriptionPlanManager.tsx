@@ -365,11 +365,17 @@ export const StudentSubscriptionPlanManager: React.FC<StudentSubscriptionPlanMan
 
         setSubscriptions(newRecords);
         try {
-            localStorage.setItem(`eduai_student_subscriptions_${instId}`, JSON.stringify(newRecords));
+            const cachedList = newRecords.length > 100 ? newRecords.slice(0, 100) : newRecords;
+            localStorage.setItem(`eduai_student_subscriptions_${instId}`, JSON.stringify(cachedList));
         } catch (e) { }
 
-        for (const record of newRecords) {
-            await apiService.saveModuleRecord('student_subscriptions', record).catch(() => { });
+        // Batch save in chunks of 50 via saveModuleRecords
+        if (newRecords.length > 0) {
+            const batchSize = 50;
+            for (let i = 0; i < newRecords.length; i += batchSize) {
+                const chunk = newRecords.slice(i, i + batchSize);
+                await apiService.saveModuleRecords('student_subscriptions', chunk).catch(() => { });
+            }
         }
 
         setIsCalculatorModalOpen(false);
