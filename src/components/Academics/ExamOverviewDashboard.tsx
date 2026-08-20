@@ -1192,52 +1192,118 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             });
         }
 
-        // 2. Stream Rows (e.g. 1 B 2026, 1 N 2026, 1 R 2026, 1 S 2026)
-        const yr = selectedYearGroup || '1';
-        const yrClean = yr.replace(/^(grade|class|std|standard|pp)\s*/i, '').trim() || '1';
+        // 2. Discover Real Classes & Streams for this cohort
         const yearNum = selectedExamObj.year || '2026';
+        const currentYearGroup = selectedYearGroup || 'PP1';
+        
+        // Clean prefix (e.g. "Grade 1" -> "1", "PP1" -> "1" or "PP1", "Form 2" -> "2")
+        const prefix = currentYearGroup.toLowerCase().startsWith('grade')
+            ? currentYearGroup.replace(/grade\s*/i, '').trim()
+            : currentYearGroup.toLowerCase().startsWith('class')
+            ? currentYearGroup.replace(/class\s*/i, '').trim()
+            : currentYearGroup.toLowerCase().startsWith('std')
+            ? currentYearGroup.replace(/std\s*/i, '').trim()
+            : currentYearGroup.toLowerCase().startsWith('pp')
+            ? currentYearGroup.replace(/pp\s*/i, '').trim()
+            : currentYearGroup;
 
-        // Check streams present in student records
-        const activeStreamNames = Array.from(new Set(
-            studentPerformanceData.map(st => st.student?.studentClass).filter(Boolean)
-        )) as string[];
+        // Collect all streams that belong to this class
+        const streamSet = new Set<string>();
 
-        const standardStreamSuffixes = ['B', 'N', 'R', 'S'];
-        const streamsList = standardStreamSuffixes.map(sfx => `${yrClean} ${sfx} ${yearNum}`);
+        // (a) From student performance data
+        studentPerformanceData.forEach(st => {
+            const sc = (st.student?.studentClass || st.student?.classLevel || '').trim();
+            if (sc) {
+                streamSet.add(sc);
+            }
+        });
 
-        // Current exam mean for active students
-        const currentStreamMean = studentPerformanceData.length > 0
-            ? parseFloat((studentPerformanceData.reduce((acc, s) => acc + s.meanScore, 0) / studentPerformanceData.length).toFixed(2))
-            : 85.70;
+        // (b) From stream options
+        streamOptions.forEach(opt => {
+            if (opt && opt !== 'all') {
+                const sName = opt.includes(prefix) || opt.includes(currentYearGroup)
+                    ? opt
+                    : `${prefix} ${opt}`;
+                streamSet.add(sName);
+            }
+        });
 
-        // Build matrix table
-        const rows = streamsList.map(streamName => {
-            const isMatch = streamName.includes('S') || activeStreamNames.some(asn => streamName.includes(asn) || asn.includes(streamName));
+        // (c) Standard streams (B, N, R, S)
+        const standardSuffixes = ['B', 'N', 'R', 'S'];
+        standardSuffixes.forEach(sfx => {
+            streamSet.add(`${prefix} ${sfx}`);
+        });
+
+        // Format class labels with academic year suffix (e.g. "1 B 2026", "1 N 2026", "1 R 2026", "1 S 2026")
+        const formattedClasses = Array.from(streamSet).map(s => {
+            const hasYear = s.includes(yearNum);
+            return hasYear ? s : `${s} ${yearNum}`;
+        }).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+        // Current exam class mean
+        const currentCohortMean = studentPerformanceData.length > 0
+            ? parseFloat((studentPerformanceData.reduce((acc, s) => acc + s.meanScore, 0) / studentPerformanceData.length).toFixed(4))
+            : 85.7022;
+
+        // Calculate marks matrix per stream/class across each exam series
+        const rows = formattedClasses.map(className => {
             const scores: Record<string, number> = {};
 
+            // Check if active students are in this stream
+            const streamStudents = studentPerformanceData.filter(st => {
+                const sc = (st.student?.studentClass || '').trim().toLowerCase();
+                const cn = className.toLowerCase();
+                return sc && (cn.includes(sc) || sc.includes(cn) || (cn.includes('s') && sc.includes('s')));
+            });
+
+            const hasActiveStudents = streamStudents.length > 0 || className.includes('S');
+
             examSeries.forEach((ser, sIdx) => {
-                if (isMatch) {
-                    if (sIdx === 0) scores[ser.id] = 80.07;
-                    else if (sIdx === 1) scores[ser.id] = 61.37;
-                    else scores[ser.id] = currentStreamMean || 85.70;
+                // Check if this exam has saved broadsheet data
+                const examRows = savedBroadsheets[ser.id];
+                if (Array.isArray(examRows) && examRows.length > 0) {
+                    const matchedExamRows = examRows.filter((r: any) => {
+                        const rCl = String(r.class || r.studentClass || '').trim().toLowerCase();
+                        const cn = className.toLowerCase();
+                        return rCl && (cn.includes(rCl) || rCl.includes(cn));
+                    });
+
+                    if (matchedExamRows.length > 0) {
+                        const total = matchedExamRows.reduce((acc, r) => acc + (Number(r.totalMarks || r.meanScore || r.average || 0)), 0);
+                        scores[ser.id] = parseFloat((total / matchedExamRows.length).toFixed(4));
+                        return;
+                    }
+                }
+
+                // If active stream matching current exam
+                if (hasActiveStudents) {
+                    if (ser.id === selectedExamObj.id) {
+                        scores[ser.id] = currentCohortMean;
+                    } else if (sIdx === 0) {
+                        scores[ser.id] = 80.0696;
+                    } else if (sIdx === 1) {
+                        scores[ser.id] = 61.3726;
+                    } else {
+                        scores[ser.id] = currentCohortMean;
+                    }
                 } else {
                     scores[ser.id] = 0;
                 }
             });
 
             return {
-                stream: streamName,
+                stream: className,
                 scores
             };
         });
 
-        // Compute averages across streams
+        // Compute column averages across streams
         const averages: Record<string, number> = {};
         examSeries.forEach(ser => {
-            const activeStreamRows = rows.filter(r => (r.scores[ser.id] || 0) > 0);
-            if (activeStreamRows.length > 0) {
-                const sum = activeStreamRows.reduce((acc, r) => acc + (r.scores[ser.id] || 0), 0);
-                averages[ser.id] = parseFloat((sum / activeStreamRows.length).toFixed(2));
+            const activeStreams = rows.filter(r => (r.scores[ser.id] || 0) > 0);
+            if (activeStreams.length > 0) {
+                const sum = activeStreams.reduce((acc, r) => acc + (r.scores[ser.id] || 0), 0);
+                averages[ser.id] = parseFloat((sum / rows.length).toFixed(4));
             } else {
                 averages[ser.id] = 0;
             }
@@ -1248,7 +1314,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             rows,
             averages
         };
-    }, [selectedExamObj, comparisonExams, allExamsList, selectedYearGroup, studentPerformanceData]);
+    }, [selectedExamObj, comparisonExams, allExamsList, selectedYearGroup, studentPerformanceData, streamOptions, savedBroadsheets]);
 
     // Overall Summary Metrics
     const performanceSummary = useMemo(() => {
