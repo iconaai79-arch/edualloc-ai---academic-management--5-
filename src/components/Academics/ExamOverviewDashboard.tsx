@@ -383,6 +383,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     const [activeNavItem, setActiveNavItem] = useState<string>('exam_overview');
     const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
     const [isExamSidebarOpen, setIsExamSidebarOpen] = useState<boolean>(false);
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
     const [expandedYear, setExpandedYear] = useState<string>('2026');
 
     // Comparison Exams State
@@ -2308,6 +2309,13 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                     }`}
                                 >
                                     <span>📁 {isExamSidebarOpen ? 'Hide History' : 'Exam History'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPdfPreviewOpen(true)}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-widest flex items-center gap-1.5 rounded-xl transition-all shadow-md cursor-pointer"
+                                >
+                                    <DocumentArrowDownIcon className="w-4 h-4" /> PDF Preview
                                 </button>
                                 <button
                                     onClick={() => window.print()}
@@ -5724,6 +5732,304 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                     </>
                 )}
             </div>
+
+            {/* ON-SCREEN PDF PREVIEW MODAL */}
+            {isPdfPreviewOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-fade-in no-print">
+                    <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+                        {/* Modal Top Bar */}
+                        <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-600 rounded-xl">
+                                    <DocumentArrowDownIcon className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                                        Academic Exam Overview &mdash; PDF On-Screen Preview
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 font-semibold">
+                                        {selectedYearGroup} &bull; {selectedExamObj.title} &bull; {studentPerformanceData.length} Candidates Tested
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <PrinterIcon className="w-4 h-4" /> Print PDF
+                                </button>
+                                <button
+                                    onClick={() => alert("Downloading PDF Summary Document...")}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4" /> Download
+                                </button>
+                                <button
+                                    onClick={() => setIsPdfPreviewOpen(false)}
+                                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black rounded-xl transition-all cursor-pointer"
+                                >
+                                    ✕ Close
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Printable PDF Paper Document */}
+                        <div className="p-6 overflow-y-auto bg-slate-950/60 flex-1 flex justify-center custom-scrollbar">
+                            <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl space-y-8 font-sans text-xs relative">
+                                {/* Official School Letterhead */}
+                                <div className="border-b-2 border-slate-900 pb-5 flex justify-between items-start">
+                                    <div>
+                                        <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900">
+                                            {currentInstitution?.name || 'ACADEMIC MANAGEMENT SYSTEM'}
+                                        </h1>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                                            OFFICIAL ACADEMIC EXAM OVERVIEW & PERFORMANCE ANALYSIS REPORT
+                                        </p>
+                                        <p className="text-[11px] font-semibold text-slate-700 mt-2">
+                                            Class Cohort: <strong className="text-slate-900">{selectedYearGroup}</strong> &bull; Stream: <strong className="text-slate-900">{selectedStream === 'all' ? 'All Streams' : `${selectedStream} Stream`}</strong> &bull; Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong>
+                                        </p>
+                                        <p className="text-[11px] font-semibold text-slate-600">
+                                            Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong> &bull; Total Candidates: <strong className="text-slate-900">{studentPerformanceData.length}</strong>
+                                        </p>
+                                    </div>
+
+                                    <div className="text-right space-y-1">
+                                        <span className="inline-block px-3 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded shadow-sm">
+                                            CONFIDENTIAL REPORT
+                                        </span>
+                                        <p className="text-[9px] font-bold text-slate-500">
+                                            Date: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Executive Summary KPI Cards */}
+                                <div className="grid grid-cols-4 gap-4">
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Tested</span>
+                                        <span className="text-xl font-black text-slate-900">{studentPerformanceData.length}</span>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Cohort Mean Score</span>
+                                        <span className="text-xl font-black text-indigo-700">{classOverallSummary.meanScoreFormatted}%</span>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Overall Mean Grade</span>
+                                        <span className="text-xl font-black text-emerald-700">{classOverallSummary.grade}</span>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Subjects Evaluated</span>
+                                        <span className="text-xl font-black text-slate-900">{subjectRankings.length}</span>
+                                    </div>
+                                </div>
+
+                                {/* SECTION 1: TOP 10 STUDENTS OVERALL */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5 flex items-center justify-between">
+                                        <span>1. Top 10 Students Overall</span>
+                                        <span className="text-[10px] font-normal text-slate-500 font-mono">Cohort Rankings</span>
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-700 w-10 text-center">Rank</th>
+                                                <th className="p-2 border border-slate-700 w-24">Adm No</th>
+                                                <th className="p-2 border border-slate-700">Student Name</th>
+                                                <th className="p-2 border border-slate-700 w-28">Class / Stream</th>
+                                                <th className="p-2 border border-slate-700 w-24 text-center">Total Marks</th>
+                                                <th className="p-2 border border-slate-700 w-24 text-center">Mean Score</th>
+                                                <th className="p-2 border border-slate-700 w-16 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                            {top10Students.map((st, idx) => (
+                                                <tr key={st.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.rank}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{st.student?.admissionNo || st.student?.id}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{st.student?.name}</td>
+                                                    <td className="p-2 border border-slate-200">{st.student?.studentClass || selectedYearGroup}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.totalMarks > 0 ? st.totalMarks : '-'}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold text-indigo-700">{st.meanScore.toFixed(1)}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{st.grade}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 2: TOP STUDENT PER CLASS STREAM */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
+                                        2. Top Student Per Class Stream
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-700 w-10 text-center">▲</th>
+                                                <th className="p-2 border border-slate-700 w-36">Class / Stream</th>
+                                                <th className="p-2 border border-slate-700 w-24">ID</th>
+                                                <th className="p-2 border border-slate-700">Student Name</th>
+                                                <th className="p-2 border border-slate-700 w-24 text-center">Mean Score</th>
+                                                <th className="p-2 border border-slate-700 w-16 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                            {streamChampions.map((row, idx) => (
+                                                <tr key={row.stream || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.rank}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold">{row.stream}</td>
+                                                    <td className="p-2 border border-slate-200 font-mono">{row.admNo}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{row.studentName}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.meanScore}%</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{row.grade}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 3: SUBJECT PERFORMANCE RANKING */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
+                                        3. Subject Performance Rankings
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-700 w-10 text-center">Rank</th>
+                                                <th className="p-2 border border-slate-700">Subject Name</th>
+                                                <th className="p-2 border border-slate-700 w-20 text-center">Code</th>
+                                                <th className="p-2 border border-slate-700 w-20 text-center">Entry</th>
+                                                <th className="p-2 border border-slate-700 w-24 text-center">Mean Marks</th>
+                                                <th className="p-2 border border-slate-700 w-16 text-center">Grade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                            {subjectRankings.map((sr, idx) => (
+                                                <tr key={sr.subject?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{sr.rank}</td>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{sr.subject?.name}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-mono">{sr.subject?.code}</td>
+                                                    <td className="p-2 border border-slate-200 text-center">{sr.entry}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{sr.meanScoreFormatted}</td>
+                                                    <td className="p-2 border border-slate-200 text-center font-bold">{sr.grade}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 4: CLASS PERFORMANCE COMPARISON WITH PREVIOUS EXAMS */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
+                                        4. Class Performance Comparison With Previous Exams
+                                    </h3>
+                                    <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                        <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                            <tr>
+                                                <th className="p-2 border border-slate-700 w-36">Class / Stream</th>
+                                                {classPreviousExamsComparison.examSeries.map(ser => (
+                                                    <th key={ser.id} className="p-2 border border-slate-700 text-center">{ser.title}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 font-medium">
+                                            {classPreviousExamsComparison.rows.map((row, idx) => (
+                                                <tr key={row.stream} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                    <td className="p-2 border border-slate-200 font-bold uppercase">{row.stream}</td>
+                                                    {classPreviousExamsComparison.examSeries.map(ser => (
+                                                        <td key={ser.id} className="p-2 border border-slate-200 text-center font-mono font-semibold">
+                                                            {(row.scores[ser.id] || 0).toFixed(4)}
+                                                        </td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                        <tfoot className="bg-slate-100 font-black border-t-2 border-slate-400">
+                                            <tr>
+                                                <td className="p-2 border border-slate-300 uppercase">Average</td>
+                                                {classPreviousExamsComparison.examSeries.map(ser => (
+                                                    <td key={ser.id} className="p-2 border border-slate-300 text-center font-mono text-indigo-700">
+                                                        {(classPreviousExamsComparison.averages[ser.id] || 0).toFixed(4)}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                {/* SECTION 5: SUBJECT PERFORMANCE PER CLASS */}
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1.5">
+                                        5. Subject Performance Per Class Matrix
+                                    </h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full border-collapse text-[10px] border border-slate-300 text-left">
+                                            <thead className="bg-slate-800 text-white font-bold uppercase tracking-wider text-[9px]">
+                                                <tr>
+                                                    <th className="p-2 border border-slate-700">Class</th>
+                                                    {subjectPerformancePerClassData.subjects.map(s => (
+                                                        <th key={s.code} className="p-2 border border-slate-700 text-center">{s.code}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-200 font-medium">
+                                                {subjectPerformancePerClassData.classRows.map((cr, idx) => (
+                                                    <tr key={cr.className || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                        <td className="p-2 border border-slate-200 font-bold uppercase">{cr.className}</td>
+                                                        {subjectPerformancePerClassData.subjects.map(s => {
+                                                            const res = cr.subjectScores[s.code];
+                                                            return (
+                                                                <td key={s.code} className="p-2 border border-slate-200 text-center font-mono font-semibold">
+                                                                    {res ? `${res.meanMarks.toFixed(2)} ${res.grade}` : '—'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot className="bg-slate-100 font-black border-t-2 border-slate-400">
+                                                <tr>
+                                                    <td className="p-2 border border-slate-300 uppercase">M.Grade</td>
+                                                    {subjectPerformancePerClassData.subjects.map(s => {
+                                                        const res = subjectPerformancePerClassData.mGradeSummary[s.code];
+                                                        return (
+                                                            <td key={s.code} className="p-2 border border-slate-300 text-center font-mono text-indigo-700">
+                                                                {res ? `${res.meanMarks.toFixed(2)} ${res.grade}` : '—'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Official Signatures & Endorsements */}
+                                <div className="pt-8 border-t-2 border-slate-900 grid grid-cols-3 gap-8 text-[10px]">
+                                    <div className="space-y-6">
+                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Class Teacher</p>
+                                        <div className="border-b border-slate-400 pb-1"></div>
+                                        <p className="text-slate-400 font-mono">Sign & Date</p>
+                                    </div>
+                                    <div className="space-y-6">
+                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Dean of Studies / HoD</p>
+                                        <div className="border-b border-slate-400 pb-1"></div>
+                                        <p className="text-slate-400 font-mono">Sign & Date</p>
+                                    </div>
+                                    <div className="space-y-6 text-right">
+                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Principal / Headteacher</p>
+                                        <div className="border-b border-slate-400 pb-1"></div>
+                                        <p className="text-slate-400 font-mono">Official Stamp & Signature</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
