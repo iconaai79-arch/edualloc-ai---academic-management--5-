@@ -821,23 +821,52 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return [];
     });
 
+    // Helper to get a stable unique deduplication key for a student record
+    const getStudentDedupKey = useCallback((s: any): string => {
+        if (!s) return '';
+        const uId = s.userId || s.user_id;
+        if (uId && typeof uId === 'string' && uId.startsWith('usr_')) return `usr_${uId.toLowerCase().trim()}`;
+        if (s.id && typeof s.id === 'string' && s.id.startsWith('usr_')) return `usr_${s.id.toLowerCase().trim()}`;
+
+        const adm = s.admissionNumber || s.admission_number || s.admNo || s.admissionNo || s.registrationNo || s.metadata?.admissionNumber;
+        if (adm && typeof adm === 'string') {
+            const cleanAdm = adm.trim().toLowerCase();
+            if (cleanAdm && !cleanAdm.startsWith('usr_') && !cleanAdm.startsWith('user_') && !/^adm-10\d{2,}$/i.test(cleanAdm)) {
+                return `adm_${cleanAdm}`;
+            }
+        }
+
+        if (s.name && typeof s.name === 'string') {
+            const cleanName = s.name.trim().toLowerCase();
+            if (cleanName && !cleanName.startsWith('student ') && cleanName.length > 2) {
+                const cl = (s.studentClass || s.classLevel || s.className || s.grade || s.metadata?.studentClass || '').trim().toLowerCase();
+                return `name_${cleanName}_${cl}`;
+            }
+        }
+
+        return s.id || '';
+    }, []);
+
     // Update real students whenever users prop arrives or changes
     useEffect(() => {
         const fromProps = (users || []).filter(isStudentUser);
         if (fromProps.length > 0) {
             setAllRealStudents(prev => {
-                const seen = new Set(prev.map(p => p.id));
-                const unique = [...prev];
+                const map = new Map<string, any>();
+                prev.forEach(p => {
+                    const k = getStudentDedupKey(p);
+                    if (k) map.set(k, p);
+                });
                 fromProps.forEach(st => {
-                    if (st.id && !seen.has(st.id)) {
-                        seen.add(st.id);
-                        unique.push(st);
+                    const k = getStudentDedupKey(st);
+                    if (k && !map.has(k)) {
+                        map.set(k, st);
                     }
                 });
-                return unique;
+                return Array.from(map.values());
             });
         }
-    }, [users, isStudentUser]);
+    }, [users, isStudentUser, getStudentDedupKey]);
 
     useEffect(() => {
         if (currentInstitution?.id) {
@@ -893,50 +922,48 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     };
                 }).filter(Boolean);
 
-                const combined = [...hydratedEnrollments, ...(stRecords || []), ...(userRecords || [])];
-                const stOnly = combined.filter(isStudentUser);
+                const unifiedStudentMap = new Map<string, any>();
 
-                if (stOnly.length > 0) {
-                    setAllRealStudents(prev => {
-                        // Merge: prefer records with actual names over generic ones
-                        const map = new Map<string, any>();
+                // 1. Process enrollment records first (primary source for active class enrollment)
+                hydratedEnrollments.forEach((enr: any) => {
+                    if (!enr) return;
+                    const key = getStudentDedupKey(enr);
+                    if (key) unifiedStudentMap.set(key, enr);
+                });
 
-                        // Load existing first (lower priority)
-                        prev.forEach(p => { if (p.id) map.set(p.id, p); });
+                // 2. Process student registry & user records without creating duplicate rows
+                [...(stRecords || []), ...(userRecords || [])].forEach((u: any) => {
+                    if (!u || !isStudentUser(u)) return;
+                    const key = getStudentDedupKey(u);
+                    if (!key) return;
 
-                        // Overlay fetched records (higher priority — may have better names)
-                        stOnly.forEach(st => {
-                            if (!st?.id) return;
-                            const existing = map.get(st.id);
-                            if (!existing) {
-                                map.set(st.id, st);
-                            } else {
-                                // Use the record that has the better name
-                                const existingNameOk = existing.name && !existing.name.toLowerCase().startsWith('student ') && existing.name.trim().length > 2;
-                                const newNameOk = st.name && !st.name.toLowerCase().startsWith('student ') && st.name.trim().length > 2;
-                                map.set(st.id, newNameOk ? st : (existingNameOk ? existing : { ...existing, ...st, name: existing.name || st.name }));
-                            }
+                    const existing = unifiedStudentMap.get(key);
+                    if (!existing) {
+                        unifiedStudentMap.set(key, u);
+                    } else {
+                        // Merge attributes preferring better names and canonical class
+                        const existingNameOk = existing.name && !existing.name.toLowerCase().startsWith('student ') && existing.name.trim().length > 2;
+                        const newNameOk = u.name && !u.name.toLowerCase().startsWith('student ') && u.name.trim().length > 2;
+                        unifiedStudentMap.set(key, {
+                            ...u,
+                            ...existing,
+                            name: existingNameOk ? existing.name : (newNameOk ? u.name : (existing.name || u.name)),
+                            studentClass: existing.studentClass || u.studentClass || existing.classLevel || u.classLevel || existing.grade || u.grade,
+                            admissionNumber: existing.admissionNumber || u.admissionNumber || existing.admNo || u.admNo,
                         });
+                    }
+                });
 
-                        // Also index enrollment records by userId so exams can match them
-                        hydratedEnrollments.forEach(enr => {
-                            if (!enr) return;
-                            const key = enr.userId || enr.user_id;
-                            if (key && !map.has(key)) {
-                                map.set(key, { ...enr, id: enr.id || key });
-                            }
-                        });
-
-                        const unique = Array.from(map.values());
-                        try {
-                            localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(unique));
-                        } catch (e) { }
-                        return unique;
-                    });
+                const unique = Array.from(unifiedStudentMap.values());
+                if (unique.length > 0) {
+                    setAllRealStudents(unique);
+                    try {
+                        localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(unique));
+                    } catch (e) { }
                 }
             });
         }
-    }, [currentInstitution, isStudentUser]);
+    }, [currentInstitution, isStudentUser, getStudentDedupKey]);
 
 
 
@@ -1040,40 +1067,57 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (!stClassRaw || !targetClasses || targetClasses.length === 0) return false;
         if (targetClasses.includes('all') || targetClasses.includes('All Classes')) return true;
 
+        const cleanStr = (s: string) => s.toLowerCase().trim();
         const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const stClean = stClassRaw.toLowerCase().trim();
+
+        const stClean = cleanStr(stClassRaw);
         const stNorm = normalize(stClean);
+
+        const extractGradeIdentifier = (str: string): string | null => {
+            const lower = str.toLowerCase();
+            if (lower.includes('pp1') || lower.includes('pp 1') || lower.includes('pre-primary 1') || lower.includes('pre primary 1') || lower.includes('baby') || lower.includes('playgroup')) return 'pp1';
+            if (lower.includes('pp2') || lower.includes('pp 2') || lower.includes('pre-primary 2') || lower.includes('pre primary 2') || lower.includes('kg') || lower.includes('kindergarten')) return 'pp2';
+
+            const match = lower.match(/(grade|std|standard|class|form|g|f)\s*(\d+)/i);
+            if (match) {
+                const prefix = match[1].toLowerCase().startsWith('f') ? 'form' : 'grade';
+                return `${prefix}_${match[2]}`;
+            }
+            return null;
+        };
+
+        const stGradeId = extractGradeIdentifier(stClean);
 
         return targetClasses.some(tc => {
             if (!tc || tc === 'all' || tc === 'All Classes') return true;
-            const tcClean = tc.toLowerCase().trim();
+            const tcClean = cleanStr(tc);
             const tcNorm = normalize(tcClean);
 
             if (stClean === tcClean || stNorm === tcNorm) return true;
 
+            const tcGradeId = extractGradeIdentifier(tcClean);
+            if (stGradeId && tcGradeId) {
+                // If both have specific grade identifiers, they MUST match exactly
+                if (stGradeId === tcGradeId) {
+                    const extractStream = (s: string) => {
+                        const m = s.match(/\b(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d])\b/i);
+                        return m ? m[1].toLowerCase() : null;
+                    };
+                    const tcStream = extractStream(tcClean);
+                    const stStream = extractStream(stClean);
+                    if (tcStream && stStream) {
+                        return tcStream === stStream;
+                    }
+                    return true;
+                }
+                return false;
+            }
+
             const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
             const tcNoStreamNorm = normalize(tcNoStream);
 
-            const stNoStream = stClean.replace(/\s+(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
-            const stNoStreamNorm = normalize(stNoStream);
-
-            if (tcNoStreamNorm && (stClean === tcNoStream || stNorm === tcNoStreamNorm || stNoStreamNorm === tcNoStreamNorm)) return true;
-            if (stNorm.includes(tcNorm) || tcNorm.includes(stNorm)) return true;
-            if (tcNoStreamNorm && (stNorm.includes(tcNoStreamNorm) || tcNoStreamNorm.includes(stNorm))) return true;
-
-            // Grade level numeric matching (e.g. "Grade 2", "Grade 2 Alpha", "Std 2", "Class 2", "G2")
-            const extractGradeNum = (str: string) => {
-                const match = str.match(/(?:grade|std|standard|class|form|g|lvl)[_\s]*(\d+)/i);
-                return match ? match[1] : null;
-            };
-
-            const stNum = extractGradeNum(stClean);
-            const tcNum = extractGradeNum(tcClean);
-            if (stNum && tcNum && stNum === tcNum) {
-                const isFormSt = stClean.includes('form');
-                const isFormTc = tcClean.includes('form');
-                if (isFormSt === isFormTc) return true;
-            }
+            if (tcNoStreamNorm && (stClean === tcNoStream || stNorm === tcNoStreamNorm)) return true;
+            if (tcNorm.length > 3 && stNorm.includes(tcNorm)) return true;
 
             return false;
         });
