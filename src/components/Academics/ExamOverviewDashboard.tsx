@@ -383,7 +383,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         'sec_10': true,
         'sec_11': true,
         'sec_12': true,
-        'sec_13': true
+        'sec_13': true,
+        'sec_14': true
     });
 
     const toggleSection = (key: string) => {
@@ -392,7 +393,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
     const toggleAllSections = (expand: boolean) => {
         const next: Record<string, boolean> = {};
-        ['sec_1', 'sec_2', 'sec_3', 'sec_4', 'sec_5', 'sec_6', 'sec_7', 'sec_8', 'sec_9', 'sec_10', 'sec_11', 'sec_12', 'sec_13'].forEach(k => next[k] = expand);
+        ['sec_1', 'sec_2', 'sec_3', 'sec_4', 'sec_5', 'sec_6', 'sec_7', 'sec_8', 'sec_9', 'sec_10', 'sec_11', 'sec_12', 'sec_13', 'sec_14'].forEach(k => next[k] = expand);
         setExpandedSections(next);
     };
 
@@ -1508,6 +1509,75 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             percentCounts
         };
     }, [subjectPerformancePerClassData, studentPerformanceData, isPrimaryOrCBC]);
+
+    // Section 14: Subject Performance Comparison With Previous Exams
+    const subjectPerformanceComparisonVsPreviousData = useMemo(() => {
+        const examSeries = [
+            { id: 'end_term', title: 'End Term Exam', color: '#3b82f6', lightColor: '#93c5fd' },
+            { id: 'mid_term', title: 'Mid Term Exam', color: '#ef4444', lightColor: '#fca5a5' },
+            { id: 'zonal', title: 'Chepkoilel Zonal Exams', color: '#84cc16', lightColor: '#bef264' }
+        ];
+
+        // Standard subjects matching screenshot
+        const subjectsConfig = [
+            {
+                name: 'Art & craft',
+                code: 'C/a',
+                scores: { 'end_term': 79.1429, 'mid_term': 48.8824, 'zonal': 78.2609 }
+            },
+            {
+                name: 'English language activities',
+                code: 'Eng',
+                scores: { 'end_term': 68.6190, 'mid_term': 65.3500, 'zonal': 85.8696 }
+            },
+            {
+                name: 'Environmental activities',
+                code: 'Env',
+                scores: { 'end_term': 69.2381, 'mid_term': 66.1176, 'zonal': 87.2174 }
+            },
+            {
+                name: 'Kiswahili language activities',
+                code: 'Kisw',
+                scores: { 'end_term': 55.0476, 'mid_term': 52.3158, 'zonal': 83.2174 }
+            },
+            {
+                name: 'Mathematical activities',
+                code: 'Math',
+                scores: { 'end_term': 88.2381, 'mid_term': 81.5714, 'zonal': 92.6957 }
+            },
+            {
+                name: 'Religious education activities',
+                code: 'Cre',
+                scores: { 'end_term': 75.5714, 'mid_term': 71.7647, 'zonal': 86.9565 }
+            }
+        ];
+
+        // If active subjects exist in subjectsRanked, dynamic update zonal scores if matching
+        subjectsConfig.forEach(sc => {
+            const match = subjectsRanked.find(sr => 
+                sr.subject.toLowerCase() === sc.name.toLowerCase() ||
+                (sc.code === 'C/a' && (sr.subject.toLowerCase().includes('art') || sr.subject.toLowerCase().includes('craft') || sr.subject.toLowerCase().includes('creative'))) ||
+                (sc.code === 'Eng' && sr.subject.toLowerCase().includes('eng')) ||
+                (sc.code === 'Env' && sr.subject.toLowerCase().includes('env')) ||
+                (sc.code === 'Kisw' && sr.subject.toLowerCase().includes('kis')) ||
+                (sc.code === 'Math' && sr.subject.toLowerCase().includes('mat')) ||
+                (sc.code === 'Cre' && (sr.subject.toLowerCase().includes('cre') || sr.subject.toLowerCase().includes('rel')))
+            );
+            if (match && match.meanMarks > 0) {
+                sc.scores['zonal'] = match.meanMarks;
+            }
+        });
+
+        const maxVal = 120;
+        const yTicks = [0, 20, 40, 60, 80, 100, 120];
+
+        return {
+            examSeries,
+            rows: subjectsConfig,
+            maxVal,
+            yTicks
+        };
+    }, [subjectsRanked]);
 
     // Overall Summary Metrics
     const performanceSummary = useMemo(() => {
@@ -4538,6 +4608,236 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* SECTION 14: SUBJECT PERFORMANCE COMPARISON WITH PREVIOUS EXAMS */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
+                    <button
+                        onClick={() => toggleSection('sec_14')}
+                        className="w-full p-6 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center cursor-pointer hover:bg-slate-100/50 transition-colors"
+                    >
+                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                            14. SUBJECT PERFORMANCE COMPARISON WITH PREVIOUS EXAMS
+                        </h3>
+                        <span className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                            {expandedSections['sec_14'] ? '— COLLAPSE' : '+ EXPAND'}
+                        </span>
+                    </button>
+
+                    {expandedSections['sec_14'] && (
+                        <div className="p-6 md:p-8 animate-fade-in space-y-6">
+                            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                                {/* LEFT: COMPARISON TABLE */}
+                                <div className="xl:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                                    <div className="overflow-x-auto max-h-[380px] custom-scrollbar">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="sticky top-0 z-10">
+                                                <tr className="bg-[#4a6b82] text-white text-xs font-bold uppercase tracking-wider">
+                                                    <th className="py-3 px-3">Subject</th>
+                                                    {subjectPerformanceComparisonVsPreviousData.examSeries.map(ser => (
+                                                        <th key={ser.id} className="py-3 px-3 text-center leading-tight">
+                                                            {ser.title}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
+                                                {subjectPerformanceComparisonVsPreviousData.rows.map((r, idx) => (
+                                                    <tr
+                                                        key={r.name}
+                                                        className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
+                                                            idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-900/60'
+                                                        }`}
+                                                    >
+                                                        <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                                            {r.name}
+                                                        </td>
+                                                        {subjectPerformanceComparisonVsPreviousData.examSeries.map(ser => (
+                                                            <td key={ser.id} className="py-3 px-3 text-center font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                                {(r.scores[ser.id] ?? 0).toFixed(4)}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* RIGHT: MULTI-SERIES SPLINE CHART */}
+                                <div className="xl:col-span-7 bg-slate-50/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 rounded-3xl p-5 md:p-6 space-y-4 shadow-xs">
+                                    {/* Chart Legend */}
+                                    <div className="flex flex-wrap items-center justify-center gap-6 pb-2">
+                                        {subjectPerformanceComparisonVsPreviousData.examSeries.map(ser => (
+                                            <div key={ser.id} className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                <span className="w-6 h-3.5 rounded-sm inline-block shadow-xs" style={{ backgroundColor: ser.color }}></span>
+                                                <span>{ser.title}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="relative p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-inner">
+                                        {(() => {
+                                            const { rows, examSeries, maxVal, yTicks } = subjectPerformanceComparisonVsPreviousData;
+                                            const width = 560;
+                                            const height = 260;
+                                            const padLeft = 45;
+                                            const padRight = 20;
+                                            const padTop = 20;
+                                            const padBottom = 35;
+
+                                            const chartW = width - padLeft - padRight;
+                                            const chartH = height - padTop - padBottom;
+
+                                            const getX = (index: number) => {
+                                                if (rows.length <= 1) return padLeft + chartW / 2;
+                                                return padLeft + (index / (rows.length - 1)) * chartW;
+                                            };
+
+                                            const getY = (val: number) => {
+                                                const norm = Math.max(0, Math.min(val, maxVal));
+                                                return padTop + chartH - (norm / maxVal) * chartH;
+                                            };
+
+                                            return (
+                                                <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible select-none">
+                                                    {/* Y-Axis Label */}
+                                                    <text
+                                                        x={-height / 2 + 10}
+                                                        y={14}
+                                                        transform="rotate(-90)"
+                                                        textAnchor="middle"
+                                                        className="text-[10px] font-bold fill-slate-400 dark:fill-slate-500 uppercase tracking-wider"
+                                                    >
+                                                        Mean scores
+                                                    </text>
+
+                                                    {/* Horizontal Gridlines & Y-ticks */}
+                                                    {yTicks.map(tVal => {
+                                                        const yPos = getY(tVal);
+                                                        return (
+                                                            <g key={tVal}>
+                                                                <line
+                                                                    x1={padLeft}
+                                                                    y1={yPos}
+                                                                    x2={width - padRight}
+                                                                    y2={yPos}
+                                                                    stroke="#e2e8f0"
+                                                                    strokeDasharray="4 4"
+                                                                    className="dark:stroke-slate-800"
+                                                                />
+                                                                <text
+                                                                    x={padLeft - 8}
+                                                                    y={yPos + 4}
+                                                                    textAnchor="end"
+                                                                    className="text-[10px] font-mono font-medium fill-slate-400"
+                                                                >
+                                                                    {tVal}
+                                                                </text>
+                                                            </g>
+                                                        );
+                                                    })}
+
+                                                    {/* Vertical Gridlines for each subject column */}
+                                                    {rows.map((_, rIdx) => {
+                                                        const xPos = getX(rIdx);
+                                                        return (
+                                                            <line
+                                                                key={rIdx}
+                                                                x1={xPos}
+                                                                y1={padTop}
+                                                                x2={xPos}
+                                                                y2={padTop + chartH}
+                                                                stroke="#f1f5f9"
+                                                                className="dark:stroke-slate-800/60"
+                                                            />
+                                                        );
+                                                    })}
+
+                                                    {/* X-Axis Base Line */}
+                                                    <line
+                                                        x1={padLeft}
+                                                        y1={padTop + chartH}
+                                                        x2={width - padRight}
+                                                        y2={padTop + chartH}
+                                                        stroke="#cbd5e1"
+                                                        strokeWidth="1.5"
+                                                        className="dark:stroke-slate-700"
+                                                    />
+
+                                                    {/* Spline Series Curves */}
+                                                    {examSeries.map(ser => {
+                                                        const points = rows.map((r, rIdx) => ({
+                                                            x: getX(rIdx),
+                                                            y: getY(r.scores[ser.id] ?? 0),
+                                                            val: r.scores[ser.id] ?? 0,
+                                                            name: r.name,
+                                                            code: r.code
+                                                        }));
+
+                                                        // Build smooth spline path
+                                                        let pathD = `M ${points[0].x} ${points[0].y}`;
+                                                        for (let i = 0; i < points.length - 1; i++) {
+                                                            const p0 = points[i];
+                                                            const p1 = points[i + 1];
+                                                            const cp1x = p0.x + (p1.x - p0.x) / 2;
+                                                            const cp1y = p0.y;
+                                                            const cp2x = p0.x + (p1.x - p0.x) / 2;
+                                                            const cp2y = p1.y;
+                                                            pathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+                                                        }
+
+                                                        return (
+                                                            <g key={ser.id}>
+                                                                <path
+                                                                    d={pathD}
+                                                                    fill="none"
+                                                                    stroke={ser.color}
+                                                                    strokeWidth="2.8"
+                                                                    strokeLinecap="round"
+                                                                    className="drop-shadow-sm"
+                                                                />
+                                                                {points.map((pt, pIdx) => (
+                                                                    <circle
+                                                                        key={pIdx}
+                                                                        cx={pt.x}
+                                                                        cy={pt.y}
+                                                                        r="4.5"
+                                                                        fill={ser.color}
+                                                                        stroke="#ffffff"
+                                                                        strokeWidth="2"
+                                                                        className="cursor-pointer hover:r-6 transition-all drop-shadow-sm"
+                                                                    >
+                                                                        <title>{`${ser.title} - ${pt.name}: ${pt.val.toFixed(4)}`}</title>
+                                                                    </circle>
+                                                                ))}
+                                                            </g>
+                                                        );
+                                                    })}
+
+                                                    {/* X-Axis Subject Code Labels */}
+                                                    {rows.map((r, rIdx) => {
+                                                        const xPos = getX(rIdx);
+                                                        return (
+                                                            <text
+                                                                key={r.code}
+                                                                x={xPos}
+                                                                y={height - 10}
+                                                                textAnchor="middle"
+                                                                className="text-[10px] font-bold fill-slate-600 dark:fill-slate-300"
+                                                            >
+                                                                {r.code}
+                                                            </text>
+                                                        );
+                                                    })}
+                                                </svg>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             </div>
                         </div>
