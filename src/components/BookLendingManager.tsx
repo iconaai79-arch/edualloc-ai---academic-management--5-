@@ -85,10 +85,28 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<any>('courses', institutionId).catch(() => [])
             ]);
+            let allEnr = enrollmentsData || [];
+            try {
+                const cached = localStorage.getItem(`eduai_student_enrollments_${institutionId}`);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        const seenIds = new Set(allEnr.map((e: any) => e.id || e.userId || e.student_id || e.admissionNumber));
+                        parsed.forEach((p: any) => {
+                            const pId = p.id || p.userId || p.student_id || p.admissionNumber;
+                            if (pId && !seenIds.has(pId)) {
+                                seenIds.add(pId);
+                                allEnr.push(p);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {}
+
             setBooks(booksData);
             setTransactions(transData.sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
             if (configData.length > 0) setSettings(configData[0]);
-            setEnrollments(enrollmentsData || []);
+            setEnrollments(allEnr);
             if (coursesData && coursesData.length > 0) setCourses(coursesData);
             else if (passedCourses.length > 0) setCourses(passedCourses);
         } catch (error) {
@@ -556,59 +574,213 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
     const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
 
-    const getUserObject = (id: string) => {
-        let u = users.find(user => user.id === id || user.staffId === id || user.admissionNumber === id || (user as any).admission_number === id);
-        if (!u) {
-            const en = enrollments.find(e => 
-                e.id === id || 
-                e.userId === id || 
-                e.user_id === id || 
-                e.student_id === id || 
-                e.admissionNumber === id ||
-                (e.name && norm(e.name) === norm(id)) ||
-                (e.fullName && norm(e.fullName) === norm(id))
-            );
-            if (en) {
-                u = users.find(user => 
-                    user.id === en.userId || 
-                    user.id === en.user_id || 
-                    user.id === en.student_id ||
-                    norm(user.name) === norm(en.fullName || en.name || '')
-                );
-                if (!u) {
-                    return {
-                        id: en.userId || en.id,
-                        name: en.fullName || en.name || 'Student Member',
-                        admissionNumber: en.admissionNumber || en.admission_number || en.admNo || `ADM-${(en.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`,
-                        role: 'student'
-                    } as any;
-                }
-            }
+    const extractStudentName = (item: any): string => {
+        if (!item) return '';
+        if (typeof item === 'string') {
+            const clean = item.trim();
+            if (clean && !clean.toLowerCase().includes('student member') && !clean.toLowerCase().includes('unknown user')) return clean;
+            return '';
         }
-        return u;
+
+        const isGood = (n: any) => {
+            if (!n || typeof n !== 'string') return false;
+            const clean = n.trim().toLowerCase();
+            return clean.length > 0 && 
+                   !clean.includes('student member') && 
+                   !clean.includes('unknown user') && 
+                   !clean.includes('unknown resource') && 
+                   !clean.startsWith('adm-') && 
+                   !clean.startsWith('enr_') && 
+                   !clean.startsWith('usr_');
+        };
+
+        if (isGood(item.name)) return item.name.trim();
+        if (isGood(item.fullName)) return item.fullName.trim();
+        if (isGood(item.studentName)) return item.studentName.trim();
+        if (isGood(item.student_name)) return item.student_name.trim();
+        if (isGood(item.learnerName)) return item.learnerName.trim();
+        if (isGood(item.userName)) return item.userName.trim();
+        if (isGood(item.borrowerName)) return item.borrowerName.trim();
+        if (isGood(item.recipientName)) return item.recipientName.trim();
+        if (isGood(item.memberName)) return item.memberName.trim();
+
+        // Check firstName + lastName
+        const first = item.firstName || item.first_name || '';
+        const middle = item.middleName || item.middle_name || '';
+        const last = item.lastName || item.last_name || item.surname || '';
+        const combined = `${first} ${middle} ${last}`.trim().replace(/\s+/g, ' ');
+        if (isGood(combined)) return combined;
+
+        // Check metadata
+        if (item.metadata && typeof item.metadata === 'object') {
+            const m = item.metadata;
+            if (isGood(m.fullName)) return m.fullName.trim();
+            if (isGood(m.studentName)) return m.studentName.trim();
+            if (isGood(m.name)) return m.name.trim();
+            if (isGood(m.student_name)) return m.student_name.trim();
+            const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(mComb)) return mComb;
+        }
+
+        // Check personalInfo
+        if (item.personalInfo && typeof item.personalInfo === 'object') {
+            const pi = item.personalInfo;
+            if (isGood(pi.fullName)) return pi.fullName.trim();
+            if (isGood(pi.name)) return pi.name.trim();
+            if (isGood(pi.studentName)) return pi.studentName.trim();
+            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(piComb)) return piComb;
+        }
+
+        // Check nested user or student
+        if (item.user && typeof item.user === 'object') {
+            const uName = extractStudentName(item.user);
+            if (isGood(uName)) return uName;
+        }
+        if (item.student && typeof item.student === 'object') {
+            const sName = extractStudentName(item.student);
+            if (isGood(sName)) return sName;
+        }
+
+        return '';
+    };
+
+    const getUserObject = (id: string, transaction?: any) => {
+        // 1. Try to find user in `users` prop
+        let u = users.find(user => 
+            user.id === id || 
+            user.staffId === id || 
+            user.admissionNumber === id || 
+            (user as any).admission_number === id ||
+            (user as any).admissionNo === id ||
+            (user as any).admNo === id ||
+            norm(user.id) === norm(id) ||
+            norm(user.admissionNumber) === norm(id) ||
+            norm(user.staffId) === norm(id) ||
+            (user.name && norm(user.name) === norm(id))
+        );
+
+        // 2. Try to find in enrollments
+        const en = enrollments.find(e => 
+            e.id === id || 
+            e.userId === id || 
+            e.user_id === id || 
+            e.student_id === id || 
+            e.admissionNumber === id || 
+            e.admission_number === id || 
+            e.admissionNo === id || 
+            e.admNo === id || 
+            e.adm_no === id || 
+            e.metadata?.admissionNumber === id ||
+            norm(e.admissionNumber) === norm(id) ||
+            norm(e.admission_number) === norm(id) ||
+            norm(e.admissionNo) === norm(id) ||
+            norm(e.admNo) === norm(id) ||
+            norm(e.id) === norm(id) ||
+            norm(e.userId) === norm(id) ||
+            norm(e.student_id) === norm(id) ||
+            (e.name && norm(e.name) === norm(id)) ||
+            (e.fullName && norm(e.fullName) === norm(id))
+        );
+
+        if (en && !u) {
+            u = users.find(user => 
+                user.id === en.userId || 
+                user.id === en.user_id || 
+                user.id === en.student_id ||
+                user.admissionNumber === en.admissionNumber ||
+                user.admissionNumber === en.admission_number ||
+                norm(user.admissionNumber) === norm(en.admissionNumber || en.admission_number || en.admNo || en.metadata?.admissionNumber) ||
+                norm(user.name) === norm(extractStudentName(en))
+            );
+        }
+
+        // 3. Resolve student name
+        const transName = extractStudentName(transaction);
+        const resolvedName = (u ? extractStudentName(u) : '') || 
+                             (en ? extractStudentName(en) : '') || 
+                             transName || 
+                             (u?.name) || 
+                             (en?.name) || 
+                             (en?.fullName) || 
+                             (transaction as any)?.userName ||
+                             (transaction as any)?.studentName ||
+                             (transaction as any)?.borrowerName ||
+                             (transaction as any)?.recipientName;
+
+        const admissionNo = (en && (en.admissionNumber || en.admission_number || en.admissionNo || en.admNo || en.metadata?.admissionNumber)) ||
+                            (u && (u.admissionNumber || (u as any).admission_number || (u as any).admissionNo || (u as any).admNo || u.staffId)) ||
+                            id;
+
+        if (u) {
+            return {
+                ...u,
+                name: resolvedName || u.name || 'Member',
+                admissionNumber: admissionNo
+            };
+        }
+
+        if (en) {
+            return {
+                id: en.userId || en.user_id || en.student_id || en.id || id,
+                name: resolvedName || 'Member',
+                admissionNumber: admissionNo,
+                role: 'student',
+                metadata: en.metadata
+            } as any;
+        }
+
+        if (resolvedName) {
+            return {
+                id: id,
+                name: resolvedName,
+                admissionNumber: admissionNo,
+                role: 'student'
+            } as any;
+        }
+
+        return null;
     };
 
     const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
-    const getUserName = (id: string) => {
-        const u = getUserObject(id);
-        return u?.name || 'Unknown User';
+
+    const getUserName = (id: string, transaction?: any) => {
+        const u = getUserObject(id, transaction);
+        const name = u?.name || extractStudentName(transaction) || (transaction as any)?.userName || (transaction as any)?.studentName || (transaction as any)?.borrowerName;
+        if (name && !name.toLowerCase().includes('unknown user')) return name;
+        
+        // If still unknown, check if id matches admission number or enrollment
+        if (id) {
+            const en = enrollments.find(e => 
+                norm(e.admissionNumber) === norm(id) || 
+                norm(e.admission_number) === norm(id) ||
+                norm(e.admNo) === norm(id) ||
+                norm(e.id) === norm(id) ||
+                norm(e.userId) === norm(id)
+            );
+            if (en) {
+                const enName = extractStudentName(en);
+                if (enName) return enName;
+            }
+        }
+        return name || 'Member';
     };
-    const getUserStaffId = (id: string) => {
-        const u = getUserObject(id);
-        if (!u) return 'N/A';
+
+    const getUserStaffId = (id: string, transaction?: any) => {
+        const u = getUserObject(id, transaction);
         const enrollment = enrollments.find(e => 
-            e.userId === u.id || 
-            e.user_id === u.id || 
-            e.student_id === u.id || 
+            e.userId === id || 
+            e.user_id === id || 
+            e.student_id === id || 
             e.id === id ||
-            norm(e.fullName || e.name) === norm(u.name)
+            (u && (e.userId === u.id || e.user_id === u.id || e.student_id === u.id || norm(e.fullName || e.name) === norm(u.name)))
         );
         const admissionNo = enrollment ? (enrollment.admissionNumber || enrollment.admission_number || enrollment.admNo || enrollment.metadata?.admissionNumber) : '';
-        let idCode = admissionNo || u.admissionNumber || (u as any).admission_number || u.staffId || (u as any).studentId || (u as any).admNo;
+        let idCode = admissionNo || u?.admissionNumber || (u as any)?.admission_number || u?.staffId || (u as any)?.studentId || (u as any)?.admNo;
         if (!idCode || idCode === 'N/A' || idCode === 'No ADM') {
-            idCode = `ADM-${(u.id || '').replace(/^usr_|^enr_/, '').slice(-4).toUpperCase()}`;
+            idCode = id ? (id.startsWith('usr_') || id.startsWith('enr_') ? `ADM-${id.slice(-4).toUpperCase()}` : id) : 'N/A';
         }
-        const classStr = getStudentClassString(u as User, enrollment);
+        const classStr = getStudentClassString((u || {}) as User, enrollment);
         return idCode + (classStr ? ` • ${classStr}` : '');
     };
 
@@ -668,11 +840,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             <td className="px-6 py-5">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs">
-                                                        {getUserName(transaction.userId).charAt(0)}
+                                                        {getUserName(transaction.userId, transaction).charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{getUserName(transaction.userId)}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400">{getUserStaffId(transaction.userId)}</p>
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{getUserName(transaction.userId, transaction)}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400">{getUserStaffId(transaction.userId, transaction)}</p>
                                                     </div>
                                                 </div>
                                             </td>
