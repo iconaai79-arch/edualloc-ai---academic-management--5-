@@ -514,8 +514,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         const year = selectedExamObj.year || '2026';
         const term = selectedExamObj.term || 'TERM 1';
 
-        // 1. Header Line: "2021 TERM 3 report cards for JABALI GITHINJI"
-        const headerLine = `${year} ${term} report cards for ${studentName}`;
+        // 1. Header Line: "2021 TERM 3 results slip for JABALI GITHINJI"
+        const headerLine = `${year} ${term} results slip for ${studentName}`;
         const metaLines = `Adm no: ${admNo}\nClass: ${studentClass}`;
 
         // 2. Summary Block:
@@ -1311,7 +1311,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return (
             <div 
                 key={student.id || index}
-                className="bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto space-y-4 print:shadow-none print:border-none print:p-0 font-sans print:break-after-page print:page-break-after-always mb-8 print:mb-0"
+                className="official-result-slip-sheet print-only bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto space-y-4 font-sans mb-8 print:mb-0 print:border-none print:shadow-none print:p-0"
             >
                 {/* Header info in class view */}
                 {isClassView && (
@@ -1522,6 +1522,77 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 w-full text-left font-sans animate-fade-in">
+            {/* Custom Print Media Styles for Official Result Slip */}
+            <style>{`
+                @media print {
+                    @page {
+                        size: A4 portrait;
+                        margin: 10mm;
+                    }
+                    html, body {
+                        visibility: visible !important;
+                        background: white !important;
+                        height: auto !important;
+                        overflow: visible !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    .no-print, 
+                    .no-print *, 
+                    nav, 
+                    header, 
+                    aside, 
+                    button, 
+                    .sidebar, 
+                    select, 
+                    input {
+                        display: none !important;
+                        visibility: hidden !important;
+                        height: 0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    .print-only,
+                    .print-only *,
+                    .official-result-slips-container,
+                    .official-result-slips-container *,
+                    .official-result-slip-sheet,
+                    .official-result-slip-sheet * {
+                        visibility: visible !important;
+                    }
+                    .official-result-slips-container {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        display: block !important;
+                        background: white !important;
+                        z-index: 999999 !important;
+                    }
+                    .official-result-slip-sheet {
+                        display: block !important;
+                        page-break-after: always !important;
+                        break-after: page !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        margin: 0 auto 0 auto !important;
+                        padding: 10mm 12mm !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        background: white !important;
+                        color: #0f172a !important;
+                    }
+                    .official-result-slip-sheet:last-child {
+                        page-break-after: auto !important;
+                        break-after: auto !important;
+                    }
+                }
+            `}</style>
+
             {/* COLUMN 1: LEFT NAVIGATION DRAWER */}
             <div className={`transition-all duration-300 ${isLeftNavCollapsed ? 'w-full lg:w-16' : 'w-full lg:w-64'} shrink-0 space-y-4 no-print`}>
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
@@ -1591,7 +1662,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             </div>
 
             {/* COLUMN 2: MAIN RESULT SLIP VIEW */}
-            <div className="flex-1 w-full min-w-0 space-y-4">
+            <div className="official-result-slips-container print-only flex-1 w-full min-w-0 space-y-4">
                 {/* Screen Controls Toolbar */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs space-y-3 no-print">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
