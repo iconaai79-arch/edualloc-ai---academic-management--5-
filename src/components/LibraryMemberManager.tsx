@@ -68,10 +68,29 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 apiService.fetchModuleRecords<Book>('books', institutionId),
                 apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => [])
             ]);
+
+            let allEnr = enrollmentsData || [];
+            try {
+                const cached = localStorage.getItem(`eduai_student_enrollments_${institutionId}`);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        const seenIds = new Set(allEnr.map((e: any) => e.id || e.userId || e.student_id || e.admissionNumber));
+                        parsed.forEach((p: any) => {
+                            const pId = p.id || p.userId || p.student_id || p.admissionNumber;
+                            if (pId && !seenIds.has(pId)) {
+                                seenIds.add(pId);
+                                allEnr.push(p);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {}
+
             setTransactions(transData);
             setFines(finesData);
             setBooks(booksData);
-            setEnrollments(enrollmentsData || []);
+            setEnrollments(allEnr);
         } catch (error) {
             console.error('Error loading member management data:', error);
         } finally {
@@ -82,6 +101,78 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     // Helper to normalize strings for comparison
     const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
 
+    const extractStudentName = (item: any): string => {
+        if (!item) return '';
+        if (typeof item === 'string') {
+            const clean = item.trim();
+            if (clean && !clean.toLowerCase().includes('student name') && !clean.toLowerCase().includes('student member') && !clean.toLowerCase().includes('unknown user')) return clean;
+            return '';
+        }
+
+        const isGood = (n: any) => {
+            if (!n || typeof n !== 'string') return false;
+            const clean = n.trim().toLowerCase();
+            return clean.length > 0 && 
+                   !clean.includes('student name') && 
+                   !clean.includes('student member') && 
+                   !clean.includes('unknown user') && 
+                   !clean.includes('unknown resource') && 
+                   !clean.startsWith('adm-') && 
+                   !clean.startsWith('enr_') && 
+                   !clean.startsWith('usr_');
+        };
+
+        if (isGood(item.fullName)) return item.fullName.trim();
+        if (isGood(item.name)) return item.name.trim();
+        if (isGood(item.studentName)) return item.studentName.trim();
+        if (isGood(item.student_name)) return item.student_name.trim();
+        if (isGood(item.learnerName)) return item.learnerName.trim();
+        if (isGood(item.userName)) return item.userName.trim();
+        if (isGood(item.borrowerName)) return item.borrowerName.trim();
+        if (isGood(item.recipientName)) return item.recipientName.trim();
+        if (isGood(item.memberName)) return item.memberName.trim();
+
+        // Check firstName + lastName
+        const first = item.firstName || item.first_name || '';
+        const middle = item.middleName || item.middle_name || '';
+        const last = item.lastName || item.last_name || item.surname || '';
+        const combined = `${first} ${middle} ${last}`.trim().replace(/\s+/g, ' ');
+        if (isGood(combined)) return combined;
+
+        // Check metadata
+        if (item.metadata && typeof item.metadata === 'object') {
+            const m = item.metadata;
+            if (isGood(m.fullName)) return m.fullName.trim();
+            if (isGood(m.studentName)) return m.studentName.trim();
+            if (isGood(m.name)) return m.name.trim();
+            if (isGood(m.student_name)) return m.student_name.trim();
+            const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(mComb)) return mComb;
+        }
+
+        // Check personalInfo
+        if (item.personalInfo && typeof item.personalInfo === 'object') {
+            const pi = item.personalInfo;
+            if (isGood(pi.fullName)) return pi.fullName.trim();
+            if (isGood(pi.name)) return pi.name.trim();
+            if (isGood(pi.studentName)) return pi.studentName.trim();
+            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(piComb)) return piComb;
+        }
+
+        // Check nested user or student
+        if (item.user && typeof item.user === 'object') {
+            const uName = extractStudentName(item.user);
+            if (isGood(uName)) return uName;
+        }
+        if (item.student && typeof item.student === 'object') {
+            const sName = extractStudentName(item.student);
+            if (isGood(sName)) return sName;
+        }
+
+        return item.name || item.fullName || '';
+    };
+
     // Resolved list of all student users mapped with enrollment & course/stream metadata
     const studentUserList = useMemo(() => {
         const studentUsers = users.filter(u => u.role === 'student');
@@ -89,19 +180,21 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
 
         const mappedFromUsers = studentUsers.map((user, idx) => {
             const userNormName = norm(user.name);
+            const userAdm = user.admissionNumber || (user as any).admission_number || (user as any).admNo;
 
-            // Match enrollment by ID, then name, then admission number, then contact
+            // Match enrollment by ID, then admission number, then name, then contact
             const enrollment = enrollments.find(e => {
-                const eNormName = norm(e.fullName || e.name || e.metadata?.fullName || e.metadata?.studentName || '');
-                const idMatch = (e.userId && e.userId === user.id) || 
-                                (e.user_id && e.user_id === user.id) || 
-                                (e.student_id && e.student_id === user.id) ||
-                                (e.id && e.id === user.id);
-                const nameMatch = userNormName && eNormName && (userNormName === eNormName || userNormName.includes(eNormName) || eNormName.includes(userNormName));
-                const admMatch = user.admissionNumber && (e.admissionNumber === user.admissionNumber || e.admNo === user.admissionNumber);
+                const eNormName = norm(extractStudentName(e));
+                const eAdm = e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber;
+                const idMatch = (e.userId && (e.userId === user.id || norm(e.userId) === norm(user.id))) || 
+                                (e.user_id && (e.user_id === user.id || norm(e.user_id) === norm(user.id))) || 
+                                (e.student_id && (e.student_id === user.id || norm(e.student_id) === norm(user.id))) ||
+                                (e.id && (e.id === user.id || norm(e.id) === norm(user.id)));
+                const admMatch = userAdm && eAdm && (norm(userAdm) === norm(eAdm));
+                const nameMatch = userNormName && eNormName && !userNormName.includes('student name') && (userNormName === eNormName || userNormName.includes(eNormName) || eNormName.includes(userNormName));
                 const phoneMatch = user.phoneNumber && (e.phoneNumber === user.phoneNumber || e.metadata?.parentPhone === user.phoneNumber);
 
-                return idMatch || nameMatch || admMatch || phoneMatch;
+                return idMatch || admMatch || nameMatch || phoneMatch;
             });
 
             if (enrollment) {
@@ -135,6 +228,17 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 adm = rawId.length >= 4 ? `ADM-${rawId.slice(-4).toUpperCase()}` : `ADM-${String(idx + 1).padStart(4, '0')}`;
             }
 
+            // Resolve real student name with fallbacks
+            let resolvedName = extractStudentName(user);
+            if (!resolvedName || resolvedName.toLowerCase() === 'student name' || resolvedName.toLowerCase() === 'student member') {
+                resolvedName = enrollment ? extractStudentName(enrollment) : '';
+            }
+            if (!resolvedName) {
+                resolvedName = user.name && !user.name.toLowerCase().includes('student name') 
+                    ? user.name 
+                    : (enrollment?.fullName || enrollment?.name || (adm ? `Learner ${adm}` : 'Student Member'));
+            }
+
             const gradeLevel = (
                 enrollment?.metadata?.gradeLevel || 
                 enrollment?.gradeLevel || 
@@ -163,6 +267,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
 
             return {
                 ...user,
+                name: resolvedName,
                 role: 'student' as const,
                 admissionNumber: String(adm),
                 admission_number: String(adm),
@@ -175,7 +280,6 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         const extraFromEnrollments = enrollments
             .filter(e => !matchedEnrollmentIds.has(e.id))
             .map((e) => {
-                const name = e.fullName || e.name || e.metadata?.fullName || e.metadata?.studentName || `Student ${e.admissionNumber || e.id.slice(-4)}`;
                 let adm = e.admissionNumber || 
                           e.admission_number || 
                           e.admNo || 
@@ -183,6 +287,11 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                           e.metadata?.admNo || 
                           e.metadata?.studentAdmNo || 
                           `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
+
+                let name = extractStudentName(e);
+                if (!name || name.toLowerCase() === 'student name' || name.toLowerCase() === 'student member') {
+                    name = e.fullName || e.name || (adm ? `Learner ${adm}` : `Student ${e.id.slice(-4)}`);
+                }
 
                 const gradeLevel = (e.metadata?.gradeLevel || e.gradeLevel || e.classLevel || (e as any).studentClass || '').toString().trim();
                 const stream = (e.metadata?.stream || e.stream || e.streamName || '').toString().trim();
