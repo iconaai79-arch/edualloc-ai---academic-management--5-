@@ -225,8 +225,25 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             if (adm) userMapByAdm.set(String(adm).trim().toLowerCase(), u);
         });
 
+        interface MappedMember {
+            id: string;
+            userId: string;
+            name: string;
+            email: string;
+            role: any;
+            admissionNumber?: string;
+            staffId?: string;
+            gradeLevel: string;
+            stream: string;
+            classDisplay: string;
+            classStr: string;
+            courseId?: string;
+            courseLevelId?: string;
+            status: string;
+        }
+
         // 1. Process all enrolled students
-        const mappedStudents = enrollments.map((e) => {
+        const mappedStudents: MappedMember[] = enrollments.map((e) => {
             const eUserId = (e.userId || e.user_id || e.student_id || '').toLowerCase();
             const eAdm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
 
@@ -258,7 +275,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 userId: matchedUser?.id || e.userId || e.id,
                 name: cleanName,
                 email: matchedUser?.email || e.email || '',
-                role: 'Student' as const,
+                role: 'Student',
                 admissionNumber: cleanAdm,
                 gradeLevel,
                 stream,
@@ -271,8 +288,8 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         });
 
         // 2. Add teachers & staff
-        const mappedStaff = pool
-            .filter(u => u.role !== 'student' && u.role !== 'Student')
+        const mappedStaff: MappedMember[] = pool
+            .filter(u => (u.role as string)?.toLowerCase() !== 'student')
             .map(u => {
                 const sName = extractStudentName(u) || u.name || 'Staff Member';
                 return {
@@ -291,7 +308,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             });
 
         const combined = [...mappedStudents, ...mappedStaff];
-        const deduped = new Map<string, any>();
+        const deduped = new Map<string, MappedMember>();
         combined.forEach(m => {
             const admKey = m.admissionNumber ? m.admissionNumber.toLowerCase() : null;
             const idKey = m.id ? m.id.toLowerCase() : null;
@@ -341,8 +358,9 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         const set = new Set<string>();
         courses.forEach(c => { if (c.name && c.name.trim()) set.add(c.name.trim()); });
         allMembersList.forEach(m => { if (m.gradeLevel) set.add(m.gradeLevel); });
-        if (institution?.classDefinitions && institution.classDefinitions.length > 0) {
-            institution.classDefinitions.forEach(cd => { if (cd && cd.trim()) set.add(cd.trim()); });
+        const cDefs = (institution as any)?.classDefinitions;
+        if (Array.isArray(cDefs) && cDefs.length > 0) {
+            cDefs.forEach((cd: any) => { if (cd && typeof cd === 'string' && cd.trim()) set.add(cd.trim()); });
         }
         if (set.size === 0) return ['Form 1', 'Form 2', 'Form 3', 'Form 4', 'Grade 7', 'Grade 8', 'Grade 9'];
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
@@ -361,8 +379,9 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             courses.flatMap(c => c.levels || []).forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
             allMembersList.forEach(m => { if (m.stream) set.add(m.stream); });
         }
-        if (institution?.streamDefinitions && institution.streamDefinitions.length > 0) {
-            institution.streamDefinitions.forEach(sd => { if (sd && sd.trim()) set.add(sd.trim()); });
+        const sDefs = (institution as any)?.streamDefinitions;
+        if (Array.isArray(sDefs) && sDefs.length > 0) {
+            sDefs.forEach((sd: any) => { if (sd && typeof sd === 'string' && sd.trim()) set.add(sd.trim()); });
         }
         if (set.size === 0) return ['East', 'West', 'North', 'South', 'Central'];
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
@@ -492,10 +511,9 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
             const dataUri = await generateMemberLibraryHistoryPdf(
                 selectedStatementUser,
-                activeLoans,
-                history,
+                userTrans,
                 userFines,
-                books,
+                getBookTitle,
                 institution,
                 companyDetails,
                 institution.logoUrl || null,

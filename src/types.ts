@@ -1298,7 +1298,7 @@ export interface ActivityLog {
     ipAddress?: string;
     macAddress?: string;
     imei?: string;
-    module?: 'Academics' | 'Finance' | 'Admissions' | 'Transport' | 'Settings';
+    module?: 'Academics' | 'Finance' | 'Admissions' | 'Transport' | 'Settings' | 'Library' | string;
     details?: string;
 }
 
@@ -1737,7 +1737,11 @@ export interface BookStockReceipt {
     source: string;
     quantity: number;
     receiptDate: string;
+    receivedDate?: string;
     batchNumber?: string;
+    receiptNumber?: string;
+    donorName?: string;
+    sponsorName?: string;
     notes?: string;
     recordedBy: string;
     institutionId: string;
