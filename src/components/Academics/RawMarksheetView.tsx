@@ -394,12 +394,44 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         return ['all', ...Array.from(new Set(validStreams))];
     }, [activeStudents, selectedYearGroup, examSavedRows, courses, currentInstitution]);
 
-    // Active Subjects for Selected Class
+    // Curriculum & Level Detectors
+    const isPrimaryOrCBC = useMemo(() => {
+        const cls = (selectedYearGroup || '').toLowerCase();
+        if (/pp[1-3]|playgroup|nursery|kindergarten|grade\s*[1-6]|std\s*[1-8]|standard\s*[1-8]|cbc|cbe|lower\s*primary|upper\s*primary/i.test(cls)) {
+            return true;
+        }
+        const type = (currentInstitution?.institutionType || '').toLowerCase();
+        const name = (currentInstitution?.name || '').toLowerCase();
+        return type === 'primary' || type === 'basic' || type === 'kindergarten' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
+    }, [currentInstitution, selectedYearGroup]);
+
+    const isPrePrimary = useMemo(() => {
+        const cls = (selectedYearGroup || '').toLowerCase();
+        return /pp[1-3]|playgroup|nursery|kindergarten|ecde|baby\s*class/i.test(cls);
+    }, [selectedYearGroup]);
+
+    const isUpperPrimary = useMemo(() => {
+        const cls = (selectedYearGroup || '').toLowerCase();
+        return /grade\s*[4-6]|std\s*[4-6]|standard\s*[4-6]|upper\s*primary/i.test(cls);
+    }, [selectedYearGroup]);
+
+    const isJuniorSecondary = useMemo(() => {
+        const cls = (selectedYearGroup || '').toLowerCase();
+        return /grade\s*[7-9]|junior\s*secondary|jss/i.test(cls);
+    }, [selectedYearGroup]);
+
+    const isSecondary = useMemo(() => {
+        const cls = (selectedYearGroup || '').toLowerCase();
+        return /form\s*[1-4]|high\s*school|secondary/i.test(cls);
+    }, [selectedYearGroup]);
+
+    // Active Subjects for Selected Class & Curriculum (Comprehensive & Robust Resolution)
     const activeClassSubjects = useMemo(() => {
         const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
         const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
 
         // 1. Check if classAllocationsStore has explicit subjects for this class
+        let allocatedSubjectIdentifiers: string[] | null = null;
         if (yGrpClean) {
             const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
                 const kClean = k.toLowerCase().trim();
@@ -407,21 +439,118 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                 return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
             });
             if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
-                const allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
-                const matchedSubjs = (subjects || []).filter(sub => {
-                    const sId = (sub.id || '').toLowerCase().trim();
-                    const sCode = (sub.code || '').toLowerCase().trim();
-                    const sName = (sub.name || (sub as any).title || '').toLowerCase().trim();
-                    return allocatedSubjectIdentifiers.some(id => {
-                        const target = String(id).toLowerCase().trim();
-                        return target === sId || target === sCode || target === sName || sCode.includes(target) || sName.includes(target);
-                    });
-                });
-                if (matchedSubjs.length > 0) return matchedSubjs;
+                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
             }
         }
 
-        // 2. Check broadsheet rows for real entered marks
+        // 2. Build default standard curriculum matrix fallback
+        let defaultCurriculumSubjects = [
+            { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW-LP' },
+            { id: 'sub_env', name: 'Environmental Activities', code: 'ENV-LP' },
+            { id: 'sub_hyg', name: 'Hygiene and Nutrition Activities', code: 'HYG-LP' },
+            { id: 'sub_creat', name: 'Movement & Creative Activities', code: 'CREAT-LP' },
+            { id: 'sub_math', name: 'Mathematics Activities', code: 'MATH-LP' },
+            { id: 'sub_eng', name: 'English Language Activities', code: 'ENG-LP' },
+            { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE-LP' }
+        ];
+
+        if (isPrePrimary) {
+            defaultCurriculumSubjects = [
+                { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW-LP' },
+                { id: 'sub_env', name: 'Environmental Activities', code: 'ENV-LP' },
+                { id: 'sub_hyg', name: 'Hygiene & Nutrition Activities', code: 'HYG-LP' },
+                { id: 'sub_creat', name: 'Movement & Creative Activities', code: 'CREAT-LP' },
+                { id: 'sub_math', name: 'Mathematics Activities', code: 'MATH-LP' },
+                { id: 'sub_eng', name: 'Language Activities', code: 'ENG-LP' },
+                { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE-LP' }
+            ];
+        } else if (isUpperPrimary) {
+            defaultCurriculumSubjects = [
+                { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
+                { id: 'sub_eng', name: 'English Language', code: 'ENG' },
+                { id: 'sub_kisw', name: 'Kiswahili Language', code: 'KISW' },
+                { id: 'sub_sci', name: 'Science and Technology', code: 'SCI' },
+                { id: 'sub_agri', name: 'Agriculture and Nutrition', code: 'AGRI' },
+                { id: 'sub_soc', name: 'Social Studies', code: 'SOC' },
+                { id: 'sub_creat', name: 'Creative Arts and Sports', code: 'CREAT' },
+                { id: 'sub_cre', name: 'Religious Education (CRE/IRE)', code: 'CRE' }
+            ];
+        } else if (isJuniorSecondary) {
+            defaultCurriculumSubjects = [
+                { id: 'sub_eng', name: 'English', code: '101' },
+                { id: 'sub_kisw', name: 'Kiswahili', code: '102' },
+                { id: 'sub_math', name: 'Mathematics', code: '121' },
+                { id: 'sub_sci', name: 'Integrated Science', code: '230' },
+                { id: 'sub_health', name: 'Health Education', code: '234' },
+                { id: 'sub_soc', name: 'Social Studies', code: '310' },
+                { id: 'sub_agri', name: 'Agriculture and Nutrition', code: '443' },
+                { id: 'sub_pretech', name: 'Pre-Technical Studies', code: '451' },
+                { id: 'sub_cre', name: 'Religious Education (CRE/IRE)', code: '313' },
+                { id: 'sub_creat', name: 'Creative Arts and Sports', code: '511' }
+            ];
+        } else if (isSecondary) {
+            defaultCurriculumSubjects = [
+                { id: 'sub_eng', name: 'English', code: '101' },
+                { id: 'sub_kisw', name: 'Kiswahili', code: '102' },
+                { id: 'sub_math', name: 'Mathematics', code: '121' },
+                { id: 'sub_bio', name: 'Biology', code: '231' },
+                { id: 'sub_chem', name: 'Chemistry', code: '233' },
+                { id: 'sub_phys', name: 'Physics', code: '232' },
+                { id: 'sub_hist', name: 'History and Government', code: '311' },
+                { id: 'sub_geo', name: 'Geography', code: '312' },
+                { id: 'sub_cre', name: 'Christian Religious Education', code: '313' },
+                { id: 'sub_agri', name: 'Agriculture', code: '443' },
+                { id: 'sub_bus', name: 'Business Studies', code: '565' }
+            ];
+        }
+
+        const allCandidates = subjects.length > 0 ? [...subjects] : [...defaultCurriculumSubjects];
+
+        // 3. If explicit class allocations exist, use them
+        if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
+            const allocatedList: typeof allCandidates = [];
+            const seen = new Set<string>();
+
+            allocatedSubjectIdentifiers.forEach(allocId => {
+                const aClean = String(allocId).toLowerCase().trim();
+                const aNorm = aClean.replace(/[^a-z0-9]/g, '');
+
+                const matchedSub = allCandidates.find(s => {
+                    const sId = (s.id || '').toLowerCase().trim();
+                    const sName = (s.name || (s as any).title || '').toLowerCase().trim();
+                    const sCode = (s.code || '').toLowerCase().trim();
+                    const sNorm = sName.replace(/[^a-z0-9]/g, '');
+                    return aClean === sId || aClean === sName || aClean === sCode ||
+                           (aNorm.length >= 3 && sNorm.includes(aNorm)) ||
+                           (sNorm.length >= 3 && aNorm.includes(sNorm));
+                });
+
+                if (matchedSub) {
+                    const dedupKey = (matchedSub.code || matchedSub.name).toUpperCase().trim();
+                    if (!seen.has(dedupKey)) {
+                        seen.add(dedupKey);
+                        allocatedList.push(matchedSub);
+                    }
+                } else {
+                    const nameFormatted = allocId.replace(/_/g, ' ');
+                    const dedupKey = nameFormatted.toUpperCase();
+                    if (!seen.has(dedupKey)) {
+                        seen.add(dedupKey);
+                        allocatedList.push({
+                            id: `sub_${allocId}`,
+                            name: nameFormatted.charAt(0).toUpperCase() + nameFormatted.slice(1),
+                            code: allocId.substring(0, 4).toUpperCase()
+                        } as any);
+                    }
+                }
+            });
+
+            if (allocatedList.length > 0) {
+                return allocatedList;
+            }
+        }
+
+        // 4. Inspect broadsheet rows for subjects with marks OR columns
         if (examSavedRows && examSavedRows.length > 0) {
             const classRows = examSavedRows.filter((r: any) => {
                 const stCls = String(r.class || r.studentClass || '').toLowerCase().trim();
@@ -432,12 +561,12 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                 const activeSubjsFromMarks: any[] = [];
                 const seenKeys = new Set<string>();
 
-                (subjects || []).forEach(sub => {
-                    const hasPositiveMarks = classRows.some((r: any) => {
-                        const { score, found } = extractStudentSubjectScore(r, sub);
-                        return found && score > 0;
+                allCandidates.forEach(sub => {
+                    const hasMarks = classRows.some((r: any) => {
+                        const { found } = extractStudentSubjectScore(r, sub);
+                        return found;
                     });
-                    if (hasPositiveMarks) {
+                    if (hasMarks) {
                         const dedupKey = (sub.code || sub.name).toUpperCase().trim();
                         if (!seenKeys.has(dedupKey)) {
                             seenKeys.add(dedupKey);
@@ -446,33 +575,15 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                     }
                 });
 
-                if (activeSubjsFromMarks.length > 0) return activeSubjsFromMarks;
+                if (activeSubjsFromMarks.length > 1) {
+                    return activeSubjsFromMarks;
+                }
             }
         }
 
-        // 3. Fallback Standard Curriculum Subjects
-        if (/pp[1-3]|playgroup|nursery|kindergarten|baby/i.test(yGrpClean)) {
-            return [
-                { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW-LP' },
-                { id: 'sub_env', name: 'Environmental Activities', code: 'ENV-LP' },
-                { id: 'sub_hyg', name: 'Hygiene & Nutrition Activities', code: 'HYG-LP' },
-                { id: 'sub_creat', name: 'Movement & Creative Activities', code: 'CREAT-LP' },
-                { id: 'sub_math', name: 'Mathematics Activities', code: 'MATH-LP' },
-                { id: 'sub_eng', name: 'Language Activities', code: 'ENG-LP' },
-                { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE-LP' }
-            ];
-        }
-
-        return [
-            { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
-            { id: 'sub_eng', name: 'English', code: 'ENG' },
-            { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW' },
-            { id: 'sub_sci', name: 'Science and Technology', code: 'SCI' },
-            { id: 'sub_agri', name: 'Agriculture and Nutrition', code: 'AGRI' },
-            { id: 'sub_soc', name: 'Social Studies', code: 'SOC' },
-            { id: 'sub_cre', name: 'Religious Education', code: 'CRE' }
-        ];
-    }, [subjects, selectedYearGroup, classAllocationsStore, examSavedRows]);
+        // 5. Return curriculum default subjects
+        return defaultCurriculumSubjects;
+    }, [subjects, selectedYearGroup, classAllocationsStore, examSavedRows, isPrePrimary, isUpperPrimary, isJuniorSecondary, isSecondary]);
 
     // Stream Matcher Helper
     const checkStreamMatch = (stClass: string, explicitStream?: string) => {
@@ -486,167 +597,9 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         const tokens = cls.split(/[\s-_/]+/);
         return tokens.some(t => t === targetStr);
     };
-
-    // All Students in Year Group
-    const allYearCohortStudents = useMemo(() => {
-        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
-
-        if (examSavedRows && examSavedRows.length > 0) {
-            const broadStudents = examSavedRows.filter(r => {
-                const c = String(r.class || r.studentClass || '').toLowerCase().trim();
-                return !ygClean || c.includes(ygClean) || ygClean.includes(c);
-            });
-            if (broadStudents.length > 0) {
-                return broadStudents.map((r, idx) => ({
-                    id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
-                    name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
-                    admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
-                    studentClass: r.class || r.studentClass || selectedYearGroup,
-                    gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
-                    stream: r.stream || '',
-                    broadsheetRow: r
-                }));
-            }
-        }
-
-        const matched = activeStudents.filter(s => {
-            const c = String(s.studentClass || (s as any).classLevel || '').toLowerCase().trim();
-            return !ygClean || c.includes(ygClean) || ygClean.includes(c);
-        });
-
-        if (matched.length > 0) return matched;
-        return activeStudents;
-    }, [activeStudents, examSavedRows, selectedYearGroup]);
-
-    // Filtered Cohort Students by Stream
-    const matchingCohortStudents = useMemo(() => {
-        return allYearCohortStudents.filter(s => {
-            const cls = (s as any).studentClass || (s as any).classLevel || '';
-            const stStream = (s as any).stream || '';
-            return checkStreamMatch(cls, stStream);
-        });
-    }, [allYearCohortStudents, selectedStream]);
-
-    // Raw Marksheet Student Rows (NO Grades, NO Points, Pure Raw Scores Only)
-    const rawMarksheetRows = useMemo(() => {
-        const q = searchQuery.toLowerCase().trim();
-
-        const studentRows = matchingCohortStudents.map((st, idx) => {
-            const row = (st as any).broadsheetRow;
-            const adm = extractCleanAdmissionNumber(st, activeStudents);
-            const studentClass = (st as any).studentClass || selectedYearGroup;
-            const gender = (st as any).gender || (idx % 2 === 0 ? 'F' : 'M');
-
-            const rawScores: Record<string, { rawMark: number; isExempt: boolean }> = {};
-            let rawTotal = 0;
-            let enteredSubjectCount = 0;
-
-            activeClassSubjects.forEach((sub, subIdx) => {
-                const subKey = sub.code || sub.name;
-                const subName = sub.name || (sub as any).title;
-                const exemptionKey = `${st.id}_${subName.toLowerCase().trim()}`;
-                const isExempt = Boolean(studentSubjectExemptions[exemptionKey]);
-
-                let score = 0;
-                if (row) {
-                    const result = extractStudentSubjectScore(row, sub);
-                    if (result.found) score = result.score;
-                }
-
-                if (score === 0 && !row && !isExempt) {
-                    const nameLen = (st.name || '').length;
-                    const seed = (nameLen * 13 + subIdx * 19 + idx * 7) % 36;
-                    score = 60 + seed;
-                }
-
-                rawScores[subKey] = { rawMark: score, isExempt };
-                if (!isExempt) {
-                    rawTotal += score;
-                    enteredSubjectCount++;
-                }
-            });
-
-            const rawAverage = enteredSubjectCount > 0 ? parseFloat((rawTotal / enteredSubjectCount).toFixed(2)) : 0;
-
-            return {
-                id: st.id,
-                studentName: st.name,
-                admissionNo: adm,
-                studentClass,
-                gender,
-                stream: (st as any).stream || '',
-                rawScores,
-                rawTotal,
-                rawAverage,
-                enteredSubjectCount
-            };
-        });
-
-        // Compute Raw Positions based on rawAverage
-        const sorted = [...studentRows].sort((a, b) => b.rawAverage - a.rawAverage);
-        const rankMap = new Map<string, number>();
-        let currentRank = 1;
-        sorted.forEach((item, idx) => {
-            if (idx > 0 && item.rawAverage < sorted[idx - 1].rawAverage) {
-                currentRank = idx + 1;
-            }
-            rankMap.set(item.id, currentRank);
-        });
-
-        const rowsWithRank = studentRows.map(r => ({
-            ...r,
-            rawPosition: rankMap.get(r.id) || 1
-        }));
-
-        if (!q) return rowsWithRank;
-
-        return rowsWithRank.filter(r => 
-            r.studentName.toLowerCase().includes(q) || 
-            r.admissionNo.toLowerCase().includes(q)
-        );
-    }, [matchingCohortStudents, activeClassSubjects, activeStudents, studentSubjectExemptions, selectedYearGroup, searchQuery]);
-
-    // Raw Statistical Averages per Subject
-    const subjectRawStats = useMemo(() => {
-        return activeClassSubjects.map(sub => {
-            const subKey = sub.code || sub.name;
-            let sum = 0;
-            let count = 0;
-            let max = 0;
-            let min = 100;
-
-            rawMarksheetRows.forEach(r => {
-                const sData = r.rawScores[subKey];
-                if (sData && !sData.isExempt) {
-                    sum += sData.rawMark;
-                    count++;
-                    if (sData.rawMark > max) max = sData.rawMark;
-                    if (sData.rawMark < min) min = sData.rawMark;
-                }
-            });
-
-            return {
-                subKey,
-                code: sub.code,
-                name: sub.name,
-                rawMean: count > 0 ? (sum / count).toFixed(1) : '0.0',
-                rawMax: count > 0 ? max : 0,
-                rawMin: count > 0 ? min : 0,
-                candidateCount: count
-            };
-        });
-    }, [activeClassSubjects, rawMarksheetRows]);
-
-    // Class Raw Mean
-    const classRawMean = useMemo(() => {
-        if (rawMarksheetRows.length === 0) return '0.00';
-        const sum = rawMarksheetRows.reduce((acc, r) => acc + r.rawAverage, 0);
-        return (sum / rawMarksheetRows.length).toFixed(2);
-    }, [rawMarksheetRows]);
-
     // Excel Export
     const handleExportExcel = useCallback(() => {
-        const headers = ['#', 'Adm No', 'Student Name', 'Gender', 'Class', ...activeClassSubjects.map(s => s.code || s.name), 'Raw Total', 'Raw Mean', 'Raw Pos'];
+        const headers = ['#', 'Adm No', 'Student Name', 'Gender', 'Class', ...activeClassSubjects.map(s => s.code || s.name), 'Student Sign'];
         
         const data = rawMarksheetRows.map((r, idx) => {
             const rowArr: any[] = [
@@ -659,9 +612,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                     const sc = r.rawScores[s.code || s.name];
                     return sc?.isExempt ? 'EXEMPT' : sc?.rawMark ?? '-';
                 }),
-                r.rawTotal,
-                r.rawAverage,
-                r.rawPosition
+                '' // For physical / digital verification sign
             ];
             return rowArr;
         });
@@ -829,15 +780,15 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                         <div>
                             <div className="flex items-center gap-2">
                                 <span className="px-2.5 py-0.5 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-black rounded-full uppercase tracking-wider">
-                                    Raw Data Mode
+                                    Raw Data Verification
                                 </span>
                                 <span className="text-xs font-bold text-slate-400">•</span>
                                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                                    Authentic entered scores without grade points or rubric scaling
+                                    Raw scores entered before grading for learner verification and signing
                                 </span>
                             </div>
                             <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mt-1">
-                                Raw Marksheet — {selectedYearGroup}
+                                Raw Marksheet & Verification — {selectedYearGroup}
                             </h2>
                         </div>
 
@@ -951,9 +902,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                             <span>•</span>
                             <span>STREAM: {selectedStream === 'all' ? 'ALL STREAMS' : selectedStream.toUpperCase()}</span>
                             <span>•</span>
-                            <span>CANDIDATES: {rawMarksheetRows.length}</span>
-                            <span>•</span>
-                            <span>RAW CLASS MEAN: {classRawMean}</span>
+                            <span>TOTAL CANDIDATES: {rawMarksheetRows.length}</span>
                         </div>
                     </div>
 
@@ -968,20 +917,18 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                     <th className="p-2 border border-slate-700 text-center w-12">GENDER</th>
                                     <th className="p-2 border border-slate-700 text-center w-20">CLASS</th>
                                     {activeClassSubjects.map(sub => (
-                                        <th key={sub.code || sub.name} className="p-2 border border-slate-700 text-center w-16" title={sub.name}>
-                                            <span className="block truncate">{sub.code || sub.name.substring(0, 4)}</span>
-                                            <span className="text-[8px] font-medium opacity-70 block">RAW</span>
+                                        <th key={sub.code || sub.name} className="p-2 border border-slate-700 text-center min-w-[60px]" title={sub.name}>
+                                            <span className="block truncate font-black">{sub.code || sub.name.substring(0, 4)}</span>
+                                            <span className="text-[8px] font-medium opacity-75 block uppercase truncate max-w-[70px] mx-auto">{sub.name}</span>
                                         </th>
                                     ))}
-                                    <th className="p-2 border border-slate-700 text-center w-16 bg-slate-900">RAW TOTAL</th>
-                                    <th className="p-2 border border-slate-700 text-center w-16 bg-slate-900">RAW MEAN</th>
-                                    <th className="p-2 border border-slate-700 text-center w-12 bg-slate-900">POS</th>
+                                    <th className="p-2 border border-slate-700 text-center w-36 bg-slate-900">STUDENT SIGN</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 font-semibold text-slate-900">
                                 {rawMarksheetRows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={activeClassSubjects.length + 8} className="p-8 text-center text-slate-400 font-medium">
+                                        <td colSpan={activeClassSubjects.length + 6} className="p-8 text-center text-slate-400 font-medium">
                                             No raw marks entered or found matching the current filters.
                                         </td>
                                     </tr>
@@ -1010,65 +957,26 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                                     </td>
                                                 );
                                             })}
-                                            <td className="p-2 border border-slate-200 text-center font-black text-slate-900 bg-slate-50">
-                                                {row.rawTotal}
-                                            </td>
-                                            <td className="p-2 border border-slate-200 text-center font-black text-indigo-700 bg-slate-50">
-                                                {row.rawAverage.toFixed(1)}
-                                            </td>
-                                            <td className="p-2 border border-slate-200 text-center font-black text-slate-900 bg-slate-50">
-                                                {row.rawPosition}
+                                            {/* Student Verification Signature Box */}
+                                            <td className="p-2 border border-slate-200 text-center w-36">
+                                                <div className="h-5 border-b border-dashed border-slate-400 flex items-end justify-center">
+                                                    <span className="text-[9px] text-slate-400 font-normal italic print:opacity-20 select-none">
+                                                        Sign here
+                                                    </span>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
                                 )}
                             </tbody>
-                            {/* Raw Subject Averages Summary Footer */}
+                            {/* Summary Footer */}
                             {rawMarksheetRows.length > 0 && (
                                 <tfoot>
-                                    <tr className="bg-slate-100 font-black text-slate-900 text-[11px] border-t-2 border-slate-400">
-                                        <td colSpan={5} className="p-2 border border-slate-300 text-right uppercase">
-                                            SUBJECT RAW MEAN:
-                                        </td>
-                                        {subjectRawStats.map(stat => (
-                                            <td key={stat.subKey} className="p-2 border border-slate-300 text-center font-mono text-indigo-900 font-black">
-                                                {stat.rawMean}
-                                            </td>
-                                        ))}
-                                        <td className="p-2 border border-slate-300 text-center font-black text-slate-900 bg-slate-200">
-                                            -
-                                        </td>
-                                        <td className="p-2 border border-slate-300 text-center font-black text-indigo-950 bg-indigo-100">
-                                            {classRawMean}
-                                        </td>
-                                        <td className="p-2 border border-slate-300 text-center font-black text-slate-900 bg-slate-200">
-                                            -
-                                        </td>
-                                    </tr>
-                                    <tr className="bg-slate-50 font-bold text-slate-700 text-[10px]">
-                                        <td colSpan={5} className="p-1.5 border border-slate-300 text-right uppercase">
-                                            HIGHEST RAW SCORE:
-                                        </td>
-                                        {subjectRawStats.map(stat => (
-                                            <td key={stat.subKey} className="p-1.5 border border-slate-300 text-center font-mono text-emerald-700">
-                                                {stat.rawMax}
-                                            </td>
-                                        ))}
-                                        <td colSpan={3} className="p-1.5 border border-slate-300 text-center text-slate-500">
-                                            {rawMarksheetRows.length} candidates
-                                        </td>
-                                    </tr>
-                                    <tr className="bg-slate-50 font-bold text-slate-700 text-[10px]">
-                                        <td colSpan={5} className="p-1.5 border border-slate-300 text-right uppercase">
-                                            LOWEST RAW SCORE:
-                                        </td>
-                                        {subjectRawStats.map(stat => (
-                                            <td key={stat.subKey} className="p-1.5 border border-slate-300 text-center font-mono text-rose-700">
-                                                {stat.rawMin}
-                                            </td>
-                                        ))}
-                                        <td colSpan={3} className="p-1.5 border border-slate-300 text-center text-slate-500">
-                                            Verified Raw Input
+                                    <tr className="bg-slate-100 font-bold text-slate-700 text-xs border-t-2 border-slate-400">
+                                        <td colSpan={activeClassSubjects.length + 6} className="p-2.5 text-center">
+                                            <span>Total Registered Candidates: <strong className="text-slate-900">{rawMarksheetRows.length}</strong></span>
+                                            <span className="mx-3 text-slate-300">•</span>
+                                            <span className="italic text-slate-600">Please verify your raw scores above and sign in the provided space against your name.</span>
                                         </td>
                                     </tr>
                                 </tfoot>
