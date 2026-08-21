@@ -61,6 +61,18 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
     const [selectedTerm, setSelectedTerm] = useState<string>('Term 2');
     const [selectedYear, setSelectedYear] = useState<string>('2026');
 
+    // Student Fee Balances Record State
+    const [feeBalances, setFeeBalances] = useState<Record<string, { balance: number; nextTermFees: number; totalDue: number }>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_report_card_fee_balances_${currentInstitution?.id || 'default'}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) {}
+        return {
+            st_1: { balance: 0, nextTermFees: 18500, totalDue: 18500 },
+            '1368': { balance: 0, nextTermFees: 18500, totalDue: 18500 }
+        };
+    });
+
     // Main Preview Sub-Tab
     const [previewTab, setPreviewTab] = useState<'pdf' | 'subject_comments' | 'overall_comments'>('pdf');
 
@@ -616,11 +628,36 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
                             <div className="pt-2 border-t border-slate-800 space-y-2">
                                 <h4 className="text-xs font-black uppercase tracking-widest text-amber-400">💰 FEE STATUS SUMMARY</h4>
-                                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
-                                    <div className="flex justify-between"><span className="text-slate-400">Fees Balance:</span> <span className="font-mono text-slate-200">KES 0</span></div>
-                                    <div className="flex justify-between"><span className="text-slate-400">Next Term Fees:</span> <span className="font-mono text-slate-200">KES 18,500</span></div>
-                                    <div className="flex justify-between border-t border-slate-800 pt-1 font-black"><span className="text-amber-400">TOTAL DUE:</span> <span className="font-mono text-amber-400">KES 18,500</span></div>
-                                </div>
+                                {(() => {
+                                    const studentFinance = feeBalances[currentStudent.id] ||
+                                        feeBalances[currentStudent.admissionNo || ''] || {
+                                            balance: 0,
+                                            nextTermFees: 18500,
+                                            totalDue: 18500
+                                        };
+                                    return (
+                                        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400">Fees Balance:</span>
+                                                <span className={`font-mono font-bold ${studentFinance.balance > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                    KES {studentFinance.balance.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-400">Next Term Fees:</span>
+                                                <span className="font-mono text-slate-200">
+                                                    KES {studentFinance.nextTermFees.toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between border-t border-slate-800 pt-1 font-black">
+                                                <span className="text-amber-400">TOTAL DUE ON REOPENING:</span>
+                                                <span className="font-mono text-amber-400">
+                                                    KES {studentFinance.totalDue.toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>
@@ -668,9 +705,13 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 onClose={() => setIsWizardOpen(false)}
                 currentInstitution={currentInstitution}
                 assessments={assessments}
+                students={activeStudents}
                 onApplyReportConfig={(config) => {
                     setSelectedYear(config.academicYear);
                     setSelectedTerm(config.academicTerm);
+                    if (config.feeBalances) {
+                        setFeeBalances(config.feeBalances);
+                    }
                 }}
             />
         </div>
