@@ -503,6 +503,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.academic_years;
                     delete copy.semesters;
                     delete copy.users;
+                    delete copy.updated_at;
+                    delete copy.updatedAt;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanInstitution) : cleanInstitution(currentPayload);
