@@ -8,7 +8,14 @@ CREATE TABLE IF NOT EXISTS demo_requests (
     phone TEXT,
     message TEXT,
     status TEXT DEFAULT 'new',
-    requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    source TEXT DEFAULT 'Web Landing Page',
+    conversation_transcript JSONB DEFAULT '[]'::jsonb,
+    notes TEXT,
+    quote_amount NUMERIC(12,2) DEFAULT 0.00,
+    payment_status TEXT DEFAULT 'unpaid',
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Enable RLS
