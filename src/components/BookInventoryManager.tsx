@@ -43,10 +43,17 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All');
     const [availabilityFilter, setAvailabilityFilter] = useState<'All' | 'Available' | 'Circulating' | 'Out'>('All');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
     const [isAddingBook, setIsAddingBook] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [qrBook, setQrBook] = useState<Book | null>(null);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+    // Reset pagination to page 1 whenever filters or search change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, categoryFilter, availabilityFilter]);
 
     const [newBook, setNewBook] = useState<Partial<Book>>({
         title: '',
@@ -194,6 +201,22 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
             return true;
         });
     }, [books, searchTerm, categoryFilter, availabilityFilter]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredBooks.length / pageSize));
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage]);
+
+    const paginatedBooks = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredBooks.slice(start, start + pageSize);
+    }, [filteredBooks, currentPage, pageSize]);
+
+    const startItemIndex = filteredBooks.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const endItemIndex = Math.min(filteredBooks.length, currentPage * pageSize);
 
     const handleSaveBook = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -394,7 +417,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                            {filteredBooks.map(book => (
+                            {paginatedBooks.map(book => (
                                 <tr key={book.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors group">
                                     <td className="px-6 py-5">
                                         <div className="flex items-center gap-4">
@@ -497,6 +520,114 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls Footer */}
+                {filteredBooks.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40">
+                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-bold flex-wrap">
+                            <span>
+                                Showing <strong className="text-slate-900 dark:text-white font-black">{startItemIndex}</strong> to <strong className="text-slate-900 dark:text-white font-black">{endItemIndex}</strong> of <strong className="text-slate-900 dark:text-white font-black">{filteredBooks.length}</strong> resources
+                            </span>
+                            <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-slate-400">Per page:</span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-black text-slate-700 dark:text-slate-200 outline-none cursor-pointer hover:border-indigo-500 transition-colors"
+                                >
+                                    <option value={15}>15</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                                onClick={() => setCurrentPage(1)}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-xs hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+                                title="First Page"
+                            >
+                                « First
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-xs hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+                            >
+                                ‹ Prev
+                            </button>
+
+                            {/* Page Numbers */}
+                            {(() => {
+                                const pages: (number | string)[] = [];
+                                const maxButtons = 5;
+                                if (totalPages <= maxButtons) {
+                                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                                } else {
+                                    pages.push(1);
+                                    let start = Math.max(2, currentPage - 1);
+                                    let end = Math.min(totalPages - 1, currentPage + 1);
+
+                                    if (currentPage <= 3) {
+                                        start = 2;
+                                        end = 4;
+                                    } else if (currentPage >= totalPages - 2) {
+                                        start = totalPages - 3;
+                                        end = totalPages - 1;
+                                    }
+
+                                    if (start > 2) pages.push('...');
+                                    for (let i = start; i <= end; i++) pages.push(i);
+                                    if (end < totalPages - 1) pages.push('...');
+                                    pages.push(totalPages);
+                                }
+
+                                return pages.map((page, idx) => {
+                                    if (page === '...') {
+                                        return <span key={`ellipsis-${idx}`} className="px-2 text-slate-400 font-bold text-xs">…</span>;
+                                    }
+                                    const isCurrent = page === currentPage;
+                                    return (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(Number(page))}
+                                            className={`min-w-[34px] h-[34px] rounded-xl font-black text-xs transition-all cursor-pointer ${
+                                                isCurrent
+                                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30'
+                                                    : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-500 hover:text-indigo-600'
+                                            }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                });
+                            })()}
+
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-xs hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+                            >
+                                Next ›
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(totalPages)}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-xs hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+                                title="Last Page"
+                            >
+                                Last »
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Add/Edit Modal */}
