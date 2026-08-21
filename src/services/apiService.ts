@@ -123,7 +123,9 @@ const _unsupportedServerModules = new Set<string>([
     'exam_broadsheets',
     'his_branding',
     'his_consultation_rates',
-    'his_hospital_rooms'
+    'his_hospital_rooms',
+    'hr_allowance_categories',
+    'hr_deduction_categories'
 ]);
 
 const PROTECTED_KEYS = new Set([
