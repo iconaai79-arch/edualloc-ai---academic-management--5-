@@ -2010,25 +2010,35 @@ export const apiService = {
         if (module === 'institution_module_states') {
             if (_supabase) {
                 try {
+                    const instId = payload.institution_id || payload.institutionId || payload.institution;
+                    const modId = payload.module_id || payload.moduleId;
+                    const cleanPayload: any = {
+                        id: payload.id || `ims_${modId}_${instId}`,
+                        institution_id: instId,
+                        module_id: modId,
+                        status: payload.status || 'active',
+                        data: payload.data || payload,
+                        activated_at: payload.activated_at || payload.activatedAt || new Date().toISOString(),
+                        trial_ends_at: payload.trial_ends_at || payload.trialEndsAt || null,
+                        subscription_ends_at: payload.subscription_ends_at || payload.subscriptionEndsAt || null,
+                        updated_at: payload.updated_at || payload.updatedAt || new Date().toISOString()
+                    };
+
+                    // Strip any undefined keys
+                    Object.keys(cleanPayload).forEach(k => cleanPayload[k] === undefined && delete cleanPayload[k]);
+
                     const { data: imsData, error: imsErr } = await _supabase
                         .from('institution_module_states')
-                        .upsert(payload, { onConflict: 'id' })
+                        .upsert(cleanPayload, { onConflict: 'id' })
                         .select();
                     if (!imsErr && imsData && imsData.length > 0) {
                         return toCamelCase(imsData[0]);
                     }
-                    if (imsErr && payload.id) {
-                        const { data: updData, error: updErr } = await _supabase
-                            .from('institution_module_states')
-                            .update(payload)
-                            .eq('id', payload.id)
-                            .select();
-                        if (!updErr && updData && updData.length > 0) {
-                            return toCamelCase(updData[0]);
-                        }
+                    if (imsErr) {
+                        console.warn('[apiService] Supabase upsert for institution_module_states:', imsErr.message || imsErr);
                     }
                 } catch (imsErr) {
-                    console.warn('[apiService] Supabase upsert for institution_module_states failed, saved locally:', imsErr);
+                    console.warn('[apiService] Supabase upsert for institution_module_states caught exception:', imsErr);
                 }
             }
             return toCamelCase(payload);
