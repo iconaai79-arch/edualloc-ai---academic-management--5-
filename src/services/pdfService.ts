@@ -4068,7 +4068,11 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0); // Reset color
     doc.text('TOTAL OUTSTANDING FINE:', pageWidth - margin - 55, finalY + 10);
-    doc.setTextColor(totalDue > 0 ? [200, 0, 0] : [0, 100, 0]);
+    if (totalDue > 0) {
+        doc.setTextColor(200, 0, 0);
+    } else {
+        doc.setTextColor(0, 100, 0);
+    }
     doc.text(`KES ${totalDue?.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);

@@ -2012,8 +2012,25 @@ export const apiService = {
                 try {
                     const instId = payload.institution_id || payload.institutionId || payload.institution;
                     const modId = payload.module_id || payload.moduleId;
+
+                    // Check if an existing row exists for (institution_id, module_id) to prevent 409 unique constraint violations
+                    let existingId: string | null = null;
+                    if (instId && modId) {
+                        try {
+                            const { data: existingRows } = await _supabase
+                                .from('institution_module_states')
+                                .select('id')
+                                .eq('institution_id', instId)
+                                .eq('module_id', modId)
+                                .limit(1);
+                            if (existingRows && existingRows.length > 0 && existingRows[0].id) {
+                                existingId = existingRows[0].id;
+                            }
+                        } catch (_) {}
+                    }
+
                     const cleanPayload: any = {
-                        id: payload.id || `ims_${modId}_${instId}`,
+                        id: existingId || payload.id || `ims_${modId}_${instId}`,
                         institution_id: instId,
                         module_id: modId,
                         status: payload.status || 'active',
@@ -2027,10 +2044,32 @@ export const apiService = {
                     // Strip any undefined keys
                     Object.keys(cleanPayload).forEach(k => cleanPayload[k] === undefined && delete cleanPayload[k]);
 
-                    const { data: imsData, error: imsErr } = await _supabase
+                    // Try upserting on composite unique constraint (institution_id, module_id)
+                    let { data: imsData, error: imsErr } = await _supabase
                         .from('institution_module_states')
-                        .upsert(cleanPayload, { onConflict: 'id' })
+                        .upsert(cleanPayload, { onConflict: 'institution_id,module_id' })
                         .select();
+
+                    // If onConflict on composite key fails or returns error, fallback to update by existing ID or onConflict: 'id'
+                    if (imsErr) {
+                        if (existingId) {
+                            const { data: updateData, error: updateErr } = await _supabase
+                                .from('institution_module_states')
+                                .update(cleanPayload)
+                                .eq('id', existingId)
+                                .select();
+                            if (!updateErr && updateData && updateData.length > 0) {
+                                return toCamelCase(updateData[0]);
+                            }
+                        }
+                        const retryRes = await _supabase
+                            .from('institution_module_states')
+                            .upsert(cleanPayload, { onConflict: 'id' })
+                            .select();
+                        imsData = retryRes.data;
+                        imsErr = retryRes.error;
+                    }
+
                     if (!imsErr && imsData && imsData.length > 0) {
                         return toCamelCase(imsData[0]);
                     }
