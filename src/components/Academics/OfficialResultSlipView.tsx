@@ -504,10 +504,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             })
             .join('\n');
 
-        // 4. Direct PDF Download Link
-        // Generates accessible direct link to download the student's result slip PDF
-        const directPdfLink = `${window.location.origin}/portal/results?adm=${encodeURIComponent(admNo)}&exam=${encodeURIComponent(selectedExamId)}&format=pdf`;
-        const downloadLine = `Download: ${directPdfLink}`;
+        // 4. Shortened Direct PDF Download Link
+        const cleanAdm = admNo.replace(/[^a-zA-Z0-9_-]/g, '') || 'link';
+        const downloadLine = `Download: sms.ke/r/${cleanAdm}`;
 
         return `${headerLine}\n${metaLines}\n\n${summaryBlock}\n\n${subjectLines}\n\n${downloadLine}`;
     };
