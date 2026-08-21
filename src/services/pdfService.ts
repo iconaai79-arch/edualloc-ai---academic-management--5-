@@ -18,18 +18,47 @@ const getJsPdf = () => {
     return null;
 };
 
-// Internal utility to load images safely for PDF insertion
-const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
+// Internal in-memory image cache for fast zero-latency re-use across PDF generations
+const pdfImageCache = new Map<string, HTMLImageElement>();
+
+// Internal utility to load images safely with caching & strict timeout for instant PDF generation
+const loadImage = (url: string | null | undefined, timeoutMs: number = 2000): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
         if (!url) return resolve(null);
+        if (pdfImageCache.has(url)) {
+            return resolve(pdfImageCache.get(url)!);
+        }
+        let settled = false;
         const img = new Image();
         img.crossOrigin = "Anonymous";
-        img.src = url;
-        img.onload = () => resolve(img);
-        img.onerror = () => {
-            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
-            resolve(null);
+
+        const timer = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                console.warn("PDF Service: Image load timed out after", timeoutMs, "ms:", url);
+                resolve(null);
+            }
+        }, timeoutMs);
+
+        img.onload = () => {
+            if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                try {
+                    pdfImageCache.set(url, img);
+                } catch (e) {}
+                resolve(img);
+            }
         };
+        img.onerror = () => {
+            if (!settled) {
+                settled = true;
+                clearTimeout(timer);
+                console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
+                resolve(null);
+            }
+        };
+        img.src = url;
     });
 };
 

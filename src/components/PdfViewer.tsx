@@ -221,10 +221,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, pdfDataUri, className
         };
     }, [effectiveSrc, isMobile]);
 
-    const [objectUrl, setObjectUrl] = useState<string>('');
+    const [objectUrl, setObjectUrl] = useState<string>(() => 
+        (effectiveSrc.startsWith('blob:') || effectiveSrc.startsWith('http')) ? effectiveSrc : ''
+    );
 
     useEffect(() => {
-        if (!effectiveSrc) return;
+        if (!effectiveSrc) {
+            setObjectUrl('');
+            return;
+        }
+        if (effectiveSrc.startsWith('blob:') || effectiveSrc.startsWith('http')) {
+            setObjectUrl(effectiveSrc);
+            return;
+        }
         if (effectiveSrc.startsWith('data:application/pdf;base64,')) {
             try {
                 const base64 = effectiveSrc.split(',')[1];
