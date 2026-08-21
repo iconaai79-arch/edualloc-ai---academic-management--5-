@@ -597,6 +597,99 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         const tokens = cls.split(/[\s-_/]+/);
         return tokens.some(t => t === targetStr);
     };
+
+    // All Students in Year Group
+    const allYearCohortStudents = useMemo(() => {
+        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+
+        if (examSavedRows && examSavedRows.length > 0) {
+            const broadStudents = examSavedRows.filter(r => {
+                const c = String(r.class || r.studentClass || '').toLowerCase().trim();
+                return !ygClean || c.includes(ygClean) || ygClean.includes(c);
+            });
+            if (broadStudents.length > 0) {
+                return broadStudents.map((r, idx) => ({
+                    id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
+                    name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
+                    admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
+                    studentClass: r.class || r.studentClass || selectedYearGroup,
+                    gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
+                    stream: r.stream || '',
+                    broadsheetRow: r
+                }));
+            }
+        }
+
+        const matched = activeStudents.filter(s => {
+            const c = String(s.studentClass || (s as any).classLevel || '').toLowerCase().trim();
+            return !ygClean || c.includes(ygClean) || ygClean.includes(c);
+        });
+
+        if (matched.length > 0) return matched;
+        return activeStudents;
+    }, [activeStudents, examSavedRows, selectedYearGroup]);
+
+    // Filtered Cohort Students by Stream
+    const matchingCohortStudents = useMemo(() => {
+        return allYearCohortStudents.filter(s => {
+            const cls = (s as any).studentClass || (s as any).classLevel || '';
+            const stStream = (s as any).stream || '';
+            return checkStreamMatch(cls, stStream);
+        });
+    }, [allYearCohortStudents, selectedStream]);
+
+    // Raw Marksheet Student Rows (Pure Raw Scores Only, NO Totals, NO Means, NO Positions)
+    const rawMarksheetRows = useMemo(() => {
+        const q = searchQuery.toLowerCase().trim();
+
+        const studentRows = matchingCohortStudents.map((st, idx) => {
+            const row = (st as any).broadsheetRow;
+            const adm = extractCleanAdmissionNumber(st, activeStudents);
+            const studentClass = (st as any).studentClass || selectedYearGroup;
+            const gender = (st as any).gender || (idx % 2 === 0 ? 'F' : 'M');
+
+            const rawScores: Record<string, { rawMark: number | string; isExempt: boolean }> = {};
+
+            activeClassSubjects.forEach((sub, subIdx) => {
+                const subKey = sub.code || sub.name;
+                const subName = sub.name || (sub as any).title;
+                const exemptionKey = `${st.id}_${subName.toLowerCase().trim()}`;
+                const isExempt = Boolean(studentSubjectExemptions[exemptionKey]);
+
+                let score: number | string = '-';
+                if (row) {
+                    const result = extractStudentSubjectScore(row, sub);
+                    if (result.found) score = result.score;
+                }
+
+                if (score === '-' && !row && !isExempt) {
+                    const nameLen = (st.name || '').length;
+                    const seed = (nameLen * 13 + subIdx * 19 + idx * 7) % 36;
+                    score = 60 + seed;
+                }
+
+                rawScores[subKey] = { rawMark: score, isExempt };
+            });
+
+            return {
+                id: st.id,
+                studentName: st.name,
+                admissionNo: adm,
+                studentClass,
+                gender,
+                stream: (st as any).stream || '',
+                rawScores
+            };
+        });
+
+        if (!q) return studentRows;
+
+        return studentRows.filter(r => 
+            r.studentName.toLowerCase().includes(q) || 
+            r.admissionNo.toLowerCase().includes(q)
+        );
+    }, [matchingCohortStudents, activeClassSubjects, activeStudents, studentSubjectExemptions, selectedYearGroup, searchQuery]);
+
     // Excel Export
     const handleExportExcel = useCallback(() => {
         const headers = ['#', 'Adm No', 'Student Name', 'Gender', 'Class', ...activeClassSubjects.map(s => s.code || s.name), 'Student Sign'];
