@@ -582,11 +582,22 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 const copy = books.find(b => b.id === copyId);
                 if (!copy) continue;
 
-                const transactionId = `ltx_bulk_${Date.now()}_${student.id.slice(-4)}`;
-                const transaction: LibraryTransaction = {
+                const studentObj = getUserObject(student.id) || student;
+                const patronName = studentObj.name || extractStudentName(studentObj) || 'Member';
+                const admNo = studentObj.admissionNumber || studentObj.admission_number || studentObj.staffId || student.id;
+
+                const transactionId = `ltx_bulk_${Date.now()}_${student.id.slice(-4)}_${Math.random().toString(36).substr(2, 4)}`;
+                const transaction: any = {
                     id: transactionId,
                     bookId: copyId,
                     userId: student.id,
+                    userName: patronName,
+                    studentName: patronName,
+                    borrowerName: patronName,
+                    recipientName: patronName,
+                    admissionNumber: admNo,
+                    classLevel: studentObj.gradeLevel || '',
+                    stream: studentObj.stream || '',
                     issueDate,
                     dueDate,
                     status: 'issued',
@@ -596,9 +607,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
                 await apiService.saveModuleRecord('library_transactions', transaction);
 
+                const newAvail = Math.max(0, (copy.available || 1) - 1);
                 await apiService.saveModuleRecord('books', {
                     ...copy,
-                    available: 0
+                    available: newAvail,
+                    available_copies: newAvail
                 });
             }
 
@@ -657,14 +670,25 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         try {
             const signatureUrl = hasSigned && signatureCanvasRef.current ? signatureCanvasRef.current.toDataURL('image/png') : undefined;
 
-            const transactionId = `ltx_${Date.now()}`;
+            const patronObj = getUserObject(newLoan.userId) || allMembersList.find(m => m.id === newLoan.userId || m.userId === newLoan.userId);
+            const patronName = patronObj?.name || extractStudentName(patronObj) || 'Member';
+            const admNo = patronObj?.admissionNumber || patronObj?.admission_number || patronObj?.staffId || newLoan.userId;
+
+            const transactionId = `ltx_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
             const issueDate = new Date().toISOString();
             const dueDate = new Date(newLoan.dueDate).toISOString();
 
-            const transaction: LibraryTransaction = {
+            const transaction: any = {
                 id: transactionId,
                 bookId: newLoan.bookId,
                 userId: newLoan.userId,
+                userName: patronName,
+                studentName: patronName,
+                borrowerName: patronName,
+                recipientName: patronName,
+                admissionNumber: admNo,
+                classLevel: patronObj?.gradeLevel || '',
+                stream: patronObj?.stream || '',
                 issueDate,
                 dueDate,
                 status: 'issued',
@@ -675,12 +699,14 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
             await apiService.saveModuleRecord('library_transactions', transaction);
 
+            const newAvail = Math.max(0, (book.available || 1) - 1);
             await apiService.saveModuleRecord('books', {
                 ...book,
-                available: Math.max(0, book.available - 1)
+                available: newAvail,
+                available_copies: newAvail
             });
 
-            await onLogAction(`Issued book "${book.title}" to user ${newLoan.userId}`);
+            await onLogAction(`Issued book "${book.title}" to ${patronName} (${admNo})`);
 
             setIsIssuing(false);
             setHasSigned(false);
@@ -827,9 +853,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         try {
             const book = books.find(b => b.id === transaction.bookId);
             if (book) {
+                const restoredAvail = Math.min(book.quantity, (book.available || 0) + 1);
                 await apiService.saveModuleRecord('books', {
                     ...book,
-                    available: Math.min(book.quantity, book.available + 1)
+                    available: restoredAvail,
+                    available_copies: restoredAvail
                 });
             }
             await apiService.saveModuleRecord('library_transactions', {
@@ -837,12 +865,38 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 status: 'returned',
                 returnDate: new Date().toISOString()
             });
-            await onLogAction(`Received return of "${book?.title || 'resource'}" from ${getUserName(transaction.userId)}`);
-            loadData();
+            await onLogAction(`Received return of "${book?.title || 'resource'}" from ${getUserName(transaction.userId, transaction)}`);
+            await loadData();
             onDataChange();
         } catch (error: any) {
             console.error('Return error:', error);
             alert(`Return process failed: ${error.message || 'Database connection error'}`);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleRenewBook = async (transaction: LibraryTransaction, days: number = 14) => {
+        if (!confirm(`Extend due date for this loan by ${days} additional days?`)) return;
+        setIsProcessing(true);
+        try {
+            const currentDue = new Date(transaction.dueDate).getTime();
+            const baseTime = isNaN(currentDue) ? Date.now() : Math.max(Date.now(), currentDue);
+            const newDue = new Date(baseTime + days * 24 * 60 * 60 * 1000).toISOString();
+
+            await apiService.saveModuleRecord('library_transactions', {
+                ...transaction,
+                dueDate: newDue,
+                status: 'issued',
+                fineAmount: 0
+            });
+
+            await onLogAction(`Renewed loan for "${getBookTitle(transaction.bookId)}" until ${new Date(newDue).toLocaleDateString()} for ${getUserName(transaction.userId, transaction)}`);
+            await loadData();
+            onDataChange();
+        } catch (error: any) {
+            console.error('Renewal error:', error);
+            alert(`Renewal failed: ${error.message || 'Database connection error'}`);
         } finally {
             setIsProcessing(false);
         }
@@ -1187,30 +1241,51 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 {new Date(transaction.issueDate).toLocaleDateString()}
                                             </td>
                                             <td className="px-6 py-5">
-                                                <div className={`flex items-center gap-2 ${isOverdue ? 'text-rose-600' : 'text-slate-600'}`}>
-                                                    <ClockIcon className="w-4 h-4" />
-                                                    <span className="text-xs font-black uppercase tracking-tight">{new Date(transaction.dueDate).toLocaleDateString()}</span>
-                                                    {isOverdue && <span className="text-[8px] px-1.5 py-0.5 bg-rose-50 dark:bg-rose-900/30 rounded-full font-black animate-pulse">OVERDUE</span>}
+                                                <div className="space-y-1">
+                                                    <div className={`flex items-center gap-2 ${isOverdue ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                        <ClockIcon className="w-4 h-4" />
+                                                        <span className="text-xs font-black uppercase tracking-tight">{new Date(transaction.dueDate).toLocaleDateString()}</span>
+                                                        {isOverdue && <span className="text-[8px] px-2 py-0.5 bg-rose-50 dark:bg-rose-900/40 text-rose-600 rounded-full font-black animate-pulse uppercase">OVERDUE</span>}
+                                                    </div>
+                                                    {(() => {
+                                                        const diffDays = Math.ceil((new Date(transaction.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                                                        if (diffDays < 0) {
+                                                            return <p className="text-[9px] font-bold text-rose-500 uppercase">{Math.abs(diffDays)} {Math.abs(diffDays) === 1 ? 'day' : 'days'} overdue</p>;
+                                                        } else if (diffDays === 0) {
+                                                            return <p className="text-[9px] font-bold text-amber-500 uppercase">Due today</p>;
+                                                        } else {
+                                                            return <p className="text-[9px] font-bold text-emerald-500 uppercase">{diffDays} {diffDays === 1 ? 'day' : 'days'} remaining</p>;
+                                                        }
+                                                    })()}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                                <div className="flex items-center justify-end gap-2 flex-wrap">
+                                                    <button
+                                                        onClick={() => handleRenewBook(transaction, 14)}
+                                                        disabled={isProcessing}
+                                                        className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-500 hover:text-white text-amber-700 dark:text-amber-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border border-amber-200 dark:border-amber-800 disabled:opacity-50"
+                                                        title="Extend loan deadline by 14 days"
+                                                    >
+                                                        Renew (+14d)
+                                                    </button>
                                                     <button
                                                         onClick={() => handleSendReminder(transaction)}
-                                                        className={`p-2.5 rounded-xl transition-all cursor-pointer ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
+                                                        className={`p-2 rounded-xl transition-all cursor-pointer ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
                                                         title="Send SMS Reminder"
                                                     >
                                                         <BellIcon className="w-4 h-4" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleReturnBook(transaction)}
-                                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                        disabled={isProcessing}
+                                                        className="px-4 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-sm disabled:opacity-50"
                                                     >
                                                         Process Return
                                                     </button>
                                                     {transaction.memberSignature && (
                                                         <div className="group relative">
-                                                            <button className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl" title="View Confirmation Signature">
+                                                            <button className="p-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer" title="View Confirmation Signature">
                                                                 <EyeIcon className="w-4 h-4" />
                                                             </button>
                                                             <div className="absolute bottom-full right-0 mb-2 p-2 bg-white dark:bg-slate-800 border rounded-xl shadow-xl hidden group-hover:block z-50">
