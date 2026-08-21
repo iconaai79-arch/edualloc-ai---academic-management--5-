@@ -194,6 +194,98 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         return list.sort((a, b) => a.title.localeCompare(b.title));
     }, [books]);
 
+    // Helper to normalize strings for comparison
+    const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const extractStudentName = (item: any): string => {
+        if (!item) return '';
+        if (typeof item === 'string') {
+            const clean = item.trim();
+            if (clean && !clean.toLowerCase().includes('student member') && !clean.toLowerCase().includes('unknown user')) return clean;
+            return '';
+        }
+
+        const isGood = (n: any) => {
+            if (!n || typeof n !== 'string') return false;
+            const clean = n.trim().toLowerCase();
+            return clean.length > 0 && 
+                   clean !== 'student name' &&
+                   clean !== 'unknown student' &&
+                   clean !== 'student member' && 
+                   clean !== 'unknown user' && 
+                   clean !== 'unknown resource' && 
+                   clean !== 'unknown' &&
+                   clean !== 'student' &&
+                   clean !== 'null' &&
+                   clean !== 'undefined' &&
+                   !clean.startsWith('learner ') && 
+                   !clean.startsWith('adm-') && 
+                   !clean.startsWith('enr_') && 
+                   !clean.startsWith('usr_');
+        };
+
+        if (isGood(item.fullName)) return item.fullName.trim();
+        if (isGood(item.name)) return item.name.trim();
+        if (isGood(item.studentName)) return item.studentName.trim();
+        if (isGood(item.student_name)) return item.student_name.trim();
+        if (isGood(item.learnerName)) return item.learnerName.trim();
+        if (isGood(item.userName)) return item.userName.trim();
+        if (isGood(item.borrowerName)) return item.borrowerName.trim();
+        if (isGood(item.recipientName)) return item.recipientName.trim();
+        if (isGood(item.memberName)) return item.memberName.trim();
+
+        // Check firstName + lastName
+        const first = item.firstName || item.first_name || '';
+        const middle = item.middleName || item.middle_name || '';
+        const last = item.lastName || item.last_name || item.surname || '';
+        const combined = `${first} ${middle} ${last}`.trim().replace(/\s+/g, ' ');
+        if (isGood(combined)) return combined;
+
+        // Check metadata
+        if (item.metadata && typeof item.metadata === 'object') {
+            const m = item.metadata;
+            if (isGood(m.studentName)) return m.studentName.trim();
+            if (isGood(m.fullName)) return m.fullName.trim();
+            if (isGood(m.name)) return m.name.trim();
+            if (isGood(m.student_name)) return m.student_name.trim();
+            if (isGood(m.learnerName)) return m.learnerName.trim();
+
+            const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(mComb)) return mComb;
+
+            // Check parent / guardian names (registered under student enrollment)
+            if (isGood(m.parentName)) return m.parentName.trim();
+            if (isGood(m.guardianName)) return m.guardianName.trim();
+            if (isGood(m.guardian1Name)) return m.guardian1Name.trim();
+            if (isGood(m.parent1Name)) return m.parent1Name.trim();
+            if (Array.isArray(m.parents) && isGood(m.parents[0]?.name)) {
+                return m.parents[0].name.trim();
+            }
+        }
+
+        // Check personalInfo
+        if (item.personalInfo && typeof item.personalInfo === 'object') {
+            const pi = item.personalInfo;
+            if (isGood(pi.fullName)) return pi.fullName.trim();
+            if (isGood(pi.name)) return pi.name.trim();
+            if (isGood(pi.studentName)) return pi.studentName.trim();
+            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(piComb)) return piComb;
+        }
+
+        // Check nested user or student
+        if (item.user && typeof item.user === 'object') {
+            const uName = extractStudentName(item.user);
+            if (isGood(uName)) return uName;
+        }
+        if (item.student && typeof item.student === 'object') {
+            const sName = extractStudentName(item.student);
+            if (isGood(sName)) return sName;
+        }
+
+        return '';
+    };
+
     // Helper to extract student class and stream across all metadata formats
     const getStudentClassString = (u: User, enr?: any): string => {
         const en = enr || enrollments.find(e => 
@@ -754,97 +846,6 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         } finally {
             setIsProcessing(false);
         }
-    };
-
-    const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
-
-    const extractStudentName = (item: any): string => {
-        if (!item) return '';
-        if (typeof item === 'string') {
-            const clean = item.trim();
-            if (clean && !clean.toLowerCase().includes('student member') && !clean.toLowerCase().includes('unknown user')) return clean;
-            return '';
-        }
-
-        const isGood = (n: any) => {
-            if (!n || typeof n !== 'string') return false;
-            const clean = n.trim().toLowerCase();
-            return clean.length > 0 && 
-                   clean !== 'student name' &&
-                   clean !== 'unknown student' &&
-                   clean !== 'student member' && 
-                   clean !== 'unknown user' && 
-                   clean !== 'unknown resource' && 
-                   clean !== 'unknown' &&
-                   clean !== 'student' &&
-                   clean !== 'null' &&
-                   clean !== 'undefined' &&
-                   !clean.startsWith('learner ') && 
-                   !clean.startsWith('adm-') && 
-                   !clean.startsWith('enr_') && 
-                   !clean.startsWith('usr_');
-        };
-
-        if (isGood(item.fullName)) return item.fullName.trim();
-        if (isGood(item.name)) return item.name.trim();
-        if (isGood(item.studentName)) return item.studentName.trim();
-        if (isGood(item.student_name)) return item.student_name.trim();
-        if (isGood(item.learnerName)) return item.learnerName.trim();
-        if (isGood(item.userName)) return item.userName.trim();
-        if (isGood(item.borrowerName)) return item.borrowerName.trim();
-        if (isGood(item.recipientName)) return item.recipientName.trim();
-        if (isGood(item.memberName)) return item.memberName.trim();
-
-        // Check firstName + lastName
-        const first = item.firstName || item.first_name || '';
-        const middle = item.middleName || item.middle_name || '';
-        const last = item.lastName || item.last_name || item.surname || '';
-        const combined = `${first} ${middle} ${last}`.trim().replace(/\s+/g, ' ');
-        if (isGood(combined)) return combined;
-
-        // Check metadata
-        if (item.metadata && typeof item.metadata === 'object') {
-            const m = item.metadata;
-            if (isGood(m.studentName)) return m.studentName.trim();
-            if (isGood(m.fullName)) return m.fullName.trim();
-            if (isGood(m.name)) return m.name.trim();
-            if (isGood(m.student_name)) return m.student_name.trim();
-            if (isGood(m.learnerName)) return m.learnerName.trim();
-
-            const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
-            if (isGood(mComb)) return mComb;
-
-            // Check parent / guardian names (registered under student enrollment)
-            if (isGood(m.parentName)) return m.parentName.trim();
-            if (isGood(m.guardianName)) return m.guardianName.trim();
-            if (isGood(m.guardian1Name)) return m.guardian1Name.trim();
-            if (isGood(m.parent1Name)) return m.parent1Name.trim();
-            if (Array.isArray(m.parents) && isGood(m.parents[0]?.name)) {
-                return m.parents[0].name.trim();
-            }
-        }
-
-        // Check personalInfo
-        if (item.personalInfo && typeof item.personalInfo === 'object') {
-            const pi = item.personalInfo;
-            if (isGood(pi.fullName)) return pi.fullName.trim();
-            if (isGood(pi.name)) return pi.name.trim();
-            if (isGood(pi.studentName)) return pi.studentName.trim();
-            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
-            if (isGood(piComb)) return piComb;
-        }
-
-        // Check nested user or student
-        if (item.user && typeof item.user === 'object') {
-            const uName = extractStudentName(item.user);
-            if (isGood(uName)) return uName;
-        }
-        if (item.student && typeof item.student === 'object') {
-            const sName = extractStudentName(item.student);
-            if (isGood(sName)) return sName;
-        }
-
-        return '';
     };
 
     const getUserObject = (id: string, transaction?: any) => {
