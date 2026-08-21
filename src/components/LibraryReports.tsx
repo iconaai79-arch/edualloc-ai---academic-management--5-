@@ -19,6 +19,10 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { ArrowRightIcon } from './icons/ArrowRightIcon';
+import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { ArrowsPointingInIcon } from './icons/ArrowsPointingInIcon';
+import { ArrowsPointingOutIcon } from './icons/ArrowsPointingOutIcon';
 import { apiService } from '../services/apiService';
 import { generateLibraryUnreturnedReportPdf, generateMemberLibraryHistoryPdf } from '../services/pdfService';
 
@@ -68,6 +72,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     onLogAction
 }) => {
     const [activeReportId, setActiveReportId] = useState<ReportSectionId>('summary');
+    const [isMenuCollapsed, setIsMenuCollapsed] = useState(false);
     const [books, setBooks] = useState<Book[]>([]);
     const [transactions, setTransactions] = useState<LibraryTransaction[]>([]);
     const [fines, setFines] = useState<LibraryFine[]>([]);
@@ -839,6 +844,14 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
                 <div className="flex items-center gap-3 relative z-10 shrink-0">
                     <button
+                        onClick={() => setIsMenuCollapsed(!isMenuCollapsed)}
+                        className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer border border-white/10"
+                        title={isMenuCollapsed ? 'Expand Navigation Sidebar' : 'Collapse Menu for Maximum Wide Report View'}
+                    >
+                        {isMenuCollapsed ? <ArrowsPointingInIcon className="w-4 h-4" /> : <ArrowsPointingOutIcon className="w-4 h-4" />}
+                        <span className="hidden sm:inline">{isMenuCollapsed ? 'Compact View' : 'Wide View'}</span>
+                    </button>
+                    <button
                         onClick={loadData}
                         disabled={loading}
                         className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer border border-white/10"
@@ -850,14 +863,31 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 </div>
             </div>
 
-            {/* ── 2-COLUMN LAYOUT: VERTICAL MENU (LEFT) + REPORT VIEW (RIGHT) ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* ── 2-COLUMN / COLLAPSIBLE LAYOUT: VERTICAL MENU (LEFT) + REPORT VIEW (RIGHT) ── */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
                 
                 {/* ══ LEFT VERTICAL SUB-MENU ══ */}
-                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-[2rem] p-3 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-1 sticky top-24">
-                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-2">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Reports Directory</p>
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Select Report Module</p>
+                <div className={`transition-all duration-300 ease-in-out bg-white dark:bg-slate-900 rounded-[2rem] p-3 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-1 sticky top-24 shrink-0 ${
+                    isMenuCollapsed ? 'lg:w-[76px] w-full' : 'lg:w-80 w-full'
+                }`}>
+                    <div className="px-2 py-2 border-b border-slate-100 dark:border-slate-800 mb-2 flex items-center justify-between">
+                        {!isMenuCollapsed ? (
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Reports Directory</p>
+                                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Select Report Module</p>
+                            </div>
+                        ) : (
+                            <div className="w-full text-center">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">NAV</span>
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setIsMenuCollapsed(!isMenuCollapsed)}
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-indigo-600 transition-all cursor-pointer"
+                            title={isMenuCollapsed ? 'Expand navigation sidebar' : 'Collapse navigation sidebar'}
+                        >
+                            {isMenuCollapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeftIcon className="w-4 h-4" />}
+                        </button>
                     </div>
 
                     <div className="space-y-1">
@@ -869,7 +899,12 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                 <button
                                     key={item.id}
                                     onClick={() => setActiveReportId(item.id)}
-                                    className={`w-full p-3 rounded-2xl flex items-start gap-3.5 text-left transition-all cursor-pointer ${
+                                    title={isMenuCollapsed ? item.label : undefined}
+                                    className={`w-full rounded-2xl flex items-center text-left transition-all cursor-pointer relative group ${
+                                        isMenuCollapsed 
+                                            ? 'p-3 justify-center' 
+                                            : 'p-3 gap-3.5'
+                                    } ${
                                         isActive
                                             ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/20 scale-[1.01]'
                                             : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
@@ -880,35 +915,43 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     }`}>
                                         <Icon className="w-4 h-4" />
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-1">
-                                            <p className={`text-xs font-black uppercase tracking-tight truncate ${
-                                                isActive ? 'text-white' : 'text-slate-900 dark:text-white'
-                                            }`}>
-                                                {item.label}
-                                            </p>
-                                            {item.badge && (
-                                                <span className={`px-2 py-0.5 text-[9px] font-black rounded-full font-mono shrink-0 ${
-                                                    item.badgeColor || (isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400')
+
+                                    {/* Collapsed Badge Dot Indicator */}
+                                    {isMenuCollapsed && item.badge && (
+                                        <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+                                    )}
+
+                                    {!isMenuCollapsed && (
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-1">
+                                                <p className={`text-xs font-black uppercase tracking-tight truncate ${
+                                                    isActive ? 'text-white' : 'text-slate-900 dark:text-white'
                                                 }`}>
-                                                    {item.badge}
-                                                </span>
-                                            )}
+                                                    {item.label}
+                                                </p>
+                                                {item.badge && (
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black rounded-full font-mono shrink-0 ${
+                                                        item.badgeColor || (isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400')
+                                                    }`}>
+                                                        {item.badge}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className={`text-[10px] font-medium leading-tight truncate mt-0.5 ${
+                                                isActive ? 'text-indigo-100' : 'text-slate-400'
+                                            }`}>
+                                                {item.desc}
+                                            </p>
                                         </div>
-                                        <p className={`text-[10px] font-medium leading-tight truncate mt-0.5 ${
-                                            isActive ? 'text-indigo-100' : 'text-slate-400'
-                                        }`}>
-                                            {item.desc}
-                                        </p>
-                                    </div>
+                                    )}
                                 </button>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* ══ RIGHT ACTIVE REPORT VIEW CONTAINER ══ */}
-                <div className="lg:col-span-8 space-y-6 min-h-[500px]">
+                {/* ══ RIGHT ACTIVE REPORT VIEW CONTAINER (FULL-WIDTH EXPANSIVE) ══ */}
+                <div className="flex-1 min-w-0 w-full space-y-6 min-h-[500px]">
 
                     {/* ── 1. EXECUTIVE SUMMARY ── */}
                     {activeReportId === 'summary' && (

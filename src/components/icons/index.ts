@@ -32,6 +32,7 @@ export * from './CheckBadgeIcon';
 export * from './CheckCircleIcon';
 export * from './CheckIcon';
 export * from './ChevronDownIcon';
+export * from './ChevronLeftIcon';
 export * from './ChevronRightIcon';
 export * from './ClipboardListIcon';
 export * from './ClockIcon';
