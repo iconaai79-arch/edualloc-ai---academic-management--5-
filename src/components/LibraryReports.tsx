@@ -25,6 +25,7 @@ import { ArrowsPointingInIcon } from './icons/ArrowsPointingInIcon';
 import { ArrowsPointingOutIcon } from './icons/ArrowsPointingOutIcon';
 import { apiService } from '../services/apiService';
 import { generateLibraryUnreturnedReportPdf, generateMemberLibraryHistoryPdf } from '../services/pdfService';
+import { PdfPreviewModal } from './PdfPreviewModal';
 
 interface LibraryReportsProps {
     institution: Institution;
@@ -86,6 +87,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [searchUserTerm, setSearchUserTerm] = useState('');
     const [selectedStatementUser, setSelectedStatementUser] = useState<MappedMember | null>(null);
     const [isPrintingStatement, setIsPrintingStatement] = useState(false);
+    const [pdfPreviewData, setPdfPreviewData] = useState<{ uri: string; title: string; clientName?: string } | null>(null);
 
     // Defaulters Filter State
     const [selectedClassId, setSelectedClassId] = useState('');
@@ -642,8 +644,6 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 .filter(t => matchStatementUser(t.userId, t))
                 .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
             const userFines = fines.filter(f => matchStatementUser(f.userId));
-            const activeLoans = userTrans.filter(t => t.status === 'issued' || t.status === 'overdue');
-            const history = userTrans.filter(t => t.status === 'returned');
 
             const dataUri = await generateMemberLibraryHistoryPdf(
                 selectedStatementUser,
@@ -656,10 +656,11 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 institution.footerImageUrl || null
             );
 
-            const link = document.createElement('a');
-            link.href = dataUri;
-            link.download = `Library-Statement-${selectedStatementUser.name.replace(/\s+/g, '-')}.pdf`;
-            link.click();
+            setPdfPreviewData({
+                uri: dataUri,
+                title: `Library-Statement-${selectedStatementUser.name.replace(/\s+/g, '-')}.pdf`,
+                clientName: selectedStatementUser.name
+            });
 
             await onLogAction(`Generated Library Statement for ${selectedStatementUser.name}`);
         } catch (error) {
@@ -727,11 +728,12 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 institution.footerImageUrl || null,
                 getBookTitle
             );
-            const link = document.createElement('a');
-            link.href = dataUri;
-            link.download = `Unreturned-Books-${className}-${streamName}.pdf`.replace(/\s+/g, '-');
-            link.click();
-            onLogAction(`Generated Unreturned Books Report for ${className} - ${streamName}`);
+            setPdfPreviewData({
+                uri: dataUri,
+                title: `Unreturned-Books-${className}-${streamName}.pdf`.replace(/\s+/g, '-'),
+                clientName: `${className} - ${streamName}`
+            });
+            await onLogAction(`Generated Unreturned Books Report for ${className} - ${streamName}`);
         } catch (error) {
             console.error('PDF Generation Error:', error);
             alert('Failed to generate PDF report.');
@@ -1687,6 +1689,16 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
                 </div>
             </div>
+
+            {/* PDF Preview Modal with Print, Email & Download */}
+            {pdfPreviewData && (
+                <PdfPreviewModal
+                    url={pdfPreviewData.uri}
+                    filename={pdfPreviewData.title}
+                    clientName={pdfPreviewData.clientName}
+                    onClose={() => setPdfPreviewData(null)}
+                />
+            )}
         </div>
     );
 };

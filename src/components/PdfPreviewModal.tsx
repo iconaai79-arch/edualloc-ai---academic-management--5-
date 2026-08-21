@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { XIcon } from './icons/XIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { EnvelopeIcon } from './icons/EnvelopeIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
 import { sendEmailNotification } from '../services/emailService';
 import { PdfViewer } from './PdfViewer';
 
@@ -46,6 +47,14 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
             if (blobUrl) URL.revokeObjectURL(blobUrl);
         };
     }, [url]);
+
+    const handlePrint = () => {
+        if (!displayUrl) return;
+        const printWindow = window.open(displayUrl, '_blank');
+        if (printWindow) {
+            printWindow.focus();
+        }
+    };
 
     const handleDownload = () => {
         const link = document.createElement('a');
@@ -103,21 +112,28 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
                     </div>
                     <div className="flex items-center gap-3">
                         <button
+                            onClick={handlePrint}
+                            className="btn-secondary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6 cursor-pointer"
+                            title="Print PDF"
+                        >
+                            <PrinterIcon className="w-4 h-4" /> Print
+                        </button>
+                        <button
                             onClick={handleEmail}
                             disabled={isSending}
-                            className="btn-secondary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6"
+                            className="btn-secondary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6 cursor-pointer"
                         >
                             <EnvelopeIcon className="w-4 h-4" /> {isSending ? 'Sending...' : 'Email to Client'}
                         </button>
                         <button
                             onClick={handleDownload}
-                            className="btn-primary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6"
+                            className="btn-primary flex items-center gap-2 text-[10px] font-black uppercase tracking-widest px-6 cursor-pointer"
                         >
                             <DocumentArrowDownIcon className="w-4 h-4" /> Save Local
                         </button>
                         <button 
                             onClick={onClose} 
-                            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center gap-1"
+                            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center gap-1 cursor-pointer"
                             title="Close Preview"
                         >
                             <XIcon className="w-6 h-6" />
