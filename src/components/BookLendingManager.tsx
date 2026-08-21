@@ -620,16 +620,23 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             if (!n || typeof n !== 'string') return false;
             const clean = n.trim().toLowerCase();
             return clean.length > 0 && 
-                   !clean.includes('student member') && 
-                   !clean.includes('unknown user') && 
-                   !clean.includes('unknown resource') && 
+                   clean !== 'student name' &&
+                   clean !== 'unknown student' &&
+                   clean !== 'student member' && 
+                   clean !== 'unknown user' && 
+                   clean !== 'unknown resource' && 
+                   clean !== 'unknown' &&
+                   clean !== 'student' &&
+                   clean !== 'null' &&
+                   clean !== 'undefined' &&
+                   !clean.startsWith('learner ') && 
                    !clean.startsWith('adm-') && 
                    !clean.startsWith('enr_') && 
                    !clean.startsWith('usr_');
         };
 
-        if (isGood(item.name)) return item.name.trim();
         if (isGood(item.fullName)) return item.fullName.trim();
+        if (isGood(item.name)) return item.name.trim();
         if (isGood(item.studentName)) return item.studentName.trim();
         if (isGood(item.student_name)) return item.student_name.trim();
         if (isGood(item.learnerName)) return item.learnerName.trim();
@@ -648,12 +655,23 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         // Check metadata
         if (item.metadata && typeof item.metadata === 'object') {
             const m = item.metadata;
-            if (isGood(m.fullName)) return m.fullName.trim();
             if (isGood(m.studentName)) return m.studentName.trim();
+            if (isGood(m.fullName)) return m.fullName.trim();
             if (isGood(m.name)) return m.name.trim();
             if (isGood(m.student_name)) return m.student_name.trim();
+            if (isGood(m.learnerName)) return m.learnerName.trim();
+
             const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
             if (isGood(mComb)) return mComb;
+
+            // Check parent / guardian names (registered under student enrollment)
+            if (isGood(m.parentName)) return m.parentName.trim();
+            if (isGood(m.guardianName)) return m.guardianName.trim();
+            if (isGood(m.guardian1Name)) return m.guardian1Name.trim();
+            if (isGood(m.parent1Name)) return m.parent1Name.trim();
+            if (Array.isArray(m.parents) && isGood(m.parents[0]?.name)) {
+                return m.parents[0].name.trim();
+            }
         }
 
         // Check personalInfo
