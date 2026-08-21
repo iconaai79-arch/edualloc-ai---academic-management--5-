@@ -535,17 +535,16 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                             id: `usr_hr_${Date.now()}_${i}`,
                             name: row.name,
                             email,
-                            username,
+                            phoneNumber: row.bankAccount || '',
                             role: row.role as any,
                             institutionId: institution.id,
-                            status: 'active',
                             metadata: staffMetadata
                         };
 
                         if (onAddUser) {
                             await onAddUser(newStaffPayload);
                         } else {
-                            await apiService.saveModuleState(`staff_${newStaffPayload.id}`, newStaffPayload);
+                            await apiService.saveModuleRecord('users', newStaffPayload);
                         }
                         staffId = newStaffPayload.id;
                         importedStaffCount++;
@@ -612,7 +611,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                 if (onProcessPayroll) {
                     await onProcessPayroll(payrollRecordsToProcess);
                 } else {
-                    await apiService.saveModuleState(`payroll_batch_${institution.id}_${importPeriod.replace(/\s+/g, '_')}`, payrollRecordsToProcess);
+                    await apiService.saveModuleRecord('payroll_records', payrollRecordsToProcess);
                 }
             }
 
