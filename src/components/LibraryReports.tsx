@@ -45,9 +45,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [reservations, setReservations] = useState<BookReservation[]>([]);
     const [stockReceipts, setStockReceipts] = useState<BookStockReceipt[]>([]);
     const [enrollments, setEnrollments] = useState<any[]>([]);
+    const [liveUsers, setLiveUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchUserTerm, setSearchUserTerm] = useState('');
-    const [selectedStatementUser, setSelectedStatementUser] = useState<User | null>(null);
+    const [selectedStatementUser, setSelectedStatementUser] = useState<any | null>(null);
     const [selectedClassId, setSelectedClassId] = useState('');
     const [selectedStreamId, setSelectedStreamId] = useState('');
     const [isPrintingStatement, setIsPrintingStatement] = useState(false);
@@ -60,20 +61,65 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [booksData, transData, finesData, resData, stockData, enrollmentsData] = await Promise.all([
+            const [booksData, transData, finesData, resData, stockData, enrollmentsData, liveUsersData] = await Promise.all([
                 apiService.fetchModuleRecords<Book>('books', institution.id),
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institution.id),
                 apiService.fetchModuleRecords<LibraryFine>('library_fines', institution.id),
                 apiService.fetchModuleRecords<BookReservation>('book_reservations', institution.id),
                 apiService.fetchModuleRecords<BookStockReceipt>('book_stock_receipts', institution.id),
-                apiService.fetchModuleRecords<any>('student_enrollments', institution.id).catch(() => [])
+                apiService.fetchModuleRecords<any>('student_enrollments', institution.id).catch(() => []),
+                apiService.fetchModuleRecords<User>('users', institution.id).catch(() => [])
             ]);
+
+            // Combine with localStorage cache
+            let combinedEnrollments = [...(enrollmentsData || [])];
+            try {
+                const cachedEnr = localStorage.getItem('eduai_student_enrollments');
+                if (cachedEnr) {
+                    const parsed = JSON.parse(cachedEnr);
+                    if (Array.isArray(parsed)) {
+                        combinedEnrollments = [...combinedEnrollments, ...parsed];
+                    }
+                }
+            } catch (e) { }
+
+            // Filter targetType matching institution category
+            const targetType = institution.institutionType === 'Driving School' || (institution as any).category === 'driving_school'
+                ? 'driving_school'
+                : 'academic';
+
+            const filteredEnrollments = combinedEnrollments.filter(e => {
+                if (e.institutionId && e.institutionId !== institution.id) return false;
+                if (e.institution_id && e.institution_id !== institution.id) return false;
+                const enrType = e.targetType || (e.courseCategory === 'driving_school' ? 'driving_school' : 'academic');
+                return enrType === targetType;
+            });
+
+            // Deduplicate enrollments by identity
+            const dedupedEnrollments = new Map<string, any>();
+            filteredEnrollments.forEach(e => {
+                const adm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
+                const uId = (e.userId || e.user_id || e.student_id || '').toString().trim().toLowerCase();
+                const key = adm || uId || e.id;
+                if (!dedupedEnrollments.has(key)) {
+                    dedupedEnrollments.set(key, e);
+                } else {
+                    const existing = dedupedEnrollments.get(key);
+                    if ((e.status === 'Active' || e.status === 'Enrolled') && existing.status !== 'Active') {
+                        dedupedEnrollments.set(key, e);
+                    }
+                }
+            });
+
             setBooks(booksData);
             setTransactions(transData);
             setFines(finesData);
             setReservations(resData);
             setStockReceipts(stockData);
-            setEnrollments(enrollmentsData || []);
+            setEnrollments(Array.from(dedupedEnrollments.values()));
+            if (liveUsersData && liveUsersData.length > 0) {
+                setLiveUsers(liveUsersData);
+            }
         } catch (error) {
             console.error('Error loading report data:', error);
         } finally {
@@ -83,55 +129,323 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
     const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
 
-    // Robust student / member placement resolver
-    const getMemberDetails = (user?: User | null) => {
-        if (!user) return { admissionNumber: 'No ID', gradeLevel: '', stream: '', classDisplay: '' };
-        
-        const userNorm = norm(user.name);
-        const en = enrollments.find(e => 
-            (e.userId && e.userId === user.id) || 
-            (e.user_id && e.user_id === user.id) || 
-            (e.student_id && e.student_id === user.id) || 
-            (e.id && e.id === user.id) ||
-            (userNorm && norm(e.fullName || e.name || e.metadata?.fullName || e.metadata?.studentName || '') === userNorm) ||
-            (e.admissionNumber && user.admissionNumber && String(e.admissionNumber).trim().toLowerCase() === String(user.admissionNumber).trim().toLowerCase())
+    const extractStudentName = (item: any): string => {
+        if (!item) return '';
+        if (typeof item === 'string') {
+            const clean = item.trim();
+            if (clean && !clean.toLowerCase().includes('student member') && !clean.toLowerCase().includes('unknown user')) return clean;
+            return '';
+        }
+
+        const isGood = (n: any) => {
+            if (!n || typeof n !== 'string') return false;
+            const clean = n.trim().toLowerCase();
+            return clean.length > 0 && 
+                   clean !== 'student name' &&
+                   clean !== 'unknown student' &&
+                   clean !== 'student member' && 
+                   clean !== 'unknown user' && 
+                   clean !== 'unknown resource' && 
+                   clean !== 'unknown' &&
+                   clean !== 'student' &&
+                   clean !== 'null' &&
+                   clean !== 'undefined' &&
+                   !clean.startsWith('learner ') && 
+                   !clean.startsWith('adm-') && 
+                   !clean.startsWith('enr_') && 
+                   !clean.startsWith('usr_');
+        };
+
+        if (isGood(item.fullName)) return item.fullName.trim();
+        if (isGood(item.name)) return item.name.trim();
+        if (isGood(item.studentName)) return item.studentName.trim();
+        if (isGood(item.student_name)) return item.student_name.trim();
+        if (isGood(item.learnerName)) return item.learnerName.trim();
+        if (isGood(item.userName)) return item.userName.trim();
+        if (isGood(item.borrowerName)) return item.borrowerName.trim();
+        if (isGood(item.recipientName)) return item.recipientName.trim();
+        if (isGood(item.memberName)) return item.memberName.trim();
+
+        // Check firstName + lastName
+        const first = item.firstName || item.first_name || '';
+        const middle = item.middleName || item.middle_name || '';
+        const last = item.lastName || item.last_name || item.surname || '';
+        const combined = `${first} ${middle} ${last}`.trim().replace(/\s+/g, ' ');
+        if (isGood(combined)) return combined;
+
+        // Check metadata
+        if (item.metadata && typeof item.metadata === 'object') {
+            const m = item.metadata;
+            if (isGood(m.studentName)) return m.studentName.trim();
+            if (isGood(m.fullName)) return m.fullName.trim();
+            if (isGood(m.name)) return m.name.trim();
+            if (isGood(m.student_name)) return m.student_name.trim();
+            if (isGood(m.learnerName)) return m.learnerName.trim();
+
+            const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(mComb)) return mComb;
+
+            // Check parent / guardian names (registered under student enrollment)
+            if (isGood(m.parentName)) return m.parentName.trim();
+            if (isGood(m.guardianName)) return m.guardianName.trim();
+            if (isGood(m.guardian1Name)) return m.guardian1Name.trim();
+            if (isGood(m.parent1Name)) return m.parent1Name.trim();
+            if (Array.isArray(m.parents) && isGood(m.parents[0]?.name)) {
+                return m.parents[0].name.trim();
+            }
+        }
+
+        // Check personalInfo
+        if (item.personalInfo && typeof item.personalInfo === 'object') {
+            const pi = item.personalInfo;
+            if (isGood(pi.fullName)) return pi.fullName.trim();
+            if (isGood(pi.name)) return pi.name.trim();
+            if (isGood(pi.studentName)) return pi.studentName.trim();
+            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(piComb)) return piComb;
+        }
+
+        // Check nested user or student
+        if (item.user && typeof item.user === 'object') {
+            const uName = extractStudentName(item.user);
+            if (isGood(uName)) return uName;
+        }
+        if (item.student && typeof item.student === 'object') {
+            const sName = extractStudentName(item.student);
+            if (isGood(sName)) return sName;
+        }
+
+        return '';
+    };
+
+    // Unified allMembersList matching Patron Registry
+    const allMembersList = useMemo(() => {
+        const userMapById = new Map<string, User>();
+        const userMapByAdm = new Map<string, User>();
+
+        const pool = [...liveUsers, ...users];
+        pool.forEach(u => {
+            if (u.id) userMapById.set(u.id.toLowerCase(), u);
+            const adm = u.admissionNumber || (u as any).admission_number || (u as any).admNo;
+            if (adm) userMapByAdm.set(String(adm).trim().toLowerCase(), u);
+        });
+
+        // 1. Process all enrolled students
+        const mappedStudents = enrollments.map((e) => {
+            const eUserId = (e.userId || e.user_id || e.student_id || '').toLowerCase();
+            const eAdm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
+
+            const matchedUser = (eUserId && userMapById.get(eUserId)) || 
+                                (eAdm && userMapByAdm.get(eAdm)) || 
+                                (e.id && userMapById.get(e.id.toLowerCase()));
+
+            let candidateName = extractStudentName(matchedUser);
+            if (!candidateName) candidateName = extractStudentName(e);
+            if (!candidateName && matchedUser?.name && !matchedUser.name.toLowerCase().includes('student name')) {
+                candidateName = matchedUser.name;
+            }
+            if (!candidateName && e.fullName && !e.fullName.toLowerCase().includes('student name')) {
+                candidateName = e.fullName;
+            }
+            if (!candidateName && e.name && !e.name.toLowerCase().includes('student name')) {
+                candidateName = e.name;
+            }
+
+            let adm = e.admissionNumber || 
+                      e.admission_number || 
+                      e.admNo || 
+                      e.metadata?.admissionNumber || 
+                      e.metadata?.admNo || 
+                      e.metadata?.studentAdmNo || 
+                      matchedUser?.admissionNumber || 
+                      (matchedUser as any)?.admission_number || 
+                      `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
+
+            let finalName = candidateName;
+            if (!finalName) {
+                finalName = `Learner ${adm}`;
+            }
+
+            const userCourse = (courses || []).find((c: any) => c.id === e.courseId || c.id === matchedUser?.courseId);
+            const userLevel = userCourse?.levels?.find((l: any) => l.id === e.courseLevelId || l.id === matchedUser?.courseLevelId);
+
+            const gradeLevel = (
+                e.metadata?.gradeLevel || 
+                e.gradeLevel || 
+                e.metadata?.classLevel || 
+                e.metadata?.className || 
+                (e as any)?.studentClass || 
+                matchedUser?.studentClass || 
+                (matchedUser as any)?.classLevel || 
+                (matchedUser as any)?.class_name || 
+                (matchedUser as any)?.class || 
+                userCourse?.name || 
+                ''
+            ).toString().trim();
+
+            const stream = (
+                e.metadata?.stream || 
+                e.stream || 
+                e.streamName || 
+                (matchedUser as any)?.stream || 
+                (matchedUser as any)?.streamName || 
+                (matchedUser as any)?.stream_name || 
+                userLevel?.name || 
+                ''
+            ).toString().trim();
+
+            const classDisplay = gradeLevel && stream 
+                ? (gradeLevel.toLowerCase().includes(stream.toLowerCase()) ? gradeLevel : `${gradeLevel} - ${stream}`)
+                : (gradeLevel || stream);
+
+            return {
+                id: e.id,
+                userId: e.userId || e.user_id || matchedUser?.id || e.id,
+                name: finalName,
+                fullName: finalName,
+                email: e.email || matchedUser?.email || '',
+                phoneNumber: e.phoneNumber || e.metadata?.phoneNumber || matchedUser?.phoneNumber || '',
+                role: 'student' as const,
+                admissionNumber: adm,
+                admission_number: adm,
+                institutionId: e.institutionId || institution.id,
+                status: (e.status === 'Active' || e.status === 'Enrolled') ? 'active' : (e.status || 'active'),
+                courseId: e.courseId || matchedUser?.courseId,
+                courseLevelId: e.courseLevelId || matchedUser?.courseLevelId,
+                gradeLevel,
+                stream,
+                classDisplay,
+                classStr: classDisplay,
+                profilePhotoUrl: e.metadata?.profilePhotoUrl || e.profilePhotoUrl || matchedUser?.profilePhotoUrl
+            };
+        });
+
+        // 2. Process staff members
+        const staffMembers = pool
+            .filter(u => u.role !== 'student')
+            .map(u => {
+                const staffName = extractStudentName(u) || u.name || 'Staff Member';
+                return {
+                    id: u.id,
+                    userId: u.id,
+                    name: staffName,
+                    fullName: staffName,
+                    email: u.email || '',
+                    phoneNumber: u.phoneNumber || '',
+                    role: u.role || 'staff',
+                    admissionNumber: u.staffId || u.id,
+                    staffId: u.staffId || u.id,
+                    institutionId: u.institutionId || institution.id,
+                    status: u.status || 'active',
+                    courseId: u.courseId,
+                    courseLevelId: u.courseLevelId,
+                    gradeLevel: '',
+                    stream: '',
+                    classDisplay: u.role ? u.role.toUpperCase() : 'Staff',
+                    classStr: u.role ? u.role.toUpperCase() : 'Staff',
+                    profilePhotoUrl: u.profilePhotoUrl
+                };
+            });
+
+        // Merge & deduplicate by ID
+        const combined = [...mappedStudents, ...staffMembers];
+        const uniqueMap = new Map<string, any>();
+        combined.forEach(m => {
+            if (!uniqueMap.has(m.id)) {
+                uniqueMap.set(m.id, m);
+            }
+            if (m.userId && !uniqueMap.has(m.userId)) {
+                uniqueMap.set(m.userId, m);
+            }
+        });
+
+        return Array.from(uniqueMap.values());
+    }, [enrollments, liveUsers, users, courses, institution.id]);
+
+    // Robust user object lookup
+    const getUserObject = (id: string, transaction?: any) => {
+        if (!id && !transaction) return null;
+
+        // 1. Check allMembersList
+        const fromAll = allMembersList.find(m => 
+            m.id === id || 
+            (m.userId && m.userId === id) ||
+            norm(m.id) === norm(id) || 
+            (m.admissionNumber && norm(m.admissionNumber) === norm(id)) ||
+            (m.admission_number && norm(m.admission_number) === norm(id)) ||
+            (m.staffId && norm(m.staffId) === norm(id)) ||
+            (m.name && norm(m.name) === norm(id))
+        );
+        if (fromAll && fromAll.name && !fromAll.name.toLowerCase().includes('unknown user')) {
+            return fromAll;
+        }
+
+        // 2. Check liveUsers + users
+        const pool = [...liveUsers, ...users];
+        let u = pool.find(user => 
+            user.id === id || 
+            norm(user.id) === norm(id) || 
+            (user.admissionNumber && norm(user.admissionNumber) === norm(id)) ||
+            ((user as any).admission_number && norm((user as any).admission_number) === norm(id)) ||
+            (user.staffId && norm(user.staffId) === norm(id)) ||
+            (user.name && norm(user.name) === norm(id))
         );
 
-        const userCourse = (courses || []).find(c => c.id === user.courseId || c.id === (user as any).course_id || c.id === en?.courseId || c.id === en?.course_id);
-        const userLevel = userCourse?.levels?.find((l: any) => l.id === user.courseLevelId || l.id === (user as any).course_level_id || l.id === en?.courseLevelId || l.id === en?.course_level_id);
+        // 3. Check enrollments
+        const en = enrollments.find(e => 
+            e.id === id || 
+            e.userId === id || 
+            e.student_id === id || 
+            e.user_id === id || 
+            (e.admissionNumber && norm(e.admissionNumber) === norm(id)) ||
+            (e.admission_number && norm(e.admission_number) === norm(id)) ||
+            (e.admNo && norm(e.admNo) === norm(id)) ||
+            (e.metadata?.admissionNumber && norm(e.metadata.admissionNumber) === norm(id)) ||
+            norm(e.id) === norm(id) ||
+            norm(e.userId) === norm(id) ||
+            (e.fullName && norm(e.fullName) === norm(id)) ||
+            (e.name && norm(e.name) === norm(id))
+        );
 
-        let adm = en?.admissionNumber || 
-                  en?.admission_number || 
-                  en?.admNo || 
-                  en?.metadata?.admissionNumber ||
-                  en?.metadata?.admission_number ||
-                  en?.metadata?.admNo ||
-                  en?.metadata?.studentAdmNo ||
-                  user.admissionNumber || 
-                  (user as any).admission_number || 
-                  (user as any).admNumber || 
-                  (user as any).adm_number || 
-                  (user as any).admNo || 
-                  user.staffId || 
-                  (user as any).studentId ||
-                  user.metadata?.admissionNumber ||
-                  user.metadata?.admNo;
-
-        if (!adm || adm === 'No ID' || adm === 'No ADM' || !String(adm).trim()) {
-            adm = `ADM-${(user.id || '').replace(/^usr_|^enr_/, '').slice(-4).toUpperCase()}`;
+        if (en && !u) {
+            u = pool.find(user => 
+                user.id === en.userId || 
+                user.id === en.user_id || 
+                user.id === en.student_id ||
+                user.admissionNumber === en.admissionNumber ||
+                user.admissionNumber === en.admission_number ||
+                norm(user.admissionNumber) === norm(en.admissionNumber || en.admission_number || en.admNo || en.metadata?.admissionNumber) ||
+                norm(user.name) === norm(extractStudentName(en))
+            );
         }
+
+        // 4. Resolve candidate name
+        const transName = extractStudentName(transaction);
+        const resolvedName = (u ? extractStudentName(u) : '') || 
+                             (en ? extractStudentName(en) : '') || 
+                             transName || 
+                             (u?.name && !u.name.toLowerCase().includes('student name') ? u.name : '') || 
+                             (en?.fullName && !en.fullName.toLowerCase().includes('student name') ? en.fullName : '') || 
+                             (en?.name && !en.name.toLowerCase().includes('student name') ? en.name : '') || 
+                             (transaction as any)?.userName ||
+                             (transaction as any)?.studentName ||
+                             (transaction as any)?.borrowerName ||
+                             (transaction as any)?.recipientName;
+
+        const admissionNo = (en && (en.admissionNumber || en.admission_number || en.admissionNo || en.admNo || en.metadata?.admissionNumber)) ||
+                            (u && (u.admissionNumber || (u as any).admission_number || (u as any).admissionNo || (u as any).admNo || u.staffId)) ||
+                            id || 'No ID';
+
+        const userCourse = (courses || []).find((c: any) => c.id === en?.courseId || c.id === u?.courseId);
+        const userLevel = userCourse?.levels?.find((l: any) => l.id === en?.courseLevelId || l.id === u?.courseLevelId);
 
         const gradeLevel = (
             en?.metadata?.gradeLevel || 
             en?.gradeLevel || 
             en?.metadata?.classLevel || 
             en?.metadata?.className || 
-            (en as any)?.studentClass || 
-            user.studentClass || 
-            (user as any)?.classLevel || 
-            (user as any)?.class_name || 
-            (user as any)?.class || 
-            user.metadata?.gradeLevel || 
+            u?.studentClass || 
+            (u as any)?.classLevel || 
             userCourse?.name || 
             ''
         ).toString().trim();
@@ -140,35 +454,44 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             en?.metadata?.stream || 
             en?.stream || 
             en?.streamName || 
-            (user as any)?.stream || 
-            (user as any)?.streamName || 
-            (user as any)?.stream_name || 
-            user.metadata?.stream || 
+            (u as any)?.stream || 
+            (u as any)?.streamName || 
             userLevel?.name || 
             ''
         ).toString().trim();
 
         const classDisplay = gradeLevel && stream 
             ? (gradeLevel.toLowerCase().includes(stream.toLowerCase()) ? gradeLevel : `${gradeLevel} - ${stream}`)
-            : (gradeLevel || stream);
+            : (gradeLevel || stream || '—');
 
-        return { admissionNumber: adm, gradeLevel, stream, classDisplay };
+        return {
+            id: u?.id || en?.id || id,
+            userId: u?.id || en?.userId || id,
+            name: resolvedName || 'Learner ' + admissionNo,
+            fullName: resolvedName || 'Learner ' + admissionNo,
+            admissionNumber: admissionNo,
+            gradeLevel,
+            stream,
+            classDisplay,
+            classStr: classDisplay,
+            role: (u?.role || 'student') as any
+        };
+    };
+
+    const getUserName = (id: string, transaction?: any) => {
+        const obj = getUserObject(id, transaction);
+        return obj?.name || 'Member';
     };
 
     // Class and Stream Options
     const classOptions = useMemo(() => {
         const set = new Set<string>();
         courses.forEach(c => { if (c.name && c.name.trim()) set.add(c.name.trim()); });
-        enrollments.forEach(e => {
-            const g = (e.metadata?.gradeLevel || e.gradeLevel || e.metadata?.classLevel || '').toString().trim();
-            if (g) set.add(g);
-        });
-        users.filter(u => u.role === 'student').forEach(u => {
-            const details = getMemberDetails(u);
-            if (details.gradeLevel) set.add(details.gradeLevel);
+        allMembersList.forEach(m => {
+            if (m.gradeLevel) set.add(m.gradeLevel);
         });
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [courses, enrollments, users]);
+    }, [courses, allMembersList]);
 
     const streamOptions = useMemo(() => {
         const set = new Set<string>();
@@ -176,29 +499,16 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             const matchedCourse = courses.find(c => c.id === selectedClassId || c.name.trim().toLowerCase() === selectedClassId.trim().toLowerCase());
             matchedCourse?.levels?.forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
 
-            enrollments.filter(e => {
-                const g = (e.metadata?.gradeLevel || e.gradeLevel || '').toString().trim().toLowerCase();
+            allMembersList.filter(m => {
+                const g = (m.gradeLevel || '').toString().trim().toLowerCase();
                 return g === selectedClassId.trim().toLowerCase() || (matchedCourse && g === matchedCourse.name.trim().toLowerCase());
-            }).forEach(e => {
-                const s = (e.metadata?.stream || e.stream || '').toString().trim();
-                if (s) set.add(s);
-            });
-
-            users.filter(u => u.role === 'student').forEach(u => {
-                const details = getMemberDetails(u);
-                if (details.gradeLevel.toLowerCase() === selectedClassId.trim().toLowerCase() || (matchedCourse && details.gradeLevel.toLowerCase() === matchedCourse.name.trim().toLowerCase())) {
-                    if (details.stream) set.add(details.stream);
-                }
+            }).forEach(m => {
+                if (m.stream) set.add(m.stream);
             });
         } else {
             courses.flatMap(c => c.levels || []).forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
-            enrollments.forEach(e => {
-                const s = (e.metadata?.stream || e.stream || '').toString().trim();
-                if (s) set.add(s);
-            });
-            users.forEach(u => {
-                const details = getMemberDetails(u);
-                if (details.stream) set.add(details.stream);
+            allMembersList.forEach(m => {
+                if (m.stream) set.add(m.stream);
             });
         }
 
@@ -211,7 +521,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         }
 
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [selectedClassId, courses, enrollments, users, institution]);
+    }, [selectedClassId, courses, allMembersList, institution]);
 
     // Analytics Logic
     const analytics = useMemo(() => {
@@ -305,22 +615,32 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     // Member Statement Logic
     const filteredUsers = useMemo(() => {
         if (!searchUserTerm) return [];
-        const term = searchUserTerm.toLowerCase();
-        return users.filter(u => {
-            const details = getMemberDetails(u);
-            return u.name.toLowerCase().includes(term) ||
-                   (u.staffId && u.staffId.toLowerCase().includes(term)) ||
-                   details.admissionNumber.toLowerCase().includes(term) ||
-                   details.classDisplay.toLowerCase().includes(term);
-        }).slice(0, 5);
-    }, [users, searchUserTerm, enrollments, courses]);
+        const term = searchUserTerm.toLowerCase().trim();
+        const searchTokens = term.split(/\s+/).filter(Boolean);
+        return allMembersList.filter(u => {
+            const name = (u.name || '').toLowerCase();
+            const adm = (u.admissionNumber || u.admission_number || u.staffId || '').toLowerCase();
+            const classStr = (u.classDisplay || u.classStr || '').toLowerCase();
+            const searchable = `${name} ${adm} ${classStr}`;
+            return searchTokens.every(tok => searchable.includes(tok));
+        }).slice(0, 8);
+    }, [allMembersList, searchUserTerm]);
 
     const handlePrintStatement = async () => {
         if (!selectedStatementUser) return;
         setIsPrintingStatement(true);
         try {
-            const userTrans = transactions.filter(t => t.userId === selectedStatementUser.id);
-            const userFines = fines.filter(f => f.userId === selectedStatementUser.id);
+            const matchUser = (tUserId: string) => {
+                if (!tUserId) return false;
+                const target = norm(tUserId);
+                return target === norm(selectedStatementUser.id) ||
+                       target === norm(selectedStatementUser.userId) ||
+                       target === norm(selectedStatementUser.admissionNumber) ||
+                       target === norm(selectedStatementUser.staffId);
+            };
+
+            const userTrans = transactions.filter(t => matchUser(t.userId));
+            const userFines = fines.filter(f => matchUser(f.userId));
             const activeLoans = userTrans.filter(t => t.status === 'issued' || t.status === 'overdue');
             const history = userTrans.filter(t => t.status === 'returned');
 
@@ -357,9 +677,22 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         return transactions
             .filter(t => t.status === 'issued' || t.status === 'overdue')
             .map(t => {
-                const user = users.find(u => u.id === t.userId);
-                const details = getMemberDetails(user);
-                return { ...t, user, memberDetails: details };
+                const member = getUserObject(t.userId, t);
+                const gradeLevel = member?.gradeLevel || '';
+                const stream = member?.stream || '';
+                const classDisplay = member?.classDisplay || (gradeLevel && stream ? `${gradeLevel} - ${stream}` : gradeLevel || stream || '—');
+                const admNo = member?.admissionNumber || member?.staffId || 'No ID';
+
+                return {
+                    ...t,
+                    user: member,
+                    memberDetails: {
+                        admissionNumber: admNo,
+                        gradeLevel,
+                        stream,
+                        classDisplay
+                    }
+                };
             })
             .filter(item => {
                 if (!selectedClassId && !selectedStreamId) return true;
@@ -367,20 +700,22 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 
                 if (selectedClassId) {
                     const matchesCourseId = item.user?.courseId === selectedClassId;
-                    const matchesGradeName = item.memberDetails.gradeLevel.toLowerCase() === selectedClassId.trim().toLowerCase();
-                    const matchesCourseObjName = matchedCourse ? item.memberDetails.gradeLevel.toLowerCase() === matchedCourse.name.trim().toLowerCase() : false;
-                    if (!matchesCourseId && !matchesGradeName && !matchesCourseObjName) return false;
+                    const matchesGradeName = (item.memberDetails.gradeLevel || '').toLowerCase() === selectedClassId.trim().toLowerCase();
+                    const matchesCourseObjName = matchedCourse ? (item.memberDetails.gradeLevel || '').toLowerCase() === matchedCourse.name.trim().toLowerCase() : false;
+                    const matchesClassDisplay = (item.memberDetails.classDisplay || '').toLowerCase().includes(selectedClassId.trim().toLowerCase());
+                    if (!matchesCourseId && !matchesGradeName && !matchesCourseObjName && !matchesClassDisplay) return false;
                 }
 
                 if (selectedStreamId) {
                     const matchesLevelId = item.user?.courseLevelId === selectedStreamId;
-                    const matchesStreamName = item.memberDetails.stream.toLowerCase() === selectedStreamId.trim().toLowerCase();
-                    if (!matchesLevelId && !matchesStreamName) return false;
+                    const matchesStreamName = (item.memberDetails.stream || '').toLowerCase() === selectedStreamId.trim().toLowerCase();
+                    const matchesClassDisplay = (item.memberDetails.classDisplay || '').toLowerCase().includes(selectedStreamId.trim().toLowerCase());
+                    if (!matchesLevelId && !matchesStreamName && !matchesClassDisplay) return false;
                 }
 
                 return true;
             });
-    }, [transactions, users, enrollments, courses, selectedClassId, selectedStreamId]);
+    }, [transactions, allMembersList, enrollments, liveUsers, users, courses, selectedClassId, selectedStreamId]);
 
     const handlePrintUnreturnedReport = async () => {
         const className = courses.find(c => c.id === selectedClassId)?.name || selectedClassId || 'All Classes';
@@ -692,7 +1027,8 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     {filteredUsers.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-fade-in">
                                             {filteredUsers.map(u => {
-                                                const details = getMemberDetails(u);
+                                                const adm = u.admissionNumber || u.staffId || 'No ID';
+                                                const cl = u.classDisplay || u.classStr || '';
                                                 return (
                                                     <button
                                                         key={u.id}
@@ -700,13 +1036,13 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                                         className="w-full p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b last:border-none border-slate-50 dark:border-slate-700 text-left"
                                                     >
                                                         <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-sm">
-                                                                {u.name.charAt(0)}
+                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm">
+                                                                {u.name.charAt(0).toUpperCase()}
                                                             </div>
                                                             <div>
                                                                 <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name}</p>
                                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                                    {details.admissionNumber} {details.classDisplay ? `• ${details.classDisplay}` : ''}
+                                                                    {adm} {cl ? `• ${cl}` : ''}
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -719,61 +1055,79 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                 </div>
                             </div>
 
-                            {selectedStatementUser && (
-                                <div className="max-w-4xl mx-auto bg-slate-50 dark:bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-scale-up space-y-8">
-                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-8 border-b border-slate-200 dark:border-slate-700">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-16 h-16 rounded-3xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-200 dark:shadow-none">
-                                                {selectedStatementUser.name.charAt(0)}
+                            {selectedStatementUser && (() => {
+                                const matchUser = (tUserId: string) => {
+                                    if (!selectedStatementUser || !tUserId) return false;
+                                    const target = norm(tUserId);
+                                    return target === norm(selectedStatementUser.id) ||
+                                           target === norm(selectedStatementUser.userId) ||
+                                           target === norm(selectedStatementUser.admissionNumber) ||
+                                           target === norm(selectedStatementUser.staffId);
+                                };
+
+                                const userActiveLoans = transactions.filter(t => matchUser(t.userId) && (t.status === 'issued' || t.status === 'overdue')).length;
+                                const userReturns = transactions.filter(t => matchUser(t.userId) && t.status === 'returned').length;
+                                const userPenaltyTotal = fines.filter(f => matchUser(f.userId)).reduce((acc, f) => acc + (f.amount - f.paidAmount), 0);
+
+                                const adm = selectedStatementUser.admissionNumber || selectedStatementUser.staffId || 'No ID';
+                                const cl = selectedStatementUser.classDisplay || selectedStatementUser.classStr || '';
+
+                                return (
+                                    <div className="max-w-4xl mx-auto bg-slate-50 dark:bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-scale-up space-y-8">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-8 border-b border-slate-200 dark:border-slate-700">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-16 h-16 rounded-3xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                    {selectedStatementUser.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                        ID: {adm} {cl ? `• ${cl}` : ''}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
-                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                                    ID: {getMemberDetails(selectedStatementUser).admissionNumber} {getMemberDetails(selectedStatementUser).classDisplay ? `• ${getMemberDetails(selectedStatementUser).classDisplay}` : ''}
+                                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                                <button
+                                                    onClick={() => setSelectedStatementUser(null)}
+                                                    className="px-6 py-4 rounded-2xl bg-white dark:bg-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 flex-1 md:flex-initial cursor-pointer"
+                                                >
+                                                    Deselect
+                                                </button>
+                                                <button
+                                                    onClick={handlePrintStatement}
+                                                    disabled={isPrintingStatement}
+                                                    className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 dark:shadow-none flex-1 md:flex-initial transition-all disabled:opacity-50 cursor-pointer"
+                                                >
+                                                    <PrinterIcon className="w-4 h-4" />
+                                                    {isPrintingStatement ? 'Generating PDF...' : 'Print Statement'}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Member Metrics Overview */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Loans</p>
+                                                <p className="text-2xl font-black text-indigo-600">
+                                                    {userActiveLoans}
+                                                </p>
+                                            </div>
+                                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Returns</p>
+                                                <p className="text-2xl font-black text-emerald-600">
+                                                    {userReturns}
+                                                </p>
+                                            </div>
+                                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Unpaid Penalties</p>
+                                                <p className="text-2xl font-black text-rose-600">
+                                                    KES {userPenaltyTotal.toFixed(0)}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 w-full md:w-auto">
-                                            <button
-                                                onClick={() => setSelectedStatementUser(null)}
-                                                className="px-6 py-4 rounded-2xl bg-white dark:bg-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 flex-1 md:flex-initial"
-                                            >
-                                                Deselect
-                                            </button>
-                                            <button
-                                                onClick={handlePrintStatement}
-                                                disabled={isPrintingStatement}
-                                                className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 dark:shadow-none flex-1 md:flex-initial transition-all disabled:opacity-50"
-                                            >
-                                                <PrinterIcon className="w-4 h-4" />
-                                                {isPrintingStatement ? 'Generating PDF...' : 'Print Statement'}
-                                            </button>
-                                        </div>
                                     </div>
-
-                                    {/* Member Metrics Overview */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Loans</p>
-                                            <p className="text-2xl font-black text-indigo-600">
-                                                {transactions.filter(t => t.userId === selectedStatementUser.id && (t.status === 'issued' || t.status === 'overdue')).length}
-                                            </p>
-                                        </div>
-                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Returns</p>
-                                            <p className="text-2xl font-black text-emerald-600">
-                                                {transactions.filter(t => t.userId === selectedStatementUser.id && t.status === 'returned').length}
-                                            </p>
-                                        </div>
-                                        <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Unpaid Penalties</p>
-                                            <p className="text-2xl font-black text-rose-600">
-                                                KES {fines.filter(f => f.userId === selectedStatementUser.id).reduce((acc, f) => acc + (f.amount - f.paidAmount), 0).toFixed(0)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     </div>
 
@@ -787,7 +1141,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                 </div>
                                 <button
                                     onClick={handlePrintUnreturnedReport}
-                                    className="h-12 px-6 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all hover:bg-slate-800"
+                                    className="h-12 px-6 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all hover:bg-slate-800 cursor-pointer"
                                 >
                                     <PrinterIcon className="w-4 h-4" />
                                     Print defaulter list
@@ -841,22 +1195,27 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                                         {unreturnedReportData.map(item => {
                                             const isOverdue = new Date(item.dueDate) < new Date();
+                                            const displayName = item.user?.name || getUserName(item.userId, item);
+                                            const displayAdm = item.memberDetails?.admissionNumber || item.user?.admissionNumber || item.user?.staffId || 'No ID';
+                                            const displayClass = item.memberDetails?.classDisplay || item.user?.classDisplay || '—';
+                                            const avatarLetter = (displayName && displayName !== 'Unknown User' ? displayName.charAt(0) : 'M').toUpperCase();
+
                                             return (
                                                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                                     <td className="px-8 py-5">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-xs">
-                                                                {item.user?.name.charAt(0)}
+                                                                {avatarLetter}
                                                             </div>
                                                             <div>
-                                                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{item.user?.name || 'Unknown User'}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.memberDetails?.admissionNumber || item.user?.staffId || 'No ID'}</p>
+                                                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{displayName}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{displayAdm}</p>
                                                             </div>
                                                         </div>
                                                     </td>
                                                     <td className="px-8 py-5">
                                                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg uppercase">
-                                                            {item.memberDetails?.classDisplay || '—'}
+                                                            {displayClass}
                                                         </span>
                                                     </td>
                                                     <td className="px-8 py-5">
