@@ -184,8 +184,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, pdfDataUri, className
 
                 // Load document (handle base64 vs normal url)
                 let pdfData: any;
-                if (src && src.startsWith('data:application/pdf;base64,')) {
-                    const base64 = src.split(',')[1];
+                if (effectiveSrc && (effectiveSrc.includes(';base64,') || effectiveSrc.startsWith('data:application/pdf') || effectiveSrc.startsWith('data:'))) {
+                    const base64 = effectiveSrc.includes(';base64,') ? effectiveSrc.split(';base64,')[1] : effectiveSrc.split(',')[1];
                     const binaryStr = atob(base64);
                     const len = binaryStr.length;
                     const bytes = new Uint8Array(len);
@@ -194,7 +194,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, pdfDataUri, className
                     }
                     pdfData = { data: bytes };
                 } else {
-                    pdfData = { url: src };
+                    pdfData = { url: effectiveSrc };
                 }
 
                 const loadingTask = pdfjsLib.getDocument(pdfData);
@@ -221,34 +221,57 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, pdfDataUri, className
         };
     }, [effectiveSrc, isMobile]);
 
-    const [objectUrl, setObjectUrl] = useState<string>(() => 
-        (effectiveSrc.startsWith('blob:') || effectiveSrc.startsWith('http')) ? effectiveSrc : ''
-    );
+    const [objectUrl, setObjectUrl] = useState<string>(() => {
+        if (!effectiveSrc) return '';
+        if (effectiveSrc.startsWith('blob:') || effectiveSrc.startsWith('http://') || effectiveSrc.startsWith('https://')) {
+            return effectiveSrc;
+        }
+        if (effectiveSrc.includes(';base64,') || effectiveSrc.startsWith('data:application/pdf')) {
+            try {
+                const base64 = effectiveSrc.includes(';base64,') ? effectiveSrc.split(';base64,')[1] : effectiveSrc.split(',')[1];
+                if (base64) {
+                    const binaryStr = atob(base64);
+                    const len = binaryStr.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryStr.charCodeAt(i);
+                    }
+                    const blob = new Blob([bytes], { type: 'application/pdf' });
+                    return URL.createObjectURL(blob);
+                }
+            } catch (e) {
+                console.error("PdfViewer initial blob error:", e);
+            }
+        }
+        return effectiveSrc;
+    });
 
     useEffect(() => {
         if (!effectiveSrc) {
             setObjectUrl('');
             return;
         }
-        if (effectiveSrc.startsWith('blob:') || effectiveSrc.startsWith('http')) {
+        if (effectiveSrc.startsWith('blob:') || effectiveSrc.startsWith('http://') || effectiveSrc.startsWith('https://')) {
             setObjectUrl(effectiveSrc);
             return;
         }
-        if (effectiveSrc.startsWith('data:application/pdf;base64,')) {
+        if (effectiveSrc.includes(';base64,') || effectiveSrc.startsWith('data:application/pdf')) {
             try {
-                const base64 = effectiveSrc.split(',')[1];
-                const binaryStr = atob(base64);
-                const len = binaryStr.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryStr.charCodeAt(i);
+                const base64 = effectiveSrc.includes(';base64,') ? effectiveSrc.split(';base64,')[1] : effectiveSrc.split(',')[1];
+                if (base64) {
+                    const binaryStr = atob(base64);
+                    const len = binaryStr.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryStr.charCodeAt(i);
+                    }
+                    const blob = new Blob([bytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    setObjectUrl(url);
+                    return () => {
+                        URL.revokeObjectURL(url);
+                    };
                 }
-                const blob = new Blob([bytes], { type: 'application/pdf' });
-                const url = URL.createObjectURL(blob);
-                setObjectUrl(url);
-                return () => {
-                    URL.revokeObjectURL(url);
-                };
             } catch (err) {
                 console.error("Failed to convert data URI to blob URL:", err);
                 setObjectUrl(effectiveSrc);
@@ -260,9 +283,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ src, pdfDataUri, className
 
     // Desktop fallback: render standard iframe
     if (!isMobile) {
+        const displaySrc = objectUrl || effectiveSrc;
         return (
             <iframe
-                src={objectUrl || effectiveSrc}
+                src={displaySrc.startsWith('blob:') || displaySrc.startsWith('http') ? `${displaySrc}#toolbar=1&navpanes=0` : displaySrc}
                 className={className || "w-full h-full border-none"}
                 title={title || "PDF Preview"}
                 style={style}

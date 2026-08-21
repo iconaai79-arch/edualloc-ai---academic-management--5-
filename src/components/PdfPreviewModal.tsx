@@ -18,23 +18,27 @@ interface PdfPreviewModalProps {
 
 const createBlobUrlFromPdfData = (sourceUrl: string): string => {
     if (!sourceUrl) return '';
-    if (!sourceUrl.startsWith('data:application/pdf;base64,')) {
+    if (sourceUrl.startsWith('blob:') || sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://')) {
         return sourceUrl;
     }
     try {
-        const base64 = sourceUrl.split(',')[1];
-        const binaryStr = atob(base64);
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryStr.charCodeAt(i);
+        if (sourceUrl.includes(';base64,') || sourceUrl.startsWith('data:application/pdf')) {
+            const base64 = sourceUrl.includes(';base64,') ? sourceUrl.split(';base64,')[1] : sourceUrl.split(',')[1];
+            if (base64) {
+                const binaryStr = atob(base64);
+                const len = binaryStr.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                return URL.createObjectURL(blob);
+            }
         }
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        return URL.createObjectURL(blob);
     } catch (e) {
         console.error("Failed to convert data URI to blob URL:", e);
-        return sourceUrl;
     }
+    return sourceUrl;
 };
 
 export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, filename, recipientEmail, clientName }) => {
@@ -74,7 +78,9 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({ url, onClose, 
 
         setIsSending(true);
         try {
-            const base64 = url.includes('base64,') ? url.split('base64,')[1] : null;
+            const base64 = url.includes(';base64,')
+                ? url.split(';base64,')[1]
+                : (url.includes('base64,') ? url.split('base64,')[1] : null);
             const attachments = base64 ? [{
                 filename: filename || 'document.pdf',
                 content: base64,
