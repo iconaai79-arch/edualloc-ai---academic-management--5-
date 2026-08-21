@@ -14,6 +14,7 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { ChatBubbleLeftRightIcon } from '../icons/ChatBubbleLeftRightIcon';
 import { XIcon } from '../icons/XIcon';
+import { EyeIcon } from '../icons/EyeIcon';
 
 interface OfficialResultSlipViewProps {
     assessments?: Assessment[];
@@ -47,6 +48,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
     const [selectedYearGroup, setSelectedYearGroup] = useState<string>('PP1');
     const [selectedStream, setSelectedStream] = useState<string>('all');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+
+    // View Mode: 'single' (one learner) vs 'entire_class' (batch preview of all learners in cohort)
+    const [viewMode, setViewMode] = useState<'single' | 'entire_class'>('single');
 
     // SMS Dispatch Modal States
     const [isSendSmsModalOpen, setIsSendSmsModalOpen] = useState<boolean>(false);
@@ -459,7 +463,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return cleaned.length <= 4 ? cleaned.toUpperCase() : (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase());
     };
 
-    // Helper to construct exact SMS body for a student matching Kenyan standard sample format
+    // Helper to construct exact SMS body for a student with direct PDF download link
     const buildStudentResultSmsBody = (
         st: any,
         stSubjects: { code: string; name: string; percent: number; isExempted?: boolean }[],
@@ -500,8 +504,10 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             })
             .join('\n');
 
-        // 4. Download Line
-        const downloadLine = `Download: sms.ke/link`;
+        // 4. Direct PDF Download Link
+        // Generates accessible direct link to download the student's result slip PDF
+        const directPdfLink = `${window.location.origin}/portal/results?adm=${encodeURIComponent(admNo)}&exam=${encodeURIComponent(selectedExamId)}&format=pdf`;
+        const downloadLine = `Download: ${directPdfLink}`;
 
         return `${headerLine}\n${metaLines}\n\n${summaryBlock}\n\n${subjectLines}\n\n${downloadLine}`;
     };
@@ -921,16 +927,6 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         };
     }, [matchingStudents, selectedStudentId]);
 
-    // Student initials badge
-    const studentInitials = useMemo(() => {
-        if (!activeStudent?.name) return 'CJ';
-        const parts = activeStudent.name.trim().split(/\s+/);
-        if (parts.length >= 2) {
-            return (parts[0][0] + parts[1][0]).toUpperCase();
-        }
-        return activeStudent.name.substring(0, 2).toUpperCase();
-    }, [activeStudent]);
-
     // Grade points & score helpers
     const getGradeInfo = (pct: number) => {
         if (isPrimaryOrCBC) {
@@ -1004,26 +1000,33 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         });
     }, [cohortPerformanceMatrix]);
 
-    // Subject breakdown for the ACTIVE selected student
-    const activeStudentSubjects = useMemo(() => {
-        const studentRecord = cohortPerformanceMatrix.find(c => c.studentId === activeStudent.id) || cohortPerformanceMatrix[0];
-        const studentClass = (activeStudent as any).studentClass || selectedYearGroup;
+    // Cohort Class Mean
+    const classMean = useMemo(() => {
+        if (cohortPerformanceMatrix.length === 0) return '0.00';
+        const sumMeans = cohortPerformanceMatrix.reduce((acc, c) => acc + c.mean, 0);
+        return (sumMeans / cohortPerformanceMatrix.length).toFixed(2);
+    }, [cohortPerformanceMatrix]);
 
-        return activeClassSubjects.map((sub, idx) => {
+    // Helper to compute a single student's complete result slip dataset
+    const getStudentSlipData = (student: any) => {
+        const studentRecord = cohortPerformanceMatrix.find(c => c.studentId === student.id) || cohortPerformanceMatrix[0];
+        const studentClass = (student as any).studentClass || selectedYearGroup;
+
+        const studentRankObj = rankedCohort.find(r => r.studentId === student.id);
+        const rank = studentRankObj ? studentRankObj.rank : 1;
+
+        const subjectRows = activeClassSubjects.map((sub, idx) => {
             const subKey = sub.code || sub.name;
             const code = sub.code || `${sub.name.substring(0, 4).toUpperCase()}-LP`;
             const name = sub.name || (sub as any).title;
             const percent = studentRecord ? (studentRecord.scores[subKey] ?? 0) : 0;
 
-            // Check exemption
-            const exemptionKey = `${activeStudent.id}_${name.toLowerCase().trim()}`;
+            const exemptionKey = `${student.id}_${name.toLowerCase().trim()}`;
             const isExempted = Boolean(studentSubjectExemptions[exemptionKey]);
 
-            // Calculate student position in this subject across the cohort
             const allSubjectScores = cohortPerformanceMatrix.map(c => c.scores[subKey] ?? 0).sort((a, b) => b - a);
             const pos = Math.max(1, allSubjectScores.indexOf(percent) + 1);
 
-            // Resolve teacher initials
             const teacherName = resolveSubjectTeacher(studentClass, sub);
             const sign = getTeacherInitials(teacherName, name);
 
@@ -1036,39 +1039,51 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 isExempted
             };
         });
-    }, [activeClassSubjects, cohortPerformanceMatrix, activeStudent, selectedYearGroup, studentSubjectExemptions, subjectAllocations, teachersMap, users]);
 
-    // Calculated Aggregates for Active Student
-    const nonExemptSubjects = useMemo(() => activeStudentSubjects.filter(s => !s.isExempted), [activeStudentSubjects]);
-    const totalMarks = useMemo(() => nonExemptSubjects.reduce((acc, s) => acc + s.percent, 0), [nonExemptSubjects]);
-    const meanScore = useMemo(() => nonExemptSubjects.length > 0 ? (totalMarks / nonExemptSubjects.length).toFixed(2) : '0.00', [totalMarks, nonExemptSubjects]);
-    const overallGradeInfo = useMemo(() => getGradeInfo(parseFloat(meanScore)), [meanScore, isPrimaryOrCBC]);
+        const nonExempt = subjectRows.filter(s => !s.isExempted);
+        const totalMarks = nonExempt.reduce((acc, s) => acc + s.percent, 0);
+        const meanScore = nonExempt.length > 0 ? (totalMarks / nonExempt.length).toFixed(2) : '0.00';
+        const overallGradeInfo = getGradeInfo(parseFloat(meanScore));
 
-    // Cohort Class Mean
-    const classMean = useMemo(() => {
-        if (cohortPerformanceMatrix.length === 0) return '0.00';
-        const sumMeans = cohortPerformanceMatrix.reduce((acc, c) => acc + c.mean, 0);
-        return (sumMeans / cohortPerformanceMatrix.length).toFixed(2);
-    }, [cohortPerformanceMatrix]);
+        let initials = 'ST';
+        if (student?.name) {
+            const parts = student.name.trim().split(/\s+/);
+            if (parts.length >= 2) {
+                initials = (parts[0][0] + parts[1][0]).toUpperCase();
+            } else {
+                initials = student.name.substring(0, 2).toUpperCase();
+            }
+        }
 
-    // Active Student Rank in Class & Stream
-    const overallRank = useMemo(() => {
-        const match = rankedCohort.find(r => r.studentId === activeStudent.id);
-        return match ? match.rank : 1;
-    }, [rankedCohort, activeStudent]);
+        return {
+            student,
+            initials,
+            studentClass,
+            subjectRows,
+            totalMarks,
+            meanScore,
+            overallGradeInfo,
+            rank
+        };
+    };
 
-    // Default generated SMS for Active Student matching Kenyan standard template
+    // Active Selected Student Data
+    const activeStudentData = useMemo(() => {
+        return getStudentSlipData(activeStudent);
+    }, [activeStudent, cohortPerformanceMatrix, rankedCohort, activeClassSubjects, studentSubjectExemptions, selectedYearGroup]);
+
+    // Default generated SMS for Active Student
     const defaultActiveStudentSms = useMemo(() => {
         return buildStudentResultSmsBody(
             activeStudent,
-            activeStudentSubjects,
-            totalMarks,
-            overallGradeInfo.grade,
-            overallGradeInfo.points,
-            overallRank,
+            activeStudentData.subjectRows,
+            activeStudentData.totalMarks,
+            activeStudentData.overallGradeInfo.grade,
+            activeStudentData.overallGradeInfo.points,
+            activeStudentData.rank,
             matchingStudents.length
         );
-    }, [activeStudent, activeStudentSubjects, totalMarks, overallGradeInfo, overallRank, matchingStudents.length, selectedExamObj, selectedYearGroup]);
+    }, [activeStudent, activeStudentData, matchingStudents.length, selectedExamObj, selectedYearGroup]);
 
     // Update active student phone and SMS preview when active student changes
     useEffect(() => {
@@ -1120,32 +1135,15 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 for (let i = 0; i < matchingStudents.length; i++) {
                     const st = matchingStudents[i];
                     const phone = getStudentPhoneNumber(st) || smsRecipientPhone.trim();
-
-                    const stRecord = cohortPerformanceMatrix.find(c => c.studentId === st.id);
-                    const stRankObj = rankedCohort.find(r => r.studentId === st.id);
-                    const stRank = stRankObj ? stRankObj.rank : (i + 1);
-
-                    const stSubjects = activeClassSubjects.map(sub => {
-                        const subKey = sub.code || sub.name;
-                        const percent = stRecord ? (stRecord.scores[subKey] ?? 0) : 0;
-                        return {
-                            code: sub.code || sub.name,
-                            name: sub.name || (sub as any).title,
-                            percent
-                        };
-                    });
-
-                    const stTotal = stRecord ? stRecord.total : 0;
-                    const stMean = stRecord ? stRecord.mean : 0;
-                    const stGrade = getGradeInfo(stMean);
+                    const stData = getStudentSlipData(st);
 
                     const stMsg = buildStudentResultSmsBody(
                         st,
-                        stSubjects,
-                        stTotal,
-                        stGrade.grade,
-                        stGrade.points,
-                        stRank,
+                        stData.subjectRows,
+                        stData.totalMarks,
+                        stData.overallGradeInfo.grade,
+                        stData.overallGradeInfo.points,
+                        stData.rank,
                         matchingStudents.length
                     );
 
@@ -1212,6 +1210,224 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         { id: 'user_activities', label: 'User activities', icon: UserGroupIcon },
         { id: 'payments', label: 'Payments', icon: DocumentArrowDownIcon },
     ];
+
+    // Reusable single Result Slip Sheet Component
+    const renderResultSlipSheet = (stData: ReturnType<typeof getStudentSlipData>, isClassView: boolean = false, index: number = 0) => {
+        const { student, initials, studentClass, subjectRows, totalMarks, meanScore, overallGradeInfo, rank } = stData;
+        const admNo = (student as any).admissionNo || (student as any).admissionNumber || (student as any).admNo || '603';
+        const gender = (student as any).gender || (student as any).sex || 'F';
+
+        return (
+            <div 
+                key={student.id || index}
+                className="bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto space-y-4 print:shadow-none print:border-none print:p-0 font-sans print:break-after-page print:page-break-after-always mb-8 print:mb-0"
+            >
+                {/* Header info in class view */}
+                {isClassView && (
+                    <div className="no-print flex justify-between items-center bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 mb-2">
+                        <span>📄 Result Slip #{index + 1} of {matchingStudents.length}</span>
+                        <span className="font-black text-slate-900 uppercase">{student.name} ({admNo})</span>
+                    </div>
+                )}
+
+                {/* 1. School Header */}
+                <div className="text-center space-y-1">
+                    <div className="flex justify-center mb-2">
+                        {currentInstitution?.logoUrl ? (
+                            <img src={currentInstitution.logoUrl} alt="School Logo" className="h-16 w-16 object-contain" />
+                        ) : (
+                            <div className="w-16 h-16 rounded-full border-2 border-slate-800 p-1 flex items-center justify-center">
+                                <div className="w-full h-full rounded-full bg-slate-900 text-white font-black text-xl flex items-center justify-center">
+                                    {(currentInstitution?.name || 'NEST ZIWA SCHOOL').charAt(0)}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 font-serif">
+                        {currentInstitution?.name || 'NEST ZIWA SCHOOL'}
+                    </h1>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-700">
+                        {currentInstitution?.address || 'P.O BOX 208-30100 ELDORET'}
+                    </p>
+                </div>
+
+                {/* Double Rule Divider */}
+                <div className="space-y-0.5 pt-1 pb-2">
+                    <div className="h-1 bg-slate-900 w-full" />
+                    <div className="h-0.5 bg-slate-900 w-full" />
+                </div>
+
+                {/* 2. Exam Results Slip Title */}
+                <div className="text-center">
+                    <h2 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                        {selectedExamObj.title.toUpperCase()} RESULTS SLIP - YEAR {selectedExamObj.year || '2026'}
+                    </h2>
+                </div>
+
+                {/* 3. Student Details Table Grid */}
+                <div className="border border-slate-900 grid grid-cols-12 text-xs">
+                    {/* Initials Avatar Box */}
+                    <div className="col-span-2 bg-[#a2e816] flex items-center justify-center p-3 border-r border-slate-900 min-h-[90px]">
+                        <span className="text-3xl font-black text-slate-900 tracking-tighter">
+                            {initials}
+                        </span>
+                    </div>
+
+                    {/* Metadata Grid */}
+                    <div className="col-span-10 divide-y divide-slate-900 font-semibold">
+                        {/* Row 1: Generous room for Name (5 cols), compact Adm No (2 cols), Gender (2 cols), Class (3 cols) */}
+                        <div className="grid grid-cols-12 divide-x divide-slate-900">
+                            <div className="p-1.5 col-span-5 flex items-center gap-1.5 min-w-0">
+                                <span className="font-bold text-slate-900 shrink-0">Name:</span>
+                                <span className="font-bold uppercase text-slate-900 truncate" title={student.name}>{student.name}</span>
+                            </div>
+                            <div className="p-1.5 col-span-2 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Adm No.</span>
+                                <span className="font-bold text-slate-900 truncate">{admNo}</span>
+                            </div>
+                            <div className="p-1.5 col-span-2 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Gender:</span>
+                                <span className="font-bold text-slate-900 truncate">{gender}</span>
+                            </div>
+                            <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Class:</span>
+                                <span className="font-bold text-slate-900 truncate">{studentClass}</span>
+                            </div>
+                        </div>
+
+                        {/* Row 2 */}
+                        <div className="grid grid-cols-12 divide-x divide-slate-900">
+                            <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Total marks:</span>
+                                <span className="font-bold text-slate-900">{totalMarks}</span>
+                            </div>
+                            <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Class Mean:</span>
+                                <span className="font-bold text-slate-900">{classMean}%</span>
+                            </div>
+                            <div className="p-1.5 col-span-6 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Curriculum:</span>
+                                <span className="font-bold text-slate-900 uppercase">
+                                    {isPrimaryOrCBC ? 'CBC ASSESSMENT' : '8-4-4 SYSTEM'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Row 3 */}
+                        <div className="grid grid-cols-12 divide-x divide-slate-900">
+                            <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Mean score:</span>
+                                <span className="font-bold text-slate-900">{meanScore}%</span>
+                            </div>
+                            <div className="p-1.5 col-span-9 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Overall pos:</span>
+                                <span className="font-bold text-slate-900">{rank} / {matchingStudents.length}</span>
+                            </div>
+                        </div>
+
+                        {/* Row 4 */}
+                        <div className="grid grid-cols-12 divide-x divide-slate-900">
+                            <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Mean grade:</span>
+                                <span className="font-bold text-slate-900">{overallGradeInfo.grade}</span>
+                            </div>
+                            <div className="p-1.5 col-span-9 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Stream pos:</span>
+                                <span className="font-bold text-slate-900">{rank} / {matchingStudents.length}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 4. Subject Results Table */}
+                <div className="border border-slate-900 overflow-hidden">
+                    <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr className="bg-[#4a5568] text-white uppercase text-[11px] font-black border-b border-slate-900">
+                                <th className="p-2 border-r border-slate-600 text-center w-16">CODE</th>
+                                <th className="p-2 border-r border-slate-600">SUBJECT</th>
+                                <th className="p-2 border-r border-slate-600 text-center w-20">PERCENT</th>
+                                <th className="p-2 border-r border-slate-600 text-center w-16">GRADE</th>
+                                <th className="p-2 border-r border-slate-600 text-center w-16">POINTS</th>
+                                <th className="p-2 border-r border-slate-600 text-center w-20">POSITION</th>
+                                <th className="p-2 border-r border-slate-600">REMARKS</th>
+                                <th className="p-2 text-center w-16">SIGN</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-300 font-semibold text-slate-900">
+                            {subjectRows.map((row, idx) => {
+                                const { grade, points, remark } = getGradeInfo(row.percent);
+                                return (
+                                    <tr key={idx} className="hover:bg-slate-50">
+                                        <td className="p-2 border-r border-slate-300 text-center font-bold">{row.code}</td>
+                                        <td className="p-2 border-r border-slate-300 font-bold uppercase">
+                                            {row.name}
+                                            {row.isExempted && (
+                                                <span className="ml-2 text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black">
+                                                    EXEMPTED
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-2 border-r border-slate-300 text-center font-bold">{row.percent}%</td>
+                                        <td className="p-2 border-r border-slate-300 text-center font-bold">{grade}</td>
+                                        <td className="p-2 border-r border-slate-300 text-center font-bold">{points}</td>
+                                        <td className="p-2 border-r border-slate-300 text-center font-bold">{row.pos}</td>
+                                        <td className="p-2 border-r border-slate-300 font-medium text-slate-800">{remark}</td>
+                                        <td className="p-2 text-center font-bold uppercase">{row.sign}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* 5. Remarks & Signatures Box */}
+                <div className="border border-slate-900 divide-y divide-slate-900 text-xs">
+                    {/* Class Teacher's Remarks */}
+                    <div className="grid grid-cols-12 divide-x divide-slate-900">
+                        <div className="col-span-9 p-2.5 space-y-1">
+                            <span className="font-black uppercase text-slate-900 block">
+                                CLASS TEACHER'S REMARKS
+                            </span>
+                            <p className="font-medium text-slate-800 italic">
+                                {parseFloat(meanScore) >= 80
+                                    ? 'Outstanding performance! Consistently demonstrating mastery in all learning areas.'
+                                    : parseFloat(meanScore) >= 65
+                                    ? 'Good work and steady progress. Keep up the high level of dedication and aim even higher.'
+                                    : parseFloat(meanScore) >= 50
+                                    ? 'Fair effort. More practice needed in key competency areas to improve overall ranking.'
+                                    : 'Requires remedial support and focused attention to meet the expected competencies.'}
+                            </p>
+                        </div>
+                        <div className="col-span-3 p-2.5 flex items-center justify-center font-black uppercase text-slate-900">
+                            TR. SIGN
+                        </div>
+                    </div>
+
+                    {/* Head Teacher's Remarks */}
+                    <div className="grid grid-cols-12 divide-x divide-slate-900">
+                        <div className="col-span-9 p-2.5 space-y-1">
+                            <span className="font-black uppercase text-slate-900 block">
+                                PRINCIPAL'S / HEAD TEACHER'S REMARKS
+                            </span>
+                            <p className="font-medium text-slate-800 italic">
+                                {parseFloat(meanScore) >= 80
+                                    ? 'An exemplary report. Commended for scholastic excellence and discipline.'
+                                    : parseFloat(meanScore) >= 65
+                                    ? 'Commendable result. Maintain this momentum into the next term.'
+                                    : parseFloat(meanScore) >= 50
+                                    ? 'Promising capability shown. Encourage consistent revision at home and school.'
+                                    : 'Urgent parental conference and guided study recommended for academic turnaround.'}
+                            </p>
+                        </div>
+                        <div className="col-span-3 p-2.5 flex items-center justify-center text-slate-400 text-[10px] font-bold">
+                            SIGN & STAMP
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="flex flex-col lg:flex-row gap-6 w-full text-left font-sans animate-fade-in">
@@ -1287,11 +1503,40 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             <div className="flex-1 w-full min-w-0 space-y-4">
                 {/* Screen Controls Toolbar */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs space-y-3 no-print">
-                    <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                        Select an exam, class cohort, and student to preview, print, or SMS dispatch the official Kenyan standard results slip.
-                    </p>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                            Select an exam, class cohort, and preview individual or entire class result slips with direct SMS and PDF export.
+                        </p>
 
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {/* View Mode Switcher: Single Learner vs Whole Class */}
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('single')}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    viewMode === 'single'
+                                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                👤 Single Learner
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('entire_class')}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    viewMode === 'entire_class'
+                                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                <EyeIcon className="w-3.5 h-3.5" />
+                                <span>Entire Class ({matchingStudents.length})</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-700 dark:text-slate-300 pt-1">
                         {/* Exam Select */}
                         <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-500">Exam:</span>
@@ -1350,40 +1595,62 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             </div>
                         )}
 
-                        {/* Learner Select */}
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-500">Learner:</span>
-                            <div className="relative">
-                                <select
-                                    value={selectedStudentId}
-                                    onChange={e => setSelectedStudentId(e.target.value)}
-                                    className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-1.5 pr-7 text-xs text-slate-800 dark:text-slate-100 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-slate-400 min-w-[200px] shadow-2xs font-bold text-indigo-600 dark:text-indigo-400"
-                                >
-                                    {matchingStudents.map(s => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.name} ({(s as any).admissionNo || (s as any).admissionNumber || s.id})
-                                        </option>
-                                    ))}
-                                </select>
-                                <span className="absolute right-2.5 top-2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+                        {/* Learner Select (shown when in single view) */}
+                        {viewMode === 'single' ? (
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-500">Learner:</span>
+                                <div className="relative">
+                                    <select
+                                        value={selectedStudentId}
+                                        onChange={e => setSelectedStudentId(e.target.value)}
+                                        className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md px-3 py-1.5 pr-7 text-xs text-slate-800 dark:text-slate-100 appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-slate-400 min-w-[200px] shadow-2xs font-bold text-indigo-600 dark:text-indigo-400"
+                                    >
+                                        {matchingStudents.map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} ({(s as any).admissionNo || (s as any).admissionNumber || s.id})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <span className="absolute right-2.5 top-2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                                <span>📚 Full Class Batch Mode Active: {matchingStudents.length} Learners</span>
+                            </div>
+                        )}
 
                         {/* Action Buttons: Print & Send SMS */}
                         <div className="ml-auto flex items-center gap-2">
+                            {viewMode === 'single' && (
+                                <button
+                                    onClick={() => setViewMode('entire_class')}
+                                    className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-md text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5"
+                                    title="Preview all class result slips together"
+                                >
+                                    <EyeIcon className="w-3.5 h-3.5" /> Preview Entire Class
+                                </button>
+                            )}
+
                             <button
                                 onClick={() => window.print()}
                                 className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                                title="Print or save as PDF"
+                                title={viewMode === 'entire_class' ? `Print all ${matchingStudents.length} result slips` : "Print or save as PDF"}
                             >
-                                <PrinterIcon className="w-3.5 h-3.5" /> Print
+                                <PrinterIcon className="w-3.5 h-3.5" />
+                                <span>{viewMode === 'entire_class' ? `Print All (${matchingStudents.length} Slips)` : 'Print'}</span>
                             </button>
 
                             <button
                                 onClick={() => {
                                     setIsSendSmsModalOpen(true);
-                                    setCustomSmsMessage(defaultActiveStudentSms);
-                                    setSmsRecipientPhone(getStudentPhoneNumber(activeStudent) || '');
+                                    if (viewMode === 'entire_class') {
+                                        setSmsTargetMode('class');
+                                    } else {
+                                        setSmsTargetMode('single');
+                                        setCustomSmsMessage(defaultActiveStudentSms);
+                                        setSmsRecipientPhone(getStudentPhoneNumber(activeStudent) || '');
+                                    }
                                 }}
                                 className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-black uppercase tracking-wider shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                                 title="Send official report card results via SMS"
@@ -1394,204 +1661,17 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     </div>
                 </div>
 
-                {/* Official Kenyan Standard Result Slip Sheet */}
-                <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto space-y-4 print:shadow-none print:border-none print:p-0 font-sans">
-                    {/* 1. School Header */}
-                    <div className="text-center space-y-1">
-                        <div className="flex justify-center mb-2">
-                            {currentInstitution?.logoUrl ? (
-                                <img src={currentInstitution.logoUrl} alt="School Logo" className="h-16 w-16 object-contain" />
-                            ) : (
-                                <div className="w-16 h-16 rounded-full border-2 border-slate-800 p-1 flex items-center justify-center">
-                                    <div className="w-full h-full rounded-full bg-slate-900 text-white font-black text-xl flex items-center justify-center">
-                                        {(currentInstitution?.name || 'NEST ZIWA SCHOOL').charAt(0)}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <h1 className="text-2xl font-black uppercase tracking-tight text-slate-900 font-serif">
-                            {currentInstitution?.name || 'NEST ZIWA SCHOOL'}
-                        </h1>
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-700">
-                            {currentInstitution?.address || 'P.O BOX 208-30100 ELDORET'}
-                        </p>
+                {/* Result Slip Sheets Rendering */}
+                {viewMode === 'single' ? (
+                    renderResultSlipSheet(activeStudentData, false)
+                ) : (
+                    <div className="space-y-6">
+                        {matchingStudents.map((st, idx) => {
+                            const stData = getStudentSlipData(st);
+                            return renderResultSlipSheet(stData, true, idx);
+                        })}
                     </div>
-
-                    {/* Double Rule Divider */}
-                    <div className="space-y-0.5 pt-1 pb-2">
-                        <div className="h-1 bg-slate-900 w-full" />
-                        <div className="h-0.5 bg-slate-900 w-full" />
-                    </div>
-
-                    {/* 2. Exam Results Slip Title */}
-                    <div className="text-center">
-                        <h2 className="text-sm font-black uppercase tracking-wider text-slate-900">
-                            {selectedExamObj.title.toUpperCase()} RESULTS SLIP - YEAR {selectedExamObj.year || '2026'}
-                        </h2>
-                    </div>
-
-                    {/* 3. Student Details Table Grid */}
-                    <div className="border border-slate-900 grid grid-cols-12 text-xs">
-                        {/* Initials Avatar Box */}
-                        <div className="col-span-2 bg-[#a2e816] flex items-center justify-center p-3 border-r border-slate-900 min-h-[90px]">
-                            <span className="text-3xl font-black text-slate-900 tracking-tighter">
-                                {studentInitials}
-                            </span>
-                        </div>
-
-                        {/* Metadata Grid */}
-                        <div className="col-span-10 divide-y divide-slate-900 font-semibold">
-                            {/* Row 1: Generous room for Name (5 cols), compact Adm No (2 cols), Gender (2 cols), Class (3 cols) */}
-                            <div className="grid grid-cols-12 divide-x divide-slate-900">
-                                <div className="p-1.5 col-span-5 flex items-center gap-1.5 min-w-0">
-                                    <span className="font-bold text-slate-900 shrink-0">Name:</span>
-                                    <span className="font-bold uppercase text-slate-900 truncate" title={activeStudent.name}>{activeStudent.name}</span>
-                                </div>
-                                <div className="p-1.5 col-span-2 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Adm No.</span>
-                                    <span className="font-bold text-slate-900 truncate">{(activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '603'}</span>
-                                </div>
-                                <div className="p-1.5 col-span-2 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Gender:</span>
-                                    <span className="font-bold text-slate-900 truncate">{(activeStudent as any).gender || (activeStudent as any).sex || 'F'}</span>
-                                </div>
-                                <div className="p-1.5 col-span-3 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Class:</span>
-                                    <span className="font-bold text-slate-900 truncate">{(activeStudent as any).studentClass || selectedYearGroup}</span>
-                                </div>
-                            </div>
-
-                            {/* Row 2 */}
-                            <div className="grid grid-cols-12 divide-x divide-slate-900">
-                                <div className="p-1.5 col-span-3 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Total marks:</span>
-                                    <span className="font-bold text-slate-900">{totalMarks}</span>
-                                </div>
-                                <div className="p-1.5 col-span-3 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Class Mean:</span>
-                                    <span className="font-bold text-slate-900">{classMean}%</span>
-                                </div>
-                                <div className="p-1.5 col-span-6 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Curriculum:</span>
-                                    <span className="font-bold text-slate-900 uppercase">
-                                        {isPrimaryOrCBC ? 'CBC ASSESSMENT' : '8-4-4 SYSTEM'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Row 3 */}
-                            <div className="grid grid-cols-12 divide-x divide-slate-900">
-                                <div className="p-1.5 col-span-3 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Mean score:</span>
-                                    <span className="font-bold text-slate-900">{meanScore}%</span>
-                                </div>
-                                <div className="p-1.5 col-span-9 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Overall pos:</span>
-                                    <span className="font-bold text-slate-900">{overallRank} / {matchingStudents.length}</span>
-                                </div>
-                            </div>
-
-                            {/* Row 4 */}
-                            <div className="grid grid-cols-12 divide-x divide-slate-900">
-                                <div className="p-1.5 col-span-3 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Mean grade:</span>
-                                    <span className="font-bold text-slate-900">{overallGradeInfo.grade}</span>
-                                </div>
-                                <div className="p-1.5 col-span-9 flex items-center gap-1">
-                                    <span className="font-bold text-slate-900 shrink-0">Stream pos:</span>
-                                    <span className="font-bold text-slate-900">{overallRank} / {matchingStudents.length}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 4. Subject Results Table */}
-                    <div className="border border-slate-900 overflow-hidden">
-                        <table className="w-full text-left text-xs border-collapse">
-                            <thead>
-                                <tr className="bg-[#4a5568] text-white uppercase text-[11px] font-black border-b border-slate-900">
-                                    <th className="p-2 border-r border-slate-600 text-center w-16">CODE</th>
-                                    <th className="p-2 border-r border-slate-600">SUBJECT</th>
-                                    <th className="p-2 border-r border-slate-600 text-center w-20">PERCENT</th>
-                                    <th className="p-2 border-r border-slate-600 text-center w-16">GRADE</th>
-                                    <th className="p-2 border-r border-slate-600 text-center w-16">POINTS</th>
-                                    <th className="p-2 border-r border-slate-600 text-center w-20">POSITION</th>
-                                    <th className="p-2 border-r border-slate-600">REMARKS</th>
-                                    <th className="p-2 text-center w-16">SIGN</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-300 font-semibold text-slate-900">
-                                {activeStudentSubjects.map((row, idx) => {
-                                    const { grade, points, remark } = getGradeInfo(row.percent);
-                                    return (
-                                        <tr key={idx} className="hover:bg-slate-50">
-                                            <td className="p-2 border-r border-slate-300 text-center font-bold">{row.code}</td>
-                                            <td className="p-2 border-r border-slate-300 font-bold uppercase">
-                                                {row.name}
-                                                {row.isExempted && (
-                                                    <span className="ml-2 text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-black">
-                                                        EXEMPTED
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="p-2 border-r border-slate-300 text-center font-bold">{row.percent}%</td>
-                                            <td className="p-2 border-r border-slate-300 text-center font-bold">{grade}</td>
-                                            <td className="p-2 border-r border-slate-300 text-center font-bold">{points}</td>
-                                            <td className="p-2 border-r border-slate-300 text-center font-bold">{row.pos}</td>
-                                            <td className="p-2 border-r border-slate-300 font-medium text-slate-800">{remark}</td>
-                                            <td className="p-2 text-center font-bold uppercase">{row.sign}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* 5. Remarks & Signatures Box */}
-                    <div className="border border-slate-900 divide-y divide-slate-900 text-xs">
-                        {/* Class Teacher's Remarks */}
-                        <div className="grid grid-cols-12 divide-x divide-slate-900">
-                            <div className="col-span-9 p-2.5 space-y-1">
-                                <span className="font-black uppercase text-slate-900 block">
-                                    CLASS TEACHER'S REMARKS
-                                </span>
-                                <p className="font-medium text-slate-800 italic">
-                                    {parseFloat(meanScore) >= 80
-                                        ? 'Outstanding performance! Consistently demonstrating mastery in all learning areas.'
-                                        : parseFloat(meanScore) >= 65
-                                        ? 'Good work and steady progress. Keep up the high level of dedication and aim even higher.'
-                                        : parseFloat(meanScore) >= 50
-                                        ? 'Fair effort. More practice needed in key competency areas to improve overall ranking.'
-                                        : 'Requires remedial support and focused attention to meet the expected competencies.'}
-                                </p>
-                            </div>
-                            <div className="col-span-3 p-2.5 flex items-center justify-center font-black uppercase text-slate-900">
-                                TR. SIGN
-                            </div>
-                        </div>
-
-                        {/* Head Teacher's Remarks */}
-                        <div className="grid grid-cols-12 divide-x divide-slate-900">
-                            <div className="col-span-9 p-2.5 space-y-1">
-                                <span className="font-black uppercase text-slate-900 block">
-                                    PRINCIPAL'S / HEAD TEACHER'S REMARKS
-                                </span>
-                                <p className="font-medium text-slate-800 italic">
-                                    {parseFloat(meanScore) >= 80
-                                        ? 'An exemplary report. Commended for scholastic excellence and discipline.'
-                                        : parseFloat(meanScore) >= 65
-                                        ? 'Commendable result. Maintain this momentum into the next term.'
-                                        : parseFloat(meanScore) >= 50
-                                        ? 'Promising capability shown. Encourage consistent revision at home and school.'
-                                        : 'Urgent parental conference and guided study recommended for academic turnaround.'}
-                                </p>
-                            </div>
-                            <div className="col-span-3 p-2.5 flex items-center justify-center text-slate-400 text-[10px] font-bold">
-                                SIGN & STAMP
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
 
             {/* SEND SMS MODAL */}
@@ -1612,7 +1692,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                         </span>
                                     </h3>
                                     <p className="text-[11px] text-slate-400 font-medium">
-                                        Instant SMS dispatch for {selectedExamObj.title}
+                                        Instant SMS dispatch with direct PDF download link
                                     </p>
                                 </div>
                             </div>
@@ -1692,7 +1772,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                 </div>
                             ) : (
                                 <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs text-blue-800 dark:text-blue-300 font-medium">
-                                    📢 Batch mode will dynamically format and dispatch personalized results messages to all <strong>{matchingStudents.length} registered students / parents</strong> in {selectedYearGroup}.
+                                    📢 Batch mode will dynamically format and dispatch personalized results messages with direct PDF links to all <strong>{matchingStudents.length} registered students / parents</strong> in {selectedYearGroup}.
                                 </div>
                             )}
 
