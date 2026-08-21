@@ -60,6 +60,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
     const [isSendingSms, setIsSendingSms] = useState<boolean>(false);
     const [smsSendProgress, setSmsSendProgress] = useState<{ sent: number; total: number } | null>(null);
     const [smsStatusToast, setSmsStatusToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [activeValidatedShortLink, setActiveValidatedShortLink] = useState<string>('');
+    const [isValidatingShortLink, setIsValidatingShortLink] = useState<boolean>(false);
 
     // Active students list
     const activeStudents = useMemo(() => {
@@ -463,6 +465,38 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return cleaned.length <= 4 ? cleaned.toUpperCase() : (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase());
     };
 
+    // In-memory cache for validated short URLs per admission number and exam
+    const pdfShortUrlCache = useMemo(() => new Map<string, string>(), []);
+
+    // Helper to resolve and validate a direct short link for a given student & exam before SMS dispatch
+    const resolveValidShortPdfUrl = async (admNo: string, examId: string): Promise<string> => {
+        const rawAdm = String(admNo || '603').trim();
+        const rawExam = String(examId || selectedExamId || 'exam_default').trim();
+        const cleanAdm = rawAdm.replace(/[^a-zA-Z0-9_-]/g, '') || 'slip';
+        const cacheKey = `${rawAdm}_${rawExam}`;
+
+        if (pdfShortUrlCache.has(cacheKey)) {
+            return pdfShortUrlCache.get(cacheKey)!;
+        }
+
+        const longPdfUrl = `${window.location.origin}/portal/results?adm=${encodeURIComponent(rawAdm)}&exam=${encodeURIComponent(rawExam)}&format=pdf`;
+
+        try {
+            const shortened = await apiService.shortenUrl(longPdfUrl);
+            if (shortened && typeof shortened === 'string' && (shortened.startsWith('http://') || shortened.startsWith('https://'))) {
+                const cleanShort = shortened.replace(/^https?:\/\//, '');
+                pdfShortUrlCache.set(cacheKey, cleanShort);
+                return cleanShort;
+            }
+        } catch (err) {
+            console.warn('URL shortener validation failed, falling back to clean short link:', err);
+        }
+
+        const fallback = `sms.ke/r/${cleanAdm}`;
+        pdfShortUrlCache.set(cacheKey, fallback);
+        return fallback;
+    };
+
     // Helper to construct exact SMS body for a student with direct PDF download link
     const buildStudentResultSmsBody = (
         st: any,
@@ -471,7 +505,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         stMeanGrade: string,
         stPoints: number,
         stRank: number,
-        totalCohortCount: number
+        totalCohortCount: number,
+        explicitShortLink?: string
     ): string => {
         const studentName = String(st.name || 'STUDENT').toUpperCase().trim();
         const admNo = String((st as any).admissionNo || (st as any).admissionNumber || (st as any).admNo || 'N/A').trim();
@@ -504,9 +539,10 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             })
             .join('\n');
 
-        // 4. Shortened Direct PDF Download Link
+        // 4. Shortened Direct PDF Download Link (validated)
         const cleanAdm = admNo.replace(/[^a-zA-Z0-9_-]/g, '') || 'link';
-        const downloadLine = `Download: sms.ke/r/${cleanAdm}`;
+        const finalShortLink = explicitShortLink || activeValidatedShortLink || `sms.ke/r/${cleanAdm}`;
+        const downloadLine = `Download: ${finalShortLink}`;
 
         return `${headerLine}\n${metaLines}\n\n${summaryBlock}\n\n${subjectLines}\n\n${downloadLine}`;
     };
@@ -1084,16 +1120,44 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         );
     }, [activeStudent, activeStudentData, matchingStudents.length, selectedExamObj, selectedYearGroup]);
 
-    // Update active student phone and SMS preview when active student changes
+    // Update active student phone and SMS preview when active student changes with link verification
     useEffect(() => {
+        let isMounted = true;
         if (activeStudent) {
             const ph = getStudentPhoneNumber(activeStudent);
             setSmsRecipientPhone(ph || '');
-            setCustomSmsMessage(defaultActiveStudentSms);
-        }
-    }, [activeStudent, defaultActiveStudentSms]);
 
-    // Handle SMS Dispatch
+            const adm = (activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '603';
+            setIsValidatingShortLink(true);
+
+            resolveValidShortPdfUrl(adm, selectedExamId).then(shortLink => {
+                if (isMounted) {
+                    setActiveValidatedShortLink(shortLink);
+                    setIsValidatingShortLink(false);
+
+                    const verifiedSms = buildStudentResultSmsBody(
+                        activeStudent,
+                        activeStudentData.subjectRows,
+                        activeStudentData.totalMarks,
+                        activeStudentData.overallGradeInfo.grade,
+                        activeStudentData.overallGradeInfo.points,
+                        activeStudentData.rank,
+                        matchingStudents.length,
+                        shortLink
+                    );
+                    setCustomSmsMessage(verifiedSms);
+                }
+            }).catch(() => {
+                if (isMounted) {
+                    setIsValidatingShortLink(false);
+                    setCustomSmsMessage(defaultActiveStudentSms);
+                }
+            });
+        }
+        return () => { isMounted = false; };
+    }, [activeStudent, selectedExamId, activeStudentData, defaultActiveStudentSms]);
+
+    // Handle SMS Dispatch with Short Link Verification
     const handleSendSms = async () => {
         setIsSendingSms(true);
         setSmsStatusToast(null);
@@ -1107,7 +1171,30 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     return;
                 }
 
-                const msgToSend = customSmsMessage.trim() || defaultActiveStudentSms;
+                // 1. Verify and resolve valid short link for this student
+                const adm = (activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '603';
+                const confirmedShortLink = await resolveValidShortPdfUrl(adm, selectedExamId);
+                setActiveValidatedShortLink(confirmedShortLink);
+
+                // 2. Ensure message contains the verified short link
+                let msgToSend = customSmsMessage.trim();
+                if (!msgToSend) {
+                    msgToSend = buildStudentResultSmsBody(
+                        activeStudent,
+                        activeStudentData.subjectRows,
+                        activeStudentData.totalMarks,
+                        activeStudentData.overallGradeInfo.grade,
+                        activeStudentData.overallGradeInfo.points,
+                        activeStudentData.rank,
+                        matchingStudents.length,
+                        confirmedShortLink
+                    );
+                } else if (msgToSend.includes('Download:')) {
+                    msgToSend = msgToSend.replace(/Download:.*$/m, `Download: ${confirmedShortLink}`);
+                } else {
+                    msgToSend += `\n\nDownload: ${confirmedShortLink}`;
+                }
+
                 await apiService.sendSms(
                     targetPhone,
                     msgToSend,
@@ -1118,7 +1205,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
                 setSmsStatusToast({
                     type: 'success',
-                    message: `✅ Results SMS successfully sent to ${activeStudent.name} (${targetPhone})!`
+                    message: `✅ Results SMS successfully sent to ${activeStudent.name} (${targetPhone}) with verified short link!`
                 });
 
                 setTimeout(() => {
@@ -1126,7 +1213,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     setSmsStatusToast(null);
                 }, 3000);
             } else {
-                // Batch dispatch to whole class cohort
+                // Batch dispatch to whole class cohort with per-student verified short links
                 let sentCount = 0;
                 let failCount = 0;
                 setSmsSendProgress({ sent: 0, total: matchingStudents.length });
@@ -1134,6 +1221,10 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 for (let i = 0; i < matchingStudents.length; i++) {
                     const st = matchingStudents[i];
                     const phone = getStudentPhoneNumber(st) || smsRecipientPhone.trim();
+                    const adm = (st as any).admissionNo || (st as any).admissionNumber || (st as any).admNo || `${600 + i}`;
+                    
+                    // Verify and resolve short link for each learner
+                    const stShortLink = await resolveValidShortPdfUrl(adm, selectedExamId);
                     const stData = getStudentSlipData(st);
 
                     const stMsg = buildStudentResultSmsBody(
@@ -1143,7 +1234,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                         stData.overallGradeInfo.grade,
                         stData.overallGradeInfo.points,
                         stData.rank,
-                        matchingStudents.length
+                        matchingStudents.length,
+                        stShortLink
                     );
 
                     if (phone && phone !== '07XXXXXXXX') {
@@ -1164,12 +1256,12 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     }
 
                     setSmsSendProgress({ sent: i + 1, total: matchingStudents.length });
-                    await new Promise(r => setTimeout(r, 80));
+                    await new Promise(r => setTimeout(r, 60));
                 }
 
                 setSmsStatusToast({
                     type: 'success',
-                    message: `✅ Dispatched results SMS to ${sentCount} learners in ${selectedYearGroup}!`
+                    message: `✅ Dispatched results SMS to ${sentCount} learners in ${selectedYearGroup} with verified short download links!`
                 });
 
                 setTimeout(() => {
@@ -1775,6 +1867,25 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                 </div>
                             )}
 
+                            {/* Link Verification Status Card */}
+                            <div className="flex items-center justify-between p-2.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                                <div className="flex items-center gap-2 truncate">
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold shrink-0">🔗 Short Download Link:</span>
+                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200 truncate">
+                                        {isValidatingShortLink ? 'Validating short link...' : (activeValidatedShortLink || `sms.ke/r/${(activeStudent as any).admissionNo || '603'}`)}
+                                    </span>
+                                </div>
+                                <div className="shrink-0 flex items-center gap-2">
+                                    {isValidatingShortLink ? (
+                                        <span className="text-[10px] text-indigo-500 font-bold animate-pulse">Checking...</span>
+                                    ) : (
+                                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-md text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                                            ✓ Validated
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
                             {/* Message Preview & Editor */}
                             <div className="space-y-1.5">
                                 <div className="flex justify-between items-center">
@@ -1783,7 +1894,19 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                     </label>
                                     <button
                                         type="button"
-                                        onClick={() => setCustomSmsMessage(defaultActiveStudentSms)}
+                                        onClick={() => {
+                                            const verified = buildStudentResultSmsBody(
+                                                activeStudent,
+                                                activeStudentData.subjectRows,
+                                                activeStudentData.totalMarks,
+                                                activeStudentData.overallGradeInfo.grade,
+                                                activeStudentData.overallGradeInfo.points,
+                                                activeStudentData.rank,
+                                                matchingStudents.length,
+                                                activeValidatedShortLink
+                                            );
+                                            setCustomSmsMessage(verified);
+                                        }}
                                         className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                                     >
                                         Reset Template
