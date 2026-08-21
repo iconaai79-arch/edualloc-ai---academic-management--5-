@@ -12,7 +12,6 @@ import { PrinterIcon } from '../icons/PrinterIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
-import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { ExamOverviewDashboard } from './ExamOverviewDashboard';
 import { SubjectGradesDistributionDashboard } from './SubjectGradesDistributionDashboard';
@@ -21,6 +20,7 @@ import { StudentProgressReportView } from './StudentProgressReportView';
 import { BroadsheetReportView } from './BroadsheetReportView';
 import { OfficialResultSlipView } from './OfficialResultSlipView';
 import { AcademicTranscriptView } from './AcademicTranscriptView';
+import { RawMarksheetView } from './RawMarksheetView';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -40,6 +40,7 @@ export type ReportSubTab =
     | 'subject_grades_analysis'
     | 'subject_grades_distribution'
     | 'broadsheet'
+    | 'marksheet'
     | 'result_slips'
     | 'student_progress'
     | 'report_cards'
@@ -417,16 +418,17 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         { id: 'exam_analysis', label: '1. Exam Analysis', icon: BarChart3Icon },
         { id: 'subject_grades_analysis', label: '2. Subjects Grades Analysis', icon: ChartPieIcon },
         { id: 'broadsheet', label: '3. Broadsheet', icon: GridIcon },
-        { id: 'result_slips', label: '4. Results Slips', icon: DocumentArrowDownIcon },
-        { id: 'student_progress', label: '5. Student Progress Reports', icon: UserGroupIcon },
-        { id: 'report_cards', label: '6. Report Cards', icon: BookOpenIcon },
-        { id: 'transcripts', label: '7. Academic Transcripts', icon: SparklesIcon },
+        { id: 'marksheet', label: '4. Marksheet (Raw Data)', icon: BookOpenIcon },
+        { id: 'result_slips', label: '5. Results Slips', icon: DocumentArrowDownIcon },
+        { id: 'student_progress', label: '6. Student Progress Reports', icon: UserGroupIcon },
+        { id: 'report_cards', label: '7. Report Cards', icon: BookOpenIcon },
+        { id: 'transcripts', label: '8. Academic Transcripts', icon: SparklesIcon },
         { id: 'missing_marks', label: 'Missing Marks Integrity', icon: ExclamationTriangleIcon },
     ];
 
     // If viewing any of the full-width report dashboards that contain their own drawer navigation, render them directly without duplicate outer header
     const isSubjectGradesTab = activeSubTab === 'subject_grades_analysis' || (activeSubTab as string) === 'subject_grades_distribution';
-    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'subject_grades_distribution', 'broadsheet', 'result_slips', 'student_progress', 'report_cards', 'transcripts'].includes(activeSubTab);
+    const hasOwnDrawerNav = ['exam_analysis', 'subject_grades_analysis', 'subject_grades_distribution', 'broadsheet', 'marksheet', 'result_slips', 'student_progress', 'report_cards', 'transcripts'].includes(activeSubTab);
 
     if (hasOwnDrawerNav) {
         return (
@@ -472,6 +474,19 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
 
                 {activeSubTab === 'broadsheet' && (
                     <BroadsheetReportView
+                        assessments={effectiveAssessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {activeSubTab === 'marksheet' && (
+                    <RawMarksheetView
                         assessments={effectiveAssessments}
                         marks={marks}
                         students={activeStudents}
@@ -609,7 +624,21 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                     />
                 )}
 
-                {/* 4. RESULTS SLIPS */}
+                {/* 4. MARKSHEET (RAW DATA) */}
+                {activeSubTab === 'marksheet' && (
+                    <RawMarksheetView
+                        assessments={assessments}
+                        marks={marks}
+                        students={activeStudents}
+                        users={users}
+                        subjects={subjects}
+                        currentInstitution={currentInstitution}
+                        courses={courses}
+                        onSelectReportTab={(tabId: string) => setActiveSubTab(tabId as ReportSubTab)}
+                    />
+                )}
+
+                {/* 5. RESULTS SLIPS */}
                 {activeSubTab === 'result_slips' && (
                     <OfficialResultSlipView
                         assessments={assessments}

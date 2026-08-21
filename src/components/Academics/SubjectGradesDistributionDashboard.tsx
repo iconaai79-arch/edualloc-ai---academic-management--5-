@@ -847,7 +847,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         { id: 'subject_grades_distribution', label: 'Subject grades distribution', icon: ChartPieIcon, reportTab: 'subject_grades_analysis' },
         { id: 'result_slips', label: 'Result slips', icon: DocumentArrowDownIcon, reportTab: 'result_slips' },
         { id: 'broadsheet', label: 'Broadsheet', icon: GridIcon, reportTab: 'broadsheet' },
-        { id: 'marksheet', label: 'Marksheet', icon: BookOpenIcon },
+        { id: 'marksheet', label: 'Marksheet (Raw Data)', icon: BookOpenIcon, reportTab: 'marksheet' },
         { id: 'exam_irregularities', label: 'Exam irregularities', icon: ExclamationTriangleIcon },
         { id: 'missing_marks', label: 'Missing marks', icon: ExclamationTriangleIcon, reportTab: 'missing_marks' },
         { id: 'student_progress', label: 'Student progress', icon: UserGroupIcon, reportTab: 'student_progress' },
