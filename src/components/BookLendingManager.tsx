@@ -19,6 +19,8 @@ import { apiService } from '../services/apiService';
 
 interface BookLendingManagerProps {
     institutionId: string;
+    institution?: any;
+    companyDetails?: any;
     users: User[];
     courses?: any[];
     onLogAction: (action: string) => Promise<void>;
@@ -27,6 +29,8 @@ interface BookLendingManagerProps {
 
 export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     institutionId,
+    institution,
+    companyDetails,
     users,
     courses: passedCourses = [],
     onLogAction,
@@ -119,7 +123,15 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             });
             setLiveUsers(Array.from(userMap.values()));
 
-            let allEnr = enrollmentsData || [];
+            const targetType = (institution?.institutionType === 'driving_school' || (institution as any)?.category === 'driving_school') ? 'driving_school' : 'academic';
+
+            // Filter enrollments to institution & enrollment type matching Patron Registry
+            let allEnr = (enrollmentsData || []).filter((e: any) => {
+                const matchesInst = !e.institutionId || e.institutionId === institutionId;
+                const matchesType = !e.enrollmentType || e.enrollmentType === targetType;
+                return matchesInst && matchesType;
+            });
+
             try {
                 const cached = localStorage.getItem(`eduai_student_enrollments_${institutionId}`);
                 if (cached) {
@@ -128,7 +140,8 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                         const seenIds = new Set(allEnr.map((e: any) => e.id || e.userId || e.student_id || e.admissionNumber));
                         parsed.forEach((p: any) => {
                             const pId = p.id || p.userId || p.student_id || p.admissionNumber;
-                            if (pId && !seenIds.has(pId)) {
+                            const matchesType = !p.enrollmentType || p.enrollmentType === targetType;
+                            if (pId && !seenIds.has(pId) && matchesType) {
                                 seenIds.add(pId);
                                 allEnr.push(p);
                             }
@@ -137,10 +150,27 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 }
             } catch (e) {}
 
+            // Deduplicate enrollments by student admission number or userId matching Patron Registry
+            const dedupedEnrollments = new Map<string, any>();
+            allEnr.forEach((e: any) => {
+                const admKey = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
+                const userKey = (e.userId || e.user_id || e.student_id || '').toString().trim().toLowerCase();
+                const key = admKey || userKey || (e.id || '').toString().trim().toLowerCase();
+                
+                if (!dedupedEnrollments.has(key)) {
+                    dedupedEnrollments.set(key, e);
+                } else {
+                    const existing = dedupedEnrollments.get(key);
+                    if ((e.status === 'Active' || e.status === 'Enrolled') && existing.status !== 'Active') {
+                        dedupedEnrollments.set(key, e);
+                    }
+                }
+            });
+
             setBooks(booksData);
             setTransactions(transData.sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()));
             if (configData.length > 0) setSettings(configData[0]);
-            setEnrollments(allEnr);
+            setEnrollments(Array.from(dedupedEnrollments.values()));
             if (coursesData && coursesData.length > 0) setCourses(coursesData);
             else if (passedCourses.length > 0) setCourses(passedCourses);
         } catch (error) {
@@ -265,41 +295,109 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             if (adm) userMapByAdm.set(String(adm).trim().toLowerCase(), u);
         });
 
-        // 1. Process all enrolled students
-        const mappedStudents = enrollments.map(e => {
+        // 1. Process all enrolled students matching Patron Registry (LibraryMemberManager)
+        const mappedStudents = enrollments.map((e) => {
             const eUserId = (e.userId || e.user_id || e.student_id || '').toLowerCase();
             const eAdm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
 
+            // Find matched user in users table
             const matchedUser = (eUserId && userMapById.get(eUserId)) || 
                                 (eAdm && userMapByAdm.get(eAdm)) || 
                                 (e.id && userMapById.get(e.id.toLowerCase()));
 
-            let name = extractStudentName(matchedUser) || extractStudentName(e);
-            if (!name && matchedUser?.name && !matchedUser.name.toLowerCase().includes('student name')) name = matchedUser.name;
-            if (!name && e.fullName && !e.fullName.toLowerCase().includes('student name')) name = e.fullName;
-            if (!name && e.name && !e.name.toLowerCase().includes('student name')) name = e.name;
+            // Extract real name
+            let candidateName = extractStudentName(matchedUser);
+            if (!candidateName) candidateName = extractStudentName(e);
+            if (!candidateName && matchedUser?.name && !matchedUser.name.toLowerCase().includes('student name')) {
+                candidateName = matchedUser.name;
+            }
+            if (!candidateName && e.fullName && !e.fullName.toLowerCase().includes('student name')) {
+                candidateName = e.fullName;
+            }
+            if (!candidateName && e.name && !e.name.toLowerCase().includes('student name')) {
+                candidateName = e.name;
+            }
 
-            const adm = e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || matchedUser?.admissionNumber || (matchedUser as any)?.admission_number || `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
+            let adm = e.admissionNumber || 
+                      e.admission_number || 
+                      e.admNo || 
+                      e.metadata?.admissionNumber || 
+                      e.metadata?.admNo || 
+                      e.metadata?.studentAdmNo || 
+                      matchedUser?.admissionNumber || 
+                      (matchedUser as any)?.admission_number || 
+                      `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
 
-            if (!name) name = `Learner ${adm}`;
+            let finalName = candidateName;
+            if (!finalName) {
+                finalName = `Learner ${adm}`;
+            }
 
-            const classStr = getStudentClassString(matchedUser || ({} as any), e);
-            const gradeLevel = (e.metadata?.gradeLevel || e.gradeLevel || (matchedUser as any)?.studentClass || '').toString().trim();
-            const stream = (e.metadata?.stream || e.stream || (matchedUser as any)?.stream || '').toString().trim();
+            const userCourse = (courses || []).find((c: any) => c.id === e.courseId || c.id === matchedUser?.courseId);
+            const userLevel = userCourse?.levels?.find((l: any) => l.id === e.courseLevelId || l.id === matchedUser?.courseLevelId);
+
+            const gradeLevel = (
+                e.metadata?.gradeLevel || 
+                e.gradeLevel || 
+                e.classLevel || 
+                (e as any)?.studentClass || 
+                matchedUser?.studentClass || 
+                (matchedUser as any)?.classLevel || 
+                (matchedUser as any)?.class_name || 
+                matchedUser?.metadata?.gradeLevel || 
+                userCourse?.name || 
+                ''
+            ).toString().trim();
+
+            const stream = (
+                e.metadata?.stream || 
+                e.stream || 
+                e.streamName || 
+                (matchedUser as any)?.stream || 
+                (matchedUser as any)?.streamName || 
+                (matchedUser as any)?.stream_name || 
+                matchedUser?.metadata?.stream || 
+                userLevel?.name || 
+                ''
+            ).toString().trim();
+
+            let classDisplay = '';
+            if (gradeLevel && stream) {
+                if (gradeLevel.toLowerCase().includes(stream.toLowerCase())) {
+                    classDisplay = gradeLevel;
+                } else {
+                    classDisplay = `${gradeLevel} - ${stream}`;
+                }
+            } else {
+                classDisplay = gradeLevel || stream || 'Unassigned';
+            }
 
             return {
-                ...(matchedUser || {}),
-                id: e.userId || e.user_id || e.student_id || e.id,
-                userId: e.userId || e.user_id || e.student_id || e.id,
-                name,
+                id: matchedUser?.id || e.userId || e.user_id || e.student_id || e.id,
+                userId: matchedUser?.id || e.userId || e.user_id || e.student_id || e.id,
+                enrollmentId: e.id,
+                name: finalName,
+                email: matchedUser?.email || e.email || e.metadata?.email || `${String(adm).toLowerCase().replace(/[^a-z0-9]/g, '')}@student.edu`,
+                phoneNumber: matchedUser?.phoneNumber || e.phoneNumber || e.metadata?.phoneNumber || e.metadata?.parentPhone || e.metadata?.guardianPhone || '',
+                role: 'student' as const,
                 admissionNumber: String(adm),
                 admission_number: String(adm),
-                role: 'student' as const,
-                classStr,
-                gradeLevel,
-                stream,
+                staffId: String(adm),
+                studentClass: gradeLevel,
+                gradeLevel: gradeLevel,
+                stream: stream,
+                classDisplay: classDisplay,
+                classStr: classDisplay,
                 courseId: e.courseId || matchedUser?.courseId,
-                profilePhotoUrl: matchedUser?.profilePhotoUrl || e.metadata?.passportPhoto
+                courseLevelId: e.courseLevelId || matchedUser?.courseLevelId,
+                profilePhotoUrl: matchedUser?.profilePhotoUrl || e.metadata?.passportPhoto || e.metadata?.photoUrl,
+                status: (e.status || matchedUser?.status || 'Active') as any,
+                metadata: {
+                    ...matchedUser?.metadata,
+                    ...e.metadata,
+                    enrollmentId: e.id,
+                    admissionNumber: String(adm)
+                }
             };
         });
 
@@ -1254,11 +1352,16 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
 
                             <div className="space-y-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Member Registry</label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Member Registry</label>
+                                        <span className="text-[9px] font-bold text-indigo-500 font-mono">
+                                            {allMembersList.length} Patrons Registered
+                                        </span>
+                                    </div>
                                     <div className="relative">
                                         <input
                                             type="text"
-                                            placeholder="Search by QR, Admission Number, Class, or Student Name..."
+                                            placeholder="Search by student name, admission number, grade/class, staff ID..."
                                             value={memberSearch}
                                             onChange={(e) => {
                                                 const val = e.target.value;
@@ -1281,53 +1384,65 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                     return;
                                                 }
 
-                                                // Exact or Unique Partial Matching for ID or Name from allMembersList
-                                                const matches = allMembersList.filter(m => {
-                                                    const idCode = (m.admissionNumber || m.admission_number || m.staffId || '').toLowerCase();
-                                                    const classStr = (m.classStr || '').toLowerCase();
-                                                    const mName = (m.name || '').toLowerCase();
-                                                    return (
-                                                        mName === trimmed ||
-                                                        idCode === trimmed ||
-                                                        mName.includes(trimmed) ||
-                                                        idCode.includes(trimmed) ||
-                                                        classStr.includes(trimmed)
-                                                    );
-                                                });
-
-                                                // Auto-select if exact match or single unique match with >= 2 characters
-                                                const exact = matches.find(m => {
+                                                // Exact match auto-select
+                                                const exact = allMembersList.find(m => {
                                                     const idCode = (m.admissionNumber || m.admission_number || m.staffId || '').toLowerCase();
                                                     return m.name.toLowerCase() === trimmed || idCode === trimmed;
                                                 });
 
                                                 if (exact) {
                                                     setNewLoan(prev => ({ ...prev, userId: exact.id }));
-                                                } else if (matches.length === 1 && trimmed.length >= 2) {
-                                                    setNewLoan(prev => ({ ...prev, userId: matches[0].id }));
                                                 }
                                             }}
-                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none"
+                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all outline-none pr-20"
                                         />
-                                        <div className="absolute right-4 top-4 text-slate-400">
-                                            <SearchIcon className="w-5 h-5" />
+                                        <div className="absolute right-4 top-4 flex items-center gap-2">
+                                            {memberSearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setMemberSearch('');
+                                                        setNewLoan(prev => ({ ...prev, userId: '' }));
+                                                    }}
+                                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-black p-1 cursor-pointer"
+                                                    title="Clear search"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                            <SearchIcon className="w-5 h-5 text-slate-400" />
                                         </div>
                                     </div>
 
                                     {/* Instant Search Suggestions for Member */}
                                     {memberSearch.trim().length > 0 && !newLoan.userId && (() => {
-                                        const trimmed = memberSearch.trim().toLowerCase();
+                                        const searchTokens = memberSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
                                         const suggestions = allMembersList.filter(m => {
-                                            const idCode = (m.admissionNumber || m.admission_number || m.staffId || '').toLowerCase();
-                                            const classStr = (m.classStr || '').toLowerCase();
-                                            const mName = (m.name || '').toLowerCase();
-                                            return mName.includes(trimmed) || idCode.includes(trimmed) || classStr.includes(trimmed);
-                                        }).slice(0, 6);
+                                            const name = (m.name || '').toLowerCase();
+                                            const adm = (m.admissionNumber || m.admission_number || m.staffId || '').toLowerCase();
+                                            const classStr = (m.classStr || m.classDisplay || '').toLowerCase();
+                                            const phone = (m.phoneNumber || '').toLowerCase();
+                                            const email = (m.email || '').toLowerCase();
+                                            const searchable = `${name} ${adm} ${classStr} ${phone} ${email}`;
+                                            return searchTokens.every(token => searchable.includes(token));
+                                        }).slice(0, 15);
 
-                                        if (suggestions.length === 0) return null;
+                                        if (suggestions.length === 0) {
+                                            return (
+                                                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-800 text-center animate-fade-in">
+                                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                                                        No patron found matching "{memberSearch}". Check the dropdown below or try admission number.
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
+
                                         return (
-                                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 shadow-md animate-fade-in">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1">Matching Members — Click to select:</p>
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 shadow-md max-h-60 overflow-y-auto animate-fade-in">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 py-1 flex items-center justify-between">
+                                                    <span>Matching Patrons — Click to select:</span>
+                                                    <span>{suggestions.length} found</span>
+                                                </p>
                                                 {suggestions.map(s => {
                                                     const idCode = s.admissionNumber || s.admission_number || s.staffId || 'No ID';
                                                     return (
@@ -1370,18 +1485,16 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         }}
                                         className="w-full px-5 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold mt-2 outline-none border-none text-slate-800 dark:text-slate-100"
                                     >
-                                        <option value="">-- Or select from list --</option>
+                                        <option value="">-- Or select from all {allMembersList.length} patrons --</option>
                                         {allMembersList.filter(m => {
                                             if (m.id === newLoan.userId) return true;
-                                            const search = memberSearch.toLowerCase();
-                                            const idCode = (m.admissionNumber || m.admission_number || m.staffId || '').toLowerCase();
-                                            const classStr = (m.classStr || '').toLowerCase();
-                                            return (
-                                                !search ||
-                                                m.name.toLowerCase().includes(search) ||
-                                                idCode.includes(search) ||
-                                                classStr.includes(search)
-                                            );
+                                            if (!memberSearch.trim()) return true;
+                                            const searchTokens = memberSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+                                            const name = (m.name || '').toLowerCase();
+                                            const adm = (m.admissionNumber || m.admission_number || m.staffId || '').toLowerCase();
+                                            const classStr = (m.classStr || m.classDisplay || '').toLowerCase();
+                                            const searchable = `${name} ${adm} ${classStr}`;
+                                            return searchTokens.every(token => searchable.includes(token));
                                         }).map(m => {
                                             const idCode = m.admissionNumber || m.admission_number || m.staffId || 'No ID';
                                             return (

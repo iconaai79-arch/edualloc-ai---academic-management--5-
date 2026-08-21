@@ -593,7 +593,7 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                 <div className="min-h-[60vh]">
                     {activeTab === 'dashboard' && renderDashboard()}
                     {activeTab === 'inventory' && <BookInventoryManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
-                    {activeTab === 'lending' && <BookLendingManager institutionId={currentInstitution.id} users={users} courses={courses} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
+                    {activeTab === 'lending' && <BookLendingManager institutionId={currentInstitution.id} institution={currentInstitution} companyDetails={companyDetails} users={users} courses={courses} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                     {activeTab === 'members' && <LibraryMemberManager institutionId={currentInstitution.id} institution={currentInstitution} companyDetails={companyDetails} users={users} courses={courses} onLogAction={onLogAction} />}
                     {activeTab === 'sponsors' && <BookSponsorManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
                     {activeTab === 'reservations' && <BookReservationManager institutionId={currentInstitution.id} users={users} onLogAction={onLogAction} onDataChange={loadLibraryData} />}
