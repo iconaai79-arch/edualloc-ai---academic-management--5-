@@ -1054,42 +1054,43 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     }, [transactions]);
 
     return (
-        <div className="space-y-8 animate-fade-in">
-            {/* Header / Stats Wrapper */}
-            <div className="flex flex-col lg:flex-row gap-8">
-                {/* Active Issues Table */}
-                <div className="flex-grow space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Active Circulation</h3>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Lent items awaiting retrieval</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                onClick={handleBulkReminders}
-                                disabled={isProcessing}
-                                className="bg-amber-100 hover:bg-amber-200 text-amber-700 px-5 h-12 rounded-2xl flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50 border border-amber-300/60 cursor-pointer"
-                            >
-                                <BellIcon className="w-4 h-4 text-amber-600" />
-                                Bulk Prompt Overdue
-                            </button>
-                            <button
-                                onClick={() => setIsBulkIssuing(true)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all font-black uppercase text-[10px] tracking-widest cursor-pointer"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                Bulk Issuance
-                            </button>
-                            <button
-                                onClick={() => setIsIssuing(true)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all font-black uppercase text-[10px] tracking-widest cursor-pointer"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                Launch Issuance Registry
-                            </button>
-                        </div>
-                    </div>
+        <div className="space-y-6 animate-fade-in">
+            {/* Top Horizontal Action Bar */}
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                <div>
+                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Active Circulation</h3>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Lent items awaiting retrieval</p>
+                </div>
+                <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pb-1 xl:pb-0 scrollbar-none flex-nowrap shrink-0">
+                    <button
+                        onClick={handleBulkReminders}
+                        disabled={isProcessing}
+                        className="whitespace-nowrap bg-amber-100 hover:bg-amber-200 text-amber-700 px-4 sm:px-5 h-11 sm:h-12 rounded-2xl flex items-center gap-2 transition-all font-black uppercase text-[10px] sm:text-[11px] tracking-wider disabled:opacity-50 border border-amber-300/60 cursor-pointer shrink-0"
+                    >
+                        <BellIcon className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Bulk Prompt Overdue</span>
+                    </button>
+                    <button
+                        onClick={() => setIsBulkIssuing(true)}
+                        className="whitespace-nowrap bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-5 h-11 sm:h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all font-black uppercase text-[10px] sm:text-[11px] tracking-wider cursor-pointer shrink-0"
+                    >
+                        <PlusIcon className="w-4 h-4 shrink-0" />
+                        <span>Bulk Issuance</span>
+                    </button>
+                    <button
+                        onClick={() => setIsIssuing(true)}
+                        className="whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white px-4 sm:px-5 h-11 sm:h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all font-black uppercase text-[10px] sm:text-[11px] tracking-wider cursor-pointer shrink-0"
+                    >
+                        <PlusIcon className="w-4 h-4 shrink-0" />
+                        <span>Launch Issuance Registry</span>
+                    </button>
+                </div>
+            </div>
 
+            {/* Main Content: Active Issues Table + Always-Visible Quick Action Sidebar */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Active Issues Table */}
+                <div className="lg:col-span-8 xl:col-span-8 2xl:col-span-9 space-y-4 min-w-0">
                     {/* SEARCH & FILTER BAR */}
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row items-center gap-3">
                         <div className="relative flex-1 w-full">
@@ -1235,9 +1236,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                     </div>
                 </div>
 
-                {/* Sidebar - History & Quick Scan */}
-                <div className="lg:w-96 space-y-6">
-                    <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                {/* Sidebar - History & Quick Scan (Always Visible / Sticky) */}
+                <div className="lg:col-span-4 xl:col-span-4 2xl:col-span-3 space-y-6 lg:sticky lg:top-4 shrink-0">
+                    <div className="bg-white dark:bg-slate-800 p-6 sm:p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl">
                                 <QrCodeIcon className="w-5 h-5" />
