@@ -249,26 +249,52 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     const studentUserList = useMemo(() => {
         const userMapById = new Map<string, User>();
         const userMapByAdm = new Map<string, User>();
+        const userMapByNormAdm = new Map<string, User>();
+
+        const normAdm = (a: any) => String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
         (liveUsers || []).forEach(u => {
             if (u.id) userMapById.set(u.id.toLowerCase(), u);
-            const adm = u.admissionNumber || (u as any).admission_number || (u as any).admNo;
-            if (adm) userMapByAdm.set(String(adm).trim().toLowerCase(), u);
+            const adm = u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).metadata?.admissionNumber || (u as any).metadata?.studentAdmNo;
+            if (adm) {
+                userMapByAdm.set(String(adm).trim().toLowerCase(), u);
+                userMapByNormAdm.set(normAdm(adm), u);
+            }
+        });
+
+        // Map borrower names from transactions
+        const transNameByAdm = new Map<string, string>();
+        const transNameByUserId = new Map<string, string>();
+        transactions.forEach((t: any) => {
+            const tName = extractStudentName(t.userName || t.studentName || t.borrowerName || t.recipientName);
+            if (tName) {
+                const adm = (t.studentAdmNo || t.admissionNumber || '').toString().trim().toLowerCase();
+                if (adm) {
+                    transNameByAdm.set(adm, tName);
+                    transNameByAdm.set(normAdm(adm), tName);
+                }
+                if (t.userId) transNameByUserId.set(t.userId.toLowerCase(), tName);
+            }
         });
 
         // Map strictly from deduplicated enrollments matching Student Enrollment Manager
         return enrollments.map((e, idx) => {
             const eUserId = (e.userId || e.user_id || e.student_id || '').toLowerCase();
             const eAdm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
+            const eNormAdm = normAdm(eAdm);
 
             // Find matched user in users table
             const matchedUser = (eUserId && userMapById.get(eUserId)) || 
                                 (eAdm && userMapByAdm.get(eAdm)) || 
+                                (eNormAdm && userMapByNormAdm.get(eNormAdm)) ||
                                 (e.id && userMapById.get(e.id.toLowerCase()));
 
             // Extract real name
             let candidateName = extractStudentName(matchedUser);
             if (!candidateName) candidateName = extractStudentName(e);
+            if (!candidateName && eAdm) candidateName = transNameByAdm.get(eAdm) || transNameByAdm.get(eNormAdm) || '';
+            if (!candidateName && eUserId) candidateName = transNameByUserId.get(eUserId) || '';
+
             if (!candidateName && matchedUser?.name && !matchedUser.name.toLowerCase().includes('student name')) {
                 candidateName = matchedUser.name;
             }
@@ -289,10 +315,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                       (matchedUser as any)?.admission_number || 
                       `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
 
-            let finalName = candidateName;
-            if (!finalName) {
-                finalName = `Learner ${adm}`;
-            }
+            let finalName = candidateName || String(adm).toUpperCase();
 
             const userCourse = courses.find(c => c.id === e.courseId || c.id === matchedUser?.courseId);
             const userLevel = userCourse?.levels?.find((l: any) => l.id === e.courseLevelId || l.id === matchedUser?.courseLevelId);

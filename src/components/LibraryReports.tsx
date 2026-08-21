@@ -95,12 +95,35 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 apiService.fetchModuleRecords<User>('users', institution.id).catch(() => [])
             ]);
 
+            // Merge users from all sources
+            let allUsersList: User[] = [...(liveUsersData || []), ...(users || [])];
+            try {
+                const cachedUsers = localStorage.getItem(`eduai_users_${institution.id}`) || localStorage.getItem('eduai_users');
+                if (cachedUsers) {
+                    const parsed = JSON.parse(cachedUsers);
+                    if (Array.isArray(parsed)) allUsersList.push(...parsed);
+                }
+            } catch (e) {}
+
+            const userMap = new Map<string, User>();
+            allUsersList.forEach(u => {
+                if (u && u.id) userMap.set(u.id, u);
+            });
+            setLiveUsers(Array.from(userMap.values()));
+
             // Combine with localStorage cache
             let combinedEnrollments = [...(enrollmentsData || [])];
             try {
-                const cachedEnr = localStorage.getItem('eduai_student_enrollments');
+                const cachedEnr = localStorage.getItem(`eduai_student_enrollments_${institution.id}`) || localStorage.getItem('eduai_student_enrollments');
                 if (cachedEnr) {
                     const parsed = JSON.parse(cachedEnr);
+                    if (Array.isArray(parsed)) {
+                        combinedEnrollments = [...combinedEnrollments, ...parsed];
+                    }
+                }
+                const cachedStudents = localStorage.getItem(`eduai_cached_students_${institution.id}`) || localStorage.getItem('eduai_cached_students');
+                if (cachedStudents) {
+                    const parsed = JSON.parse(cachedStudents);
                     if (Array.isArray(parsed)) {
                         combinedEnrollments = [...combinedEnrollments, ...parsed];
                     }
@@ -141,9 +164,6 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             setReservations(resData || []);
             setStockReceipts(stockData || []);
             setEnrollments(Array.from(dedupedEnrollments.values()));
-            if (liveUsersData && liveUsersData.length > 0) {
-                setLiveUsers(liveUsersData);
-            }
         } catch (error) {
             console.error('Error loading report data:', error);
         } finally {
@@ -152,12 +172,13 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     };
 
     const norm = (s: any) => (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+    const normAdm = (a: any) => String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
     const extractStudentName = (item: any): string => {
         if (!item) return '';
         if (typeof item === 'string') {
             const clean = item.trim();
-            if (clean && !clean.toLowerCase().includes('student member') && !clean.toLowerCase().includes('unknown user')) return clean;
+            if (clean && isGood(clean)) return clean;
             return '';
         }
 
@@ -174,40 +195,78 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                    clean !== 'student' &&
                    clean !== 'null' &&
                    clean !== 'undefined' &&
-                   !clean.startsWith('learner ') && 
+                   clean !== 'n/a' &&
                    !clean.startsWith('adm-') && 
                    !clean.startsWith('enr_') && 
                    !clean.startsWith('usr_');
         };
 
-        if (isGood(item.fullName)) return item.fullName.trim();
+        // 1. Direct top-level name properties
         if (isGood(item.name)) return item.name.trim();
+        if (isGood(item.fullName)) return item.fullName.trim();
+        if (isGood(item.full_name)) return item.full_name.trim();
         if (isGood(item.studentName)) return item.studentName.trim();
         if (isGood(item.student_name)) return item.student_name.trim();
         if (isGood(item.learnerName)) return item.learnerName.trim();
+        if (isGood(item.learner_name)) return item.learner_name.trim();
         if (isGood(item.userName)) return item.userName.trim();
+        if (isGood(item.user_name)) return item.user_name.trim();
         if (isGood(item.borrowerName)) return item.borrowerName.trim();
         if (isGood(item.recipientName)) return item.recipientName.trim();
         if (isGood(item.memberName)) return item.memberName.trim();
+        if (isGood(item.displayName)) return item.displayName.trim();
+        if (isGood(item.display_name)) return item.display_name.trim();
 
-        // Check firstName + lastName
+        // 2. Direct first/middle/last name combinations
         const first = item.firstName || item.first_name || '';
         const middle = item.middleName || item.middle_name || '';
         const last = item.lastName || item.last_name || item.surname || '';
         const combined = `${first} ${middle} ${last}`.trim().replace(/\s+/g, ' ');
         if (isGood(combined)) return combined;
 
-        // Check metadata
+        // 3. Metadata nested properties
         if (item.metadata && typeof item.metadata === 'object') {
             const m = item.metadata;
             if (isGood(m.studentName)) return m.studentName.trim();
             if (isGood(m.fullName)) return m.fullName.trim();
+            if (isGood(m.full_name)) return m.full_name.trim();
             if (isGood(m.name)) return m.name.trim();
             if (isGood(m.student_name)) return m.student_name.trim();
             if (isGood(m.learnerName)) return m.learnerName.trim();
+            if (isGood(m.learner_name)) return m.learner_name.trim();
 
             const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
             if (isGood(mComb)) return mComb;
+
+            if (isGood(m.parentName)) return m.parentName.trim();
+            if (isGood(m.guardianName)) return m.guardianName.trim();
+            if (isGood(m.parent_name)) return m.parent_name.trim();
+            if (isGood(m.guardian_name)) return m.guardian_name.trim();
+            if (isGood(m.guardian1Name)) return m.guardian1Name.trim();
+            if (isGood(m.parent1Name)) return m.parent1Name.trim();
+            if (Array.isArray(m.parents) && isGood(m.parents[0]?.name)) {
+                return m.parents[0].name.trim();
+            }
+        }
+
+        // 4. Personal Info object
+        if (item.personalInfo && typeof item.personalInfo === 'object') {
+            const pi = item.personalInfo;
+            if (isGood(pi.fullName)) return pi.fullName.trim();
+            if (isGood(pi.name)) return pi.name.trim();
+            if (isGood(pi.studentName)) return pi.studentName.trim();
+            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
+            if (isGood(piComb)) return piComb;
+        }
+
+        // 5. Nested user or student
+        if (item.user && typeof item.user === 'object') {
+            const uName = extractStudentName(item.user);
+            if (isGood(uName)) return uName;
+        }
+        if (item.student && typeof item.student === 'object') {
+            const sName = extractStudentName(item.student);
+            if (isGood(sName)) return sName;
         }
 
         return '';
@@ -217,12 +276,31 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const allMembersList = useMemo(() => {
         const userMapById = new Map<string, User>();
         const userMapByAdm = new Map<string, User>();
+        const userMapByNormAdm = new Map<string, User>();
 
         const pool = [...liveUsers, ...users];
         pool.forEach(u => {
             if (u.id) userMapById.set(u.id.toLowerCase(), u);
-            const adm = u.admissionNumber || (u as any).admission_number || (u as any).admNo;
-            if (adm) userMapByAdm.set(String(adm).trim().toLowerCase(), u);
+            const adm = u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).metadata?.admissionNumber || (u as any).metadata?.studentAdmNo;
+            if (adm) {
+                userMapByAdm.set(String(adm).trim().toLowerCase(), u);
+                userMapByNormAdm.set(normAdm(adm), u);
+            }
+        });
+
+        // Map borrower names from transactions
+        const transNameByAdm = new Map<string, string>();
+        const transNameByUserId = new Map<string, string>();
+        transactions.forEach((t: any) => {
+            const tName = extractStudentName(t.userName || t.studentName || t.borrowerName || t.recipientName);
+            if (tName) {
+                const adm = (t.studentAdmNo || t.admissionNumber || '').toString().trim().toLowerCase();
+                if (adm) {
+                    transNameByAdm.set(adm, tName);
+                    transNameByAdm.set(normAdm(adm), tName);
+                }
+                if (t.userId) transNameByUserId.set(t.userId.toLowerCase(), tName);
+            }
         });
 
         interface MappedMember {
@@ -246,13 +324,18 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         const mappedStudents: MappedMember[] = enrollments.map((e) => {
             const eUserId = (e.userId || e.user_id || e.student_id || '').toLowerCase();
             const eAdm = (e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber || e.metadata?.studentAdmNo || '').toString().trim().toLowerCase();
+            const eNormAdm = normAdm(eAdm);
 
             const matchedUser = (eUserId && userMapById.get(eUserId)) || 
                                 (eAdm && userMapByAdm.get(eAdm)) || 
+                                (eNormAdm && userMapByNormAdm.get(eNormAdm)) ||
                                 (e.id && userMapById.get(e.id.toLowerCase()));
 
             let candidateName = extractStudentName(matchedUser);
             if (!candidateName) candidateName = extractStudentName(e);
+            if (!candidateName && eAdm) candidateName = transNameByAdm.get(eAdm) || transNameByAdm.get(eNormAdm) || '';
+            if (!candidateName && eUserId) candidateName = transNameByUserId.get(eUserId) || '';
+
             if (!candidateName && matchedUser?.name && !matchedUser.name.toLowerCase().includes('student name')) {
                 candidateName = matchedUser.name;
             }
@@ -263,8 +346,8 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 candidateName = e.name;
             }
 
-            const cleanName = candidateName || (eAdm ? `Learner ${eAdm.toUpperCase()}` : 'Student Member');
             const cleanAdm = eAdm || matchedUser?.admissionNumber || (matchedUser as any)?.admission_number || `ADM-${e.id.slice(-4).toUpperCase()}`;
+            const cleanName = candidateName || cleanAdm.toUpperCase();
 
             const gradeLevel = e.class || e.grade || e.level || e.courseName || e.metadata?.class || e.metadata?.grade || '';
             const stream = e.stream || e.section || e.metadata?.stream || e.metadata?.section || '';
@@ -287,7 +370,31 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             };
         });
 
-        // 2. Add teachers & staff
+        // 2. Add student users from pool who were not in enrollments
+        const seenStudentKeys = new Set(mappedStudents.map(s => s.admissionNumber ? s.admissionNumber.toLowerCase() : s.id.toLowerCase()));
+        pool.filter(u => (u.role as string)?.toLowerCase() === 'student').forEach(u => {
+            const uAdm = (u.admissionNumber || (u as any).admission_number || (u as any).admNo || '').toString().trim().toLowerCase();
+            const key = uAdm || u.id.toLowerCase();
+            if (!seenStudentKeys.has(key)) {
+                seenStudentKeys.add(key);
+                const sName = extractStudentName(u) || u.name || (uAdm ? uAdm.toUpperCase() : 'Student Member');
+                mappedStudents.push({
+                    id: u.id,
+                    userId: u.id,
+                    name: sName,
+                    email: u.email || '',
+                    role: 'Student',
+                    admissionNumber: uAdm || u.id,
+                    gradeLevel: u.studentClass || (u as any).classLevel || '',
+                    stream: (u as any).stream || '',
+                    classDisplay: u.studentClass || 'General',
+                    classStr: u.studentClass || 'General',
+                    status: 'Active'
+                });
+            }
+        });
+
+        // 3. Add teachers & staff
         const mappedStaff: MappedMember[] = pool
             .filter(u => (u.role as string)?.toLowerCase() !== 'student')
             .map(u => {
