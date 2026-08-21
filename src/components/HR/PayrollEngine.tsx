@@ -155,7 +155,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         } catch (error) { alert('Failed to save template.'); }
     };
 
-    // Memoize staff calculations using configured OR overridden salary
+    // Memoize staff calculations using configured OR overridden salary + assigned allowances & deductions
     const activeStaffCalculations = useMemo(() => {
         return staff.map(s => {
             const attendance = getStaffAttendance(s.id);
@@ -164,9 +164,41 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
             const staffBasicSalary = (salaryOverrides[s.id] !== undefined && salaryOverrides[s.id] > 0)
                 ? salaryOverrides[s.id]
                 : configured;
-            const staffHouseAllowance = Math.round(staffBasicSalary * 0.15);
-            const payroll = calculateKenyanPayroll(staffBasicSalary, staffHouseAllowance, attendance.attendanceRate, useBiometric);
-            return { staffId: s.id, name: s.name, role: s.role, basicSalary: staffBasicSalary, houseAllowance: staffHouseAllowance, attendance, payroll, configuredSalary: configured };
+
+            let m = s.metadata || {};
+            if (typeof m === 'string') {
+                try { m = JSON.parse(m); } catch (e) { m = {}; }
+            }
+            const assignedAllowances: Array<{ name: string; amount: number; type?: string }> = Array.isArray(m.assignedAllowances) ? m.assignedAllowances : [];
+            const assignedDeductions: Array<{ name: string; amount: number; type?: string; referenceNumber?: string }> = Array.isArray(m.assignedDeductions) ? m.assignedDeductions : [];
+
+            // If house allowance is not explicitly assigned in custom allowances, provide default 15%
+            const hasCustomHouse = assignedAllowances.some(a => a.name.toLowerCase().includes('house'));
+            const staffHouseAllowance = hasCustomHouse ? 0 : Math.round(staffBasicSalary * 0.15);
+
+            const customAllowancesSum = assignedAllowances.reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
+            const totalAllowancesSum = staffHouseAllowance + customAllowancesSum;
+
+            const payroll = calculateKenyanPayroll(staffBasicSalary, totalAllowancesSum, attendance.attendanceRate, useBiometric);
+
+            const customDeductionsSum = assignedDeductions.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+            const adjustedNetSalary = Math.max(0, payroll.netSalary - customDeductionsSum);
+
+            return { 
+                staffId: s.id, 
+                name: s.name, 
+                role: s.role, 
+                basicSalary: staffBasicSalary, 
+                houseAllowance: staffHouseAllowance, 
+                assignedAllowances,
+                assignedDeductions,
+                customAllowancesSum,
+                customDeductionsSum,
+                adjustedNetSalary,
+                attendance, 
+                payroll, 
+                configuredSalary: configured 
+            };
         });
     }, [staff, useBiometric, salaryOverrides]);
 
@@ -174,8 +206,10 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         const currentMonthRecords = localRecords.filter(r => r.month === selectedMonth);
         const totalNet = currentMonthRecords.length > 0
             ? currentMonthRecords.reduce((acc, r) => acc + (r.netSalary || 0), 0)
-            : activeStaffCalculations.reduce((acc, c) => acc + c.payroll.netSalary, 0);
-        const totalDeductions = activeStaffCalculations.reduce((acc, c) => acc + c.payroll.nssf + c.payroll.shif + c.payroll.housingLevy + c.payroll.netPaye, 0);
+            : activeStaffCalculations.reduce((acc, c) => acc + c.adjustedNetSalary, 0);
+        const totalStatutoryDeductions = activeStaffCalculations.reduce((acc, c) => acc + c.payroll.nssf + c.payroll.shif + c.payroll.housingLevy + c.payroll.netPaye, 0);
+        const totalCustomDeductions = activeStaffCalculations.reduce((acc, c) => acc + c.customDeductionsSum, 0);
+        const totalDeductions = totalStatutoryDeductions + totalCustomDeductions;
         const totalBiometricPenalties = activeStaffCalculations.reduce((acc, c) => acc + c.payroll.biometricDeduction, 0);
         return { processedCount: currentMonthRecords.length, totalPayout: totalNet, pendingCount: staff.length - currentMonthRecords.length, totalDeductions, totalBiometricPenalties };
     }, [localRecords, selectedMonth, staff, activeStaffCalculations]);
@@ -189,14 +223,23 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
         setIsProcessing(true);
         try {
             const newRecords: PayrollRecord[] = activeStaffCalculations.map(c => {
-                const allowances = [{ name: 'House Allowance', amount: c.houseAllowance }];
-                const deductions = [
+                const allowances: Array<{ name: string; amount: number }> = [];
+                if (c.houseAllowance > 0) allowances.push({ name: 'House Allowance (15%)', amount: c.houseAllowance });
+                c.assignedAllowances.forEach(a => {
+                    if (Number(a.amount) > 0) allowances.push({ name: a.name, amount: Number(a.amount) });
+                });
+
+                const deductions: Array<{ name: string; amount: number }> = [
                     { name: 'NSSF', amount: c.payroll.nssf },
                     { name: 'SHIF', amount: c.payroll.shif },
                     { name: 'Housing Levy', amount: c.payroll.housingLevy },
                     { name: 'PAYE', amount: c.payroll.netPaye }
                 ];
                 if (c.payroll.biometricDeduction > 0) deductions.push({ name: 'Biometric Attendance Penalty', amount: c.payroll.biometricDeduction });
+                c.assignedDeductions.forEach(d => {
+                    if (Number(d.amount) > 0) deductions.push({ name: d.name, amount: Number(d.amount) });
+                });
+
                 return {
                     id: `pay_${Date.now()}_${c.staffId}`,
                     institutionId: institution.id,
@@ -206,7 +249,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     basicSalary: c.basicSalary,
                     allowances,
                     deductions,
-                    netSalary: Math.round(c.payroll.netSalary * 100) / 100,
+                    netSalary: Math.round(c.adjustedNetSalary * 100) / 100,
                     status: 'paid',
                     recordedBy: 'System Engine (Kenyan Compliant)',
                     paymentDate: new Date().toISOString()
@@ -774,20 +817,35 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                             <div className="space-y-3">
                                                                 <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 pb-2">Salary & Allowances</h4>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600"><span>Basic Salary</span><span>KES {calc.basicSalary > 0 ? calc.basicSalary.toLocaleString() : '—'}</span></div>
-                                                                <div className="flex justify-between text-xs font-semibold text-slate-600"><span>House Allowance (15%)</span><span>KES {calc.houseAllowance.toLocaleString()}</span></div>
+                                                                {calc.houseAllowance > 0 && (
+                                                                    <div className="flex justify-between text-xs font-semibold text-slate-600"><span>House Allowance (15%)</span><span>KES {calc.houseAllowance.toLocaleString()}</span></div>
+                                                                )}
+                                                                {calc.assignedAllowances?.map((a, aIdx) => (
+                                                                    <div key={aIdx} className="flex justify-between text-xs font-semibold text-indigo-600">
+                                                                        <span>{a.name}</span>
+                                                                        <span>+ KES {Number(a.amount).toLocaleString()}</span>
+                                                                    </div>
+                                                                ))}
                                                                 {useBiometric && calc.payroll.biometricDeduction > 0 && (
                                                                     <div className="flex justify-between text-xs font-black text-rose-500"><span>Biometric Absence Adjustment</span><span>- KES {Math.round(calc.payroll.biometricDeduction).toLocaleString()}</span></div>
                                                                 )}
                                                                 <div className="flex justify-between text-xs font-black text-slate-900 border-t border-slate-50 pt-2"><span>Adjusted Gross Income</span><span>KES {Math.round(calc.payroll.grossSalary).toLocaleString()}</span></div>
                                                             </div>
                                                             <div className="space-y-3">
-                                                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 pb-2">Statutory Contributions & PAYE</h4>
+                                                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest border-b border-slate-50 pb-2">Contributions & Deductions</h4>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600"><span>NSSF Pension (Tier I + II)</span><span>KES {Math.round(calc.payroll.nssf).toLocaleString()}</span></div>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600"><span>SHIF Medical Fund (2.75%)</span><span>KES {Math.round(calc.payroll.shif).toLocaleString()}</span></div>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600"><span>Affordable Housing Levy (1.5%)</span><span>KES {Math.round(calc.payroll.housingLevy).toLocaleString()}</span></div>
                                                                 <div className="flex justify-between text-xs font-semibold text-slate-600 border-t border-slate-50 pt-2"><span>PAYE Tax (Progressive)</span><span>KES {Math.round(calc.payroll.grossPaye).toLocaleString()}</span></div>
                                                                 <div className="flex justify-between text-xs font-semibold text-emerald-600"><span>Personal Relief</span><span>- KES {calc.payroll.personalRelief.toLocaleString()}</span></div>
                                                                 <div className="flex justify-between text-xs font-black text-slate-900 border-t border-slate-100 pt-2"><span>Net PAYE Tax Payable</span><span>KES {Math.round(calc.payroll.netPaye).toLocaleString()}</span></div>
+                                                                {calc.assignedDeductions?.map((d, dIdx) => (
+                                                                    <div key={dIdx} className="flex justify-between text-xs font-semibold text-rose-600">
+                                                                        <span>{d.name}</span>
+                                                                        <span>- KES {Number(d.amount).toLocaleString()}</span>
+                                                                    </div>
+                                                                ))}
+                                                                <div className="flex justify-between text-xs font-black text-emerald-600 border-t border-slate-200 pt-2"><span>Estimated Take-Home Pay</span><span>KES {Math.round(calc.adjustedNetSalary).toLocaleString()}</span></div>
                                                             </div>
                                                         </div>
                                                     </td>

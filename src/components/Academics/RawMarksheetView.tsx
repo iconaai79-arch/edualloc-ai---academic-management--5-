@@ -153,8 +153,8 @@ const isSubjectKeyMatch = (k: string, sub: any): boolean => {
     if (subCode.startsWith('bus') && (kNorm.includes('bus') || kNorm.includes('business'))) return true;
 
     // Normalized word token match
-    const subTokens = subName.split(/[^a-z0-9]/).filter(t => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
-    if (subTokens.length > 0 && subTokens.some(tok => kNorm.includes(tok))) return true;
+    const subTokens = subName.split(/[^a-z0-9]/).filter((t: string) => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
+    if (subTokens.length > 0 && subTokens.some((tok: string) => kNorm.includes(tok))) return true;
 
     return false;
 };
@@ -459,7 +459,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         }
 
         if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach(r => {
+            examSavedRows.forEach((r: any) => {
                 const c = r.class || r.studentClass;
                 if (c && typeof c === 'string' && c.trim()) {
                     const base = c.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
@@ -499,8 +499,8 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         const ygClean = (selectedYearGroup || '').toLowerCase().trim();
         const ygNorm = ygClean.replace(/[^a-z0-9]/g, '');
 
-        if (currentInstitution?.streams && Array.isArray(currentInstitution.streams)) {
-            currentInstitution.streams.forEach((s: any) => {
+        if ((currentInstitution as any)?.streams && Array.isArray((currentInstitution as any).streams)) {
+            (currentInstitution as any).streams.forEach((s: any) => {
                 const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
                 if (sName && typeof sName === 'string' && sName.trim()) streams.add(sName.trim());
             });
@@ -518,7 +518,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         });
 
         if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach(r => {
+            examSavedRows.forEach((r: any) => {
                 if (r.stream && typeof r.stream === 'string' && r.stream.trim()) streams.add(r.stream.trim());
                 const stClass = String(r.class || r.studentClass || '').trim();
                 if (stClass.toLowerCase().includes(ygClean)) {
@@ -763,12 +763,12 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         const ygClean = (selectedYearGroup || '').toLowerCase().trim();
 
         if (examSavedRows && examSavedRows.length > 0) {
-            const broadStudents = examSavedRows.filter(r => {
+            const broadStudents = examSavedRows.filter((r: any) => {
                 const c = String(r.class || r.studentClass || '').toLowerCase().trim();
                 return !ygClean || c.includes(ygClean) || ygClean.includes(c);
             });
             if (broadStudents.length > 0) {
-                return broadStudents.map((r, idx) => ({
+                return broadStudents.map((r: any, idx: number) => ({
                     id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
                     name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
                     admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
@@ -791,7 +791,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
 
     // Filtered Cohort Students by Stream
     const matchingCohortStudents = useMemo(() => {
-        return allYearCohortStudents.filter(s => {
+        return allYearCohortStudents.filter((s: any) => {
             const cls = (s as any).studentClass || (s as any).classLevel || '';
             const stStream = (s as any).stream || '';
             return checkStreamMatch(cls, stStream);
@@ -802,7 +802,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
     const rawMarksheetRows = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
 
-        const studentRows = matchingCohortStudents.map((st, idx) => {
+        const studentRows = matchingCohortStudents.map((st: any, idx: number) => {
             const row = (st as any).broadsheetRow;
             const adm = extractCleanAdmissionNumber(st, activeStudents);
             const studentClass = (st as any).studentClass || selectedYearGroup;
@@ -843,7 +843,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
 
         if (!q) return studentRows;
 
-        return studentRows.filter(r => 
+        return studentRows.filter((r: any) => 
             r.studentName.toLowerCase().includes(q) || 
             r.admissionNo.toLowerCase().includes(q)
         );
@@ -853,7 +853,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
     const handleExportExcel = useCallback(() => {
         const headers = ['#', 'Adm No', 'Student Name', 'Gender', 'Class', ...activeClassSubjects.map(s => s.code || s.name), 'Student Sign'];
         
-        const data = rawMarksheetRows.map((r, idx) => {
+        const data = rawMarksheetRows.map((r: any, idx: number) => {
             const rowArr: any[] = [
                 idx + 1,
                 r.admissionNo,
@@ -1185,7 +1185,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                         </td>
                                     </tr>
                                 ) : (
-                                    rawMarksheetRows.map((row, idx) => (
+                                    rawMarksheetRows.map((row: any, idx: number) => (
                                         <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors">
                                             <td className="p-2 border border-slate-200 text-center font-bold text-slate-500">{idx + 1}</td>
                                             <td className="p-2 border border-slate-200 text-center font-bold">{row.admissionNo}</td>

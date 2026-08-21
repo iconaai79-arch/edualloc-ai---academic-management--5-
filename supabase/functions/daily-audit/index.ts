@@ -14,7 +14,10 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+// @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+declare const Deno: any;
 
 // ── Lightweight reimplementation of the audit engine (Deno-compatible) ───────
 // (mirrors src/services/auditEngine.ts — keep in sync when updating)

@@ -188,6 +188,55 @@ export interface PayrollRecord {
     processedAt?: string;
 }
 
+export interface AllowanceCategory {
+    id: string;
+    institutionId: string;
+    name: string;
+    code?: string;
+    type: 'taxable' | 'non_taxable';
+    calculationType: 'fixed' | 'percentage';
+    defaultAmount?: number;
+    defaultPercentage?: number;
+    description?: string;
+    isStatutory?: boolean;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt?: string;
+}
+
+export interface DeductionCategory {
+    id: string;
+    institutionId: string;
+    name: string;
+    code?: string;
+    type: 'pre_tax' | 'post_tax' | 'statutory';
+    calculationType: 'fixed' | 'percentage';
+    defaultAmount?: number;
+    defaultPercentage?: number;
+    description?: string;
+    isStatutory?: boolean;
+    beneficiaryName?: string;
+    accountNumber?: string;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt?: string;
+}
+
+export interface AssignedAllowance {
+    categoryId?: string;
+    name: string;
+    amount: number;
+    type?: 'taxable' | 'non_taxable';
+}
+
+export interface AssignedDeduction {
+    categoryId?: string;
+    name: string;
+    amount: number;
+    type?: 'pre_tax' | 'post_tax' | 'statutory';
+    referenceNumber?: string;
+}
+
 // ─── ZKTeco Biometric Integration Types ───
 
 export interface BiometricDevice {
