@@ -104,8 +104,6 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
     const [isImporting, setIsImporting] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0, step: '' });
 
-    if (!isOpen) return null;
-
     // Helper: Parse numeric cell value cleanly
     const parseNumber = (val: any): number => {
         if (val === null || val === undefined) return 0;
@@ -627,6 +625,8 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
             setIsImporting(false);
         }
     };
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-fade-in">
