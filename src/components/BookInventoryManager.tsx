@@ -17,10 +17,12 @@ import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ExclamationCircleIcon } from './icons/ExclamationCircleIcon';
 import { XIcon } from './icons/XIcon';
+import { FileTextIcon } from './icons/FileTextIcon';
 import { apiService } from '../services/apiService';
 
 import { BookQrCodeModal } from './BookQrCodeModal';
 import { SmartLibraryImporterModal } from './SmartLibraryImporterModal';
+import { BookPdfPreviewModal } from './BookPdfPreviewModal';
 
 interface BookInventoryManagerProps {
     institutionId: string;
@@ -48,6 +50,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const [isAddingBook, setIsAddingBook] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [qrBook, setQrBook] = useState<Book | null>(null);
+    const [pdfPreviewBook, setPdfPreviewBook] = useState<Book | null>(null);
+    const [isPreviewingCatalogPdf, setIsPreviewingCatalogPdf] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     // Reset pagination to page 1 whenever filters or search change
@@ -384,7 +388,16 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                         <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={() => setIsPreviewingCatalogPdf(true)}
+                        disabled={filteredBooks.length === 0}
+                        className="px-4 py-2.5 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-2xl border border-rose-100 dark:border-rose-800 hover:bg-rose-600 hover:text-white transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer disabled:opacity-50"
+                        title="Preview & Export Complete Library Catalog PDF"
+                    >
+                        <FileTextIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline">Catalog PDF</span>
+                    </button>
                     <button
                         onClick={() => setIsImportModalOpen(true)}
                         className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer"
@@ -480,22 +493,29 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                     <td className="px-6 py-5">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
+                                                onClick={() => setPdfPreviewBook(book)}
+                                                className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-xl transition-all cursor-pointer"
+                                                title="PDF Preview / Print Accession Slip"
+                                            >
+                                                <FileTextIcon className="w-4 h-4" />
+                                            </button>
+                                            <button
                                                 onClick={() => handlePrintQr(book)}
-                                                className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-xl transition-all"
+                                                className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-xl transition-all cursor-pointer"
                                                 title="Print Label"
                                             >
                                                 <QrCodeIcon className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => { setEditingBook(book); setNewBook(book); setIsAddingBook(true); }}
-                                                className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all"
+                                                className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
                                                 title="Edit"
                                             >
                                                 <Edit2Icon className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteBook(book.id)}
-                                                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-xl transition-all"
+                                                className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-xl transition-all cursor-pointer"
                                                 title="Delete"
                                             >
                                                 <TrashIcon className="w-4 h-4" />
@@ -722,6 +742,16 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                         placeholder="e.g. A2-S4 (Aisle 2, Shelf 4)"
                                     />
                                 </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Digital PDF / E-Book URL (Optional)</label>
+                                    <input
+                                        type="url"
+                                        value={(newBook as any).pdfUrl || ''}
+                                        onChange={(e) => setNewBook({ ...newBook, pdfUrl: e.target.value } as any)}
+                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
+                                        placeholder="https://example.com/books/sample-document.pdf"
+                                    />
+                                </div>
                             </div>
                             <div className="pt-6 flex gap-3">
                                 <button type="button" onClick={() => setIsAddingBook(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase tracking-widest text-xs transition-all">Discard</button>
@@ -739,6 +769,20 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                 <BookQrCodeModal
                     book={qrBook}
                     onClose={() => setQrBook(null)}
+                />
+            )}
+
+            {pdfPreviewBook && (
+                <BookPdfPreviewModal
+                    book={pdfPreviewBook}
+                    onClose={() => setPdfPreviewBook(null)}
+                />
+            )}
+
+            {isPreviewingCatalogPdf && (
+                <BookPdfPreviewModal
+                    allBooks={filteredBooks}
+                    onClose={() => setIsPreviewingCatalogPdf(false)}
                 />
             )}
 
