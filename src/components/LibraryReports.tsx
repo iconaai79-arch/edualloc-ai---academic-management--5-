@@ -31,6 +31,16 @@ interface LibraryReportsProps {
     onLogAction: (action: string) => Promise<void>;
 }
 
+type ReportSectionId =
+    | 'summary'
+    | 'statements'
+    | 'defaulters'
+    | 'circulation'
+    | 'fines'
+    | 'inventory_valuation'
+    | 'donations'
+    | 'intelligence';
+
 export const LibraryReports: React.FC<LibraryReportsProps> = ({
     institution,
     companyDetails,
@@ -47,12 +57,26 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [enrollments, setEnrollments] = useState<any[]>([]);
     const [liveUsers, setLiveUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Active Vertical Sub-Menu Tab
+    const [activeReportId, setActiveReportId] = useState<ReportSectionId>('summary');
+
+    // Patron Statements State
     const [searchUserTerm, setSearchUserTerm] = useState('');
     const [selectedStatementUser, setSelectedStatementUser] = useState<any | null>(null);
+    const [isPrintingStatement, setIsPrintingStatement] = useState(false);
+
+    // Defaulters Filter State
     const [selectedClassId, setSelectedClassId] = useState('');
     const [selectedStreamId, setSelectedStreamId] = useState('');
-    const [isPrintingStatement, setIsPrintingStatement] = useState(false);
-    const [viewMode, setViewMode] = useState<'summary' | 'intelligence'>('summary');
+
+    // Circulation Filter State
+    const [circSearchTerm, setCircSearchTerm] = useState('');
+    const [circStatusFilter, setCircStatusFilter] = useState<'all' | 'issued' | 'returned' | 'overdue'>('all');
+
+    // Fines Filter State
+    const [fineSearchTerm, setFineSearchTerm] = useState('');
+    const [fineStatusFilter, setFineStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
 
     useEffect(() => {
         loadData();
@@ -111,11 +135,11 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 }
             });
 
-            setBooks(booksData);
-            setTransactions(transData);
-            setFines(finesData);
-            setReservations(resData);
-            setStockReceipts(stockData);
+            setBooks(booksData || []);
+            setTransactions(transData || []);
+            setFines(finesData || []);
+            setReservations(resData || []);
+            setStockReceipts(stockData || []);
             setEnrollments(Array.from(dedupedEnrollments.values()));
             if (liveUsersData && liveUsersData.length > 0) {
                 setLiveUsers(liveUsersData);
@@ -184,35 +208,6 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
             const mComb = `${m.firstName || m.first_name || ''} ${m.middleName || m.middle_name || ''} ${m.lastName || m.last_name || m.surname || ''}`.trim().replace(/\s+/g, ' ');
             if (isGood(mComb)) return mComb;
-
-            // Check parent / guardian names (registered under student enrollment)
-            if (isGood(m.parentName)) return m.parentName.trim();
-            if (isGood(m.guardianName)) return m.guardianName.trim();
-            if (isGood(m.guardian1Name)) return m.guardian1Name.trim();
-            if (isGood(m.parent1Name)) return m.parent1Name.trim();
-            if (Array.isArray(m.parents) && isGood(m.parents[0]?.name)) {
-                return m.parents[0].name.trim();
-            }
-        }
-
-        // Check personalInfo
-        if (item.personalInfo && typeof item.personalInfo === 'object') {
-            const pi = item.personalInfo;
-            if (isGood(pi.fullName)) return pi.fullName.trim();
-            if (isGood(pi.name)) return pi.name.trim();
-            if (isGood(pi.studentName)) return pi.studentName.trim();
-            const piComb = `${pi.firstName || pi.first_name || ''} ${pi.lastName || pi.last_name || ''}`.trim().replace(/\s+/g, ' ');
-            if (isGood(piComb)) return piComb;
-        }
-
-        // Check nested user or student
-        if (item.user && typeof item.user === 'object') {
-            const uName = extractStudentName(item.user);
-            if (isGood(uName)) return uName;
-        }
-        if (item.student && typeof item.student === 'object') {
-            const sName = extractStudentName(item.student);
-            if (isGood(sName)) return sName;
         }
 
         return '';
@@ -251,287 +246,138 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 candidateName = e.name;
             }
 
-            let adm = e.admissionNumber || 
-                      e.admission_number || 
-                      e.admNo || 
-                      e.metadata?.admissionNumber || 
-                      e.metadata?.admNo || 
-                      e.metadata?.studentAdmNo || 
-                      matchedUser?.admissionNumber || 
-                      (matchedUser as any)?.admission_number || 
-                      `ADM-${(e.id || '').replace(/^enr_/, '').slice(-4).toUpperCase()}`;
+            const cleanName = candidateName || (eAdm ? `Learner ${eAdm.toUpperCase()}` : 'Student Member');
+            const cleanAdm = eAdm || matchedUser?.admissionNumber || (matchedUser as any)?.admission_number || `ADM-${e.id.slice(-4).toUpperCase()}`;
 
-            let finalName = candidateName;
-            if (!finalName) {
-                finalName = `Learner ${adm}`;
-            }
-
-            const userCourse = (courses || []).find((c: any) => c.id === e.courseId || c.id === matchedUser?.courseId);
-            const userLevel = userCourse?.levels?.find((l: any) => l.id === e.courseLevelId || l.id === matchedUser?.courseLevelId);
-
-            const gradeLevel = (
-                e.metadata?.gradeLevel || 
-                e.gradeLevel || 
-                e.metadata?.classLevel || 
-                e.metadata?.className || 
-                (e as any)?.studentClass || 
-                matchedUser?.studentClass || 
-                (matchedUser as any)?.classLevel || 
-                (matchedUser as any)?.class_name || 
-                (matchedUser as any)?.class || 
-                userCourse?.name || 
-                ''
-            ).toString().trim();
-
-            const stream = (
-                e.metadata?.stream || 
-                e.stream || 
-                e.streamName || 
-                (matchedUser as any)?.stream || 
-                (matchedUser as any)?.streamName || 
-                (matchedUser as any)?.stream_name || 
-                userLevel?.name || 
-                ''
-            ).toString().trim();
-
-            const classDisplay = gradeLevel && stream 
-                ? (gradeLevel.toLowerCase().includes(stream.toLowerCase()) ? gradeLevel : `${gradeLevel} - ${stream}`)
-                : (gradeLevel || stream);
+            const gradeLevel = e.class || e.grade || e.level || e.courseName || e.metadata?.class || e.metadata?.grade || '';
+            const stream = e.stream || e.section || e.metadata?.stream || e.metadata?.section || '';
+            const classDisplay = e.classDisplay || (gradeLevel && stream ? `${gradeLevel} - ${stream}` : gradeLevel || stream || 'General');
 
             return {
-                id: e.id,
-                userId: e.userId || e.user_id || matchedUser?.id || e.id,
-                name: finalName,
-                fullName: finalName,
-                email: e.email || matchedUser?.email || '',
-                phoneNumber: e.phoneNumber || e.metadata?.phoneNumber || matchedUser?.phoneNumber || '',
-                role: 'student' as const,
-                admissionNumber: adm,
-                admission_number: adm,
-                institutionId: e.institutionId || institution.id,
-                status: (e.status === 'Active' || e.status === 'Enrolled') ? 'active' : (e.status || 'active'),
-                courseId: e.courseId || matchedUser?.courseId,
-                courseLevelId: e.courseLevelId || matchedUser?.courseLevelId,
+                id: matchedUser?.id || e.userId || e.id,
+                userId: matchedUser?.id || e.userId || e.id,
+                name: cleanName,
+                email: matchedUser?.email || e.email || '',
+                role: 'Student' as const,
+                admissionNumber: cleanAdm,
                 gradeLevel,
                 stream,
                 classDisplay,
                 classStr: classDisplay,
-                profilePhotoUrl: e.metadata?.profilePhotoUrl || e.profilePhotoUrl || matchedUser?.profilePhotoUrl
+                courseId: matchedUser?.courseId || e.courseId,
+                courseLevelId: matchedUser?.courseLevelId || e.courseLevelId,
+                status: e.status || 'Active'
             };
         });
 
-        // 2. Process staff members
-        const staffMembers = pool
-            .filter(u => u.role !== 'student')
+        // 2. Add teachers & staff
+        const mappedStaff = pool
+            .filter(u => u.role !== 'student' && u.role !== 'Student')
             .map(u => {
-                const staffName = extractStudentName(u) || u.name || 'Staff Member';
+                const sName = extractStudentName(u) || u.name || 'Staff Member';
                 return {
                     id: u.id,
                     userId: u.id,
-                    name: staffName,
-                    fullName: staffName,
+                    name: sName,
                     email: u.email || '',
-                    phoneNumber: u.phoneNumber || '',
-                    role: u.role || 'staff',
-                    admissionNumber: u.staffId || u.id,
-                    staffId: u.staffId || u.id,
-                    institutionId: u.institutionId || institution.id,
-                    status: u.status || 'active',
-                    courseId: u.courseId,
-                    courseLevelId: u.courseLevelId,
+                    role: u.role || 'Teacher',
+                    staffId: u.staffId || (u as any).employeeNumber || `STF-${u.id.slice(-4).toUpperCase()}`,
                     gradeLevel: '',
                     stream: '',
-                    classDisplay: u.role ? u.role.toUpperCase() : 'Staff',
-                    classStr: u.role ? u.role.toUpperCase() : 'Staff',
-                    profilePhotoUrl: u.profilePhotoUrl
+                    classDisplay: u.role || 'Staff Member',
+                    classStr: u.role || 'Staff Member',
+                    status: 'Active'
                 };
             });
 
-        // Merge & deduplicate by ID
-        const combined = [...mappedStudents, ...staffMembers];
-        const uniqueMap = new Map<string, any>();
+        const combined = [...mappedStudents, ...mappedStaff];
+        const deduped = new Map<string, any>();
         combined.forEach(m => {
-            if (!uniqueMap.has(m.id)) {
-                uniqueMap.set(m.id, m);
-            }
-            if (m.userId && !uniqueMap.has(m.userId)) {
-                uniqueMap.set(m.userId, m);
+            const admKey = m.admissionNumber ? m.admissionNumber.toLowerCase() : null;
+            const idKey = m.id ? m.id.toLowerCase() : null;
+            const staffKey = m.staffId ? m.staffId.toLowerCase() : null;
+            const key = admKey || staffKey || idKey;
+            if (key && !deduped.has(key)) {
+                deduped.set(key, m);
             }
         });
 
-        return Array.from(uniqueMap.values());
-    }, [enrollments, liveUsers, users, courses, institution.id]);
+        return Array.from(deduped.values());
+    }, [enrollments, liveUsers, users]);
 
-    // Robust user object lookup
-    const getUserObject = (id: string, transaction?: any) => {
-        if (!id && !transaction) return null;
+    const getUserObject = (id: string, trans?: any) => {
+        if (!id && !trans) return null;
+        const normId = norm(id);
 
-        // 1. Check allMembersList
-        const fromAll = allMembersList.find(m => 
-            m.id === id || 
-            (m.userId && m.userId === id) ||
-            norm(m.id) === norm(id) || 
-            (m.admissionNumber && norm(m.admissionNumber) === norm(id)) ||
-            (m.admission_number && norm(m.admission_number) === norm(id)) ||
-            (m.staffId && norm(m.staffId) === norm(id)) ||
-            (m.name && norm(m.name) === norm(id))
+        const found = allMembersList.find(m =>
+            norm(m.id) === normId ||
+            norm(m.userId) === normId ||
+            norm(m.admissionNumber) === normId ||
+            norm(m.staffId) === normId
         );
-        if (fromAll && fromAll.name && !fromAll.name.toLowerCase().includes('unknown user')) {
-            return fromAll;
-        }
+        if (found) return found;
 
-        // 2. Check liveUsers + users
-        const pool = [...liveUsers, ...users];
-        let u = pool.find(user => 
-            user.id === id || 
-            norm(user.id) === norm(id) || 
-            (user.admissionNumber && norm(user.admissionNumber) === norm(id)) ||
-            ((user as any).admission_number && norm((user as any).admission_number) === norm(id)) ||
-            (user.staffId && norm(user.staffId) === norm(id)) ||
-            (user.name && norm(user.name) === norm(id))
-        );
-
-        // 3. Check enrollments
-        const en = enrollments.find(e => 
-            e.id === id || 
-            e.userId === id || 
-            e.student_id === id || 
-            e.user_id === id || 
-            (e.admissionNumber && norm(e.admissionNumber) === norm(id)) ||
-            (e.admission_number && norm(e.admission_number) === norm(id)) ||
-            (e.admNo && norm(e.admNo) === norm(id)) ||
-            (e.metadata?.admissionNumber && norm(e.metadata.admissionNumber) === norm(id)) ||
-            norm(e.id) === norm(id) ||
-            norm(e.userId) === norm(id) ||
-            (e.fullName && norm(e.fullName) === norm(id)) ||
-            (e.name && norm(e.name) === norm(id))
-        );
-
-        if (en && !u) {
-            u = pool.find(user => 
-                user.id === en.userId || 
-                user.id === en.user_id || 
-                user.id === en.student_id ||
-                user.admissionNumber === en.admissionNumber ||
-                user.admissionNumber === en.admission_number ||
-                norm(user.admissionNumber) === norm(en.admissionNumber || en.admission_number || en.admNo || en.metadata?.admissionNumber) ||
-                norm(user.name) === norm(extractStudentName(en))
-            );
-        }
-
-        // 4. Resolve candidate name
-        const transName = extractStudentName(transaction);
-        const resolvedName = (u ? extractStudentName(u) : '') || 
-                             (en ? extractStudentName(en) : '') || 
-                             transName || 
-                             (u?.name && !u.name.toLowerCase().includes('student name') ? u.name : '') || 
-                             (en?.fullName && !en.fullName.toLowerCase().includes('student name') ? en.fullName : '') || 
-                             (en?.name && !en.name.toLowerCase().includes('student name') ? en.name : '') || 
-                             (transaction as any)?.userName ||
-                             (transaction as any)?.studentName ||
-                             (transaction as any)?.borrowerName ||
-                             (transaction as any)?.recipientName;
-
-        const admissionNo = (en && (en.admissionNumber || en.admission_number || en.admissionNo || en.admNo || en.metadata?.admissionNumber)) ||
-                            (u && (u.admissionNumber || (u as any).admission_number || (u as any).admissionNo || (u as any).admNo || u.staffId)) ||
-                            id || 'No ID';
-
-        const userCourse = (courses || []).find((c: any) => c.id === en?.courseId || c.id === u?.courseId);
-        const userLevel = userCourse?.levels?.find((l: any) => l.id === en?.courseLevelId || l.id === u?.courseLevelId);
-
-        const gradeLevel = (
-            en?.metadata?.gradeLevel || 
-            en?.gradeLevel || 
-            en?.metadata?.classLevel || 
-            en?.metadata?.className || 
-            u?.studentClass || 
-            (u as any)?.classLevel || 
-            userCourse?.name || 
-            ''
-        ).toString().trim();
-
-        const stream = (
-            en?.metadata?.stream || 
-            en?.stream || 
-            en?.streamName || 
-            (u as any)?.stream || 
-            (u as any)?.streamName || 
-            userLevel?.name || 
-            ''
-        ).toString().trim();
-
-        const classDisplay = gradeLevel && stream 
-            ? (gradeLevel.toLowerCase().includes(stream.toLowerCase()) ? gradeLevel : `${gradeLevel} - ${stream}`)
-            : (gradeLevel || stream || '—');
-
+        const transName = trans?.userName || trans?.studentName || trans?.borrowerName || trans?.recipientName;
         return {
-            id: u?.id || en?.id || id,
-            userId: u?.id || en?.userId || id,
-            name: resolvedName || 'Learner ' + admissionNo,
-            fullName: resolvedName || 'Learner ' + admissionNo,
-            admissionNumber: admissionNo,
-            gradeLevel,
-            stream,
-            classDisplay,
-            classStr: classDisplay,
-            role: (u?.role || 'student') as any
+            id,
+            name: transName || 'Member Patron',
+            admissionNumber: trans?.studentAdmNo || 'No ID',
+            classDisplay: trans?.studentClass || '—',
+            gradeLevel: '',
+            stream: ''
         };
     };
 
-    const getUserName = (id: string, transaction?: any) => {
-        const obj = getUserObject(id, transaction);
-        return obj?.name || 'Member';
+    const getUserName = (id: string, trans?: any) => {
+        const u = getUserObject(id, trans);
+        return u?.name || 'Member Patron';
     };
 
-    // Class and Stream Options
+    const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
+    const getBookAccession = (id: string) => books.find(b => b.id === id)?.accessionNumber || 'N/A';
+
+    // Dropdown Class & Stream Options
     const classOptions = useMemo(() => {
         const set = new Set<string>();
         courses.forEach(c => { if (c.name && c.name.trim()) set.add(c.name.trim()); });
-        allMembersList.forEach(m => {
-            if (m.gradeLevel) set.add(m.gradeLevel);
-        });
+        allMembersList.forEach(m => { if (m.gradeLevel) set.add(m.gradeLevel); });
+        if (institution?.classDefinitions && institution.classDefinitions.length > 0) {
+            institution.classDefinitions.forEach(cd => { if (cd && cd.trim()) set.add(cd.trim()); });
+        }
+        if (set.size === 0) return ['Form 1', 'Form 2', 'Form 3', 'Form 4', 'Grade 7', 'Grade 8', 'Grade 9'];
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [courses, allMembersList]);
+    }, [courses, allMembersList, institution]);
 
     const streamOptions = useMemo(() => {
         const set = new Set<string>();
         if (selectedClassId) {
-            const matchedCourse = courses.find(c => c.id === selectedClassId || c.name.trim().toLowerCase() === selectedClassId.trim().toLowerCase());
+            const matchedCourse = courses.find(c => c.name.trim().toLowerCase() === selectedClassId.trim().toLowerCase() || c.id === selectedClassId);
             matchedCourse?.levels?.forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
-
             allMembersList.filter(m => {
                 const g = (m.gradeLevel || '').toString().trim().toLowerCase();
                 return g === selectedClassId.trim().toLowerCase() || (matchedCourse && g === matchedCourse.name.trim().toLowerCase());
-            }).forEach(m => {
-                if (m.stream) set.add(m.stream);
-            });
+            }).forEach(m => { if (m.stream) set.add(m.stream); });
         } else {
             courses.flatMap(c => c.levels || []).forEach(l => { if (l.name && l.name.trim()) set.add(l.name.trim()); });
-            allMembersList.forEach(m => {
-                if (m.stream) set.add(m.stream);
-            });
+            allMembersList.forEach(m => { if (m.stream) set.add(m.stream); });
         }
-
         if (institution?.streamDefinitions && institution.streamDefinitions.length > 0) {
             institution.streamDefinitions.forEach(sd => { if (sd && sd.trim()) set.add(sd.trim()); });
         }
-
-        if (set.size === 0) {
-            return ['East', 'West', 'North', 'South', 'Central'];
-        }
-
+        if (set.size === 0) return ['East', 'West', 'North', 'South', 'Central'];
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     }, [selectedClassId, courses, allMembersList, institution]);
 
-    // Analytics Logic
+    // Analytics Calculation
     const analytics = useMemo(() => {
         const topBorrowed = books.map(b => ({
             ...b,
             borrowCount: transactions.filter(t => t.bookId === b.id).length
-        })).sort((a, b) => b.borrowCount - a.borrowCount).slice(0, 5);
+        })).sort((a, b) => b.borrowCount - a.borrowCount).slice(0, 6);
 
         const categoryCounts = books.reduce((acc: any, b) => {
-            acc[b.category] = (acc[b.category] || 0) + b.quantity;
+            const cat = b.category || 'General';
+            acc[cat] = (acc[cat] || 0) + (b.quantity || 1);
             return acc;
         }, {});
 
@@ -552,13 +398,13 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         }).slice(0, 10);
 
         // 3. Fine Leakage
-        const totalFineAmount = fines.reduce((acc, f) => acc + f.amount, 0);
-        const collectedFineAmount = fines.reduce((acc, f) => acc + f.paidAmount, 0);
+        const totalFineAmount = fines.reduce((acc, f) => acc + (f.amount || 0), 0);
+        const collectedFineAmount = fines.reduce((acc, f) => acc + (f.paidAmount || 0), 0);
         const fineLeakage = totalFineAmount > 0 ? ((totalFineAmount - collectedFineAmount) / totalFineAmount) * 100 : 0;
 
-        // 4. Behavioral Engagement Segments
-        const userActivity = users.map(u => {
-            const count = transactions.filter(t => t.userId === u.id).length;
+        // 4. Behavioral Segments
+        const userActivity = allMembersList.map(u => {
+            const count = transactions.filter(t => t.userId === u.id || t.userId === u.userId).length;
             let segment = 'Inactive';
             if (count > 10) segment = 'Power';
             else if (count > 2) segment = 'Regular';
@@ -593,7 +439,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             .filter(t => t.status === 'overdue')
             .reduce((acc, t) => {
                 const book = books.find(b => b.id === t.bookId);
-                return acc + (book?.price || 1500);
+                return acc + ((book as any)?.price || 1500);
             }, 0);
 
         return {
@@ -610,7 +456,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             totalAssetRisk,
             overdueCount: transactions.filter(t => t.status === 'overdue').length
         };
-    }, [books, transactions, reservations, fines, users]);
+    }, [books, transactions, reservations, fines, allMembersList]);
 
     // Member Statement Logic
     const filteredUsers = useMemo(() => {
@@ -670,9 +516,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         }
     };
 
-    const getBookTitle = (id: string) => books.find(b => b.id === id)?.title || 'Unknown Resource';
-    const getBookAccession = (id: string) => books.find(b => b.id === id)?.accessionNumber || 'N/A';
-
+    // Defaulters Data
     const unreturnedReportData = useMemo(() => {
         return transactions
             .filter(t => t.status === 'issued' || t.status === 'overdue')
@@ -715,7 +559,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
                 return true;
             });
-    }, [transactions, allMembersList, enrollments, liveUsers, users, courses, selectedClassId, selectedStreamId]);
+    }, [transactions, allMembersList, courses, selectedClassId, selectedStreamId]);
 
     const handlePrintUnreturnedReport = async () => {
         const className = courses.find(c => c.id === selectedClassId)?.name || selectedClassId || 'All Classes';
@@ -740,319 +584,303 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         }
     };
 
+    // Filtered Circulation Transactions
+    const filteredCirculation = useMemo(() => {
+        return transactions.filter(t => {
+            if (circStatusFilter !== 'all' && t.status !== circStatusFilter) return false;
+            if (circSearchTerm.trim()) {
+                const q = circSearchTerm.toLowerCase();
+                const bTitle = getBookTitle(t.bookId).toLowerCase();
+                const bAcc = getBookAccession(t.bookId).toLowerCase();
+                const uName = getUserName(t.userId, t).toLowerCase();
+                return bTitle.includes(q) || bAcc.includes(q) || uName.includes(q) || (t.id || '').toLowerCase().includes(q);
+            }
+            return true;
+        });
+    }, [transactions, circStatusFilter, circSearchTerm, books, allMembersList]);
+
+    // Filtered Fines
+    const filteredFines = useMemo(() => {
+        return fines.filter(f => {
+            const isUnpaid = (f.amount - (f.paidAmount || 0)) > 0;
+            if (fineStatusFilter === 'unpaid' && !isUnpaid) return false;
+            if (fineStatusFilter === 'paid' && isUnpaid) return false;
+            if (fineSearchTerm.trim()) {
+                const q = fineSearchTerm.toLowerCase();
+                const uName = getUserName(f.userId).toLowerCase();
+                return uName.includes(q) || (f.id || '').toLowerCase().includes(q) || (f.transactionId || '').toLowerCase().includes(q);
+            }
+            return true;
+        });
+    }, [fines, fineStatusFilter, fineSearchTerm, allMembersList]);
+
+    // ── Vertical Navigation Sections Config ──
+    const reportNavItems: {
+        id: ReportSectionId;
+        label: string;
+        desc: string;
+        icon: any;
+        badge?: string | null;
+        badgeColor?: string;
+    }[] = [
+        { id: 'summary', label: 'Executive Summary', desc: 'KPIs, trend intelligence & revenue', icon: BarChart3Icon },
+        { id: 'statements', label: 'Patron Statement Hub', desc: 'Member loan timeline & clearance slips', icon: UserIcon },
+        {
+            id: 'defaulters',
+            label: 'Unreturned & Overdue Loans',
+            desc: 'Class & stream unreturned registers',
+            icon: ClockIcon,
+            badge: analytics.overdueCount > 0 ? `${analytics.overdueCount}` : null,
+            badgeColor: 'bg-rose-500 text-white'
+        },
+        {
+            id: 'circulation',
+            label: 'Circulation Register',
+            desc: 'Chronological lending & return audit',
+            icon: ClipboardListIcon,
+            badge: transactions.length > 0 ? `${transactions.length}` : null
+        },
+        {
+            id: 'fines',
+            label: 'Fines & Penalties Ledger',
+            desc: 'Assessed penalties vs collected fees',
+            icon: ArrowTrendingUpIcon,
+            badge: fines.length > 0 ? `${fines.length}` : null
+        },
+        {
+            id: 'inventory_valuation',
+            label: 'Inventory Stock & Valuation',
+            desc: 'Resource stock & replacement risk',
+            icon: BookOpenIcon,
+            badge: books.length > 0 ? `${books.length}` : null
+        },
+        {
+            id: 'donations',
+            label: 'Donations & Inward Receipts',
+            desc: 'Sponsor contributions & stock intake',
+            icon: ChartPieIcon,
+            badge: stockReceipts.length > 0 ? `${stockReceipts.length}` : null
+        },
+        {
+            id: 'intelligence',
+            label: 'AI Demand & Obsolescence',
+            desc: 'Predictive reservations & dead-stock',
+            icon: ArrowPathIcon,
+            badge: 'AI'
+        }
+    ];
+
     return (
-        <div className="space-y-8 animate-fade-in pb-12">
-            {/* View Switcher Toggle */}
-            <div className="flex justify-center">
-                <div className="bg-slate-100 dark:bg-slate-900/50 p-1.5 rounded-3xl flex items-center gap-1 border border-slate-200 dark:border-slate-800">
+        <div className="space-y-6 animate-fade-in pb-16">
+            
+            {/* Top Reports Header Card */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 rounded-[2.5rem] border border-indigo-500/20 shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1 relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-indigo-300">
+                        <BarChart3Icon className="w-3.5 h-3.5" />
+                        Comprehensive Library Reporting & Audit Hub
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white">
+                        Library Analytics & <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-cyan-300 to-emerald-300">Statements</span>
+                    </h2>
+                    <p className="text-xs text-slate-300 font-medium max-w-xl">
+                        Generate official patron clearance statements, audit delinquent loans, monitor replacement value risks, and explore AI demand metrics.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3 relative z-10 shrink-0">
                     <button
-                        onClick={() => setViewMode('summary')}
-                        className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'summary' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        onClick={loadData}
+                        disabled={loading}
+                        className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer border border-white/10"
+                        title="Reload Data"
                     >
-                        Operations Summary
-                    </button>
-                    <button
-                        onClick={() => setViewMode('intelligence')}
-                        className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'intelligence' ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                        Advanced Intelligence
+                        <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        <span>Refresh</span>
                     </button>
                 </div>
             </div>
 
-            {viewMode === 'intelligence' ? (
-                <div className="space-y-8 animate-fade-in">
-                    {/* Advanced Metrics Row 1 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        <div className="bg-slate-900 p-8 rounded-[3rem] text-white space-y-4">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Asset Replacement Value</p>
-                            <p className="text-3xl font-black tracking-tighter">KES {analytics.totalAssetRisk?.toLocaleString()}</p>
-                            <div className="pt-4 border-t border-white/10">
-                                <span className="text-[9px] font-bold text-rose-400 uppercase">Risk Level: High</span>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Fine Leakage Rate</p>
-                            <div className="flex items-end gap-3">
-                                <p className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">{analytics.fineLeakage.toFixed(1)}%</p>
-                                <ArrowTrendingUpIcon className="w-6 h-6 text-rose-500 mb-1" />
-                            </div>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase mt-4">Uncollected: KES {(analytics.totalFineAmount - analytics.collectedFineAmount).toFixed(0)}</p>
-                        </div>
-
-                        <div className="bg-indigo-600 p-8 rounded-[3rem] text-white lg:col-span-2">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200">Behavioral Segments</p>
-                                    <div className="flex gap-8 mt-6">
-                                        <div>
-                                            <p className="text-2xl font-black">{analytics.segments.Power}</p>
-                                            <p className="text-[9px] font-black uppercase text-indigo-200 opacity-60">Power Users</p>
-                                        </div>
-                                        <div className="h-10 w-[1px] bg-white/20 self-center" />
-                                        <div>
-                                            <p className="text-2xl font-black">{analytics.segments.Regular}</p>
-                                            <p className="text-[9px] font-black uppercase text-indigo-200 opacity-60">Regulars</p>
-                                        </div>
-                                        <div className="h-10 w-[1px] bg-white/20 self-center" />
-                                        <div>
-                                            <p className="text-2xl font-black">{analytics.segments.Inactive}</p>
-                                            <p className="text-[9px] font-black uppercase text-indigo-200 opacity-60">Inactives</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <UserIcon className="w-12 h-12 text-white/10" />
-                            </div>
-                        </div>
+            {/* ── 2-COLUMN LAYOUT: VERTICAL MENU (LEFT) + REPORT VIEW (RIGHT) ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                
+                {/* ══ LEFT VERTICAL SUB-MENU ══ */}
+                <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-[2rem] p-3 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-1 sticky top-24">
+                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Reports Directory</p>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Select Report Module</p>
                     </div>
 
-                    {/* Advanced Metrics Row 2 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Demand Intel */}
-                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Predictive Demand</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">High Reservation Density (Procurement Suggestions)</p>
-                                </div>
-                                <ArrowPathIcon className="w-6 h-6 text-indigo-500" />
-                            </div>
-                            <div className="space-y-4">
-                                {analytics.demandIntel.length > 0 ? analytics.demandIntel.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                                            <div>
-                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase">{item.title}</p>
-                                                <p className="text-[9px] font-bold text-slate-400">{item.activeRes} Pendings / {item.quantity} In Stock</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs font-black text-indigo-600">Ratio: {item.demandRatio.toFixed(1)}</p>
-                                            <span className="text-[8px] font-black uppercase text-indigo-400">Order Copy</span>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <p className="text-xs text-slate-400 uppercase italic">No pending reservations detected.</p>
-                                )}
-                            </div>
-                        </div>
+                    <div className="space-y-1">
+                        {reportNavItems.map(item => {
+                            const isActive = activeReportId === item.id;
+                            const Icon = item.icon;
 
-                        {/* Obsolescence / Dead Wood */}
-                        <div className="bg-white dark:bg-slate-800 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
-                                    <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Collection Obsolescence</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Items with Zero Loans in 12+ Months</p>
-                                </div>
-                                <XCircleIcon className="w-6 h-6 text-rose-500" />
-                            </div>
-                            <div className="space-y-4">
-                                {analytics.deadStock.length > 0 ? analytics.deadStock.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-transparent hover:border-rose-100 transition-all">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-2 h-2 rounded-full bg-slate-300" />
-                                            <div>
-                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase">{item.title}</p>
-                                                <p className="text-[9px] font-bold text-slate-400">Added: {new Date(item.addedDate).toLocaleDateString()}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs font-black text-slate-400 uppercase">Unused</p>
-                                            <span className="text-[8px] font-black uppercase text-rose-400">Archive Suggestion</span>
-                                        </div>
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setActiveReportId(item.id)}
+                                    className={`w-full p-3 rounded-2xl flex items-start gap-3.5 text-left transition-all cursor-pointer ${
+                                        isActive
+                                            ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/20 scale-[1.01]'
+                                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                                    }`}
+                                >
+                                    <div className={`p-2.5 rounded-xl shrink-0 ${
+                                        isActive ? 'bg-white/20 text-white' : 'bg-indigo-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400'
+                                    }`}>
+                                        <Icon className="w-4 h-4" />
                                     </div>
-                                )) : (
-                                    <p className="text-xs text-slate-400 uppercase italic">All collection items are currently engaged.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Turnover & Peak Audit */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-10 rounded-[3.5rem] border border-slate-100 dark:border-slate-700">
-                            <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white mb-8">Category Turnover Heatmap</h4>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {analytics.categoryTurnover.slice(0, 8).map((cat, idx) => (
-                                    <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center">
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm mb-3">
-                                            <p className="text-xs font-black text-indigo-600">{cat.turnover.toFixed(1)}x</p>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-1">
+                                            <p className={`text-xs font-black uppercase tracking-tight truncate ${
+                                                isActive ? 'text-white' : 'text-slate-900 dark:text-white'
+                                            }`}>
+                                                {item.label}
+                                            </p>
+                                            {item.badge && (
+                                                <span className={`px-2 py-0.5 text-[9px] font-black rounded-full font-mono shrink-0 ${
+                                                    item.badgeColor || (isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400')
+                                                }`}>
+                                                    {item.badge}
+                                                </span>
+                                            )}
                                         </div>
-                                        <p className="text-[9px] font-black text-slate-700 dark:text-slate-200 uppercase truncate w-full">{cat.category}</p>
-                                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{cat.loans} Loans</p>
+                                        <p className={`text-[10px] font-medium leading-tight truncate mt-0.5 ${
+                                            isActive ? 'text-indigo-100' : 'text-slate-400'
+                                        }`}>
+                                            {item.desc}
+                                        </p>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="bg-indigo-900 p-10 rounded-[3.5rem] text-white">
-                            <h4 className="text-lg font-black uppercase tracking-tight text-indigo-100 mb-8">Peak Activity Audit</h4>
-                            <div className="space-y-6">
-                                {Object.entries(analytics.peakAudit).map(([time, count]: any, idx) => (
-                                    <div key={idx} className="space-y-2">
-                                        <div className="flex justify-between items-center px-1">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300">{time}</span>
-                                            <span className="text-xs font-black">{count} Trans.</span>
-                                        </div>
-                                        <div className="h-2 bg-indigo-950 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-indigo-400 rounded-full"
-                                                style={{ width: `${(count / (transactions.length || 1)) * 100}%` }}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-[9px] font-bold text-indigo-400 uppercase mt-6 tracking-widest">Optimal Staffing: Afternoon</p>
-                        </div>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
-            ) : (
-                <>
-                    {/* Analytics Dashboard Segment */}
-                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                        <div className="lg:col-span-3 space-y-6">
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 shadow-sm min-h-[400px]">
-                                <div className="flex items-center justify-between mb-8">
-                                    <div>
-                                        <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Trend Intelligence</h3>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Resource Utilization & Engagement</p>
-                                    </div>
-                                    <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-2xl">
-                                        <ChartBarIcon className="w-6 h-6" />
+
+                {/* ══ RIGHT ACTIVE REPORT VIEW CONTAINER ══ */}
+                <div className="lg:col-span-8 space-y-6 min-h-[500px]">
+
+                    {/* ── 1. EXECUTIVE SUMMARY ── */}
+                    {activeReportId === 'summary' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Summary Metrics */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-emerald-600 p-6 rounded-[2rem] text-white shadow-lg shadow-emerald-500/10">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200 mb-1">Fine Revenue Collected</p>
+                                    <p className="text-2xl sm:text-3xl font-black tracking-tight">KES {analytics.collectedFineAmount.toLocaleString()}</p>
+                                    <div className="mt-3 pt-3 border-t border-white/15 flex justify-between items-center text-[10px] font-bold">
+                                        <span className="text-emerald-100">Outstanding Arrears:</span>
+                                        <span>KES {(analytics.totalFineAmount - analytics.collectedFineAmount).toLocaleString()}</span>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                    {/* Top Borrowed */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">High Demand Catalog</h4>
-                                        <div className="space-y-4">
-                                            {analytics.topBorrowed.map((book, idx) => (
-                                                <div key={idx} className="flex items-center gap-4">
-                                                    <div className="text-lg font-black text-slate-200 w-6">0{idx + 1}</div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{book.title}</p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <div className="flex-1 h-1 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-indigo-500 rounded-full"
-                                                                    style={{ width: `${(book.borrowCount / (analytics.topBorrowed[0]?.borrowCount || 1)) * 100}%` }}
-                                                                />
-                                                            </div>
-                                                            <span className="text-[9px] font-black text-indigo-600 uppercase whitespace-nowrap">{book.borrowCount} Loans</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Category Mix */}
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Inventory Composition</h4>
-                                        <div className="space-y-3">
-                                            {Object.entries(analytics.categoryCounts).sort((a: any, b: any) => b[1] - a[1]).slice(0, 5).map(([cat, count]: any, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-transparent hover:border-slate-200 transition-all">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-2 h-2 rounded-full ${idx === 0 ? 'bg-indigo-500' : idx === 1 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-tight">{cat}</span>
-                                                    </div>
-                                                    <span className="text-xs font-black text-slate-900 dark:text-white">{count} Units</span>
-                                                </div>
-                                            ))}
-                                        </div>
+                                <div className="bg-indigo-600 p-6 rounded-[2rem] text-white shadow-lg shadow-indigo-500/10">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-1">Circulation Activity</p>
+                                    <p className="text-2xl sm:text-3xl font-black tracking-tight">{transactions.filter(t => t.status === 'issued').length} Active Loans</p>
+                                    <div className="mt-3 pt-3 border-t border-white/15 flex justify-between items-center text-[10px] font-bold">
+                                        <span className="text-indigo-100">Total Returned History:</span>
+                                        <span>{transactions.filter(t => t.status === 'returned').length} Books</span>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
 
-                        <div className="space-y-6">
-                            <div className="bg-emerald-600 p-8 rounded-[3rem] text-white shadow-xl shadow-emerald-100 dark:shadow-none">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100 opacity-60 mb-2">Total Fine Revenue</p>
-                                <p className="text-3xl font-black tracking-tighter mb-4">KES {analytics.collectedFineAmount.toFixed(2)}</p>
-                                <div className="pt-4 border-t border-white/10 flex justify-between items-end">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-emerald-100 uppercase">Outstanding</p>
-                                        <p className="text-sm font-black text-white">KES {(analytics.totalFineAmount - analytics.collectedFineAmount).toFixed(2)}</p>
-                                    </div>
-                                    <div className="p-2 bg-white/20 rounded-lg">
-                                        <ArrowTrendingUpIcon className="w-4 h-4" />
+                                <div className="bg-rose-600 p-6 rounded-[2rem] text-white shadow-lg shadow-rose-500/10">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-200 mb-1">Overdue Delinquency</p>
+                                    <p className="text-2xl sm:text-3xl font-black tracking-tight">{analytics.overdueCount} Delayed</p>
+                                    <div className="mt-3 pt-3 border-t border-white/15 flex justify-between items-center text-[10px] font-bold">
+                                        <span className="text-rose-100">Asset Value at Risk:</span>
+                                        <span>KES {analytics.totalAssetRisk.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                                <h4 className="text-sm font-black uppercase tracking-tight mb-6">Issue Health</h4>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Loans</span>
-                                        <span className="text-xs font-black text-slate-900 dark:text-white">{transactions.filter(t => t.status === 'issued').length}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-rose-500">Total Delays</span>
-                                        <span className="text-xs font-black text-rose-600">{analytics.overdueCount}</span>
-                                    </div>
-                                    <div className="w-full h-2 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden mt-4">
-                                        <div
-                                            className="h-full bg-rose-500"
-                                            style={{ width: `${(analytics.overdueCount / (transactions.length || 1)) * 100}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase text-center mt-2">Delay Ratio: {((analytics.overdueCount / (transactions.length || 1)) * 100).toFixed(1)}%</p>
+                            {/* Top Borrowed & Inventory Composition */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">High Demand Resource Catalog</h3>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Top borrowed titles across all categories</p>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Statement Generation Segment */}
-                    <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="p-10 lg:p-14">
-                            <div className="max-w-3xl mx-auto text-center space-y-4 mb-14">
-                                <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Member Financial & Activity Statements</h3>
-                                <p className="text-slate-500 text-sm font-medium leading-relaxed uppercase tracking-wide">Enter member details to compile a comprehensive history of borrowed resources, returned items, and outstanding financial liabilities.</p>
-
-                                <div className="relative max-w-xl mx-auto mt-8">
-                                    <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search by Student Name, ADM No, Class, or Staff ID..."
-                                        value={searchUserTerm}
-                                        onChange={(e) => setSearchUserTerm(e.target.value)}
-                                        className="w-full pl-16 pr-6 py-6 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-3xl text-sm font-black transition-all shadow-sm"
-                                    />
-                                    {/* Search Results Dropdown */}
-                                    {filteredUsers.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] shadow-2xl z-50 overflow-hidden animate-fade-in">
-                                            {filteredUsers.map(u => {
-                                                const adm = u.admissionNumber || u.staffId || 'No ID';
-                                                const cl = u.classDisplay || u.classStr || '';
-                                                return (
-                                                    <button
-                                                        key={u.id}
-                                                        onClick={() => { setSelectedStatementUser(u); setSearchUserTerm(''); }}
-                                                        className="w-full p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b last:border-none border-slate-50 dark:border-slate-700 text-left"
-                                                    >
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm">
-                                                                {u.name.charAt(0).toUpperCase()}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name}</p>
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                                    {adm} {cl ? `• ${cl}` : ''}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-xl">Select</span>
-                                                    </button>
-                                                );
-                                            })}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {analytics.topBorrowed.map((book, idx) => (
+                                        <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700/60">
+                                            <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                                                0{idx + 1}
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">{book.title}</p>
+                                                <p className="text-[10px] font-bold text-slate-400">By {book.author || 'Unknown'}</p>
+                                            </div>
+                                            <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-black font-mono">
+                                                {book.borrowCount} Loans
+                                            </span>
                                         </div>
+                                    ))}
+                                    {analytics.topBorrowed.length === 0 && (
+                                        <p className="text-xs text-slate-400 italic">No circulation transaction records yet.</p>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* Category Turnover Heatmap */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+                                <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Category Turnover Matrix</h3>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    {analytics.categoryTurnover.slice(0, 8).map((cat, idx) => (
+                                        <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700/60 text-center">
+                                            <span className="text-sm font-black text-indigo-600">{cat.turnover.toFixed(1)}x</span>
+                                            <p className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase truncate mt-1">{cat.category}</p>
+                                            <p className="text-[9px] font-bold text-slate-400">{cat.loans} Loans</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── 2. PATRON STATEMENT HUB ── */}
+                    {activeReportId === 'statements' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm space-y-6 animate-fade-in">
+                            <div className="space-y-1">
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Patron Financial & Activity Statements</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Search member to generate official borrowing history and clearance statements</p>
+                            </div>
+
+                            <div className="relative max-w-xl">
+                                <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by Student Name, Admission Number, Class, or Staff ID..."
+                                    value={searchUserTerm}
+                                    onChange={(e) => setSearchUserTerm(e.target.value)}
+                                    className="w-full pl-14 pr-4 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black transition-all"
+                                />
+                                {filteredUsers.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl z-50 overflow-hidden">
+                                        {filteredUsers.map(u => {
+                                            const adm = u.admissionNumber || u.staffId || 'No ID';
+                                            const cl = u.classDisplay || u.classStr || '';
+                                            return (
+                                                <button
+                                                    key={u.id}
+                                                    onClick={() => { setSelectedStatementUser(u); setSearchUserTerm(''); }}
+                                                    className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b last:border-none border-slate-100 dark:border-slate-700 text-left cursor-pointer"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
+                                                            {u.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name}</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{adm} {cl ? `• ${cl}` : ''}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1 rounded-lg uppercase">Select</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {selectedStatementUser && (() => {
@@ -1067,36 +895,36 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
                                 const userActiveLoans = transactions.filter(t => matchUser(t.userId) && (t.status === 'issued' || t.status === 'overdue')).length;
                                 const userReturns = transactions.filter(t => matchUser(t.userId) && t.status === 'returned').length;
-                                const userPenaltyTotal = fines.filter(f => matchUser(f.userId)).reduce((acc, f) => acc + (f.amount - f.paidAmount), 0);
+                                const userPenaltyTotal = fines.filter(f => matchUser(f.userId)).reduce((acc, f) => acc + (f.amount - (f.paidAmount || 0)), 0);
 
                                 const adm = selectedStatementUser.admissionNumber || selectedStatementUser.staffId || 'No ID';
                                 const cl = selectedStatementUser.classDisplay || selectedStatementUser.classStr || '';
 
                                 return (
-                                    <div className="max-w-4xl mx-auto bg-slate-50 dark:bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 animate-scale-up space-y-8">
-                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-8 border-b border-slate-200 dark:border-slate-700">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-6 animate-scale-up">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-200 dark:border-slate-700">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-16 h-16 rounded-3xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-md">
                                                     {selectedStatementUser.name.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
-                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
+                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                                                         ID: {adm} {cl ? `• ${cl}` : ''}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                            <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => setSelectedStatementUser(null)}
-                                                    className="px-6 py-4 rounded-2xl bg-white dark:bg-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 flex-1 md:flex-initial cursor-pointer"
+                                                    className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 cursor-pointer"
                                                 >
                                                     Deselect
                                                 </button>
                                                 <button
                                                     onClick={handlePrintStatement}
                                                     disabled={isPrintingStatement}
-                                                    className="px-8 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 dark:shadow-none flex-1 md:flex-initial transition-all disabled:opacity-50 cursor-pointer"
+                                                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
                                                 >
                                                     <PrinterIcon className="w-4 h-4" />
                                                     {isPrintingStatement ? 'Generating PDF...' : 'Print Statement'}
@@ -1104,140 +932,117 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* Member Metrics Overview */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Loans</p>
-                                                <p className="text-2xl font-black text-indigo-600">
-                                                    {userActiveLoans}
-                                                </p>
+                                                <p className="text-xl font-black text-indigo-600">{userActiveLoans}</p>
                                             </div>
-                                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                            <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Returns</p>
-                                                <p className="text-2xl font-black text-emerald-600">
-                                                    {userReturns}
-                                                </p>
+                                                <p className="text-xl font-black text-emerald-600">{userReturns}</p>
                                             </div>
-                                            <div className="p-6 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
+                                            <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Unpaid Penalties</p>
-                                                <p className="text-2xl font-black text-rose-600">
-                                                    KES {userPenaltyTotal.toFixed(0)}
-                                                </p>
+                                                <p className="text-xl font-black text-rose-600">KES {userPenaltyTotal.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     </div>
                                 );
                             })()}
                         </div>
-                    </div>
+                    )}
 
-                    {/* Defaulter Class & Stream Segment */}
-                    <div className="bg-white dark:bg-slate-800 rounded-[3.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="p-10 lg:p-14">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    {/* ── 3. UNRETURNED & OVERDUE LOANS ── */}
+                    {activeReportId === 'defaulters' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm space-y-6 animate-fade-in">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
-                                    <h3 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">Defaulter & Active Circulation List</h3>
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Filter by Class and Stream for efficient retrieval</p>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Unreturned & Overdue Loans</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Defaulter tracking by Class and Stream</p>
                                 </div>
                                 <button
                                     onClick={handlePrintUnreturnedReport}
-                                    className="h-12 px-6 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all hover:bg-slate-800 cursor-pointer"
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 transition-all cursor-pointer shadow-md"
                                 >
                                     <PrinterIcon className="w-4 h-4" />
-                                    Print defaulter list
+                                    Print Defaulter List PDF
                                 </button>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Class / Grade</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Class / Grade</label>
                                     <select
                                         value={selectedClassId}
                                         onChange={(e) => { setSelectedClassId(e.target.value); setSelectedStreamId(''); }}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all text-slate-800 dark:text-white"
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white"
                                     >
                                         <option value="">-- All Classes --</option>
                                         {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Stream / Section</label>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Stream / Section</label>
                                     <select
                                         value={selectedStreamId}
                                         onChange={(e) => setSelectedStreamId(e.target.value)}
-                                        className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-xs font-black uppercase tracking-tight transition-all text-slate-800 dark:text-white"
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white"
                                     >
                                         <option value="">-- All Streams --</option>
-                                        {streamOptions.map(s => (
-                                            <option key={s} value={s}>{s}</option>
-                                        ))}
+                                        {streamOptions.map(s => <option key={s} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                                 <div className="flex items-end">
-                                    <div className="px-6 py-4 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 w-full">
-                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Unreturned Units</p>
-                                        <p className="text-xl font-black text-indigo-700 dark:text-indigo-300">{unreturnedReportData.length} Copies</p>
+                                    <div className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl border border-indigo-100 dark:border-indigo-800 w-full text-center">
+                                        <span className="text-[9px] font-black uppercase text-indigo-400">Total Delayed</span>
+                                        <p className="text-base font-black text-indigo-600 dark:text-indigo-300">{unreturnedReportData.length} Copies</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="border border-slate-100 dark:border-slate-700 rounded-[2.5rem] overflow-hidden">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                                        <tr>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Class / Stream</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Resource (ID)</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Deadline</th>
-                                            <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
+                            <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <tr className="text-slate-400 text-[10px] font-black uppercase">
+                                            <th className="p-3.5">Borrower</th>
+                                            <th className="p-3.5">Class</th>
+                                            <th className="p-3.5">Resource</th>
+                                            <th className="p-3.5">Due Date</th>
+                                            <th className="p-3.5 text-center">Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                                         {unreturnedReportData.map(item => {
                                             const isOverdue = new Date(item.dueDate) < new Date();
                                             const displayName = item.user?.name || getUserName(item.userId, item);
                                             const displayAdm = item.memberDetails?.admissionNumber || item.user?.admissionNumber || item.user?.staffId || 'No ID';
                                             const displayClass = item.memberDetails?.classDisplay || item.user?.classDisplay || '—';
-                                            const avatarLetter = (displayName && displayName !== 'Unknown User' ? displayName.charAt(0) : 'M').toUpperCase();
 
                                             return (
-                                                <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-8 py-5">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-xs">
-                                                                {avatarLetter}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{displayName}</p>
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{displayAdm}</p>
-                                                            </div>
-                                                        </div>
+                                                <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                                                    <td className="p-3.5">
+                                                        <p className="font-bold text-slate-900 dark:text-white uppercase">{displayName}</p>
+                                                        <span className="text-[9px] font-bold text-slate-400 font-mono">{displayAdm}</span>
                                                     </td>
-                                                    <td className="px-8 py-5">
-                                                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg uppercase">
-                                                            {displayClass}
+                                                    <td className="p-3.5 text-indigo-600 dark:text-indigo-400 font-bold">{displayClass}</td>
+                                                    <td className="p-3.5">
+                                                        <p className="font-bold text-slate-900 dark:text-white uppercase">{getBookTitle(item.bookId)}</p>
+                                                        <span className="text-[9px] text-slate-400 font-mono">ID: {getBookAccession(item.bookId)}</span>
+                                                    </td>
+                                                    <td className="p-3.5 font-mono text-slate-500">{new Date(item.dueDate).toLocaleDateString()}</td>
+                                                    <td className="p-3.5 text-center">
+                                                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                            isOverdue ? 'bg-rose-50 dark:bg-rose-900/40 text-rose-600' : 'bg-amber-50 dark:bg-amber-900/40 text-amber-600'
+                                                        }`}>
+                                                            {isOverdue ? 'Overdue' : 'Active'}
                                                         </span>
-                                                    </td>
-                                                    <td className="px-8 py-5">
-                                                        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase">{getBookTitle(item.bookId)}</p>
-                                                        <span className="text-[8px] font-bold text-slate-300">ID: {getBookAccession(item.bookId)}</span>
-                                                    </td>
-                                                    <td className="px-8 py-5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                                        {new Date(item.dueDate).toLocaleDateString()}
-                                                    </td>
-                                                    <td className="px-8 py-5">
-                                                        {isOverdue ? (
-                                                            <span className="text-[9px] font-black px-2 py-1 bg-rose-50 dark:bg-rose-900/40 text-rose-600 rounded-full uppercase">Overdue</span>
-                                                        ) : (
-                                                            <span className="text-[9px] font-black px-2 py-1 bg-amber-50 dark:bg-amber-900/40 text-amber-600 rounded-full uppercase">In use</span>
-                                                        )}
                                                     </td>
                                                 </tr>
                                             );
                                         })}
                                         {unreturnedReportData.length === 0 && (
                                             <tr>
-                                                <td colSpan={5} className="py-12 text-center text-xs font-black uppercase text-slate-400">
+                                                <td colSpan={5} className="py-8 text-center text-xs font-bold text-slate-400">
                                                     No active unreturned records matching criteria
                                                 </td>
                                             </tr>
@@ -1246,9 +1051,326 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </>
-            )}
+                    )}
+
+                    {/* ── 4. CIRCULATION REGISTER ── */}
+                    {activeReportId === 'circulation' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm space-y-6 animate-fade-in">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Circulation & Lending Register</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Complete log of all book check-outs and check-ins</p>
+                                </div>
+                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-lg text-xs font-black font-mono">
+                                    {filteredCirculation.length} Transactions
+                                </span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                    type="text"
+                                    placeholder="Search by book title, borrower, or accession code..."
+                                    value={circSearchTerm}
+                                    onChange={(e) => setCircSearchTerm(e.target.value)}
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                                />
+                                <select
+                                    value={circStatusFilter}
+                                    onChange={(e: any) => setCircStatusFilter(e.target.value)}
+                                    className="px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="issued">Issued / In-Use</option>
+                                    <option value="returned">Returned</option>
+                                    <option value="overdue">Overdue</option>
+                                </select>
+                            </div>
+
+                            <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden max-h-[450px] overflow-y-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/60 sticky top-0 border-b border-slate-100 dark:border-slate-700">
+                                        <tr className="text-slate-400 text-[10px] font-black uppercase">
+                                            <th className="p-3.5">Book Resource</th>
+                                            <th className="p-3.5">Borrower</th>
+                                            <th className="p-3.5">Issue Date</th>
+                                            <th className="p-3.5">Due Date</th>
+                                            <th className="p-3.5 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {filteredCirculation.map(t => (
+                                            <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                                                <td className="p-3.5">
+                                                    <p className="font-bold text-slate-900 dark:text-white uppercase">{getBookTitle(t.bookId)}</p>
+                                                    <span className="text-[9px] font-mono text-slate-400">ACC: {getBookAccession(t.bookId)}</span>
+                                                </td>
+                                                <td className="p-3.5 font-bold text-slate-700 dark:text-slate-200">
+                                                    {getUserName(t.userId, t)}
+                                                </td>
+                                                <td className="p-3.5 font-mono text-slate-500">{new Date(t.issueDate).toLocaleDateString()}</td>
+                                                <td className="p-3.5 font-mono text-slate-500">{new Date(t.dueDate).toLocaleDateString()}</td>
+                                                <td className="p-3.5 text-center">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                        t.status === 'returned'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600'
+                                                            : t.status === 'overdue'
+                                                            ? 'bg-rose-50 dark:bg-rose-900/40 text-rose-600'
+                                                            : 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600'
+                                                    }`}>
+                                                        {t.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── 5. FINES & PENALTIES LEDGER ── */}
+                    {activeReportId === 'fines' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm space-y-6 animate-fade-in">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Fines & Penalties Ledger</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Audit of assessed penalty fees, payments, and balances</p>
+                                </div>
+                                <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 rounded-lg text-xs font-black font-mono">
+                                    Total Collected: KES {analytics.collectedFineAmount.toLocaleString()}
+                                </span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                    type="text"
+                                    placeholder="Search by patron name, fine ID, or transaction..."
+                                    value={fineSearchTerm}
+                                    onChange={(e) => setFineSearchTerm(e.target.value)}
+                                    className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                                />
+                                <select
+                                    value={fineStatusFilter}
+                                    onChange={(e: any) => setFineStatusFilter(e.target.value)}
+                                    className="px-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold"
+                                >
+                                    <option value="all">All Fines</option>
+                                    <option value="unpaid">Outstanding Unpaid</option>
+                                    <option value="paid">Fully Settled</option>
+                                </select>
+                            </div>
+
+                            <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden max-h-[450px] overflow-y-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/60 sticky top-0 border-b border-slate-100 dark:border-slate-700">
+                                        <tr className="text-slate-400 text-[10px] font-black uppercase">
+                                            <th className="p-3.5">Patron</th>
+                                            <th className="p-3.5">Assessed (KES)</th>
+                                            <th className="p-3.5">Paid (KES)</th>
+                                            <th className="p-3.5">Balance (KES)</th>
+                                            <th className="p-3.5 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {filteredFines.map(f => {
+                                            const bal = Math.max(0, (f.amount || 0) - (f.paidAmount || 0));
+                                            return (
+                                                <tr key={f.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                                                    <td className="p-3.5 font-bold text-slate-900 dark:text-white">
+                                                        {getUserName(f.userId)}
+                                                    </td>
+                                                    <td className="p-3.5 font-mono font-bold">{f.amount?.toLocaleString()}</td>
+                                                    <td className="p-3.5 font-mono text-emerald-600 font-bold">{(f.paidAmount || 0).toLocaleString()}</td>
+                                                    <td className="p-3.5 font-mono font-black text-rose-600">{bal.toLocaleString()}</td>
+                                                    <td className="p-3.5 text-center">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                            bal === 0 ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600' : 'bg-rose-50 dark:bg-rose-900/40 text-rose-600'
+                                                        }`}>
+                                                            {bal === 0 ? 'Cleared' : 'Due'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {filteredFines.length === 0 && (
+                                            <tr>
+                                                <td colSpan={5} className="py-8 text-center text-xs font-bold text-slate-400">
+                                                    No fines matching criteria
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── 6. INVENTORY STOCK & VALUATION ── */}
+                    {activeReportId === 'inventory_valuation' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm space-y-6 animate-fade-in">
+                            <div className="space-y-1">
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Inventory Stock & Category Valuation</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Physical stock counts and resource distribution</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Unique Titles</span>
+                                    <span className="text-2xl font-black text-indigo-600 font-mono">{books.length}</span>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Total Physical Copies</span>
+                                    <span className="text-2xl font-black text-emerald-600 font-mono">
+                                        {books.reduce((acc, b) => acc + (b.quantity || 0), 0)}
+                                    </span>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block">Available on Shelf</span>
+                                    <span className="text-2xl font-black text-cyan-600 font-mono">
+                                        {books.reduce((acc, b) => acc + (b.available || 0), 0)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <tr className="text-slate-400 text-[10px] font-black uppercase">
+                                            <th className="p-3.5">Category</th>
+                                            <th className="p-3.5 text-center">Total Volumes</th>
+                                            <th className="p-3.5 text-center">Available</th>
+                                            <th className="p-3.5 text-center">In Use</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {Object.entries(analytics.categoryCounts).map(([cat, count]: any, idx) => {
+                                            const catBooks = books.filter(b => (b.category || 'General') === cat);
+                                            const avail = catBooks.reduce((acc, b) => acc + (b.available || 0), 0);
+                                            const inUse = Math.max(0, count - avail);
+
+                                            return (
+                                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                                                    <td className="p-3.5 font-black uppercase text-slate-900 dark:text-white">{cat}</td>
+                                                    <td className="p-3.5 text-center font-mono font-bold text-slate-700 dark:text-slate-300">{count}</td>
+                                                    <td className="p-3.5 text-center font-mono font-bold text-emerald-600">{avail}</td>
+                                                    <td className="p-3.5 text-center font-mono font-bold text-amber-600">{inUse}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── 7. DONATIONS & SPONSORS ── */}
+                    {activeReportId === 'donations' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 p-8 shadow-sm space-y-6 animate-fade-in">
+                            <div className="space-y-1">
+                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Book Donations & Inward Receipts</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Sponsor receipts and inward stock intake records</p>
+                            </div>
+
+                            <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <tr className="text-slate-400 text-[10px] font-black uppercase">
+                                            <th className="p-3.5">Donor / Sponsor</th>
+                                            <th className="p-3.5">Receipt #</th>
+                                            <th className="p-3.5">Date</th>
+                                            <th className="p-3.5 text-center">Copies Received</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                        {stockReceipts.map((r, idx) => (
+                                            <tr key={r.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                                                <td className="p-3.5 font-black uppercase text-slate-900 dark:text-white">
+                                                    {(r as any).donorName || (r as any).sponsorName || 'Institutional Donor'}
+                                                </td>
+                                                <td className="p-3.5 font-mono text-indigo-600 font-bold">
+                                                    {(r as any).receiptNumber || `REC-${idx + 1}`}
+                                                </td>
+                                                <td className="p-3.5 font-mono text-slate-500">
+                                                    {new Date(r.receivedDate || (r as any).created_at || Date.now()).toLocaleDateString()}
+                                                </td>
+                                                <td className="p-3.5 text-center font-mono font-black text-emerald-600">
+                                                    {r.quantity || 1}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {stockReceipts.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="py-8 text-center text-xs font-bold text-slate-400">
+                                                    No inward stock donation receipts recorded yet
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── 8. AI DEMAND & OBSOLESCENCE ── */}
+                    {activeReportId === 'intelligence' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Predictive Demand */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Predictive Reservation Bottlenecks</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">High Reservation Density (Procurement Recommendations)</p>
+                                    </div>
+                                    <ArrowPathIcon className="w-5 h-5 text-indigo-500" />
+                                </div>
+                                <div className="space-y-3">
+                                    {analytics.demandIntel.length > 0 ? analytics.demandIntel.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-transparent hover:border-indigo-100 transition-all">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase">{item.title}</p>
+                                                <p className="text-[9px] font-bold text-slate-400">{item.activeRes} Pendings / {item.quantity} In Stock</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs font-black text-indigo-600 font-mono">Ratio: {item.demandRatio.toFixed(1)}</p>
+                                                <span className="text-[8px] font-black uppercase text-indigo-400">Order Copy</span>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-xs text-slate-400 italic">No active pending reservation bottlenecks detected.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Obsolescence */}
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">Collection Obsolescence</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Titles with Zero Loans in 12+ Months</p>
+                                    </div>
+                                    <XCircleIcon className="w-5 h-5 text-rose-500" />
+                                </div>
+                                <div className="space-y-3">
+                                    {analytics.deadStock.length > 0 ? analytics.deadStock.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-transparent hover:border-rose-100 transition-all">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase">{item.title}</p>
+                                                <p className="text-[9px] font-bold text-slate-400">Added: {new Date(item.addedDate).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[8px] font-black uppercase text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-md">Archive Suggestion</span>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <p className="text-xs text-slate-400 italic">All catalog items have recorded lending circulation.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            </div>
         </div>
     );
 };
