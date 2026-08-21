@@ -4005,27 +4005,55 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text('MEMBER DETAILS', margin, tableStartY - 15);
     doc.line(margin, tableStartY - 12, pageWidth - margin, tableStartY - 12);
 
-    const memberIdDisplay = (member as any).admissionNumber || member.admissionNumber || member.staffId || (member as any).userId || 'N/A';
-    const memberClassDisplay = (member as any).classDisplay || (member as any).gradeLevel || '';
+    const memberIdDisplay = (member as any).admissionNumber || member.admissionNumber || (member as any).admission_number || (member as any).admNo || member.staffId || (member as any).userId || (member as any).studentId || 'N/A';
+    const gradeLevel = (member as any).gradeLevel || (member as any).grade || (member as any).classLevel || (member as any).metadata?.gradeLevel || (member as any).metadata?.grade || '';
+    const stream = (member as any).stream || (member as any).streamName || (member as any).metadata?.stream || '';
+    const memberClassDisplay = (member as any).classDisplay || (member as any).classStr || (gradeLevel && stream ? `${gradeLevel} - ${stream}` : gradeLevel || stream || 'N/A');
 
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Name: ${member.name}`, margin, tableStartY - 5);
-    doc.text(`ID / Adm No: ${memberIdDisplay}${memberClassDisplay ? ` • Class: ${memberClassDisplay}` : ''}`, margin, tableStartY);
-
-    // Guard for member.role - Fixed positioning to avoid overlap with Name
+    // Guard for member.role
     const roleText = (Array.isArray(member.roles) && member.roles.length > 0)
         ? member.roles.map(r => formatRoleDisplayName(r as Role, institution)).join(', ').toUpperCase()
         : (member.role ? formatRoleDisplayName(member.role, institution).toUpperCase() : 'STUDENT');
-    doc.text(`Role: ${roleText}`, margin, tableStartY + 5);
 
-    // Institution Contact Details
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    const contactInfo = `Email: ${institution.email || 'N/A'} | Phone: ${institution.phoneNumber || 'N/A'}`;
-    doc.text(contactInfo, margin, tableStartY + 15);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    // Left Column
+    doc.setFont('helvetica', 'bold');
+    doc.text('Member Name:', margin, tableStartY - 6);
+    doc.setFont('helvetica', 'normal');
+    doc.text(member.name || 'Unknown', margin + 28, tableStartY - 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('ID / Adm No:', margin, tableStartY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(memberIdDisplay), margin + 28, tableStartY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Student Grade:', margin, tableStartY + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(memberClassDisplay), margin + 28, tableStartY + 6);
+
+    // Right Column
+    const rightColX = pageWidth / 2 + 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Role / Type:', rightColX, tableStartY - 6);
+    doc.setFont('helvetica', 'normal');
+    doc.text(roleText, rightColX + 26, tableStartY - 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Date Issued:', rightColX, tableStartY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }), rightColX + 26, tableStartY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Contact:', rightColX, tableStartY + 6);
+    doc.setFont('helvetica', 'normal');
+    const contactInfo = institution.phoneNumber || institution.email || 'N/A';
+    doc.text(contactInfo, rightColX + 26, tableStartY + 6);
 
     // Transactions Table
-    let tableY = tableStartY + 25;
+    let tableY = tableStartY + 18;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('BOOK CIRCULATION & BORROWING STATEMENT', margin, tableY - 5);
