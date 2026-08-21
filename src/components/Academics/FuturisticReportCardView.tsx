@@ -14,6 +14,7 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
+import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
 import * as XLSX from 'xlsx';
 
 interface FuturisticReportCardViewProps {
@@ -51,6 +52,9 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
     // Navigation & Layout States
     const [activeNavItem, setActiveNavItem] = useState<string>('report_cards');
     const [isLeftNavCollapsed, setIsLeftNavCollapsed] = useState<boolean>(false);
+
+    // Wizard Modal State
+    const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
 
     // Term Selector Accordion
     const [expandedYear, setExpandedYear] = useState<string>('2026');
@@ -279,7 +283,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
             <div className="w-full lg:w-56 shrink-0 space-y-3">
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-3">
                     <button
-                        onClick={() => alert("Batch generating report cards for all students...")}
+                        onClick={() => setIsWizardOpen(true)}
                         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                         <SparklesIcon className="w-4 h-4" /> Generate Report Cards
@@ -657,6 +661,18 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     </div>
                 </div>
             </div>
+
+            {/* GENERATE REPORT CARDS WIZARD MODAL */}
+            <GenerateReportCardsWizardModal
+                isOpen={isWizardOpen}
+                onClose={() => setIsWizardOpen(false)}
+                currentInstitution={currentInstitution}
+                assessments={assessments}
+                onApplyReportConfig={(config) => {
+                    setSelectedYear(config.academicYear);
+                    setSelectedTerm(config.academicTerm);
+                }}
+            />
         </div>
     );
 };
