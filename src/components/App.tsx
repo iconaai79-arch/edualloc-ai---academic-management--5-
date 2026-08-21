@@ -168,6 +168,7 @@ const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfi
 const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then(m => ({ default: m.PublicVisitorAuthorization })));
 const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
+const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then(m => ({ default: m.PublicResultSlipPortal })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
 const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m.RestaurantPOSManager })));
 import HealthCoreView from './his/HealthCoreView';
@@ -7524,8 +7525,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                              />
                          ) : showTransportHub ? (
                             <TransportHubView 
-                                institutions={institutions}
-                                onBack={() => setShowTransportHub(false)}
+                                                institutions={institutions}
+                                 onBack={() => setShowTransportHub(false)}
                             />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView carListings={carListings} />
@@ -7541,7 +7542,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                      invoiceId={new URLSearchParams(window.location.search).get('id') || ''} 
                                  />
                              </Suspense>
-                         ) : window.location.search.includes('view=join-campaign') ? (
+                          ) : (
+                             new URLSearchParams(window.location.search).get('view') === 'results-slip' ||
+                             new URLSearchParams(window.location.search).get('view') === 'result-slip' ||
+                             new URLSearchParams(window.location.search).get('view') === 'results' ||
+                             new URLSearchParams(window.location.search).get('view') === 'slip' ||
+                             new URLSearchParams(window.location.search).get('view') === 'resultslip' ||
+                             Boolean(new URLSearchParams(window.location.search).get('adm')) ||
+                             Boolean(new URLSearchParams(window.location.search).get('slip')) ||
+                             window.location.pathname.includes('/portal/results') ||
+                             window.location.pathname.includes('/results-slip') ||
+                             window.location.pathname.includes('/slip')
+                          ) ? (
+                             <Suspense fallback={<SystemPulseLoader message="Loading Result Slip Portal..." />}>
+                                 <PublicResultSlipPortal 
+                                     institutions={institutions}
+                                     users={users}
+                                     assessments={assessments}
+                                 />
+                             </Suspense>
+                          ) : window.location.search.includes('view=join-campaign') ? (
                             <CampaignJoinPage 
                                 campaignId={new URLSearchParams(window.location.search).get('id') || ''} 
                                 onBack={() => window.location.href = '/?view=community'}

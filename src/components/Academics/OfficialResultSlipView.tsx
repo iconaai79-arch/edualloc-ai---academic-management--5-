@@ -479,7 +479,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             return pdfShortUrlCache.get(cacheKey)!;
         }
 
-        const longPdfUrl = `${window.location.origin}/portal/results?adm=${encodeURIComponent(rawAdm)}&exam=${encodeURIComponent(rawExam)}&format=pdf`;
+        const longPdfUrl = `${window.location.origin}/?view=results-slip&adm=${encodeURIComponent(rawAdm)}&exam=${encodeURIComponent(rawExam)}&format=pdf`;
 
         try {
             const shortened = await apiService.shortenUrl(longPdfUrl);
