@@ -56,23 +56,17 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     onSwitchPerspective,
     activityLog = []
 }) => {
-    // Filter activity log to show only library-relevant entries
-    const libraryLogs = useMemo(() =>
-        activityLog.filter(l =>
-            (l.action || '').toLowerCase().includes('library') ||
-            (l.action || '').toLowerCase().includes('book') ||
-            (l.action || '').toLowerCase().includes('lend') ||
-            (l.action || '').toLowerCase().includes('return') ||
-            (l.action || '').toLowerCase().includes('fine') ||
-            (l.action || '').toLowerCase().includes('reservation') ||
-            (l.action || '').toLowerCase().includes('catalog') ||
-            ((l.module || '') as string) === 'Library'
-        ),
-    [activityLog]);
-
     const [activeTab, setActiveTab] = useState<LibraryTab>('dashboard');
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<v_library_statistics | null>(null);
+
+    // Audit and circulation data for full-spectrum system logs
+    const [transactions, setTransactions] = useState<LibraryTransaction[]>([]);
+    const [fines, setFines] = useState<LibraryFine[]>([]);
+    const [reservations, setReservations] = useState<BookReservation[]>([]);
+    const [books, setBooks] = useState<Book[]>([]);
+    const [enrollments, setEnrollments] = useState<any[]>([]);
+    const [dbLogs, setDbLogs] = useState<ActivityLog[]>([]);
 
     // Navigation Vertical Menu State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -94,7 +88,16 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     const loadLibraryData = async () => {
         setLoading(true);
         try {
-            const statRecords = await apiService.fetchModuleRecords<any>('v_library_statistics', currentInstitution.id);
+            const [statRecords, transData, finesData, resData, booksData, enrData, auditData] = await Promise.all([
+                apiService.fetchModuleRecords<any>('v_library_statistics', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<LibraryFine>('library_fines', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<BookReservation>('book_reservations', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<Book>('books', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<ActivityLog>('activity_log', currentInstitution.id).catch(() => [])
+            ]);
+
             if (statRecords && statRecords.length > 0) {
                 setStats(statRecords[0]);
             } else {
@@ -108,13 +111,179 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
                     pending_reservations: 0
                 });
             }
-            await onLogAction('Accessed Library Dashboard');
+
+            setTransactions(transData || []);
+            setFines(finesData || []);
+            setReservations(resData || []);
+            setBooks(booksData || []);
+            setEnrollments(enrData || []);
+            setDbLogs(auditData || []);
         } catch (error) {
             console.error('Error loading library data:', error);
         } finally {
             setLoading(false);
         }
     };
+
+    // Filter and synthesize activity log to show all events across students, teachers, librarians, and admin
+    const libraryLogs: ActivityLog[] = useMemo(() => {
+        const list: ActivityLog[] = [];
+        const seenIds = new Set<string>();
+
+        const norm = (s: any) => (s || '').toString().trim().toLowerCase();
+
+        const getBookTitle = (id: string) =>
+            books.find(b => b.id === id)?.title ||
+            books.find(b => b.accessionNumber === id)?.title ||
+            'Book Resource';
+
+        const getBookAcc = (id: string) =>
+            books.find(b => b.id === id)?.accessionNumber || id || 'N/A';
+
+        const getPatronName = (id: string, trans?: any) => {
+            if (trans?.userName && !norm(trans.userName).includes('unknown')) return trans.userName;
+            if (trans?.studentName && !norm(trans.studentName).includes('unknown')) return trans.studentName;
+            if (trans?.borrowerName && !norm(trans.borrowerName).includes('unknown')) return trans.borrowerName;
+            if (trans?.recipientName && !norm(trans.recipientName).includes('unknown')) return trans.recipientName;
+
+            const u = users.find(user => 
+                user.id === id || 
+                user.staffId === id || 
+                user.admissionNumber === id ||
+                norm(user.id) === norm(id) ||
+                norm(user.admissionNumber) === norm(id)
+            );
+            if (u && u.name) return u.name;
+
+            const en = enrollments.find(e => 
+                e.id === id || 
+                e.userId === id || 
+                e.student_id === id || 
+                norm(e.admissionNumber) === norm(id) || 
+                norm(e.admission_number) === norm(id) ||
+                norm(e.admNo) === norm(id)
+            );
+            if (en) {
+                const enName = en.fullName || en.name || en.studentName || en.student_name;
+                if (enName) return enName;
+            }
+            return id ? `Member (${id.startsWith('usr_') || id.startsWith('enr_') ? id.slice(-4).toUpperCase() : id})` : 'Library Patron';
+        };
+
+        // 1. Synthesize Loan Issuance & Return Events
+        transactions.forEach(t => {
+            const patron = getPatronName(t.userId, t);
+            const bookTitle = getBookTitle(t.bookId);
+            const bookAcc = getBookAcc(t.bookId);
+            const issueTime = t.issueDate || new Date().toISOString();
+
+            // Loan Issue Event
+            const issueLogId = `log_trans_issue_${t.id}`;
+            if (!seenIds.has(issueLogId)) {
+                seenIds.add(issueLogId);
+                const isOverdue = t.status === 'issued' && new Date(t.dueDate) < new Date();
+                list.push({
+                    id: issueLogId,
+                    institutionId: currentInstitution.id,
+                    userId: t.userId,
+                    userName: patron,
+                    action: `Borrowed: "${bookTitle}" [${bookAcc}]`,
+                    details: `Deadline: ${new Date(t.dueDate).toLocaleDateString()}${isOverdue ? ' • Overdue' : ' • Active Circulation'}`,
+                    timestamp: issueTime,
+                    module: 'Library'
+                });
+            }
+
+            // Loan Return Event
+            if (t.status === 'returned' && t.returnDate) {
+                const returnLogId = `log_trans_return_${t.id}`;
+                if (!seenIds.has(returnLogId)) {
+                    seenIds.add(returnLogId);
+                    const wasOverdue = new Date(t.returnDate) > new Date(t.dueDate);
+                    list.push({
+                        id: returnLogId,
+                        institutionId: currentInstitution.id,
+                        userId: t.userId,
+                        userName: patron,
+                        action: `Returned: "${bookTitle}" [${bookAcc}]`,
+                        details: wasOverdue ? `Returned overdue on ${new Date(t.returnDate).toLocaleDateString()}` : `Returned on time in good standing`,
+                        timestamp: t.returnDate,
+                        module: 'Library'
+                    });
+                }
+            }
+        });
+
+        // 2. Synthesize Fines & Penalty Events
+        fines.forEach(f => {
+            const patron = getPatronName(f.userId);
+            const fineLogId = `log_fine_${f.id}`;
+            if (!seenIds.has(fineLogId)) {
+                seenIds.add(fineLogId);
+                list.push({
+                    id: fineLogId,
+                    institutionId: currentInstitution.id,
+                    userId: f.userId,
+                    userName: patron,
+                    action: `Library Penalty: KES ${f.amount} (${f.description || 'Overdue charge'})`,
+                    details: `Status: ${(f.status || 'unpaid').toUpperCase()} • Settled: KES ${f.paidAmount || 0}`,
+                    timestamp: f.createdAt || new Date().toISOString(),
+                    module: 'Library'
+                });
+            }
+        });
+
+        // 3. Synthesize Book Reservation Events
+        reservations.forEach(r => {
+            const patron = getPatronName(r.userId);
+            const bookTitle = getBookTitle(r.bookId);
+            const resLogId = `log_res_${r.id}`;
+            if (!seenIds.has(resLogId)) {
+                seenIds.add(resLogId);
+                list.push({
+                    id: resLogId,
+                    institutionId: currentInstitution.id,
+                    userId: r.userId,
+                    userName: patron,
+                    action: `Hold Reservation: "${bookTitle}"`,
+                    details: `Queue Status: ${(r.status || 'pending').toUpperCase()} • Valid until ${new Date(r.expiryDate).toLocaleDateString()}`,
+                    timestamp: r.reservationDate || new Date().toISOString(),
+                    module: 'Library'
+                });
+            }
+        });
+
+        // 4. Incorporate General Activity Log Records
+        const combinedUiLogs = [...(activityLog || []), ...(dbLogs || [])];
+        combinedUiLogs.forEach(l => {
+            const act = (l.action || '').toLowerCase();
+            const mod = (((l as any).module || '') as string).toLowerCase();
+            const isLibraryEvent = mod === 'library' || 
+                act.includes('library') || 
+                act.includes('book') || 
+                act.includes('lend') || 
+                act.includes('borrow') || 
+                act.includes('return') || 
+                act.includes('fine') || 
+                act.includes('reservation') || 
+                act.includes('sponsor') || 
+                act.includes('catalog');
+
+            if (isLibraryEvent) {
+                const uid = l.id || `log_ui_${l.timestamp}_${l.action}`;
+                if (!seenIds.has(uid)) {
+                    seenIds.add(uid);
+                    list.push({
+                        ...l,
+                        id: uid,
+                        module: 'Library'
+                    });
+                }
+            }
+        });
+
+        return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [transactions, fines, reservations, books, users, enrollments, activityLog, dbLogs, currentInstitution.id]);
 
     // Simulate RFID Chip Scan
     const handleSimulateRfidScan = () => {
