@@ -1181,59 +1181,67 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                         </div>
 
                         {/* Metadata Grid */}
-                        <div className="col-span-10 grid grid-cols-4 divide-x divide-y divide-slate-900 font-semibold">
-                            {/* Row 1 */}
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Name:</span>
-                                <span className="font-bold uppercase text-slate-900 truncate">{activeStudent.name}</span>
-                            </div>
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Adm No.</span>
-                                <span className="font-bold text-slate-900">{(activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '603'}</span>
-                            </div>
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Sex:</span>
-                                <span className="font-bold text-slate-900">{(activeStudent as any).gender || (activeStudent as any).sex || 'F'}</span>
-                            </div>
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Class:</span>
-                                <span className="font-bold text-slate-900">{(activeStudent as any).studentClass || selectedYearGroup}</span>
+                        <div className="col-span-10 divide-y divide-slate-900 font-semibold">
+                            {/* Row 1: Generous room for Name (5 cols), compact Adm No (2 cols), Gender (2 cols), Class (3 cols) */}
+                            <div className="grid grid-cols-12 divide-x divide-slate-900">
+                                <div className="p-1.5 col-span-5 flex items-center gap-1.5 min-w-0">
+                                    <span className="font-bold text-slate-900 shrink-0">Name:</span>
+                                    <span className="font-bold uppercase text-slate-900 truncate" title={activeStudent.name}>{activeStudent.name}</span>
+                                </div>
+                                <div className="p-1.5 col-span-2 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Adm No.</span>
+                                    <span className="font-bold text-slate-900 truncate">{(activeStudent as any).admissionNo || (activeStudent as any).admissionNumber || (activeStudent as any).admNo || '603'}</span>
+                                </div>
+                                <div className="p-1.5 col-span-2 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Gender:</span>
+                                    <span className="font-bold text-slate-900 truncate">{(activeStudent as any).gender || (activeStudent as any).sex || 'F'}</span>
+                                </div>
+                                <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Class:</span>
+                                    <span className="font-bold text-slate-900 truncate">{(activeStudent as any).studentClass || selectedYearGroup}</span>
+                                </div>
                             </div>
 
                             {/* Row 2 */}
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Total marks:</span>
-                                <span className="font-bold text-slate-900">{totalMarks}</span>
-                            </div>
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Class Mean:</span>
-                                <span className="font-bold text-slate-900">{classMean}%</span>
-                            </div>
-                            <div className="p-1.5 col-span-2 flex gap-1">
-                                <span className="font-bold text-slate-900">Curriculum:</span>
-                                <span className="font-bold text-slate-900 uppercase">
-                                    {isPrimaryOrCBC ? 'CBC ASSESSMENT' : '8-4-4 SYSTEM'}
-                                </span>
+                            <div className="grid grid-cols-12 divide-x divide-slate-900">
+                                <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Total marks:</span>
+                                    <span className="font-bold text-slate-900">{totalMarks}</span>
+                                </div>
+                                <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Class Mean:</span>
+                                    <span className="font-bold text-slate-900">{classMean}%</span>
+                                </div>
+                                <div className="p-1.5 col-span-6 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Curriculum:</span>
+                                    <span className="font-bold text-slate-900 uppercase">
+                                        {isPrimaryOrCBC ? 'CBC ASSESSMENT' : '8-4-4 SYSTEM'}
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Row 3 */}
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Mean score:</span>
-                                <span className="font-bold text-slate-900">{meanScore}%</span>
-                            </div>
-                            <div className="p-1.5 col-span-3 flex gap-1">
-                                <span className="font-bold text-slate-900">Overall pos:</span>
-                                <span className="font-bold text-slate-900">{overallRank} / {matchingStudents.length}</span>
+                            <div className="grid grid-cols-12 divide-x divide-slate-900">
+                                <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Mean score:</span>
+                                    <span className="font-bold text-slate-900">{meanScore}%</span>
+                                </div>
+                                <div className="p-1.5 col-span-9 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Overall pos:</span>
+                                    <span className="font-bold text-slate-900">{overallRank} / {matchingStudents.length}</span>
+                                </div>
                             </div>
 
                             {/* Row 4 */}
-                            <div className="p-1.5 flex gap-1">
-                                <span className="font-bold text-slate-900">Mean grade:</span>
-                                <span className="font-bold text-slate-900">{overallGradeInfo.grade}</span>
-                            </div>
-                            <div className="p-1.5 col-span-3 flex gap-1">
-                                <span className="font-bold text-slate-900">Stream pos:</span>
-                                <span className="font-bold text-slate-900">{overallRank} / {matchingStudents.length}</span>
+                            <div className="grid grid-cols-12 divide-x divide-slate-900">
+                                <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Mean grade:</span>
+                                    <span className="font-bold text-slate-900">{overallGradeInfo.grade}</span>
+                                </div>
+                                <div className="p-1.5 col-span-9 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Stream pos:</span>
+                                    <span className="font-bold text-slate-900">{overallRank} / {matchingStudents.length}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
