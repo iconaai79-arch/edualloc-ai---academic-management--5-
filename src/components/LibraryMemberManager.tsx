@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, LibraryTransaction, LibraryFine, Book, Institution, CompanyDetails } from '../types';
+import type { User, LibraryTransaction, LibraryFine, Book, Institution, CompanyDetails, Course } from '../types';
 import { SearchIcon } from './icons/SearchIcon';
 import { UserIcon } from './icons/UserIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
@@ -98,7 +98,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             });
             setLiveUsers(Array.from(userMap.values()));
 
-            const targetType = (institution?.institutionType === 'driving_school' || (institution as any)?.category === 'driving_school') ? 'driving_school' : 'academic';
+            const targetType = ((institution?.institutionType as string) === 'driving_school' || (institution as any)?.category === 'driving_school') ? 'driving_school' : 'academic';
 
             // Filter enrollments to institution & enrollment type
             let allEnr = (enrollmentsData || []).filter(e => {
@@ -409,7 +409,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         if (classFilter !== 'all') {
             const matchedCourse = courses.find(c => c.name.trim().toLowerCase() === classFilter.trim().toLowerCase());
             if (matchedCourse?.levels && matchedCourse.levels.length > 0) {
-                matchedCourse.levels.forEach(l => {
+                matchedCourse.levels.forEach((l: any) => {
                     if (l.name && l.name.trim()) rawStreams.push(l.name.trim());
                 });
             }

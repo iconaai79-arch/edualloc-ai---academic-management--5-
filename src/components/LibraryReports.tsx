@@ -31,6 +31,24 @@ interface LibraryReportsProps {
     onLogAction: (action: string) => Promise<void>;
 }
 
+export interface MappedMember {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    role: any;
+    admissionNumber?: string;
+    admission_number?: string;
+    staffId?: string;
+    gradeLevel: string;
+    stream: string;
+    classDisplay: string;
+    classStr: string;
+    courseId?: string;
+    courseLevelId?: string;
+    status: string;
+}
+
 type ReportSectionId =
     | 'summary'
     | 'statements'
@@ -49,6 +67,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     courses,
     onLogAction
 }) => {
+    const [activeReportId, setActiveReportId] = useState<ReportSectionId>('summary');
     const [books, setBooks] = useState<Book[]>([]);
     const [transactions, setTransactions] = useState<LibraryTransaction[]>([]);
     const [fines, setFines] = useState<LibraryFine[]>([]);
@@ -58,12 +77,9 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
     const [liveUsers, setLiveUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Active Vertical Sub-Menu Tab
-    const [activeReportId, setActiveReportId] = useState<ReportSectionId>('summary');
-
     // Patron Statements State
     const [searchUserTerm, setSearchUserTerm] = useState('');
-    const [selectedStatementUser, setSelectedStatementUser] = useState<any | null>(null);
+    const [selectedStatementUser, setSelectedStatementUser] = useState<MappedMember | null>(null);
     const [isPrintingStatement, setIsPrintingStatement] = useState(false);
 
     // Defaulters Filter State
@@ -176,11 +192,6 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
     const extractStudentName = (item: any): string => {
         if (!item) return '';
-        if (typeof item === 'string') {
-            const clean = item.trim();
-            if (clean && isGood(clean)) return clean;
-            return '';
-        }
 
         const isGood = (n: any) => {
             if (!n || typeof n !== 'string') return false;
@@ -200,6 +211,12 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                    !clean.startsWith('enr_') && 
                    !clean.startsWith('usr_');
         };
+
+        if (typeof item === 'string') {
+            const clean = item.trim();
+            if (clean && isGood(clean)) return clean;
+            return '';
+        }
 
         // 1. Direct top-level name properties
         if (isGood(item.name)) return item.name.trim();
@@ -302,23 +319,6 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                 if (t.userId) transNameByUserId.set(t.userId.toLowerCase(), tName);
             }
         });
-
-        interface MappedMember {
-            id: string;
-            userId: string;
-            name: string;
-            email: string;
-            role: any;
-            admissionNumber?: string;
-            staffId?: string;
-            gradeLevel: string;
-            stream: string;
-            classDisplay: string;
-            classStr: string;
-            courseId?: string;
-            courseLevelId?: string;
-            status: string;
-        }
 
         // 1. Process all enrolled students
         const mappedStudents: MappedMember[] = enrollments.map((e) => {
@@ -429,7 +429,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         return Array.from(deduped.values());
     }, [enrollments, liveUsers, users]);
 
-    const getUserObject = (id: string, trans?: any) => {
+    const getUserObject = (id: string, trans?: any): MappedMember | null => {
         if (!id && !trans) return null;
         const normId = norm(id);
 
@@ -444,12 +444,43 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         const transName = trans?.userName || trans?.studentName || trans?.borrowerName || trans?.recipientName;
         return {
             id,
+            userId: id,
             name: transName || 'Member Patron',
+            email: '',
+            role: 'student',
             admissionNumber: trans?.studentAdmNo || 'No ID',
+            admission_number: trans?.studentAdmNo || 'No ID',
+            staffId: '',
             classDisplay: trans?.studentClass || '—',
+            classStr: trans?.studentClass || '—',
             gradeLevel: '',
-            stream: ''
+            stream: '',
+            courseId: '',
+            courseLevelId: '',
+            status: 'Active'
         };
+    };
+
+    const matchStatementUser = (tUserId: string, t?: any) => {
+        if (!selectedStatementUser || (!tUserId && !t)) return false;
+        const target = norm(tUserId);
+        const selId = norm(selectedStatementUser.id);
+        const selUId = norm(selectedStatementUser.userId);
+        const selAdm = norm(selectedStatementUser.admissionNumber);
+        const selStaff = norm(selectedStatementUser.staffId);
+        const selName = norm(selectedStatementUser.name);
+
+        if (target && (target === selId || target === selUId || target === selAdm || target === selStaff)) {
+            return true;
+        }
+
+        const tAdm = norm(t?.studentAdmNo || t?.admissionNumber || t?.memberDetails?.admissionNumber);
+        if (tAdm && (tAdm === selAdm || tAdm === selId)) return true;
+
+        const tName = norm(t?.userName || t?.studentName || t?.borrowerName || t?.recipientName);
+        if (tName && selName && (tName === selName || tName.includes(selName) || selName.includes(tName))) return true;
+
+        return false;
     };
 
     const getUserName = (id: string, trans?: any) => {
@@ -602,32 +633,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         if (!selectedStatementUser) return;
         setIsPrintingStatement(true);
         try {
-            const matchUser = (tUserId: string, t?: any) => {
-                if (!tUserId && !t) return false;
-                const target = norm(tUserId);
-                const selId = norm(selectedStatementUser.id);
-                const selUId = norm(selectedStatementUser.userId);
-                const selAdm = norm(selectedStatementUser.admissionNumber);
-                const selStaff = norm(selectedStatementUser.staffId);
-                const selName = norm(selectedStatementUser.name);
-
-                if (target && (target === selId || target === selUId || target === selAdm || target === selStaff)) {
-                    return true;
-                }
-
-                const tAdm = norm(t?.studentAdmNo || t?.admissionNumber || t?.memberDetails?.admissionNumber);
-                if (tAdm && (tAdm === selAdm || tAdm === selId)) return true;
-
-                const tName = norm(t?.userName || t?.studentName || t?.borrowerName || t?.recipientName);
-                if (tName && selName && (tName === selName || tName.includes(selName) || selName.includes(tName))) return true;
-
-                return false;
-            };
-
             const userTrans = transactions
-                .filter(t => matchUser(t.userId, t))
+                .filter(t => matchStatementUser(t.userId, t))
                 .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
-            const userFines = fines.filter(f => matchUser(f.userId));
+            const userFines = fines.filter(f => matchStatementUser(f.userId));
             const activeLoans = userTrans.filter(t => t.status === 'issued' || t.status === 'overdue');
             const history = userTrans.filter(t => t.status === 'returned');
 
@@ -1025,11 +1034,11 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
 
                             {selectedStatementUser && (() => {
                                 const userTransList = transactions
-                                    .filter(t => matchUser(t.userId, t))
+                                    .filter(t => matchStatementUser(t.userId, t))
                                     .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
 
                                 const userFinesList = fines
-                                    .filter(f => matchUser(f.userId))
+                                    .filter(f => matchStatementUser(f.userId))
                                     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
                                 const userActiveLoans = userTransList.filter(t => t.status === 'issued' || t.status === 'overdue').length;
