@@ -342,8 +342,20 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 (matchedUser as any)?.stream_name || 
                 matchedUser?.metadata?.stream || 
                 userLevel?.name || 
+                e.section ||
                 ''
             ).toString().trim();
+
+            let classDisplay = '';
+            if (gradeLevel && stream) {
+                if (gradeLevel.toLowerCase().includes(stream.toLowerCase())) {
+                    classDisplay = gradeLevel;
+                } else {
+                    classDisplay = `${gradeLevel} ${stream}`;
+                }
+            } else {
+                classDisplay = gradeLevel || stream || 'General';
+            }
 
             return {
                 ...(matchedUser || {}),
@@ -357,8 +369,10 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                 admission_number: String(adm),
                 gradeLevel,
                 stream,
+                classDisplay,
+                classStr: classDisplay,
                 metadata: { ...(matchedUser?.metadata || {}), ...(e.metadata || {}) }
-            } as User & { admissionNumber: string; gradeLevel: string; stream: string };
+            } as User & { admissionNumber: string; gradeLevel: string; stream: string; classDisplay: string; classStr: string };
         });
     }, [liveUsers, enrollments, courses, institutionId]);
 

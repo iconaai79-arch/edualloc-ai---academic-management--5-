@@ -4006,9 +4006,50 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.line(margin, tableStartY - 12, pageWidth - margin, tableStartY - 12);
 
     const memberIdDisplay = (member as any).admissionNumber || member.admissionNumber || (member as any).admission_number || (member as any).admNo || member.staffId || (member as any).userId || (member as any).studentId || 'N/A';
-    const gradeLevel = (member as any).gradeLevel || (member as any).grade || (member as any).classLevel || (member as any).metadata?.gradeLevel || (member as any).metadata?.grade || '';
-    const stream = (member as any).stream || (member as any).streamName || (member as any).metadata?.stream || '';
-    const memberClassDisplay = (member as any).classDisplay || (member as any).classStr || (gradeLevel && stream ? `${gradeLevel} - ${stream}` : gradeLevel || stream || 'N/A');
+    
+    const gradeLevel = (
+        (member as any).gradeLevel || 
+        (member as any).grade || 
+        (member as any).classLevel || 
+        (member as any).className ||
+        (member as any).metadata?.gradeLevel || 
+        (member as any).metadata?.grade || 
+        (member as any).metadata?.class || 
+        (member as any).metadata?.className ||
+        (member as any).studentClass || 
+        ''
+    ).toString().trim();
+
+    const stream = (
+        (member as any).stream || 
+        (member as any).streamName || 
+        (member as any).metadata?.stream || 
+        (member as any).section || 
+        (member as any).metadata?.section || 
+        ''
+    ).toString().trim();
+
+    let rawClassDisplay = ((member as any).classDisplay || (member as any).classStr || '').toString().trim();
+    if (rawClassDisplay.toLowerCase() === 'general' || rawClassDisplay === '—' || rawClassDisplay === '-') {
+        rawClassDisplay = '';
+    }
+
+    let memberClassDisplay = '';
+    if (gradeLevel && stream) {
+        if (gradeLevel.toLowerCase().includes(stream.toLowerCase())) {
+            memberClassDisplay = gradeLevel;
+        } else {
+            memberClassDisplay = `${gradeLevel} ${stream}`;
+        }
+    } else if (rawClassDisplay) {
+        if (gradeLevel && !rawClassDisplay.toLowerCase().includes(gradeLevel.toLowerCase())) {
+            memberClassDisplay = `${gradeLevel} ${rawClassDisplay}`;
+        } else {
+            memberClassDisplay = rawClassDisplay;
+        }
+    } else {
+        memberClassDisplay = gradeLevel || stream || 'N/A';
+    }
 
     // Guard for member.role
     const roleText = (Array.isArray(member.roles) && member.roles.length > 0)
@@ -4123,14 +4164,20 @@ export const generateMemberLibraryHistoryPdf = async (
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
+    
+    const valText = `KES ${totalDue.toLocaleString()}`;
+    const valWidth = doc.getTextWidth(valText);
+    const labelText = 'TOTAL OUTSTANDING FINES: ';
+    
     doc.setTextColor(0, 0, 0); // Reset color
-    doc.text('TOTAL OUTSTANDING FINE:', pageWidth - margin - 55, finalY + 10);
+    doc.text(labelText, pageWidth - margin - valWidth - 4, finalY + 10, { align: 'right' });
+    
     if (totalDue > 0) {
         doc.setTextColor(200, 0, 0);
     } else {
-        doc.setTextColor(0, 100, 0);
+        doc.setTextColor(0, 128, 0);
     }
-    doc.text(`KES ${totalDue?.toLocaleString()}`, pageWidth - margin, finalY + 10, { align: 'right' });
+    doc.text(valText, pageWidth - margin, finalY + 10, { align: 'right' });
 
     setupPdfFooter(doc, footerImg);
     return doc.output('datauristring');

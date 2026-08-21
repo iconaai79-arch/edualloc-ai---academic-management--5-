@@ -356,9 +356,52 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             const cleanAdm = eAdm || matchedUser?.admissionNumber || (matchedUser as any)?.admission_number || `ADM-${e.id.slice(-4).toUpperCase()}`;
             const cleanName = candidateName || cleanAdm.toUpperCase();
 
-            const gradeLevel = e.class || e.grade || e.level || e.courseName || e.metadata?.class || e.metadata?.grade || '';
-            const stream = e.stream || e.section || e.metadata?.stream || e.metadata?.section || '';
-            const classDisplay = e.classDisplay || (gradeLevel && stream ? `${gradeLevel} - ${stream}` : gradeLevel || stream || 'General');
+            const userCourse = courses.find(c => c.id === e.courseId || c.id === matchedUser?.courseId);
+            const userLevel = userCourse?.levels?.find((l: any) => l.id === e.courseLevelId || l.id === matchedUser?.courseLevelId);
+
+            const gradeLevel = (
+                e.metadata?.gradeLevel || 
+                e.gradeLevel || 
+                e.classLevel || 
+                (e as any)?.studentClass || 
+                matchedUser?.studentClass || 
+                (matchedUser as any)?.classLevel || 
+                (matchedUser as any)?.class_name || 
+                matchedUser?.metadata?.gradeLevel || 
+                userCourse?.name || 
+                e.class || 
+                e.grade || 
+                e.level || 
+                e.courseName || 
+                e.metadata?.class || 
+                e.metadata?.grade || 
+                ''
+            ).toString().trim();
+
+            const stream = (
+                e.metadata?.stream || 
+                e.stream || 
+                e.streamName || 
+                (matchedUser as any)?.stream || 
+                (matchedUser as any)?.streamName || 
+                (matchedUser as any)?.stream_name || 
+                matchedUser?.metadata?.stream || 
+                userLevel?.name || 
+                e.section || 
+                e.metadata?.section || 
+                ''
+            ).toString().trim();
+
+            let classDisplay = '';
+            if (gradeLevel && stream) {
+                if (gradeLevel.toLowerCase().includes(stream.toLowerCase())) {
+                    classDisplay = gradeLevel;
+                } else {
+                    classDisplay = `${gradeLevel} ${stream}`;
+                }
+            } else {
+                classDisplay = gradeLevel || stream || 'General';
+            }
 
             return {
                 id: matchedUser?.id || e.userId || e.id,
@@ -385,6 +428,29 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             if (!seenStudentKeys.has(key)) {
                 seenStudentKeys.add(key);
                 const sName = extractStudentName(u) || u.name || (uAdm ? uAdm.toUpperCase() : 'Student Member');
+                const uCourse = courses.find(c => c.id === (u as any).courseId);
+                const uLevel = uCourse?.levels?.find((l: any) => l.id === (u as any).courseLevelId);
+                const uGrade = (
+                    (u as any).studentClass || 
+                    (u as any).classLevel || 
+                    (u as any).gradeLevel || 
+                    (u as any).grade || 
+                    (u as any).metadata?.gradeLevel || 
+                    (u as any).metadata?.class || 
+                    uCourse?.name || 
+                    ''
+                ).toString().trim();
+                const uStream = (
+                    (u as any).stream || 
+                    (u as any).streamName || 
+                    (u as any).metadata?.stream || 
+                    uLevel?.name || 
+                    ''
+                ).toString().trim();
+                const uClassDisplay = uGrade && uStream
+                    ? (uGrade.toLowerCase().includes(uStream.toLowerCase()) ? uGrade : `${uGrade} ${uStream}`)
+                    : uGrade || uStream || 'General';
+
                 mappedStudents.push({
                     id: u.id,
                     userId: u.id,
@@ -392,10 +458,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                     email: u.email || '',
                     role: 'Student',
                     admissionNumber: uAdm || u.id,
-                    gradeLevel: u.studentClass || (u as any).classLevel || '',
-                    stream: (u as any).stream || '',
-                    classDisplay: u.studentClass || 'General',
-                    classStr: u.studentClass || 'General',
+                    gradeLevel: uGrade,
+                    stream: uStream,
+                    classDisplay: uClassDisplay,
+                    classStr: uClassDisplay,
                     status: 'Active'
                 });
             }
@@ -434,7 +500,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         });
 
         return Array.from(deduped.values());
-    }, [enrollments, liveUsers, users]);
+    }, [enrollments, liveUsers, users, courses]);
 
     const getUserObject = (id: string, trans?: any): MappedMember | null => {
         if (!id && !trans) return null;
@@ -449,6 +515,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         if (found) return found;
 
         const transName = trans?.userName || trans?.studentName || trans?.borrowerName || trans?.recipientName;
+        const transClass = (trans?.studentClass || trans?.student_class || trans?.className || trans?.gradeLevel || '').toString().trim();
         return {
             id,
             userId: id,
@@ -458,9 +525,9 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             admissionNumber: trans?.studentAdmNo || 'No ID',
             admission_number: trans?.studentAdmNo || 'No ID',
             staffId: '',
-            classDisplay: trans?.studentClass || '—',
-            classStr: trans?.studentClass || '—',
-            gradeLevel: '',
+            classDisplay: transClass || 'General',
+            classStr: transClass || 'General',
+            gradeLevel: transClass,
             stream: '',
             courseId: '',
             courseLevelId: '',
