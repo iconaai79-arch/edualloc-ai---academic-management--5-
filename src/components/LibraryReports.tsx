@@ -495,16 +495,31 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
         if (!selectedStatementUser) return;
         setIsPrintingStatement(true);
         try {
-            const matchUser = (tUserId: string) => {
-                if (!tUserId) return false;
+            const matchUser = (tUserId: string, t?: any) => {
+                if (!tUserId && !t) return false;
                 const target = norm(tUserId);
-                return target === norm(selectedStatementUser.id) ||
-                       target === norm(selectedStatementUser.userId) ||
-                       target === norm(selectedStatementUser.admissionNumber) ||
-                       target === norm(selectedStatementUser.staffId);
+                const selId = norm(selectedStatementUser.id);
+                const selUId = norm(selectedStatementUser.userId);
+                const selAdm = norm(selectedStatementUser.admissionNumber);
+                const selStaff = norm(selectedStatementUser.staffId);
+                const selName = norm(selectedStatementUser.name);
+
+                if (target && (target === selId || target === selUId || target === selAdm || target === selStaff)) {
+                    return true;
+                }
+
+                const tAdm = norm(t?.studentAdmNo || t?.admissionNumber || t?.memberDetails?.admissionNumber);
+                if (tAdm && (tAdm === selAdm || tAdm === selId)) return true;
+
+                const tName = norm(t?.userName || t?.studentName || t?.borrowerName || t?.recipientName);
+                if (tName && selName && (tName === selName || tName.includes(selName) || selName.includes(tName))) return true;
+
+                return false;
             };
 
-            const userTrans = transactions.filter(t => matchUser(t.userId));
+            const userTrans = transactions
+                .filter(t => matchUser(t.userId, t))
+                .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
             const userFines = fines.filter(f => matchUser(f.userId));
             const activeLoans = userTrans.filter(t => t.status === 'issued' || t.status === 'overdue');
             const history = userTrans.filter(t => t.status === 'returned');
@@ -902,24 +917,23 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                             </div>
 
                             {selectedStatementUser && (() => {
-                                const matchUser = (tUserId: string) => {
-                                    if (!selectedStatementUser || !tUserId) return false;
-                                    const target = norm(tUserId);
-                                    return target === norm(selectedStatementUser.id) ||
-                                           target === norm(selectedStatementUser.userId) ||
-                                           target === norm(selectedStatementUser.admissionNumber) ||
-                                           target === norm(selectedStatementUser.staffId);
-                                };
+                                const userTransList = transactions
+                                    .filter(t => matchUser(t.userId, t))
+                                    .sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime());
 
-                                const userActiveLoans = transactions.filter(t => matchUser(t.userId) && (t.status === 'issued' || t.status === 'overdue')).length;
-                                const userReturns = transactions.filter(t => matchUser(t.userId) && t.status === 'returned').length;
-                                const userPenaltyTotal = fines.filter(f => matchUser(f.userId)).reduce((acc, f) => acc + (f.amount - (f.paidAmount || 0)), 0);
+                                const userFinesList = fines
+                                    .filter(f => matchUser(f.userId))
+                                    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+                                const userActiveLoans = userTransList.filter(t => t.status === 'issued' || t.status === 'overdue').length;
+                                const userReturns = userTransList.filter(t => t.status === 'returned').length;
+                                const userPenaltyTotal = userFinesList.reduce((acc, f) => acc + (f.amount - (f.paidAmount || 0)), 0);
 
                                 const adm = selectedStatementUser.admissionNumber || selectedStatementUser.staffId || 'No ID';
                                 const cl = selectedStatementUser.classDisplay || selectedStatementUser.classStr || '';
 
                                 return (
-                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-6 animate-scale-up">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-6 sm:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-6 animate-scale-up">
                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-200 dark:border-slate-700">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-md">
@@ -928,14 +942,14 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                                 <div>
                                                     <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
                                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                                        ID: {adm} {cl ? `• ${cl}` : ''}
+                                                        ID / ADM: <strong className="text-indigo-600 dark:text-indigo-400">{adm}</strong> {cl ? `• ${cl}` : ''}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => setSelectedStatementUser(null)}
-                                                    className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 cursor-pointer"
+                                                    className="px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600 font-black uppercase text-[10px] tracking-widest border border-slate-200 dark:border-slate-700 cursor-pointer transition-all"
                                                 >
                                                     Deselect
                                                 </button>
@@ -945,25 +959,150 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                                     className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-md transition-all cursor-pointer disabled:opacity-50"
                                                 >
                                                     <PrinterIcon className="w-4 h-4" />
-                                                    {isPrintingStatement ? 'Generating PDF...' : 'Print Statement'}
+                                                    {isPrintingStatement ? 'Generating PDF...' : 'Print Statement PDF'}
                                                 </button>
                                             </div>
                                         </div>
 
+                                        {/* Summary Cards */}
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Loans</p>
-                                                <p className="text-xl font-black text-indigo-600">{userActiveLoans}</p>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Unreturned Loans</p>
+                                                <p className="text-xl font-black text-indigo-600">{userActiveLoans} Books</p>
                                             </div>
                                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Returns</p>
-                                                <p className="text-xl font-black text-emerald-600">{userReturns}</p>
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Returned History</p>
+                                                <p className="text-xl font-black text-emerald-600">{userReturns} Books</p>
                                             </div>
                                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Unpaid Penalties</p>
                                                 <p className="text-xl font-black text-rose-600">KES {userPenaltyTotal.toLocaleString()}</p>
                                             </div>
                                         </div>
+
+                                        {/* Detailed Borrowing History Table */}
+                                        <div className="space-y-3 pt-2">
+                                            <div className="flex items-center justify-between">
+                                                <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                                                    Circulation & Borrowing Statement ({userTransList.length} Records)
+                                                </h5>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                                                    Chronological Statement
+                                                </span>
+                                            </div>
+
+                                            <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                                        <tr className="text-slate-400 text-[10px] font-black uppercase">
+                                                            <th className="p-3.5">Date Issued</th>
+                                                            <th className="p-3.5">Book Title</th>
+                                                            <th className="p-3.5">Due Date</th>
+                                                            <th className="p-3.5">Return Date</th>
+                                                            <th className="p-3.5 text-center">Book Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                                        {userTransList.map(t => {
+                                                            const isOverdue = t.status === 'issued' && new Date(t.dueDate) < new Date();
+                                                            const isReturned = t.status === 'returned';
+                                                            const bookTitle = getBookTitle(t.bookId);
+                                                            const bookAcc = getBookAccession(t.bookId);
+
+                                                            return (
+                                                                <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
+                                                                    <td className="p-3.5 font-mono text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap">
+                                                                        {t.issueDate ? new Date(t.issueDate).toLocaleDateString() : 'N/A'}
+                                                                    </td>
+                                                                    <td className="p-3.5">
+                                                                        <p className="font-bold text-slate-900 dark:text-white uppercase">{bookTitle}</p>
+                                                                        <span className="text-[9px] font-mono text-slate-400">ACC: {bookAcc}</span>
+                                                                    </td>
+                                                                    <td className="p-3.5 font-mono text-slate-500 whitespace-nowrap">
+                                                                        {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A'}
+                                                                    </td>
+                                                                    <td className="p-3.5 font-mono whitespace-nowrap">
+                                                                        {t.returnDate ? (
+                                                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                                {new Date(t.returnDate).toLocaleDateString()}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-slate-400 italic">Not Returned</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="p-3.5 text-center whitespace-nowrap">
+                                                                        {isReturned ? (
+                                                                            <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 rounded-full text-[9px] font-black uppercase">
+                                                                                ✓ Returned
+                                                                            </span>
+                                                                        ) : isOverdue || t.status === 'overdue' ? (
+                                                                            <span className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 rounded-full text-[9px] font-black uppercase">
+                                                                                ✕ Unreturned (Overdue)
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 rounded-full text-[9px] font-black uppercase">
+                                                                                ⏱ Unreturned (In Use)
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                        {userTransList.length === 0 && (
+                                                            <tr>
+                                                                <td colSpan={5} className="py-8 text-center text-xs font-bold text-slate-400">
+                                                                    No borrowing transactions recorded for this patron
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* Fines Breakdown Ledger if any */}
+                                        {userFinesList.length > 0 && (
+                                            <div className="space-y-3 pt-2">
+                                                <h5 className="text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                                    Penalty & Fines Statement ({userFinesList.length} Records)
+                                                </h5>
+                                                <div className="border border-rose-100 dark:border-rose-900/40 rounded-2xl overflow-hidden bg-white dark:bg-slate-800 shadow-sm">
+                                                    <table className="w-full text-left text-xs">
+                                                        <thead className="bg-rose-50/50 dark:bg-rose-950/30 border-b border-rose-100 dark:border-rose-900/40">
+                                                            <tr className="text-rose-400 text-[10px] font-black uppercase">
+                                                                <th className="p-3">Description</th>
+                                                                <th className="p-3">Assessed (KES)</th>
+                                                                <th className="p-3">Paid (KES)</th>
+                                                                <th className="p-3">Balance (KES)</th>
+                                                                <th className="p-3 text-center">Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                                            {userFinesList.map(f => {
+                                                                const bal = Math.max(0, (f.amount || 0) - (f.paidAmount || 0));
+                                                                return (
+                                                                    <tr key={f.id}>
+                                                                        <td className="p-3 font-bold text-slate-800 dark:text-slate-200">
+                                                                            {f.description || 'Library Penalty'}
+                                                                        </td>
+                                                                        <td className="p-3 font-mono font-bold">{f.amount?.toLocaleString()}</td>
+                                                                        <td className="p-3 font-mono text-emerald-600 font-bold">{(f.paidAmount || 0).toLocaleString()}</td>
+                                                                        <td className="p-3 font-mono font-black text-rose-600">{bal.toLocaleString()}</td>
+                                                                        <td className="p-3 text-center">
+                                                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                                                bal === 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                                                                            }`}>
+                                                                                {bal === 0 ? 'Settled' : 'Unpaid'}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })()}

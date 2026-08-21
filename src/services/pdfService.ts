@@ -3976,14 +3976,17 @@ export const generateMemberLibraryHistoryPdf = async (
     doc.text('MEMBER DETAILS', margin, tableStartY - 15);
     doc.line(margin, tableStartY - 12, pageWidth - margin, tableStartY - 12);
 
+    const memberIdDisplay = (member as any).admissionNumber || member.admissionNumber || member.staffId || (member as any).userId || 'N/A';
+    const memberClassDisplay = (member as any).classDisplay || (member as any).gradeLevel || '';
+
     doc.setFont('helvetica', 'normal');
     doc.text(`Name: ${member.name}`, margin, tableStartY - 5);
-    doc.text(`ID/Reg: ${member.staffId || 'N/A'}`, margin, tableStartY);
+    doc.text(`ID / Adm No: ${memberIdDisplay}${memberClassDisplay ? ` • Class: ${memberClassDisplay}` : ''}`, margin, tableStartY);
 
     // Guard for member.role - Fixed positioning to avoid overlap with Name
     const roleText = (Array.isArray(member.roles) && member.roles.length > 0)
         ? member.roles.map(r => formatRoleDisplayName(r as Role, institution)).join(', ').toUpperCase()
-        : (member.role ? formatRoleDisplayName(member.role, institution).toUpperCase() : 'N/A');
+        : (member.role ? formatRoleDisplayName(member.role, institution).toUpperCase() : 'STUDENT');
     doc.text(`Role: ${roleText}`, margin, tableStartY + 5);
 
     // Institution Contact Details
@@ -3996,21 +3999,29 @@ export const generateMemberLibraryHistoryPdf = async (
     let tableY = tableStartY + 25;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('BOOK CIRCULATION HISTORY', margin, tableY - 5);
+    doc.text('BOOK CIRCULATION & BORROWING STATEMENT', margin, tableY - 5);
 
-    const transactionBody = transactions.map(t => ([
-        t.issueDate ? new Date(t.issueDate).toLocaleDateString() : 'N/A',
-        getBookTitle(t.bookId),
-        t.returnDate ? new Date(t.returnDate).toLocaleDateString() : 'NOT RETURNED',
-        (t.status || 'unknown').toUpperCase()
-    ]));
+    const transactionBody = transactions.map(t => {
+        const isOverdue = t.status === 'issued' && new Date(t.dueDate) < new Date();
+        const statusText = t.status === 'returned'
+            ? 'RETURNED'
+            : (isOverdue || t.status === 'overdue' ? 'OVERDUE (UNRETURNED)' : 'UNRETURNED (IN USE)');
+
+        return [
+            t.issueDate ? new Date(t.issueDate).toLocaleDateString() : 'N/A',
+            getBookTitle(t.bookId),
+            t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A',
+            t.returnDate ? new Date(t.returnDate).toLocaleDateString() : '—',
+            statusText
+        ];
+    });
 
     const autoTable = (doc as any).autoTable;
     if (autoTable) {
         autoTable.call(doc, {
             startY: tableY,
-            head: [['Borrow Date', 'Book Title', 'Return Date', 'Status']],
-            body: transactionBody.length > 0 ? transactionBody : [['No transactions found', '', '', '']],
+            head: [['Date Issued', 'Book Title', 'Due Date', 'Return Date', 'Book Status']],
+            body: transactionBody.length > 0 ? transactionBody : [['No borrowing records found', '', '', '', '']],
             theme: 'grid',
             headStyles: { fillColor: [45, 55, 72], textColor: 255 },
             styles: { fontSize: 8 }
