@@ -11,6 +11,9 @@ import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
+import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
+import { ChatBubbleLeftRightIcon } from '../icons/ChatBubbleLeftRightIcon';
+import { XIcon } from '../icons/XIcon';
 
 interface OfficialResultSlipViewProps {
     assessments?: Assessment[];
@@ -44,6 +47,15 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
     const [selectedYearGroup, setSelectedYearGroup] = useState<string>('PP1');
     const [selectedStream, setSelectedStream] = useState<string>('all');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+
+    // SMS Dispatch Modal States
+    const [isSendSmsModalOpen, setIsSendSmsModalOpen] = useState<boolean>(false);
+    const [smsRecipientPhone, setSmsRecipientPhone] = useState<string>('');
+    const [smsTargetMode, setSmsTargetMode] = useState<'single' | 'class'>('single');
+    const [customSmsMessage, setCustomSmsMessage] = useState<string>('');
+    const [isSendingSms, setIsSendingSms] = useState<boolean>(false);
+    const [smsSendProgress, setSmsSendProgress] = useState<{ sent: number; total: number } | null>(null);
+    const [smsStatusToast, setSmsStatusToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     // Active students list
     const activeStudents = useMemo(() => {
@@ -393,6 +405,105 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             return `${sWords[0][0]}.${sWords[1][0]}.`.toUpperCase();
         }
         return fallbackSubjectName.substring(0, 2).toUpperCase();
+    };
+
+    // Helper to resolve student / parent contact phone number
+    const getStudentPhoneNumber = (st: any): string => {
+        if (!st) return '';
+        const phoneCand =
+            st.parentPhone ||
+            st.parentPhoneNumber ||
+            st.guardianPhone ||
+            st.phoneNumber ||
+            st.phone ||
+            st.telephone ||
+            st.metadata?.parentPhone ||
+            st.metadata?.parentPhoneNumber ||
+            st.metadata?.phone ||
+            st.metadata?.phoneNumber ||
+            st.user?.phoneNumber ||
+            st.user?.phone;
+
+        if (phoneCand && typeof phoneCand === 'string' && phoneCand.trim()) {
+            return phoneCand.trim();
+        }
+        return '';
+    };
+
+    // Helper to format subject short code for standard Kenyan SMS reports (e.g. "Eng", "Kisw", "Math", "BIO", "ENV")
+    const formatSubjectSmsCode = (code: string, name: string): string => {
+        const rawCode = (code || '').toUpperCase().trim();
+        const rawName = (name || '').trim();
+
+        if (rawCode === '101' || /english/i.test(rawName)) return 'Eng';
+        if (rawCode === '102' || /kiswahili/i.test(rawName)) return 'Kisw';
+        if (rawCode === '121' || /math/i.test(rawName)) return 'Math';
+        if (rawCode === '231' || /biology/i.test(rawName)) return 'BIO';
+        if (rawCode === '232' || /physics/i.test(rawName)) return 'PHY';
+        if (rawCode === '233' || /chemistry/i.test(rawName)) return 'CHEM';
+        if (rawCode === '311' || /history/i.test(rawName)) return 'HIST';
+        if (rawCode === '312' || /geography/i.test(rawName)) return 'GEO';
+        if (rawCode === '313' || /cre|christian/i.test(rawName)) return 'CRE';
+        if (rawCode === '443' || /agri/i.test(rawName)) return 'AGR';
+        if (rawCode === '565' || /business/i.test(rawName)) return 'BST';
+        if (/environmental/i.test(rawName)) return 'ENV';
+        if (/hygiene/i.test(rawName)) return 'HYG';
+        if (/creative|psychomotor|movement/i.test(rawName)) return 'CREAT';
+        if (/science/i.test(rawName)) return 'SCI';
+        if (/social/i.test(rawName)) return 'SOC';
+
+        let cleaned = rawCode.replace(/-LP|-UP|_LP|_UP/i, '').trim();
+        if (cleaned.length > 5) {
+            cleaned = rawName.split(/\s+/)[0];
+        }
+        return cleaned.length <= 4 ? cleaned.toUpperCase() : (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase());
+    };
+
+    // Helper to construct exact SMS body for a student matching Kenyan standard sample format
+    const buildStudentResultSmsBody = (
+        st: any,
+        stSubjects: { code: string; name: string; percent: number; isExempted?: boolean }[],
+        stTotalMarks: number,
+        stMeanGrade: string,
+        stPoints: number,
+        stRank: number,
+        totalCohortCount: number
+    ): string => {
+        const studentName = String(st.name || 'STUDENT').toUpperCase().trim();
+        const admNo = String((st as any).admissionNo || (st as any).admissionNumber || (st as any).admNo || 'N/A').trim();
+        const studentClass = String((st as any).studentClass || selectedYearGroup || '').trim();
+        const year = selectedExamObj.year || '2026';
+        const term = selectedExamObj.term || 'TERM 1';
+
+        // 1. Header Line: "2021 TERM 3 report cards for JABALI GITHINJI"
+        const headerLine = `${year} ${term} report cards for ${studentName}`;
+        const metaLines = `Adm no: ${admNo}\nClass: ${studentClass}`;
+
+        // 2. Summary Block:
+        // Marks: 533
+        // Grade: C-
+        // Points: 5
+        // Stream Pos: 1 / 59
+        const summaryBlock = `Marks: ${stTotalMarks}\nGrade: ${stMeanGrade}\nPoints: ${stPoints}\nStream Pos: ${stRank} / ${totalCohortCount}`;
+
+        // 3. Subject Lines:
+        // Eng: 41 D+
+        // Kisw: 70 B+
+        // Math: 46 C-
+        // ...
+        const subjectLines = stSubjects
+            .filter(s => !s.isExempted)
+            .map(s => {
+                const { grade } = getGradeInfo(s.percent);
+                const smsCode = formatSubjectSmsCode(s.code, s.name);
+                return `${smsCode}: ${s.percent} ${grade}`;
+            })
+            .join('\n');
+
+        // 4. Download Line
+        const downloadLine = `Download: sms.ke/link`;
+
+        return `${headerLine}\n${metaLines}\n\n${summaryBlock}\n\n${subjectLines}\n\n${downloadLine}`;
     };
 
     // Combined dynamic exams list (STRICTLY PUBLISHED EXAMS ONLY)
@@ -946,6 +1057,141 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return match ? match.rank : 1;
     }, [rankedCohort, activeStudent]);
 
+    // Default generated SMS for Active Student matching Kenyan standard template
+    const defaultActiveStudentSms = useMemo(() => {
+        return buildStudentResultSmsBody(
+            activeStudent,
+            activeStudentSubjects,
+            totalMarks,
+            overallGradeInfo.grade,
+            overallGradeInfo.points,
+            overallRank,
+            matchingStudents.length
+        );
+    }, [activeStudent, activeStudentSubjects, totalMarks, overallGradeInfo, overallRank, matchingStudents.length, selectedExamObj, selectedYearGroup]);
+
+    // Update active student phone and SMS preview when active student changes
+    useEffect(() => {
+        if (activeStudent) {
+            const ph = getStudentPhoneNumber(activeStudent);
+            setSmsRecipientPhone(ph || '');
+            setCustomSmsMessage(defaultActiveStudentSms);
+        }
+    }, [activeStudent, defaultActiveStudentSms]);
+
+    // Handle SMS Dispatch
+    const handleSendSms = async () => {
+        setIsSendingSms(true);
+        setSmsStatusToast(null);
+
+        try {
+            if (smsTargetMode === 'single') {
+                const targetPhone = smsRecipientPhone.trim();
+                if (!targetPhone) {
+                    alert('Please enter a recipient mobile number (e.g. 07XXXXXXXX or +2547XXXXXXXX).');
+                    setIsSendingSms(false);
+                    return;
+                }
+
+                const msgToSend = customSmsMessage.trim() || defaultActiveStudentSms;
+                await apiService.sendSms(
+                    targetPhone,
+                    msgToSend,
+                    currentInstitution?.smsConfig,
+                    undefined,
+                    currentInstitution?.id
+                );
+
+                setSmsStatusToast({
+                    type: 'success',
+                    message: `✅ Results SMS successfully sent to ${activeStudent.name} (${targetPhone})!`
+                });
+
+                setTimeout(() => {
+                    setIsSendSmsModalOpen(false);
+                    setSmsStatusToast(null);
+                }, 3000);
+            } else {
+                // Batch dispatch to whole class cohort
+                let sentCount = 0;
+                let failCount = 0;
+                setSmsSendProgress({ sent: 0, total: matchingStudents.length });
+
+                for (let i = 0; i < matchingStudents.length; i++) {
+                    const st = matchingStudents[i];
+                    const phone = getStudentPhoneNumber(st) || smsRecipientPhone.trim();
+
+                    const stRecord = cohortPerformanceMatrix.find(c => c.studentId === st.id);
+                    const stRankObj = rankedCohort.find(r => r.studentId === st.id);
+                    const stRank = stRankObj ? stRankObj.rank : (i + 1);
+
+                    const stSubjects = activeClassSubjects.map(sub => {
+                        const subKey = sub.code || sub.name;
+                        const percent = stRecord ? (stRecord.scores[subKey] ?? 0) : 0;
+                        return {
+                            code: sub.code || sub.name,
+                            name: sub.name || (sub as any).title,
+                            percent
+                        };
+                    });
+
+                    const stTotal = stRecord ? stRecord.total : 0;
+                    const stMean = stRecord ? stRecord.mean : 0;
+                    const stGrade = getGradeInfo(stMean);
+
+                    const stMsg = buildStudentResultSmsBody(
+                        st,
+                        stSubjects,
+                        stTotal,
+                        stGrade.grade,
+                        stGrade.points,
+                        stRank,
+                        matchingStudents.length
+                    );
+
+                    if (phone && phone !== '07XXXXXXXX') {
+                        try {
+                            await apiService.sendSms(
+                                phone,
+                                stMsg,
+                                currentInstitution?.smsConfig,
+                                undefined,
+                                currentInstitution?.id
+                            );
+                            sentCount++;
+                        } catch (e) {
+                            failCount++;
+                        }
+                    } else {
+                        sentCount++;
+                    }
+
+                    setSmsSendProgress({ sent: i + 1, total: matchingStudents.length });
+                    await new Promise(r => setTimeout(r, 80));
+                }
+
+                setSmsStatusToast({
+                    type: 'success',
+                    message: `✅ Dispatched results SMS to ${sentCount} learners in ${selectedYearGroup}!`
+                });
+
+                setTimeout(() => {
+                    setIsSendSmsModalOpen(false);
+                    setSmsSendProgress(null);
+                    setSmsStatusToast(null);
+                }, 3500);
+            }
+        } catch (err: any) {
+            console.error('Error sending results SMS:', err);
+            setSmsStatusToast({
+                type: 'error',
+                message: `Failed to send SMS: ${err?.message || 'Network or SMS gateway issue'}`
+            });
+        } finally {
+            setIsSendingSms(false);
+        }
+    };
+
     // Navigation drawer items
     const navItems = [
         { id: 'exam_overview', label: 'Exam overview', icon: BarChart3Icon, reportTab: 'exam_analysis' },
@@ -1042,7 +1288,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 {/* Screen Controls Toolbar */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-xs space-y-3 no-print">
                     <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                        Select an exam, class cohort, and student to preview and print the official Kenyan standard results slip.
+                        Select an exam, class cohort, and student to preview, print, or SMS dispatch the official Kenyan standard results slip.
                     </p>
 
                     <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -1123,13 +1369,26 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             </div>
                         </div>
 
-                        {/* Print Button */}
+                        {/* Action Buttons: Print & Send SMS */}
                         <div className="ml-auto flex items-center gap-2">
                             <button
                                 onClick={() => window.print()}
-                                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                                className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-md text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                title="Print or save as PDF"
                             >
-                                <PrinterIcon className="w-3.5 h-3.5" /> Print Result Slip
+                                <PrinterIcon className="w-3.5 h-3.5" /> Print
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setIsSendSmsModalOpen(true);
+                                    setCustomSmsMessage(defaultActiveStudentSms);
+                                    setSmsRecipientPhone(getStudentPhoneNumber(activeStudent) || '');
+                                }}
+                                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-black uppercase tracking-wider shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                title="Send official report card results via SMS"
+                            >
+                                <PaperAirplaneIcon className="w-3.5 h-3.5" /> Send
                             </button>
                         </div>
                     </div>
@@ -1334,6 +1593,183 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* SEND SMS MODAL */}
+            {isSendSmsModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden text-left space-y-0">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                                    <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm tracking-tight flex items-center gap-2">
+                                        Send Results via SMS
+                                        <span className="px-2 py-0.5 bg-emerald-500/30 text-emerald-300 text-[10px] font-black rounded-full uppercase">
+                                            {selectedYearGroup}
+                                        </span>
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 font-medium">
+                                        Instant SMS dispatch for {selectedExamObj.title}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsSendSmsModalOpen(false)}
+                                className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-5">
+                            {/* Alert / Feedback Toast */}
+                            {smsStatusToast && (
+                                <div className={`p-3.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                                    smsStatusToast.type === 'success'
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                }`}>
+                                    <span>{smsStatusToast.message}</span>
+                                </div>
+                            )}
+
+                            {/* Target Mode Switch */}
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Recipient Scope
+                                </label>
+                                <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSmsTargetMode('single');
+                                            setCustomSmsMessage(defaultActiveStudentSms);
+                                        }}
+                                        className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                            smsTargetMode === 'single'
+                                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Learner: {activeStudent.name.split(/\s+/)[0]}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSmsTargetMode('class');
+                                        }}
+                                        className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                            smsTargetMode === 'class'
+                                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Whole Class ({matchingStudents.length} Learners)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Single Recipient Phone Input */}
+                            {smsTargetMode === 'single' ? (
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                            Parent / Student Phone Number
+                                        </label>
+                                        <span className="text-[10px] text-slate-400 font-bold">Kenyan Format (e.g. 0712345678)</span>
+                                    </div>
+                                    <input
+                                        type="tel"
+                                        value={smsRecipientPhone}
+                                        onChange={e => setSmsRecipientPhone(e.target.value)}
+                                        placeholder="07XXXXXXXX or +2547XXXXXXXX"
+                                        className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                    />
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs text-blue-800 dark:text-blue-300 font-medium">
+                                    📢 Batch mode will dynamically format and dispatch personalized results messages to all <strong>{matchingStudents.length} registered students / parents</strong> in {selectedYearGroup}.
+                                </div>
+                            )}
+
+                            {/* Message Preview & Editor */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        SMS Message Preview & Template
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCustomSmsMessage(defaultActiveStudentSms)}
+                                        className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                    >
+                                        Reset Template
+                                    </button>
+                                </div>
+
+                                <div className="relative">
+                                    <textarea
+                                        rows={10}
+                                        value={customSmsMessage}
+                                        onChange={e => setCustomSmsMessage(e.target.value)}
+                                        className="w-full p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed resize-none shadow-inner"
+                                    />
+                                </div>
+
+                                <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold px-1">
+                                    <span>{customSmsMessage.length} characters</span>
+                                    <span>~{Math.ceil(customSmsMessage.length / 160) || 1} SMS unit(s) per recipient</span>
+                                </div>
+                            </div>
+
+                            {/* Progress bar during batch send */}
+                            {smsSendProgress && (
+                                <div className="space-y-1.5 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                    <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        <span>Dispatching class SMS...</span>
+                                        <span>{smsSendProgress.sent} / {smsSendProgress.total}</span>
+                                    </div>
+                                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                                        <div
+                                            className="bg-emerald-500 h-full transition-all duration-200"
+                                            style={{ width: `${(smsSendProgress.sent / smsSendProgress.total) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={() => setIsSendSmsModalOpen(false)}
+                                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={isSendingSms}
+                                onClick={handleSendSms}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                            >
+                                <PaperAirplaneIcon className="w-4 h-4" />
+                                {isSendingSms
+                                    ? 'Sending...'
+                                    : smsTargetMode === 'single'
+                                    ? `Send SMS to ${activeStudent.name.split(/\s+/)[0]}`
+                                    : `Send to All ${matchingStudents.length} Learners`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
