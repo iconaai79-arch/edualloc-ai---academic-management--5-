@@ -56,7 +56,19 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const [hasSigned, setHasSigned] = useState(false);
     const [isDrawing, setIsDrawing] = useState(false);
 
+    const [liveUsers, setLiveUsers] = useState<User[]>(users || []);
     const [enrollments, setEnrollments] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (users && users.length > 0) {
+            setLiveUsers(prev => {
+                const map = new Map<string, User>();
+                users.forEach(u => map.set(u.id, u));
+                prev.forEach(u => { if (!map.has(u.id)) map.set(u.id, u); });
+                return Array.from(map.values());
+            });
+        }
+    }, [users]);
 
     // Bulk Issuance state variables
     const [isBulkIssuing, setIsBulkIssuing] = useState(false);
@@ -82,13 +94,31 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [booksData, transData, configData, enrollmentsData, coursesData] = await Promise.all([
+            const [booksData, transData, configData, enrollmentsData, coursesData, remoteUsersData] = await Promise.all([
                 apiService.fetchModuleRecords<Book>('books', institutionId),
                 apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId),
                 apiService.fetchModuleRecords<LibrarySettings>('library_settings', institutionId),
                 apiService.fetchModuleRecords<any>('student_enrollments', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<any>('courses', institutionId).catch(() => [])
+                apiService.fetchModuleRecords<any>('courses', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<User>('users', institutionId).catch(() => [])
             ]);
+
+            // Merge users from all sources
+            let allUsersList: User[] = [...(remoteUsersData || []), ...(users || [])];
+            try {
+                const cachedUsers = localStorage.getItem(`eduai_users_${institutionId}`);
+                if (cachedUsers) {
+                    const parsed = JSON.parse(cachedUsers);
+                    if (Array.isArray(parsed)) allUsersList.push(...parsed);
+                }
+            } catch (e) {}
+
+            const userMap = new Map<string, User>();
+            allUsersList.forEach(u => {
+                if (u && u.id) userMap.set(u.id, u);
+            });
+            setLiveUsers(Array.from(userMap.values()));
+
             let allEnr = enrollmentsData || [];
             try {
                 const cached = localStorage.getItem(`eduai_student_enrollments_${institutionId}`);
@@ -650,8 +680,9 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     };
 
     const getUserObject = (id: string, transaction?: any) => {
-        // 1. Try to find user in `users` prop
-        let u = users.find(user => 
+        const pool = [...liveUsers, ...users];
+        // 1. Try to find user in pool
+        let u = pool.find(user => 
             user.id === id || 
             user.staffId === id || 
             user.admissionNumber === id || 
@@ -688,7 +719,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         );
 
         if (en && !u) {
-            u = users.find(user => 
+            u = pool.find(user => 
                 user.id === en.userId || 
                 user.id === en.user_id || 
                 user.id === en.student_id ||
