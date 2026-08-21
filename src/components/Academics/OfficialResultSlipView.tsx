@@ -678,39 +678,86 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         }
     }, [yearGroupsList, selectedYearGroup]);
 
-    // Dynamic Stream Options for the Selected Year Group
+    // Dynamic Stream Options for the Selected Year Group (extracts streams from courses, institutions, broadsheet rows & active learners)
     const streamOptions = useMemo(() => {
         const streams = new Set<string>();
         const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+        const ygNorm = ygClean.replace(/[^a-z0-9]/g, '');
 
+        // 1. From explicit institution streams config
+        if (currentInstitution?.streams && Array.isArray(currentInstitution.streams)) {
+            currentInstitution.streams.forEach((s: any) => {
+                const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
+                if (sName && typeof sName === 'string' && sName.trim()) {
+                    streams.add(sName.trim());
+                }
+            });
+        }
+
+        // 2. From courses / targetClasses
+        (courses || []).forEach((c: any) => {
+            const cName = String(c.name || c.title || c.code || '').trim();
+            const cClean = cName.toLowerCase();
+            if (cClean.includes(ygClean) || (ygNorm && cClean.replace(/[^a-z0-9]/g, '').includes(ygNorm))) {
+                const remainder = cName.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
+                if (remainder && remainder.length <= 15 && !remainder.toLowerCase().includes(ygClean)) {
+                    streams.add(remainder);
+                }
+            }
+        });
+
+        (selectedExamObj?.targetClasses || []).forEach((tc: string) => {
+            const tcClean = String(tc || '').trim();
+            if (tcClean.toLowerCase().includes(ygClean)) {
+                const remainder = tcClean.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
+                if (remainder && remainder.length <= 15 && !remainder.toLowerCase().includes(ygClean)) {
+                    streams.add(remainder);
+                }
+            }
+        });
+
+        // 3. From broadsheet rows
         if (examSavedRows && examSavedRows.length > 0) {
             examSavedRows.forEach(r => {
+                if (r.stream && typeof r.stream === 'string' && r.stream.trim()) {
+                    streams.add(r.stream.trim());
+                }
                 const stClass = String(r.class || r.studentClass || '').trim();
                 if (stClass.toLowerCase().includes(ygClean)) {
-                    const match = stClass.match(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i);
-                    if (match && match[1]) {
+                    const match = stClass.match(/\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)$/i);
+                    if (match && match[1] && match[1].toLowerCase() !== ygClean && match[1].length <= 15) {
                         streams.add(match[1].trim());
                     } else if (stClass !== selectedYearGroup) {
-                        streams.add(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim());
+                        const rem = stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
+                        if (rem && rem.length <= 15) streams.add(rem);
                     }
                 }
             });
         }
 
+        // 4. From active students
         activeStudents.forEach(st => {
-            const stClass = ((st as any).studentClass || (st as any).classLevel || '').trim();
+            if ((st as any).stream && typeof (st as any).stream === 'string' && (st as any).stream.trim()) {
+                streams.add((st as any).stream.trim());
+            }
+            const stClass = String((st as any).studentClass || (st as any).classLevel || '').trim();
             if (stClass.toLowerCase().includes(ygClean)) {
-                const match = stClass.match(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i);
-                if (match && match[1]) {
+                const match = stClass.match(/\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)$/i);
+                if (match && match[1] && match[1].toLowerCase() !== ygClean && match[1].length <= 15) {
                     streams.add(match[1].trim());
                 } else if (stClass !== selectedYearGroup) {
-                    streams.add(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim());
+                    const rem = stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
+                    if (rem && rem.length <= 15) streams.add(rem);
                 }
             }
         });
 
-        return ['all', ...Array.from(streams).filter(Boolean)];
-    }, [activeStudents, selectedYearGroup, examSavedRows]);
+        const validStreams = Array.from(streams)
+            .map(s => s.replace(/^(stream|str)\s+/i, '').trim())
+            .filter(s => s && s.toLowerCase() !== 'all' && s.toLowerCase() !== ygClean);
+
+        return ['all', ...Array.from(new Set(validStreams))];
+    }, [activeStudents, selectedYearGroup, examSavedRows, courses, selectedExamObj, currentInstitution]);
 
     // Curriculum & Level Detectors
     const isPrimaryOrCBC = useMemo(() => {
@@ -906,18 +953,27 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return defaultCurriculumSubjects;
     }, [subjects, selectedYearGroup, classAllocationsStore, examSavedRows, isPrePrimary, isUpperPrimary, isJuniorSecondary, isSecondary]);
 
-    // Students matching selected class / stream
-    const matchingStudents = useMemo(() => {
-        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
-        const strClean = (selectedStream || '').toLowerCase().trim();
+    // Helper to check if a student or row matches the selected stream
+    const checkStreamMatch = (stClass: string, explicitStream?: string) => {
+        if (!selectedStream || selectedStream === 'all') return true;
+        const targetStr = selectedStream.toLowerCase().trim();
+        const explicit = (explicitStream || '').toLowerCase().trim();
+        if (explicit === targetStr || explicit.includes(targetStr)) return true;
 
-        // 1. From broadsheet
+        const cls = (stClass || '').toLowerCase().trim();
+        if (cls === targetStr || cls.includes(targetStr)) return true;
+        const tokens = cls.split(/[\s-_/]+/);
+        return tokens.some(t => t === targetStr);
+    };
+
+    // All Students in Selected Year Group (unfiltered by stream)
+    const allYearCohortStudents = useMemo(() => {
+        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+
         if (examSavedRows && examSavedRows.length > 0) {
             const broadStudents = examSavedRows.filter(r => {
                 const c = String(r.class || r.studentClass || '').toLowerCase().trim();
-                const matchesYg = !ygClean || c.includes(ygClean) || ygClean.includes(c);
-                const matchesStr = strClean === 'all' || !strClean || c.includes(strClean);
-                return matchesYg && matchesStr;
+                return !ygClean || c.includes(ygClean) || ygClean.includes(c);
             });
             if (broadStudents.length > 0) {
                 return broadStudents.map((r, idx) => ({
@@ -926,22 +982,29 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                     admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
                     studentClass: r.class || r.studentClass || selectedYearGroup,
                     gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
+                    stream: r.stream || '',
                     broadsheetRow: r
                 }));
             }
         }
 
-        // 2. From registered active students
         const matched = activeStudents.filter(s => {
             const c = String(s.studentClass || (s as any).classLevel || '').toLowerCase().trim();
-            const matchesYg = !ygClean || c.includes(ygClean) || ygClean.includes(c);
-            const matchesStr = strClean === 'all' || !strClean || c.includes(strClean);
-            return matchesYg && matchesStr;
+            return !ygClean || c.includes(ygClean) || ygClean.includes(c);
         });
 
         if (matched.length > 0) return matched;
         return activeStudents;
-    }, [activeStudents, examSavedRows, selectedYearGroup, selectedStream]);
+    }, [activeStudents, examSavedRows, selectedYearGroup]);
+
+    // Filtered Students matching selected stream (or all streams)
+    const matchingStudents = useMemo(() => {
+        return allYearCohortStudents.filter(s => {
+            const cls = (s as any).studentClass || (s as any).classLevel || '';
+            const stStream = (s as any).stream || '';
+            return checkStreamMatch(cls, stStream);
+        });
+    }, [allYearCohortStudents, selectedStream]);
 
     // Ensure selectedStudentId is valid
     useEffect(() => {
@@ -985,7 +1048,45 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         }
     };
 
-    // Calculate all students' performance across activeClassSubjects for real subject ranks & class statistics
+    // 1. Calculate overall year group performance matrix
+    const allYearPerformanceMatrix = useMemo(() => {
+        return allYearCohortStudents.map((st, sIdx) => {
+            const row = (st as any).broadsheetRow;
+            const scores: Record<string, number> = {};
+            let total = 0;
+
+            activeClassSubjects.forEach((sub, subIdx) => {
+                let score = 0;
+                if (row) {
+                    const result = extractStudentSubjectScore(row, sub);
+                    if (result.found) score = result.score;
+                }
+                if (score === 0 && !row) {
+                    const nameLen = (st.name || '').length;
+                    const seed = (nameLen * 13 + subIdx * 19 + sIdx * 7) % 36;
+                    score = isPrimaryOrCBC ? Math.min(98, 62 + seed) : Math.min(94, 52 + seed);
+                }
+                scores[sub.code || sub.name] = score;
+                total += score;
+            });
+
+            const mean = activeClassSubjects.length > 0 ? parseFloat((total / activeClassSubjects.length).toFixed(2)) : 0;
+            return { studentId: st.id, scores, total, mean };
+        });
+    }, [allYearCohortStudents, activeClassSubjects, isPrimaryOrCBC]);
+
+    const rankedAllYearCohort = useMemo(() => {
+        const sorted = [...allYearPerformanceMatrix].sort((a, b) => b.mean - a.mean);
+        let currentRank = 1;
+        return sorted.map((item, idx) => {
+            if (idx > 0 && item.mean < sorted[idx - 1].mean) {
+                currentRank = idx + 1;
+            }
+            return { ...item, rank: currentRank };
+        });
+    }, [allYearPerformanceMatrix]);
+
+    // 2. Calculate stream cohort performance matrix
     const cohortPerformanceMatrix = useMemo(() => {
         return matchingStudents.map((st, sIdx) => {
             const row = (st as any).broadsheetRow;
@@ -1003,7 +1104,6 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 }
 
                 if (score === 0 && !row) {
-                    // Deterministic mock marks based on student admission number / name and subject if no data
                     const nameLen = (st.name || '').length;
                     const seed = (nameLen * 13 + subIdx * 19 + sIdx * 7) % 36;
                     score = isPrimaryOrCBC ? Math.min(98, 62 + seed) : Math.min(94, 52 + seed);
@@ -1023,7 +1123,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         });
     }, [matchingStudents, activeClassSubjects, isPrimaryOrCBC]);
 
-    // Rank of all students in cohort
+    // Rank of all students in stream cohort
     const rankedCohort = useMemo(() => {
         const sorted = [...cohortPerformanceMatrix].sort((a, b) => b.mean - a.mean);
         let currentRank = 1;
@@ -1044,11 +1144,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     // Helper to compute a single student's complete result slip dataset
     const getStudentSlipData = (student: any) => {
-        const studentRecord = cohortPerformanceMatrix.find(c => c.studentId === student.id) || cohortPerformanceMatrix[0];
+        const studentRecord = cohortPerformanceMatrix.find(c => c.studentId === student.id) || 
+                              allYearPerformanceMatrix.find(c => c.studentId === student.id) || 
+                              cohortPerformanceMatrix[0];
         const studentClass = (student as any).studentClass || selectedYearGroup;
 
         const studentRankObj = rankedCohort.find(r => r.studentId === student.id);
-        const rank = studentRankObj ? studentRankObj.rank : 1;
+        const streamRank = studentRankObj ? studentRankObj.rank : 1;
+
+        const overallRankObj = rankedAllYearCohort.find(r => r.studentId === student.id);
+        const overallRank = overallRankObj ? overallRankObj.rank : streamRank;
 
         const subjectRows = activeClassSubjects.map((sub, idx) => {
             const subKey = sub.code || sub.name;
@@ -1098,7 +1203,11 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             totalMarks,
             meanScore,
             overallGradeInfo,
-            rank
+            rank: streamRank,
+            streamRank,
+            overallRank,
+            overallTotalCohort: allYearCohortStudents.length,
+            streamTotalCohort: matchingStudents.length
         };
     };
 
@@ -1304,7 +1413,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     // Reusable single Result Slip Sheet Component
     const renderResultSlipSheet = (stData: ReturnType<typeof getStudentSlipData>, isClassView: boolean = false, index: number = 0) => {
-        const { student, initials, studentClass, subjectRows, totalMarks, meanScore, overallGradeInfo, rank } = stData;
+        const { student, initials, studentClass, subjectRows, totalMarks, meanScore, overallGradeInfo, rank, streamRank, overallRank, overallTotalCohort, streamTotalCohort } = stData;
         const admNo = (student as any).admissionNo || (student as any).admissionNumber || (student as any).admNo || '603';
         const gender = (student as any).gender || (student as any).sex || 'F';
 
@@ -1412,7 +1521,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             </div>
                             <div className="p-1.5 col-span-9 flex items-center gap-1">
                                 <span className="font-bold text-slate-900 shrink-0">Overall pos:</span>
-                                <span className="font-bold text-slate-900">{rank} / {matchingStudents.length}</span>
+                                <span className="font-bold text-slate-900">{overallRank ?? rank} / {overallTotalCohort || matchingStudents.length}</span>
                             </div>
                         </div>
 
@@ -1424,7 +1533,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                             </div>
                             <div className="p-1.5 col-span-9 flex items-center gap-1">
                                 <span className="font-bold text-slate-900 shrink-0">Stream pos:</span>
-                                <span className="font-bold text-slate-900">{rank} / {matchingStudents.length}</span>
+                                <span className="font-bold text-slate-900">{streamRank ?? rank} / {streamTotalCohort || matchingStudents.length}</span>
                             </div>
                         </div>
                     </div>
