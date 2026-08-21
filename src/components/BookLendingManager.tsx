@@ -41,6 +41,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Active Circulation Search & Filter
+    const [circulationSearch, setCirculationSearch] = useState('');
+    const [circulationStatusFilter, setCirculationStatusFilter] = useState<'all' | 'issued' | 'overdue'>('all');
+
     const [newLoan, setNewLoan] = useState({
         userId: '',
         bookId: '',
@@ -784,6 +788,44 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         return idCode + (classStr ? ` • ${classStr}` : '');
     };
 
+    // Filtered Active Circulation Records
+    const filteredCirculation = useMemo(() => {
+        const activeLoans = transactions.filter(t => t.status === 'issued' || t.status === 'overdue');
+        const query = circulationSearch.trim().toLowerCase();
+
+        return activeLoans.filter(t => {
+            const isOverdue = new Date(t.dueDate) < new Date();
+            if (circulationStatusFilter === 'overdue' && !isOverdue) return false;
+            if (circulationStatusFilter === 'issued' && isOverdue) return false;
+
+            if (!query) return true;
+
+            const name = getUserName(t.userId, t).toLowerCase();
+            const staffId = getUserStaffId(t.userId, t).toLowerCase();
+            const bookTitle = getBookTitle(t.bookId).toLowerCase();
+            const accession = (books.find(b => b.id === t.bookId)?.accessionNumber || '').toLowerCase();
+            const isbn = (books.find(b => b.id === t.bookId)?.isbn || '').toLowerCase();
+
+            return name.includes(query) || 
+                   staffId.includes(query) || 
+                   bookTitle.includes(query) || 
+                   accession.includes(query) || 
+                   isbn.includes(query) ||
+                   t.userId.toLowerCase().includes(query);
+        });
+    }, [transactions, circulationSearch, circulationStatusFilter, users, enrollments, books]);
+
+    const activeCirculationCounts = useMemo(() => {
+        const activeLoans = transactions.filter(t => t.status === 'issued' || t.status === 'overdue');
+        const overdueCount = activeLoans.filter(t => new Date(t.dueDate) < new Date()).length;
+        const regularIssuedCount = activeLoans.length - overdueCount;
+        return {
+            total: activeLoans.length,
+            regular: regularIssuedCount,
+            overdue: overdueCount
+        };
+    }, [transactions]);
+
     return (
         <div className="space-y-8 animate-fade-in">
             {/* Header / Stats Wrapper */}
@@ -799,24 +841,81 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                             <button
                                 onClick={handleBulkReminders}
                                 disabled={isProcessing}
-                                className="bg-amber-100 hover:bg-amber-200 text-amber-700 px-5 h-12 rounded-2xl flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50 border border-amber-300/60"
+                                className="bg-amber-100 hover:bg-amber-200 text-amber-700 px-5 h-12 rounded-2xl flex items-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50 border border-amber-300/60 cursor-pointer"
                             >
                                 <BellIcon className="w-4 h-4 text-amber-600" />
                                 Bulk Prompt Overdue
                             </button>
                             <button
                                 onClick={() => setIsBulkIssuing(true)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all font-black uppercase text-[10px] tracking-widest"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all font-black uppercase text-[10px] tracking-widest cursor-pointer"
                             >
                                 <PlusIcon className="w-4 h-4" />
                                 Bulk Issuance
                             </button>
                             <button
                                 onClick={() => setIsIssuing(true)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all font-black uppercase text-[10px] tracking-widest"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 h-12 rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all font-black uppercase text-[10px] tracking-widest cursor-pointer"
                             >
                                 <PlusIcon className="w-4 h-4" />
                                 Launch Issuance Registry
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* SEARCH & FILTER BAR */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row items-center gap-3">
+                        <div className="relative flex-1 w-full">
+                            <SearchIcon className="w-5 h-5 absolute left-4 top-3.5 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search active circulation by recipient name, admission number, book title, accession number..."
+                                value={circulationSearch}
+                                onChange={(e) => setCirculationSearch(e.target.value)}
+                                className="w-full pl-12 pr-10 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                            />
+                            {circulationSearch && (
+                                <button
+                                    onClick={() => setCirculationSearch('')}
+                                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold p-0.5 cursor-pointer"
+                                    title="Clear search"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Status Filter Tabs */}
+                        <div className="flex items-center gap-1.5 p-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shrink-0">
+                            <button
+                                onClick={() => setCirculationStatusFilter('all')}
+                                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    circulationStatusFilter === 'all'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                All ({activeCirculationCounts.total})
+                            </button>
+                            <button
+                                onClick={() => setCirculationStatusFilter('issued')}
+                                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    circulationStatusFilter === 'issued'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                Current ({activeCirculationCounts.regular})
+                            </button>
+                            <button
+                                onClick={() => setCirculationStatusFilter('overdue')}
+                                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    circulationStatusFilter === 'overdue'
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                Overdue ({activeCirculationCounts.overdue})
                             </button>
                         </div>
                     </div>
@@ -833,7 +932,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                                {transactions.filter(t => t.status === 'issued' || t.status === 'overdue').map(transaction => {
+                                {filteredCirculation.map(transaction => {
                                     const isOverdue = new Date(transaction.dueDate) < new Date();
                                     return (
                                         <tr key={transaction.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
@@ -870,14 +969,14 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
                                                         onClick={() => handleSendReminder(transaction)}
-                                                        className={`p-2.5 rounded-xl transition-all ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
+                                                        className={`p-2.5 rounded-xl transition-all cursor-pointer ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
                                                         title="Send SMS Reminder"
                                                     >
                                                         <BellIcon className="w-4 h-4" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleReturnBook(transaction)}
-                                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                                        className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
                                                     >
                                                         Process Return
                                                     </button>
@@ -897,10 +996,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                         </tr>
                                     );
                                 })}
-                                {transactions.filter(t => t.status === 'issued' || t.status === 'overdue').length === 0 && (
+                                {filteredCirculation.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-black uppercase text-[10px] tracking-[0.3em]">
-                                            No active loans found in registry
+                                            {circulationSearch ? `No circulation records matching "${circulationSearch}"` : 'No active loans found in registry'}
                                         </td>
                                     </tr>
                                 )}
