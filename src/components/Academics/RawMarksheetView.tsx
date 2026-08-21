@@ -103,21 +103,54 @@ const isSubjectKeyMatch = (k: string, sub: any): boolean => {
     if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
     if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
 
-    // Semantic Curriculum Root Matching
-    if ((subCode.startsWith('kisw') || subName.includes('kisw')) && (kNorm.includes('kisw') || kNorm.includes('insha'))) return true;
-    if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
-    if ((subCode.startsWith('env') || subName.includes('env')) && (kNorm.includes('env') || kNorm.includes('environment'))) return true;
-    if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho')) && 
-        (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement'))) return true;
-    if ((subCode.startsWith('math') || subName.includes('math') || subName.includes('numeracy')) && (kNorm.includes('math') || kNorm.includes('numeracy'))) return true;
-    if ((subCode.startsWith('eng') || subName.includes('eng') || subName.includes('lang') || subName.includes('literacy')) && (kNorm.includes('eng') || kNorm.includes('lang') || kNorm.includes('literacy'))) return true;
-    if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio')) && 
-        (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio'))) return true;
-    if ((subCode.startsWith('agri') || subName.includes('agri')) && kNorm.includes('agri')) return true;
-    if ((subCode.startsWith('soc') || subName.includes('social')) && (kNorm.includes('soc') || kNorm.includes('social'))) return true;
+    // Kiswahili Comprehensive Root & Paper Matching
+    if ((subCode.startsWith('kisw') || subName.includes('kisw') || subCode === '906' || subCode === '102' || subCode === 'kis') && 
+        (kNorm.includes('kisw') || kNorm.includes('insha') || kNorm.includes('lugha') || kNorm.includes('kusoma') || kNorm.includes('sarufi') || kNorm.startsWith('kis') || kNorm === 'kis')) return true;
+
+    // Hygiene & Nutrition
+    if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri') || subCode === '903') && 
+        (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health') || kNorm.includes('afya'))) return true;
+
+    // Environmental Activities
+    if ((subCode.startsWith('env') || subName.includes('env') || subCode === '902') && 
+        (kNorm.includes('env') || kNorm.includes('environment') || kNorm.includes('mazingira'))) return true;
+
+    // Creative Arts & Movement
+    if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho') || subName.includes('music') || subName.includes('movement') || subCode === '904' || subCode === '511') && 
+        (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement') || kNorm.includes('craft') || kNorm.includes('sanaa'))) return true;
+
+    // Mathematics
+    if ((subCode.startsWith('math') || subName.includes('math') || subName.includes('numeracy') || subCode === '121' || subCode === '907') && 
+        (kNorm.includes('math') || kNorm.includes('numeracy') || kNorm.includes('hesabu'))) return true;
+
+    // English & Language Activities
+    if ((subCode.startsWith('eng') || subName.includes('eng') || subName.includes('lang') || subName.includes('literacy') || subCode === '101' || subCode === '901') && 
+        (kNorm.includes('eng') || kNorm.includes('lang') || kNorm.includes('literacy') || kNorm.includes('language'))) return true;
+
+    // Religious Education (CRE/IRE/HRE)
+    if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio') || subCode === '313' || subCode === '911') && 
+        (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio') || kNorm.includes('dini'))) return true;
+
+    // Agriculture & Nutrition
+    if ((subCode.startsWith('agri') || subName.includes('agri') || subCode === '443') && 
+        (kNorm.includes('agri') || kNorm.includes('kilimo'))) return true;
+
+    // Social Studies
+    if ((subCode.startsWith('soc') || subName.includes('social') || subCode === '310' || subCode === '910') && 
+        (kNorm.includes('soc') || kNorm.includes('social'))) return true;
+
+    // Science
+    if ((subCode.startsWith('sci') || subName.includes('science') || subCode === '905' || subCode === '230') && 
+        (kNorm.includes('sci') || kNorm.includes('science') || kNorm.includes('sayansi'))) return true;
+
+    // Secondary subjects
     if (subCode.startsWith('bio') && kNorm.includes('bio')) return true;
     if (subCode.startsWith('chem') && kNorm.includes('chem')) return true;
     if (subCode.startsWith('phy') && (kNorm.includes('phy') || kNorm.includes('physics'))) return true;
+    if (subCode.startsWith('hist') && (kNorm.includes('hist') || kNorm.includes('history'))) return true;
+    if (subCode.startsWith('geo') && (kNorm.includes('geo') || kNorm.includes('geography'))) return true;
+    if (subCode.startsWith('comp') && (kNorm.includes('comp') || kNorm.includes('computer'))) return true;
+    if (subCode.startsWith('bus') && (kNorm.includes('bus') || kNorm.includes('business'))) return true;
 
     // Normalized word token match
     const subTokens = subName.split(/[^a-z0-9]/).filter(t => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
@@ -133,24 +166,79 @@ const extractStudentSubjectScore = (
     subject: any,
     allMarks: AssessmentMark[] = []
 ): { score: number | string; found: boolean } => {
-    if (row) {
-        for (const [k, val] of Object.entries(row)) {
-            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'studentName', 'gender', 'stream', 'studentId'].includes(k)) continue;
-            if (val !== null && val !== undefined && val !== '' && !isNaN(Number(val))) {
-                if (isSubjectKeyMatch(k, subject)) {
-                    return { score: Number(val), found: true };
+    if (row && typeof row === 'object') {
+        const sName = (subject.name || (subject as any).title || '').toLowerCase().trim();
+        const sCode = (subject.code || '').toLowerCase().trim();
+        const sId = (subject.id || '').toLowerCase().trim();
+        const sClean = sName.replace(/[^a-z0-9]/g, '_');
+        const cClean = sCode.replace(/[^a-z0-9]/g, '_');
+
+        // High-priority exact key candidates
+        const exactKeys = [
+            sId,
+            sCode,
+            cClean,
+            `subj_${cClean}_p1`,
+            `subj_${cClean}`,
+            `subj_${sClean}_p1`,
+            `subj_${sClean}_paper_1`,
+            `subj_${sClean}`,
+            sClean,
+            // Kiswahili high-priority keys
+            'kiswP1',
+            'kisw_p1',
+            'kiswP2',
+            'kisw_p2',
+            'kiswahili',
+            'kisw',
+            'subj_kiswahili_language_activities_p1',
+            'subj_kiswahili_p1'
+        ].filter(Boolean);
+
+        let maxScore = -1;
+        let foundAny = false;
+
+        for (const ek of exactKeys) {
+            if (row[ek] !== undefined && row[ek] !== null && row[ek] !== '') {
+                const num = parseFloat(String(row[ek]));
+                if (!isNaN(num)) {
+                    foundAny = true;
+                    if (num > maxScore) maxScore = num;
                 }
             }
+        }
+
+        // Broad scan across all row keys
+        for (const [k, val] of Object.entries(row)) {
+            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'studentName', 'gender', 'stream', 'studentId', 'admissionNumber', 'total', 'mean'].includes(k)) continue;
+            if (val !== null && val !== undefined && val !== '' && !isNaN(Number(val))) {
+                if (isSubjectKeyMatch(k, subject)) {
+                    foundAny = true;
+                    const num = Number(val);
+                    if (num > maxScore) maxScore = num;
+                }
+            }
+        }
+
+        if (maxScore >= 0) {
+            return { score: maxScore, found: true };
+        }
+        if (foundAny) {
+            return { score: 0, found: true };
         }
     }
 
     if (allMarks && Array.isArray(allMarks) && allMarks.length > 0 && studentId) {
         const matchedMark = allMarks.find(m => 
             (m.studentId === studentId || (m as any).student_id === studentId) && 
-            (((m as any).subjectId === subject.id || (m as any).subject_id === subject.id) || isSubjectKeyMatch((m as any).subjectCode || (m as any).subjectName || '', subject))
+            (((m as any).subjectId === subject.id || (m as any).subject_id === subject.id) || 
+             isSubjectKeyMatch((m as any).subjectCode || (m as any).subjectName || (m as any).title || '', subject))
         );
-        if (matchedMark && (matchedMark as any).marks !== null && (matchedMark as any).marks !== undefined && !isNaN(Number((matchedMark as any).marks))) {
-            return { score: Number((matchedMark as any).marks), found: true };
+        if (matchedMark) {
+            const val = (matchedMark as any).marks ?? (matchedMark as any).score ?? (matchedMark as any).percentage ?? (matchedMark as any).rawMark ?? (matchedMark as any).mark;
+            if (val !== null && val !== undefined && !isNaN(Number(val))) {
+                return { score: Number(val), found: true };
+            }
         }
     }
 
@@ -1107,7 +1195,12 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                             <td className="p-2 border border-slate-200 text-center">{row.gender}</td>
                                             <td className="p-2 border border-slate-200 text-center text-slate-600">{row.studentClass}</td>
                                             {activeClassSubjects.map(sub => {
-                                                const sc = row.rawScores[sub.code || sub.name];
+                                                const subKey = sub.code || sub.name;
+                                                const sc = row.rawScores[subKey] || 
+                                                           (sub.code ? row.rawScores[sub.code] : undefined) || 
+                                                           (sub.name ? row.rawScores[sub.name] : undefined) || 
+                                                           Object.entries(row.rawScores).find(([k]) => isSubjectKeyMatch(k, sub))?.[1];
+
                                                 if (sc?.isExempt) {
                                                     return (
                                                         <td key={sub.code || sub.name} className="p-2 border border-slate-200 text-center text-rose-600 font-bold text-[10px] bg-rose-50/50">
