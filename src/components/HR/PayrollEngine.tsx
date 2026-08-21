@@ -6,6 +6,7 @@ import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { XIcon } from '../icons/XIcon';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { 
     generateBulkStaffPayslipsPdf, 
     generateStaffPayslipPdf,
@@ -21,6 +22,7 @@ interface PayrollEngineProps {
     payrollRecords: PayrollRecord[];
     institution: Institution;
     onProcessPayroll: (records: PayrollRecord[]) => Promise<void>;
+    onOpenExcelImport?: () => void;
 }
 
 interface KenyanPayrollBreakdown {
@@ -112,7 +114,8 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     staff,
     payrollRecords,
     institution,
-    onProcessPayroll
+    onProcessPayroll,
+    onOpenExcelImport
 }) => {
     const [selectedMonth, setSelectedMonth] = useState(() => {
         const d = new Date();
@@ -667,6 +670,16 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         {MONTH_OPTIONS.map(m => <option key={m}>{m}</option>)}
                     </select>
                     <div className="flex flex-wrap items-center gap-2">
+                        {onOpenExcelImport && (
+                            <button
+                                onClick={onOpenExcelImport}
+                                className="flex items-center justify-center gap-2 px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-indigo-500/20 transition-all active:scale-95 cursor-pointer"
+                                title="Import Excel / CSV Payroll Register"
+                            >
+                                <ArrowUpTrayIcon className="w-4 h-4" />
+                                <span>Import Excel</span>
+                            </button>
+                        )}
                         <button
                             onClick={handleGenerateBulkPayslipsPdf}
                             disabled={isGeneratingPdf || staff.length === 0}

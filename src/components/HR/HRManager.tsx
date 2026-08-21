@@ -21,8 +21,10 @@ import { PlusIcon } from '../icons/PlusIcon';
 import { FunnelIcon } from '../icons/FunnelIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
 import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
+import { SmartHRPayrollImporterModal } from './SmartHRPayrollImporterModal';
 import { apiService } from '../../services/apiService';
 import { 
     generateStaffPayslipPdf, 
@@ -218,6 +220,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
         assignedAllowances: [] as AssignedAllowance[],
         assignedDeductions: [] as AssignedDeduction[]
     });
+
+    // Excel Importer Modal State
+    const [showExcelImportModal, setShowExcelImportModal] = useState(false);
 
     // Roster List View & Pagination State
     const [rosterSearch, setRosterSearch] = useState('');
@@ -1047,7 +1052,16 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                     className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 border border-slate-200 dark:border-slate-600 cursor-pointer"
                                 >
                                     <ShieldCheckIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                                    <span>Pay Elements & Categories</span>
+                                    <span>Pay Elements</span>
+                                </button>
+
+                                {/* Import Excel / CSV Action */}
+                                <button
+                                    onClick={() => setShowExcelImportModal(true)}
+                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                                >
+                                    <ArrowUpTrayIcon className="w-4 h-4 text-white" />
+                                    <span>Import Excel / CSV</span>
                                 </button>
 
                                 {/* Onboard Staff Action */}
@@ -1353,6 +1367,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         payrollRecords={payrollRecords}
                         institution={institution}
                         onProcessPayroll={onProcessPayroll}
+                        onOpenExcelImport={() => setShowExcelImportModal(true)}
                     />
                 )}
 
@@ -2549,6 +2564,20 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Smart HR & Payroll Excel Importer Modal */}
+            <SmartHRPayrollImporterModal
+                isOpen={showExcelImportModal}
+                onClose={() => setShowExcelImportModal(false)}
+                institution={institution}
+                existingStaff={staff}
+                onImportCompleted={(staffCount, payCount) => {
+                    alert(`✓ Successfully imported ${staffCount} staff records and ${payCount} payroll entries!`);
+                }}
+                onAddUser={onAddUser}
+                onEditUser={onEditUser}
+                onProcessPayroll={onProcessPayroll}
+            />
         </div>
     );
 };
