@@ -57,8 +57,9 @@ END;
 $$;
 
 -- Ensure trigger is active
+DROP TRIGGER IF EXISTS trg_allocate_tenant_sms_bonus ON public.institutions;
 DROP TRIGGER IF EXISTS trg_allocate_tenant_sms_bonus ON institutions;
-CREATE TRIGGER trg_allocate_tenant_sms_bonus
+CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
     BEFORE UPDATE OF subscription_ends_at ON institutions
     FOR EACH ROW
     EXECUTE FUNCTION allocate_tenant_sms_bonus();

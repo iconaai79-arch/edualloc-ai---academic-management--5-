@@ -3185,8 +3185,9 @@ CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expens
     sql += `END;\n`;
     sql += `$$;\n`;
     sql += `\n`;
+    sql += `DROP TRIGGER IF EXISTS trg_allocate_tenant_sms_bonus ON public.institutions;\n`;
     sql += `DROP TRIGGER IF EXISTS trg_allocate_tenant_sms_bonus ON institutions;\n`;
-    sql += `CREATE TRIGGER trg_allocate_tenant_sms_bonus\n`;
+    sql += `CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus\n`;
     sql += `    BEFORE UPDATE OF subscription_ends_at ON institutions\n`;
     sql += `    FOR EACH ROW\n`;
     sql += `    EXECUTE FUNCTION allocate_tenant_sms_bonus();\n`;

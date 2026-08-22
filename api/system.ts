@@ -365,6 +365,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 await new Promise(res => setTimeout(res, delayMs));
                                 continue;
                             }
+
+                            const isIgnorableSchemaError =
+                                err?.code === '42710' || // duplicate_object (trigger / constraint already exists)
+                                err?.code === '42P07' || // duplicate_table (relation already exists)
+                                err?.code === '42701' || // duplicate_column (column already exists)
+                                err?.code === '42P16';   // invalid_table_definition (e.g. duplicate primary key)
+
+                            if (isIgnorableSchemaError) {
+                                console.warn(`[SQL Engine Info] Idempotent schema object already exists (code ${err.code}: ${err.message}). Continuing...`);
+                                lastError = null;
+                                stmtSuccess = true;
+                                break;
+                            }
                             break;
                         }
                     }
