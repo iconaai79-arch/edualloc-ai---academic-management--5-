@@ -15894,9 +15894,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* Interactive PDF Viewer Modal */}
                                         {showStmtPdfModal && (
-                                            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
-                                                    <div className="p-6 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+                                            <div className="fixed inset-0 z-[250] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200" onClick={(e) => {
+                                                if (e.target === e.currentTarget) setShowStmtPdfModal(false);
+                                            }}>
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col h-[96vh] max-h-[97vh]">
+                                                    <div className="p-4 sm:p-5 px-6 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800 shrink-0">
                                                         <div className="flex items-center gap-3">
                                                             <span className="text-xl">📄</span>
                                                             <div>
@@ -15923,9 +15925,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="p-6 flex-1 bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
+                                                    <div className="p-2 sm:p-4 flex-1 bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
                                                         {stmtPdfDataUri ? (
-                                                            <iframe src={stmtPdfDataUri} className="w-full h-full min-h-[550px] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md" title="Student Statement PDF" />
+                                                            <iframe src={stmtPdfDataUri} className="w-full h-full min-h-[82vh] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md" title="Student Statement PDF" />
                                                         ) : (
                                                             <div className="text-center space-y-3 py-12">
                                                                 <span className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin inline-block" />
