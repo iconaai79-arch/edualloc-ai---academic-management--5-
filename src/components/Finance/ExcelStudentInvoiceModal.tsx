@@ -454,6 +454,30 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
             // Commit invoices via handler
             await onGenerateInvoices(invoicesToPost);
 
+            // Record batch history for Audit & Undo
+            try {
+                const batchRecord = {
+                    id: `batch_xl_${Date.now()}`,
+                    description: (batchDescription || 'Excel Student Invoicing').toUpperCase(),
+                    totalValue: rowsToInvoice.reduce((sum, r) => sum + r.totalAmount, 0),
+                    noOfRecords: invoicesToPost.length,
+                    addedOn: new Date().toISOString(),
+                    addedBy: 'Finance Officer',
+                    invoiceIds: invoicesToPost.map(i => i.id),
+                    status: 'active' as const
+                };
+                const stored = localStorage.getItem(`eduai_invoice_batches_${institution.id}`);
+                const existing = stored ? JSON.parse(stored) : [];
+                const updated = [batchRecord, ...existing];
+                localStorage.setItem(`eduai_invoice_batches_${institution.id}`, JSON.stringify(updated));
+                apiService.saveModuleRecord('institution_module_states', {
+                    institution_id: institution.id,
+                    module_id: 'invoice_batches_history',
+                    state_data: updated,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            } catch (e) {}
+
             if (onRefreshData) {
                 await onRefreshData();
             }

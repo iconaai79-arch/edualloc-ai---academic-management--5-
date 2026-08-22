@@ -3,6 +3,7 @@ import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeSt
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
+import { InvoiceHistoryManager } from './InvoiceHistoryManager';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { ZapIcon } from '../icons/ZapIcon';
@@ -134,7 +135,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
-    const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'wizard'>('ledger');
+    const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
@@ -6192,6 +6193,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {activeTab === 'student_invoices' ? (
                                 [
                                     { id: 'ledger', label: 'Invoices Ledger', icon: ClipboardListIcon, count: filteredStudentInvoices.length },
+                                    { id: 'history', label: 'History & Undo', icon: ClockIcon },
+                                    { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
                                 ].map(sub => (
                                     <button
                                         key={sub.id}
@@ -7708,6 +7711,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             onGenerateInvoices={props.onGenerateInvoices}
                             companyDetails={props.companyDetails}
                             courses={props.courses || []}
+                        />
+                    ) : invoicesMainTab === 'history' ? (
+                        <InvoiceHistoryManager
+                            invoices={mappedInvoices}
+                            students={mergedStudents || (props.students || [])}
+                            institution={props.institution}
+                            currentUserName={props.userName || props.currentUser?.name || 'Finance Officer'}
+                            onRefreshData={props.onRefreshData}
+                            onOpenWizard={() => setInvoicesMainTab('wizard')}
+                            onOpenExcelImporter={() => setShowExcelInvoiceModal(true)}
                         />
                     ) : (
                     <div className="space-y-6 text-left animate-in fade-in duration-300">

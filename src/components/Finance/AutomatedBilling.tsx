@@ -427,6 +427,33 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         }
 
         await onGenerateInvoices(mockInvoices);
+
+        // Record batch history for Audit & Undo
+        try {
+            const batchTitle = selectedFeeStructure?.name || `BILLING - ${selectedTerm || 'GENERAL'}`;
+            const totalVal = mockInvoices.reduce((sum: number, inv: any) => sum + (Number(inv.totalAmount) || 0), 0);
+            const batchRecord = {
+                id: `batch_wiz_${Date.now()}`,
+                description: batchTitle.toUpperCase(),
+                totalValue: totalVal,
+                noOfRecords: mockInvoices.length,
+                addedOn: new Date().toISOString(),
+                addedBy: 'Finance Officer (Wizard)',
+                invoiceIds: mockInvoices.map((i: any) => i.id),
+                status: 'active' as const
+            };
+            const stored = localStorage.getItem(`eduai_invoice_batches_${institution.id}`);
+            const existing = stored ? JSON.parse(stored) : [];
+            const updated = [batchRecord, ...existing];
+            localStorage.setItem(`eduai_invoice_batches_${institution.id}`, JSON.stringify(updated));
+            apiService.saveModuleRecord('institution_module_states', {
+                institution_id: institution.id,
+                module_id: 'invoice_batches_history',
+                state_data: updated,
+                updated_at: new Date().toISOString()
+            }).catch(() => {});
+        } catch (e) {}
+
         setStep('done');
         setIsGenerating(false);
     };
