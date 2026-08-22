@@ -620,8 +620,8 @@ export const App: React.FC = () => {
     const getLecturerById = useCallback((id: string) => (Array.isArray(users) ? users : []).find(u => u && u.id === id), [users]);
     const getSubjectById = useCallback((id: string) => (Array.isArray(subjects) ? subjects : []).find(s => s && s.id === id), [subjects]);
     const getRoomById = useCallback((id: string) => (Array.isArray(rooms) ? rooms : []).find(r => r && r.id === id), [rooms]);
-    const getCountyById = useCallback((id: string) => (Array.isArray(counties) ? counties : []).find(c => c && c.id === id), [counties]);
-    const getInstitutionById = useCallback((id: string) => (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
+    const getCountyById = useCallback((id?: string) => !id ? undefined : (Array.isArray(counties) ? counties : []).find(c => c && c.id === id), [counties]);
+    const getInstitutionById = useCallback((id?: string) => !id ? undefined : (Array.isArray(institutions) ? institutions : []).find(i => i && i.id === id), [institutions]);
 
     const activeInstitution = useMemo(() => {
         if (!Array.isArray(institutions)) return null;
@@ -3515,7 +3515,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 console.warn(`No users found for institution ${institutionId}. Creating temporary admin session.`);
                 const registryEntry = schoolRegistry.find(s => s.id === institutionId || s.institutionId === institutionId || (normTargetId && (cleanId(s.id) === normTargetId || cleanId(s.institutionId) === normTargetId)));
                 const isPM = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
-                const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || (targetInst?.institutionType === 'County');
+                const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || ((targetInst?.institutionType as string) === 'County');
                 
                 const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') 
                     ? 'reseller' 
@@ -3554,7 +3554,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 // For Property Management institutions, always use property_admin so routing
                 // lands on PropertyManagementView rather than LandlordPortalView
                 const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
-                const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || (targetInst?.institutionType === 'County') || (admin.role === 'county_admin' || admin.role?.startsWith('county_'));
+                const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || ((targetInst?.institutionType as string) === 'County') || (admin.role === 'county_admin' || admin.role?.startsWith('county_'));
 
                 const resolvedRole = (initialRole && initialRole !== 'super_admin')
                     ? initialRole
@@ -6301,7 +6301,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
         const subEndDate = inst?.subscriptionEndsAt ? new Date(inst.subscriptionEndsAt) : null;
         const trialEndDate = inst?.trialEndsAt ? new Date(inst.trialEndsAt) : null;
 
-        const isStatusExpired = inst?.status === 'expired' || inst?.status === 'suspended';
+        const isStatusExpired = (inst?.status as string) === 'expired' || inst?.status === 'suspended';
         const isSubscriptionExpired = !isReseller && inst && (
             isStatusExpired ||
             (subEndDate !== null && subEndDate < now)
@@ -6688,9 +6688,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                         transactionLimit,
                                         setTransactionLimit,
                                         onSendSms: async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i || activeCounty?.id),
-                                        smsBalance: activeCounty?.smsBalance ?? (activeCounty as any)?.sms_balance ?? companyDetails?.smsBalance ?? 0,
-                                        smsConfig: activeCounty?.smsConfig || (activeCounty as any)?.sms_config || companyDetails?.smsConfig,
-                                        mpesaConfig: activeCounty?.mpesaConfig || (activeCounty as any)?.mpesa_config || companyDetails?.mpesaConfig,
+                                        smsBalance: (activeCounty as any)?.smsBalance ?? (activeCounty as any)?.sms_balance ?? companyDetails?.smsBalance ?? 0,
+                                        smsConfig: (activeCounty as any)?.smsConfig || (activeCounty as any)?.sms_config || companyDetails?.smsConfig,
+                                        mpesaConfig: (activeCounty as any)?.mpesaConfig || (activeCounty as any)?.mpesa_config || companyDetails?.mpesaConfig,
                                         onRefreshData: async () => { await loadData(false, true); },
                                         departments: departments || [],
                                         courses: courses || [],
