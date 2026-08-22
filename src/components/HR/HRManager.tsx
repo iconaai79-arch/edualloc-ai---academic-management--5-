@@ -22,9 +22,15 @@ import { FunnelIcon } from '../icons/FunnelIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
+import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
 import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
 import { SmartHRPayrollImporterModal } from './SmartHRPayrollImporterModal';
+import { 
+    StatutoryTaxSettingsModal, 
+    DEFAULT_STATUTORY_SETTINGS, 
+    type StatutoryPayrollSettings 
+} from './StatutoryTaxSettingsModal';
 import { apiService } from '../../services/apiService';
 import { 
     generateStaffPayslipPdf, 
@@ -223,6 +229,32 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
     // Excel Importer Modal State
     const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+
+    // Statutory & Tax Settings Modal State
+    const [showStatutorySettingsModal, setShowStatutorySettingsModal] = useState(false);
+    const [statutorySettings, setStatutorySettings] = useState<StatutoryPayrollSettings>(() => {
+        try {
+            const stored = localStorage.getItem(`eduai_statutory_payroll_settings_${institution.id}`);
+            if (stored) return JSON.parse(stored);
+        } catch (e) {}
+        return DEFAULT_STATUTORY_SETTINGS;
+    });
+
+    const handleSaveStatutorySettings = async (newSettings: StatutoryPayrollSettings) => {
+        setStatutorySettings(newSettings);
+        try {
+            localStorage.setItem(`eduai_statutory_payroll_settings_${institution.id}`, JSON.stringify(newSettings));
+            await apiService.saveModuleRecord('institution_module_states', {
+                id: `statutory_tax_settings_${institution.id}`,
+                institutionId: institution.id,
+                module: 'hr_statutory_settings',
+                state: newSettings,
+                updatedAt: new Date().toISOString()
+            }).catch(() => {});
+        } catch (e) {
+            console.error('Error saving statutory settings in HRManager:', e);
+        }
+    };
 
     // Roster List View & Pagination State
     const [rosterSearch, setRosterSearch] = useState('');
@@ -490,15 +522,47 @@ export const HRManager: React.FC<HRManagerProps> = ({
         let record = payrollRecords.find(r => r.staffId === selectedStaffId && r.month === selectedMonth);
         if (!record) {
             // Fallback generation on-the-fly with all custom allowances and deductions
-            const salary = getStaffSalary(member);
-            const houseAllowance = Math.round(salary * 0.15);
-            const nssf = salary > 0 ? Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06 : 0;
-            const shif = salary > 0 ? Math.max(300, salary * 0.0275) : 0;
-            const housingLevy = salary * 0.015;
-
             let meta = member.metadata || {};
             if (typeof meta === 'string') {
                 try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+            }
+
+            // Calculate NSSF based on statutory settings
+            let nssf = 0;
+            if (salary > 0) {
+                if (meta?.nssfMode === 'fixed' && typeof meta?.nssfAmount === 'number') {
+                    nssf = meta.nssfAmount;
+                } else if (statutorySettings.nssf.mode === 'fixed') {
+                    nssf = statutorySettings.nssf.fixedAmount || 0;
+                } else if (statutorySettings.nssf.mode === 'percentage') {
+                    nssf = salary * ((statutorySettings.nssf.percentageRate ?? 6.0) / 100);
+                } else {
+                    nssf = Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06;
+                }
+            }
+
+            // Calculate SHIF based on statutory settings
+            let shif = 0;
+            if (salary > 0) {
+                if (meta?.shifMode === 'fixed' && typeof meta?.shifAmount === 'number') {
+                    shif = meta.shifAmount;
+                } else if (statutorySettings.shif.mode === 'fixed') {
+                    shif = statutorySettings.shif.fixedAmount || 0;
+                } else {
+                    shif = Math.max(statutorySettings.shif.minimumAmount ?? 300, salary * ((statutorySettings.shif.percentageRate ?? 2.75) / 100));
+                }
+            }
+
+            // Calculate Housing Levy based on statutory settings
+            let housingLevy = 0;
+            if (salary > 0) {
+                if (meta?.housingLevyMode === 'fixed' && typeof meta?.housingLevyAmount === 'number') {
+                    housingLevy = meta.housingLevyAmount;
+                } else if (statutorySettings.housingLevy.mode === 'fixed') {
+                    housingLevy = statutorySettings.housingLevy.fixedAmount || 0;
+                } else {
+                    housingLevy = salary * ((statutorySettings.housingLevy.percentageRate ?? 1.5) / 100);
+                }
             }
 
             const allowances: Array<{ name: string; amount: number }> = [];
@@ -513,7 +577,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 { name: 'NSSF Pension', amount: Math.round(nssf) },
                 { name: 'SHIF Medical', amount: Math.round(shif) },
                 { name: 'Housing Levy (AHL)', amount: Math.round(housingLevy) },
-                { name: 'PAYE Tax', amount: Math.round(Math.max(0, salary * 0.1 - 2400)) }
+                { name: 'PAYE Tax', amount: Math.round(Math.max(0, salary * 0.1 - (statutorySettings.paye.personalRelief || 2400))) }
             ];
 
             if (Array.isArray(meta.assignedDeductions)) {
@@ -586,13 +650,48 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 items = targetStaff.map(s => {
                     const salary = getStaffSalary(s);
                     const houseAllowance = Math.round(salary * 0.15);
-                    const nssf = salary > 0 ? Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06 : 0;
-                    const shif = salary > 0 ? Math.max(300, salary * 0.0275) : 0;
-                    const housingLevy = salary * 0.015;
 
                     let meta = s.metadata || {};
                     if (typeof meta === 'string') {
                         try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                    }
+
+                    // Calculate NSSF based on statutory settings
+                    let nssf = 0;
+                    if (salary > 0) {
+                        if (meta?.nssfMode === 'fixed' && typeof meta?.nssfAmount === 'number') {
+                            nssf = meta.nssfAmount;
+                        } else if (statutorySettings.nssf.mode === 'fixed') {
+                            nssf = statutorySettings.nssf.fixedAmount || 0;
+                        } else if (statutorySettings.nssf.mode === 'percentage') {
+                            nssf = salary * ((statutorySettings.nssf.percentageRate ?? 6.0) / 100);
+                        } else {
+                            nssf = Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06;
+                        }
+                    }
+
+                    // Calculate SHIF based on statutory settings
+                    let shif = 0;
+                    if (salary > 0) {
+                        if (meta?.shifMode === 'fixed' && typeof meta?.shifAmount === 'number') {
+                            shif = meta.shifAmount;
+                        } else if (statutorySettings.shif.mode === 'fixed') {
+                            shif = statutorySettings.shif.fixedAmount || 0;
+                        } else {
+                            shif = Math.max(statutorySettings.shif.minimumAmount ?? 300, salary * ((statutorySettings.shif.percentageRate ?? 2.75) / 100));
+                        }
+                    }
+
+                    // Calculate Housing Levy based on statutory settings
+                    let housingLevy = 0;
+                    if (salary > 0) {
+                        if (meta?.housingLevyMode === 'fixed' && typeof meta?.housingLevyAmount === 'number') {
+                            housingLevy = meta.housingLevyAmount;
+                        } else if (statutorySettings.housingLevy.mode === 'fixed') {
+                            housingLevy = statutorySettings.housingLevy.fixedAmount || 0;
+                        } else {
+                            housingLevy = salary * ((statutorySettings.housingLevy.percentageRate ?? 1.5) / 100);
+                        }
                     }
 
                     const allowances: Array<{ name: string; amount: number }> = [];
@@ -1097,6 +1196,16 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 >
                                     <ShieldCheckIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                                     <span>Pay Elements</span>
+                                </button>
+
+                                {/* Configure Statutory Tax & Levy Settings */}
+                                <button
+                                    onClick={() => setShowStatutorySettingsModal(true)}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 border border-slate-200 dark:border-slate-600 cursor-pointer"
+                                    title="Configure NSSF, Housing Levy (AHL), SHIF (% vs Fixed Figures)"
+                                >
+                                    <Cog8ToothIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                    <span>Tax & Statutory</span>
                                 </button>
 
                                 {/* Import Excel / CSV Action */}
@@ -2621,6 +2730,15 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 onAddUser={onAddUser}
                 onEditUser={onEditUser}
                 onProcessPayroll={onProcessPayroll}
+            />
+
+            {/* Statutory Tax & Levy Configuration Modal */}
+            <StatutoryTaxSettingsModal
+                isOpen={showStatutorySettingsModal}
+                onClose={() => setShowStatutorySettingsModal(false)}
+                institution={institution}
+                settings={statutorySettings}
+                onSaveSettings={handleSaveStatutorySettings}
             />
         </div>
     );

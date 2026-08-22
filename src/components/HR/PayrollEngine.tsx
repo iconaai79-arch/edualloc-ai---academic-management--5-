@@ -7,6 +7,13 @@ import { FingerPrintIcon } from '../icons/FingerPrintIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { XIcon } from '../icons/XIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
+import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
+import { 
+    StatutoryTaxSettingsModal, 
+    DEFAULT_STATUTORY_SETTINGS, 
+    type StatutoryPayrollSettings 
+} from './StatutoryTaxSettingsModal';
+import { apiService } from '../../services/apiService';
 import { 
     generateBulkStaffPayslipsPdf, 
     generateStaffPayslipPdf,
@@ -25,7 +32,7 @@ interface PayrollEngineProps {
     onOpenExcelImport?: () => void;
 }
 
-interface KenyanPayrollBreakdown {
+export interface KenyanPayrollBreakdown {
     grossSalary: number;
     baseGross: number;
     nssf: number;
@@ -63,38 +70,80 @@ export const getStaffAttendance = (staffId: string) => {
     return { expectedCheckIns, actualCheckIns, attendanceRate };
 };
 
-// Kenyan statutory tax calculation compliant with 2026 guidelines
+// Kenyan statutory tax calculation compliant with percentage vs fixed figures settings
 export const calculateKenyanPayroll = (
     basicSalary: number,
     allowancesSum: number,
     attendanceRate: number,
-    useBiometric: boolean
+    useBiometric: boolean,
+    settings?: StatutoryPayrollSettings,
+    staffMeta?: any
 ): KenyanPayrollBreakdown => {
     const baseGross = basicSalary + allowancesSum;
     let biometricDeduction = 0;
     if (useBiometric) biometricDeduction = baseGross * (1 - attendanceRate);
     const grossSalary = Math.max(0, baseGross - biometricDeduction);
 
+    const cfg = settings || DEFAULT_STATUTORY_SETTINGS;
+
+    // 1. Calculate NSSF (Pension)
     let nssf = 0;
     if (grossSalary > 0) {
-        const tier1Base = Math.min(grossSalary, 9000);
-        const tier2Base = Math.max(0, Math.min(grossSalary, 108000) - 9000);
-        nssf = (tier1Base * 0.06) + (tier2Base * 0.06);
+        if (staffMeta?.nssfMode === 'fixed' && typeof staffMeta?.nssfAmount === 'number') {
+            nssf = staffMeta.nssfAmount;
+        } else if (cfg.nssf.mode === 'fixed') {
+            nssf = cfg.nssf.fixedAmount || 0;
+        } else if (cfg.nssf.mode === 'percentage') {
+            nssf = grossSalary * ((cfg.nssf.percentageRate ?? 6.0) / 100);
+        } else {
+            // Standard Tier I & Tier II formula
+            const tier1Base = Math.min(grossSalary, 9000);
+            const tier2Base = Math.max(0, Math.min(grossSalary, 108000) - 9000);
+            nssf = (tier1Base * 0.06) + (tier2Base * 0.06);
+        }
     }
-    const shif = grossSalary > 0 ? Math.max(300, grossSalary * 0.0275) : 0;
-    const housingLevy = grossSalary * 0.015;
+
+    // 2. Calculate SHIF (Social Health Insurance Fund)
+    let shif = 0;
+    if (grossSalary > 0) {
+        if (staffMeta?.shifMode === 'fixed' && typeof staffMeta?.shifAmount === 'number') {
+            shif = staffMeta.shifAmount;
+        } else if (cfg.shif.mode === 'fixed') {
+            shif = cfg.shif.fixedAmount || 0;
+        } else {
+            const rate = (cfg.shif.percentageRate ?? 2.75) / 100;
+            const minFloor = cfg.shif.minimumAmount ?? 300;
+            shif = Math.max(minFloor, grossSalary * rate);
+        }
+    }
+
+    // 3. Calculate Affordable Housing Levy (AHL)
+    let housingLevy = 0;
+    if (grossSalary > 0) {
+        if (staffMeta?.housingLevyMode === 'fixed' && typeof staffMeta?.housingLevyAmount === 'number') {
+            housingLevy = staffMeta.housingLevyAmount;
+        } else if (cfg.housingLevy.mode === 'fixed') {
+            housingLevy = cfg.housingLevy.fixedAmount || 0;
+        } else {
+            const rate = (cfg.housingLevy.percentageRate ?? 1.5) / 100;
+            housingLevy = grossSalary * rate;
+        }
+    }
+
     const allowableDeductions = nssf + shif + housingLevy;
     const taxableIncome = Math.max(0, grossSalary - allowableDeductions);
 
     let grossPaye = 0;
-    let remainingTaxable = taxableIncome;
-    const band1 = Math.min(remainingTaxable, 24000); grossPaye += band1 * 0.10; remainingTaxable -= band1;
-    if (remainingTaxable > 0) { const b = Math.min(remainingTaxable, 8333); grossPaye += b * 0.25; remainingTaxable -= b; }
-    if (remainingTaxable > 0) { const b = Math.min(remainingTaxable, 467667); grossPaye += b * 0.30; remainingTaxable -= b; }
-    if (remainingTaxable > 0) { const b = Math.min(remainingTaxable, 300000); grossPaye += b * 0.325; remainingTaxable -= b; }
-    if (remainingTaxable > 0) grossPaye += remainingTaxable * 0.35;
+    if (cfg.paye.enabled && grossSalary > 0) {
+        let remainingTaxable = taxableIncome;
+        const band1 = Math.min(remainingTaxable, 24000); grossPaye += band1 * 0.10; remainingTaxable -= band1;
+        if (remainingTaxable > 0) { const b = Math.min(remainingTaxable, 8333); grossPaye += b * 0.25; remainingTaxable -= b; }
+        if (remainingTaxable > 0) { const b = Math.min(remainingTaxable, 467667); grossPaye += b * 0.30; remainingTaxable -= b; }
+        if (remainingTaxable > 0) { const b = Math.min(remainingTaxable, 300000); grossPaye += b * 0.325; remainingTaxable -= b; }
+        if (remainingTaxable > 0) grossPaye += remainingTaxable * 0.35;
+    }
 
-    const personalRelief = grossSalary > 0 ? 2400 : 0;
+    const personalRelief = (cfg.paye.enabled && grossSalary > 0) ? (cfg.paye.personalRelief ?? 2400) : 0;
     const netPaye = Math.max(0, grossPaye - personalRelief);
     const netSalary = grossSalary - allowableDeductions - netPaye;
 
@@ -125,6 +174,31 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
     const [useBiometric, setUseBiometric] = useState(false);
     const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
     const [showDesignerModal, setShowDesignerModal] = useState(false);
+    const [showStatutorySettingsModal, setShowStatutorySettingsModal] = useState(false);
+    const [statutorySettings, setStatutorySettings] = useState<StatutoryPayrollSettings>(() => {
+        try {
+            const stored = localStorage.getItem(`eduai_statutory_payroll_settings_${institution.id}`);
+            if (stored) return JSON.parse(stored);
+        } catch (e) {}
+        return DEFAULT_STATUTORY_SETTINGS;
+    });
+
+    const handleSaveStatutorySettings = async (newSettings: StatutoryPayrollSettings) => {
+        setStatutorySettings(newSettings);
+        try {
+            localStorage.setItem(`eduai_statutory_payroll_settings_${institution.id}`, JSON.stringify(newSettings));
+            await apiService.saveModuleRecord('institution_module_states', {
+                id: `statutory_tax_settings_${institution.id}`,
+                institutionId: institution.id,
+                module: 'hr_statutory_settings',
+                state: newSettings,
+                updatedAt: new Date().toISOString()
+            }).catch(() => {});
+        } catch (e) {
+            console.error('Error saving statutory settings:', e);
+        }
+    };
+
     // Per-employee salary overrides (keyed by staffId) — allows inline editing even if metadata not yet synced
     const [salaryOverrides, setSalaryOverrides] = useState<Record<string, number>>({});
     // Payslip edit/delete state
@@ -182,7 +256,7 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
             const customAllowancesSum = assignedAllowances.reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
             const totalAllowancesSum = staffHouseAllowance + customAllowancesSum;
 
-            const payroll = calculateKenyanPayroll(staffBasicSalary, totalAllowancesSum, attendance.attendanceRate, useBiometric);
+            const payroll = calculateKenyanPayroll(staffBasicSalary, totalAllowancesSum, attendance.attendanceRate, useBiometric, statutorySettings, m);
 
             const customDeductionsSum = assignedDeductions.reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
             const adjustedNetSalary = Math.max(0, payroll.netSalary - customDeductionsSum);
@@ -694,6 +768,14 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         {MONTH_OPTIONS.map(m => <option key={m}>{m}</option>)}
                     </select>
                     <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => setShowStatutorySettingsModal(true)}
+                            className="flex items-center justify-center gap-2 px-5 py-3.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95 cursor-pointer border border-slate-700"
+                            title="Configure NSSF, Housing Levy (AHL), SHIF, and PAYE calculation modes (% vs Fixed)"
+                        >
+                            <Cog8ToothIcon className="w-4 h-4 text-indigo-400" />
+                            <span>Tax & Statutory</span>
+                        </button>
                         {onOpenExcelImport && (
                             <button
                                 onClick={onOpenExcelImport}
@@ -1114,6 +1196,15 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Statutory & Tax Settings Modal */}
+            <StatutoryTaxSettingsModal
+                isOpen={showStatutorySettingsModal}
+                onClose={() => setShowStatutorySettingsModal(false)}
+                institution={institution}
+                settings={statutorySettings}
+                onSaveSettings={handleSaveStatutorySettings}
+            />
         </div>
     );
 };
