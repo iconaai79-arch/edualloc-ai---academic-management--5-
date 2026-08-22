@@ -10,6 +10,8 @@ import { XIcon } from '../icons/XIcon';
 import { EyeIcon } from '../icons/EyeIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
+import { PencilIcon } from '../icons/PencilIcon';
 import * as pdfService from '../../services/pdfService';
 
 export interface InvoiceBatch {
@@ -52,6 +54,7 @@ const formatDateDisplay = (dateStr?: string): string => {
         return d.toLocaleDateString('en-US', {
             month: 'short',
             day: '2-digit',
+            year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
             hour12: true
@@ -81,6 +84,16 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
 
     // Batch Drilldown View Modal
     const [viewingBatch, setViewingBatch] = useState<InvoiceBatch | null>(null);
+
+    // Edit Added Date Modal state (Batch level)
+    const [batchToEditDate, setBatchToEditDate] = useState<InvoiceBatch | null>(null);
+    const [newBatchDate, setNewBatchDate] = useState('');
+    const [isSavingBatchDate, setIsSavingBatchDate] = useState(false);
+
+    // Edit Added Date Modal state (Single invoice level)
+    const [invoiceToEditDate, setInvoiceToEditDate] = useState<Invoice | null>(null);
+    const [newInvoiceDate, setNewInvoiceDate] = useState('');
+    const [isSavingInvoiceDate, setIsSavingInvoiceDate] = useState(false);
 
     // Build student lookup
     const studentMap = useMemo(() => {
@@ -282,6 +295,86 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
             alert('Failed to undo and reverse invoice batch. Please try again.');
         } finally {
             setIsUndoing(false);
+        }
+    };
+
+    // Edit Batch Added Date
+    const handleSaveBatchDate = async () => {
+        if (!batchToEditDate || !newBatchDate) return;
+        setIsSavingBatchDate(true);
+        try {
+            const isoDate = new Date(newBatchDate).toISOString();
+            const dateStr = newBatchDate;
+
+            // 1. Update batch in state and localStorage / institution_module_states
+            const updatedBatches = persistedBatches.map(b => {
+                if (b.id === batchToEditDate.id) {
+                    return { ...b, addedOn: isoDate, createdAt: isoDate };
+                }
+                return b;
+            });
+            saveBatches(updatedBatches);
+
+            // 2. Update all matching invoices in database
+            const matchingInvoices = invoices.filter(inv => batchToEditDate.invoiceIds.includes(inv.id));
+            if (matchingInvoices.length > 0) {
+                const updatedInvoices = matchingInvoices.map(inv => ({
+                    ...inv,
+                    issueDate: dateStr,
+                    issue_date: dateStr,
+                    createdAt: isoDate,
+                    created_at: isoDate,
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }));
+                await apiService.saveModuleRecords('invoices', updatedInvoices);
+            }
+
+            if (onRefreshData) {
+                await onRefreshData();
+            }
+
+            setUndoSuccessMsg(`Successfully updated added date for batch "${batchToEditDate.description}" to ${dateStr}.`);
+            setBatchToEditDate(null);
+            setTimeout(() => setUndoSuccessMsg(null), 5000);
+        } catch (err) {
+            console.error('[InvoiceHistoryManager] Failed to update batch date:', err);
+            alert('Failed to update batch added date. Please try again.');
+        } finally {
+            setIsSavingBatchDate(false);
+        }
+    };
+
+    // Edit Single Invoice Added Date
+    const handleSaveInvoiceDate = async () => {
+        if (!invoiceToEditDate || !newInvoiceDate) return;
+        setIsSavingInvoiceDate(true);
+        try {
+            const isoDate = new Date(newInvoiceDate).toISOString();
+            const dateStr = newInvoiceDate;
+
+            await apiService.updateModuleRecord('invoices', invoiceToEditDate.id, {
+                ...invoiceToEditDate,
+                issueDate: dateStr,
+                issue_date: dateStr,
+                createdAt: isoDate,
+                created_at: isoDate,
+                updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+
+            if (onRefreshData) {
+                await onRefreshData();
+            }
+
+            setUndoSuccessMsg(`Invoice date updated to ${dateStr}.`);
+            setInvoiceToEditDate(null);
+            setTimeout(() => setUndoSuccessMsg(null), 5000);
+        } catch (err) {
+            console.error('[InvoiceHistoryManager] Failed to update invoice date:', err);
+            alert('Failed to update invoice date. Please try again.');
+        } finally {
+            setIsSavingInvoiceDate(false);
         }
     };
 
@@ -538,10 +631,24 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                             </td>
                                             <td className="px-5 py-4 text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap">
                                                 {batch.addedBy || 'System Automated'}
-                                            </td>
-                                            <td className="px-5 py-4 text-right">
+                                                                                    <td className="px-5 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     
+                                                    {/* Edit Batch Added Date */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setBatchToEditDate(batch);
+                                                            const curDate = batch.addedOn ? new Date(batch.addedOn).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                                                            setNewBatchDate(curDate);
+                                                        }}
+                                                        disabled={isReversed}
+                                                        className="p-2 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30"
+                                                        title="Edit Added Date for this batch and its invoices"
+                                                    >
+                                                        <CalendarDaysIcon className="w-4 h-4" />
+                                                    </button>
+
                                                     {/* View Records */}
                                                     <button
                                                         type="button"
@@ -580,7 +687,7 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                                     )}
 
                                                 </div>
-                                            </td>
+                                             </td>
                                         </tr>
                                     );
                                 })
@@ -590,6 +697,124 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                 </div>
 
             </div>
+
+            {/* Edit Batch Added Date Modal */}
+            {batchToEditDate && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 space-y-6 text-left animate-in zoom-in-95 duration-200">
+                        
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                                <CalendarDaysIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                    Edit Batch Added Date
+                                </h4>
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {batchToEditDate.description}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                                    New Added Date / Issue Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={newBatchDate}
+                                    onChange={(e) => setNewBatchDate(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 focus:border-amber-500 text-xs font-black text-slate-800 dark:text-white outline-none"
+                                />
+                            </div>
+
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-850 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                                ℹ️ Updating this date will update the issue date and timestamp for all <strong>{batchToEditDate.noOfRecords}</strong> student invoices in this batch.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setBatchToEditDate(null)}
+                                disabled={isSavingBatchDate}
+                                className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveBatchDate}
+                                disabled={isSavingBatchDate || !newBatchDate}
+                                className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                                <CheckCircleIcon className="w-4 h-4" />
+                                <span>{isSavingBatchDate ? 'Saving...' : 'Update Batch Date'}</span>
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Individual Invoice Added Date Modal */}
+            {invoiceToEditDate && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 space-y-6 text-left animate-in zoom-in-95 duration-200">
+                        
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                <CalendarDaysIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                    Edit Invoice Added Date
+                                </h4>
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Invoice No: {invoiceToEditDate.invoiceNumber || (invoiceToEditDate as any).invoice_number}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">
+                                    New Added Date / Issue Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={newInvoiceDate}
+                                    onChange={(e) => setNewInvoiceDate(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 focus:border-indigo-600 text-xs font-black text-slate-800 dark:text-white outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setInvoiceToEditDate(null)}
+                                disabled={isSavingInvoiceDate}
+                                className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveInvoiceDate}
+                                disabled={isSavingInvoiceDate || !newInvoiceDate}
+                                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                                <CheckCircleIcon className="w-4 h-4" />
+                                <span>{isSavingInvoiceDate ? 'Saving...' : 'Update Date'}</span>
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
 
             {/* Undo Confirmation Modal */}
             {batchToUndo && (
@@ -687,8 +912,10 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400">Student Name</th>
                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400">Admission No</th>
                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400">Class</th>
+                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400">Date Added</th>
                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-right">Amount (KES)</th>
                                         <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-center">Status</th>
+                                        <th className="px-4 py-3 text-[10px] font-black uppercase text-slate-400 text-right">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
@@ -697,6 +924,7 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                         const adm = st?.admissionNumber || st?.admission_number || (st?.metadata as any)?.admissionNumber || '—';
                                         const cls = inv.className || (st?.metadata as any)?.className || '—';
                                         const amt = parseMoney(inv.totalAmount || (inv as any).total_amount || 0);
+                                        const invDate = inv.issueDate || (inv as any).issue_date || (inv as any).createdAt || '—';
 
                                         return (
                                             <tr key={inv.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -712,6 +940,9 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                                 <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                                                     {cls}
                                                 </td>
+                                                <td className="px-4 py-3 text-slate-600 dark:text-slate-300 font-semibold whitespace-nowrap">
+                                                    {formatDateDisplay(invDate)}
+                                                </td>
                                                 <td className="px-4 py-3 font-mono font-black text-right text-indigo-600 dark:text-indigo-400">
                                                     {amt.toLocaleString()}
                                                 </td>
@@ -722,6 +953,20 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                                     }`}>
                                                         {inv.status}
                                                     </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setInvoiceToEditDate(inv);
+                                                            const curDate = inv.issueDate || (inv as any).issue_date || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+                                                            setNewInvoiceDate(curDate);
+                                                        }}
+                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                        title="Edit Added Date"
+                                                    >
+                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );

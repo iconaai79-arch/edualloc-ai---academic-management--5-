@@ -7989,8 +7989,43 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             {inv.status || 'pending'}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                                                        {inv.issueDate || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : '—')}
+                                                    <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span>{inv.issueDate || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : '—')}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={async (e) => {
+                                                                    e.stopPropagation();
+                                                                    const cur = inv.issueDate || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+                                                                    const newDate = prompt("Enter new Date Added / Issue Date (YYYY-MM-DD):", cur);
+                                                                    if (newDate && newDate.trim() !== '' && newDate.trim() !== cur) {
+                                                                        try {
+                                                                            const isoDate = new Date(newDate.trim()).toISOString();
+                                                                            await apiService.updateModuleRecord('invoices', inv.id, {
+                                                                                ...inv,
+                                                                                issueDate: newDate.trim(),
+                                                                                issue_date: newDate.trim(),
+                                                                                createdAt: isoDate,
+                                                                                created_at: isoDate,
+                                                                                updatedAt: new Date().toISOString(),
+                                                                                updated_at: new Date().toISOString()
+                                                                            });
+                                                                            if (props.onRefreshData) {
+                                                                                await props.onRefreshData();
+                                                                            }
+                                                                            alert("Invoice date updated successfully!");
+                                                                        } catch (err) {
+                                                                            console.error(err);
+                                                                            alert("Failed to update invoice date.");
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                                title="Edit Date Added"
+                                                            >
+                                                                <PencilIcon className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex justify-center items-center gap-1">
@@ -8179,10 +8214,51 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">{sClass}</p>
                                         </div>
                                         <div>
-                                            <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Issue Date</span>
-                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-0.5">
-                                                {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '—')}
-                                            </p>
+                                            <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Date Added / Issue Date</span>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '—')}
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const cur = inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+                                                        const newDate = prompt("Enter new Date Added / Issue Date (YYYY-MM-DD):", cur);
+                                                        if (newDate && newDate.trim() !== '' && newDate.trim() !== cur) {
+                                                            try {
+                                                                const isoDate = new Date(newDate.trim()).toISOString();
+                                                                await apiService.updateModuleRecord('invoices', inv.id, {
+                                                                    ...inv,
+                                                                    issueDate: newDate.trim(),
+                                                                    issue_date: newDate.trim(),
+                                                                    createdAt: isoDate,
+                                                                    created_at: isoDate,
+                                                                    updatedAt: new Date().toISOString(),
+                                                                    updated_at: new Date().toISOString()
+                                                                });
+                                                                if (props.onRefreshData) {
+                                                                    await props.onRefreshData();
+                                                                }
+                                                                setSelectedInvoiceForDetails(prev => prev ? ({
+                                                                    ...prev,
+                                                                    issueDate: newDate.trim(),
+                                                                    issue_date: newDate.trim(),
+                                                                    createdAt: isoDate,
+                                                                    created_at: isoDate
+                                                                }) : null);
+                                                                alert("Invoice date updated successfully!");
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                alert("Failed to update invoice date.");
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                    title="Edit Date Added"
+                                                >
+                                                    <PencilIcon className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
