@@ -893,7 +893,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isGeneratingStmtPdf, setIsGeneratingStmtPdf] = useState(false);
     const [showStmtPdfModal, setShowStmtPdfModal] = useState(false);
     const [balPreviewStudentId, setBalPreviewStudentId] = useState('');
-    const [balPreviewViewMode, setBalPreviewViewMode] = useState<'table' | 'preview'>('preview');
+    const [balPreviewViewMode, setBalPreviewViewMode] = useState<'table' | 'preview'>('table');
     const [slipSearch, setSlipSearch] = useState('');
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
@@ -5163,7 +5163,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setBalPreviewStudentId(prev => prev === student.id ? '' : student.id);
-                                                                    setBalPreviewViewMode('preview');
+                                                                    setBalPreviewViewMode('table');
                                                                 }}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm"
                                                                 title="View Student Statement of Account"
@@ -5377,12 +5377,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!balPrevStudent) return null;
 
                 return (
-                    <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 md:p-6 overflow-y-auto animate-in fade-in duration-200" onClick={(e) => {
+                    <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200" onClick={(e) => {
                         if (e.target === e.currentTarget) setBalPreviewStudentId('');
                     }}>
-                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto my-auto relative animate-in zoom-in-95 duration-200">
+                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col my-auto relative animate-in zoom-in-95 duration-200 overflow-hidden">
                             {/* Preview Panel Header Bar */}
-                            <div className="sticky top-0 z-20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 text-white p-4 px-6 rounded-t-[2.5rem] shadow-md border-b border-slate-800">
+                            <div className="shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 text-white p-4 px-6 rounded-t-[2.5rem] shadow-md border-b border-slate-800 z-10">
                                 <div className="flex items-center gap-3">
                                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                                     <span className="text-xs font-black uppercase tracking-widest text-slate-200">{balPrevStudent.name}</span>
@@ -5403,10 +5403,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
 
-                            {/* TABLE MODE */}
-                            {balPreviewViewMode === 'table' && (
-                                <div className="bg-white dark:bg-slate-900 rounded-b-3xl border border-t-0 border-slate-100 dark:border-slate-800/60 shadow-sm overflow-hidden">
-                                    <div className="bg-gradient-to-r from-indigo-700 to-purple-700 p-6 text-white">
+                            <div className="overflow-y-auto flex-1">
+                                {/* TABLE MODE */}
+                                {balPreviewViewMode === 'table' && (
+                                    <div className="bg-white dark:bg-slate-900 border border-t-0 border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                        <div className="bg-gradient-to-r from-indigo-700 to-purple-700 p-6 text-white">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-1">Official Account Statement</p>
@@ -5596,6 +5597,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 </div>
                             )}
+                            </div>
                         </div>
                     </div>
                 );
