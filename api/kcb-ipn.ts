@@ -743,6 +743,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
         const webhookSecret = String(kcbConfig.webhookSecret || kcbConfig.webhook_secret || kcbConfig.webhookToken || '').trim();
         const requireWebhookAuth = kcbConfig.requireWebhookAuth === true || kcbConfig.require_webhook_auth === true;
 

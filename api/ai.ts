@@ -96,11 +96,11 @@ async function runOpenAiChat({
     });
 
     if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
+        const errData: any = await res.json().catch(() => ({}));
         throw new Error(errData?.error?.message || `OpenAI API Error: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data: any = await res.json();
     return data?.choices?.[0]?.message?.content || '';
 }
 
@@ -140,11 +140,11 @@ async function runOpenAiWhisper({
     });
 
     if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
+        const errData: any = await res.json().catch(() => ({}));
         throw new Error(errData?.error?.message || `OpenAI Whisper Error: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data: any = await res.json();
     return data.text || '';
 }
 
@@ -173,7 +173,7 @@ async function runOpenAiTts({
     });
 
     if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
+        const errData: any = await res.json().catch(() => ({}));
         throw new Error(errData?.error?.message || `OpenAI TTS Error: ${res.status}`);
     }
 
