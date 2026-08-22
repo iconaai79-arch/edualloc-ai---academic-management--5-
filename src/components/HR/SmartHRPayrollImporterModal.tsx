@@ -24,7 +24,7 @@ export interface ParsedHREmployeeRow {
     // Allowances
     houseAllowance: number;
     medicalAllowance: number;
-    hardshipAllowance: number;
+    housingLevyAllowance: number;
     nssfAllowance: number;
     otherAllowances: number;
     totalGross: number;
@@ -258,9 +258,9 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                     // Allowances
                     const houseAllowance = parseNumber(idxHseAll !== -1 ? row[idxHseAll] : 0);
                     const medicalAllowance = parseNumber(idxMed !== -1 ? row[idxMed] : 0);
-                    const hardshipAllowance = parseNumber(idxHlAllow !== -1 ? row[idxHlAllow] : 0);
+                    const housingLevyAllowance = parseNumber(idxHlAllow !== -1 ? row[idxHlAllow] : 0);
                     const nssfAllowance = parseNumber(idxNssfAllow !== -1 ? row[idxNssfAllow] : 0);
-                    const otherAllowances = houseAllowance + medicalAllowance + hardshipAllowance + nssfAllowance;
+                    const otherAllowances = houseAllowance + medicalAllowance + housingLevyAllowance + nssfAllowance;
 
                     let totalGross = parseNumber(idxTotalGross !== -1 ? row[idxTotalGross] : 0);
                     if (totalGross === 0) {
@@ -311,7 +311,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         basicSalary: basicSalary > 0 ? basicSalary : totalGross,
                         houseAllowance,
                         medicalAllowance,
-                        hardshipAllowance,
+                        housingLevyAllowance,
                         nssfAllowance,
                         otherAllowances,
                         totalGross,
@@ -521,7 +521,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         assignedAllowances: [
                             ...(row.houseAllowance > 0 ? [{ name: 'House Allowance', amount: row.houseAllowance, type: 'fixed' }] : []),
                             ...(row.medicalAllowance > 0 ? [{ name: 'Medical Allowance', amount: row.medicalAllowance, type: 'fixed' }] : []),
-                            ...(row.hardshipAllowance > 0 ? [{ name: 'Hardship Allowance', amount: row.hardshipAllowance, type: 'fixed' }] : [])
+                            ...(row.housingLevyAllowance > 0 ? [{ name: 'Housing Levy Allowance (HL)', amount: row.housingLevyAllowance, type: 'fixed' }] : [])
                         ],
                         assignedDeductions: [
                             ...(row.welfareDeduction > 0 ? [{ name: 'Staff Welfare', amount: row.welfareDeduction, type: 'fixed' }] : []),
@@ -569,7 +569,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                     const allowancesList = [
                         ...(row.houseAllowance > 0 ? [{ name: 'House Allowance', amount: row.houseAllowance }] : []),
                         ...(row.medicalAllowance > 0 ? [{ name: 'Medical Allowance', amount: row.medicalAllowance }] : []),
-                        ...(row.hardshipAllowance > 0 ? [{ name: 'Hardship / Special Allowance', amount: row.hardshipAllowance }] : []),
+                        ...(row.housingLevyAllowance > 0 ? [{ name: 'Housing Levy Allowance (HL)', amount: row.housingLevyAllowance }] : []),
                         ...(row.nssfAllowance > 0 ? [{ name: 'NSSF Gross Allowance', amount: row.nssfAllowance }] : [])
                     ];
 
@@ -647,7 +647,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                                 </span>
                             </div>
                             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                                Import staff registers, allowances (House, Med, Hardship) & deductions (NSSF, SHIF, Welfare, SACCO, Housing Levy)
+                                Import staff registers, allowances (House, Med, Housing Levy) & deductions (NSSF, SHIF, Welfare, SACCO, Housing Levy)
                             </p>
                         </div>
                     </div>
@@ -817,7 +817,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                                                 <th className="py-3 px-3 text-right">Basic Salary</th>
                                                 <th className="py-3 px-3 text-right">House All.</th>
                                                 <th className="py-3 px-3 text-right">Med All.</th>
-                                                <th className="py-3 px-3 text-right">Hardship All.</th>
+                                                <th className="py-3 px-3 text-right">HL (Gross)</th>
                                                 <th className="py-3 px-3 text-right bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300">Total Gross</th>
                                                 <th className="py-3 px-3 text-right">NSSF</th>
                                                 <th className="py-3 px-3 text-right">SHIF</th>
@@ -839,7 +839,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                                                     <td className="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-200">{r.basicSalary.toLocaleString()}</td>
                                                     <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.houseAllowance > 0 ? r.houseAllowance.toLocaleString() : '-'}</td>
                                                     <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.medicalAllowance > 0 ? r.medicalAllowance.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.hardshipAllowance > 0 ? r.hardshipAllowance.toLocaleString() : '-'}</td>
+                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.housingLevyAllowance > 0 ? r.housingLevyAllowance.toLocaleString() : '-'}</td>
                                                     <td className="py-2.5 px-3 text-right font-black bg-indigo-50/30 dark:bg-indigo-950/10 text-indigo-700 dark:text-indigo-300">{r.totalGross.toLocaleString()}</td>
                                                     <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.nssfDeduction > 0 ? r.nssfDeduction.toLocaleString() : '-'}</td>
                                                     <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.shifDeduction > 0 ? r.shifDeduction.toLocaleString() : '-'}</td>
