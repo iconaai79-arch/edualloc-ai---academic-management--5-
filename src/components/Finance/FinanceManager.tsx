@@ -1947,6 +1947,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [excelFilterQuery, setExcelFilterQuery] = useState('');
     const [excelFilterStatus, setExcelFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
     const [isProcessingBulkReceipts, setIsProcessingBulkReceipts] = useState(false);
+    const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [bulkImportSuccessSummary, setBulkImportSuccessSummary] = useState<string | null>(null);
 
     useEffect(() => {
@@ -2696,35 +2697,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
 
         setIsProcessingBulkReceipts(true);
+        setBulkProgress({ current: 0, total: matchedItems.length });
 
         try {
-            const newReceipts = matchedItems.map(item => {
+            const newReceipts: any[] = [];
+
+            for (let i = 0; i < matchedItems.length; i++) {
+                const item = matchedItems[i];
                 const student = mergedStudents.find(s => s.id === item.matchedStudentId);
-                // Use the Receipt # from the Excel (column G) if present; only auto-generate if blank
                 const receiptNum = item.receiptNumber?.trim()
                     ? item.receiptNumber.trim()
                     : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
-                // Use the raw Excel Payment Mode in the description; fall back to mapped value
                 const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod;
-                return {
+                const receipt = {
                     id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                     institutionId: props.institution.id,
                     receiptNumber: receiptNum,
                     studentId: item.matchedStudentId,
                     studentName: student?.name || item.payer,
                     amountPaid: item.amount,
-                    paymentMethod: item.paymentMethod,        // mapped canonical value
-                    excelPaymentMode: item.excelPaymentMode,  // raw string from Excel column E
+                    paymentMethod: item.paymentMethod,
+                    excelPaymentMode: item.excelPaymentMode,
                     paymentDate: item.date,
                     relatedTransactionId: item.ref,
-                    paidFor: `Fee Payment via ${modeLabel}`,  // e.g. "Fee Payment via M-PESA paybill"
+                    paidFor: `Fee Payment via ${modeLabel}`,
                     createdAt: new Date().toISOString()
                 };
-            });
 
-            await apiService.saveModuleRecords('receipts', newReceipts).catch(async () => {
-                await apiService.saveModuleRecord('receipts', newReceipts);
-            });
+                // Save this receipt individually so progress is real
+                await apiService.saveModuleRecord('receipts', receipt).catch(async () => {
+                    await apiService.saveModuleRecords('receipts', [receipt]);
+                });
+
+                newReceipts.push(receipt);
+
+                // Update progress counter and yield to React so the UI re-renders
+                setBulkProgress({ current: i + 1, total: matchedItems.length });
+                await new Promise(r => setTimeout(r, 0));
+            }
 
             if (props.onLogAction) {
                 props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}`);
@@ -2756,6 +2766,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to post receipts. Please check connection.");
         } finally {
             setIsProcessingBulkReceipts(false);
+            setBulkProgress({ current: 0, total: 0 });
         }
     };
 
@@ -16476,11 +16487,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </table>
                                 </div>
 
+                                {/* ── Progress bar — shown while posting ── */}
+                                {isProcessingBulkReceipts && bulkProgress.total > 0 && (
+                                    <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 space-y-3">
+                                        {/* Header row */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                                <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
+                                                    Posting Receipts…
+                                                </span>
+                                            </div>
+                                            <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 tabular-nums">
+                                                {bulkProgress.current} / {bulkProgress.total}
+                                                <span className="text-emerald-500 ml-2">
+                                                    ({Math.round((bulkProgress.current / bulkProgress.total) * 100)}%)
+                                                </span>
+                                            </span>
+                                        </div>
+                                        {/* Track */}
+                                        <div className="relative h-3 w-full bg-emerald-100 dark:bg-emerald-900/60 rounded-full overflow-hidden">
+                                            {/* Filled portion */}
+                                            <div
+                                                className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-300"
+                                                style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                                            />
+                                            {/* Shimmer sweep */}
+                                            <div
+                                                className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent rounded-full animate-[shimmer_1.2s_ease-in-out_infinite]"
+                                                style={{ left: `calc(${(bulkProgress.current / bulkProgress.total) * 100}% - 3rem)` }}
+                                            />
+                                        </div>
+                                        {/* Current receipt being saved */}
+                                        {bulkProgress.current < bulkProgress.total && (() => {
+                                            const cur = reconciledItems.filter(i => i.matchStatus === 'matched')[bulkProgress.current];
+                                            return cur ? (
+                                                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono truncate">
+                                                    ↳ Saving: {cur.receiptNumber || cur.ref} · {cur.payer} · KSh {cur.amount.toLocaleString()}
+                                                </p>
+                                            ) : null;
+                                        })()}
+                                    </div>
+                                )}
+
                                 <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
                                     <button
                                         type="button"
                                         onClick={() => setExcelImportStep(1)}
-                                        className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                        disabled={isProcessingBulkReceipts}
+                                        className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
                                     >
                                         Back to Upload
                                     </button>
@@ -16493,7 +16548,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {isProcessingBulkReceipts ? (
                                             <>
                                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                <span>Posting Receipts...</span>
+                                                <span>{bulkProgress.current} / {bulkProgress.total} receipts saved…</span>
                                             </>
                                         ) : (
                                             <>
