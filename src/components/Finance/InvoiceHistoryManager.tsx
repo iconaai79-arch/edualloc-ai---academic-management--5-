@@ -631,7 +631,8 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
                                             </td>
                                             <td className="px-5 py-4 text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap">
                                                 {batch.addedBy || 'System Automated'}
-                                                                                    <td className="px-5 py-4 text-right">
+                                            </td>
+                                            <td className="px-5 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-1.5">
                                                     
                                                     {/* Edit Batch Added Date */}
