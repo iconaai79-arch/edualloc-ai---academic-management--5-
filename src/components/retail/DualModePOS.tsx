@@ -319,7 +319,8 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                     email: u.email || '',
                     totalSpent: u.totalSpent || 0,
                     loyaltyPoints: u.loyaltyPoints || 0,
-                    createdAt: u.createdAt || new Date().toISOString()
+                    createdAt: u.createdAt || new Date().toISOString(),
+                    updatedAt: u.updatedAt || u.createdAt || new Date().toISOString()
                 }));
 
             const combinedMap = new Map<string, RetailCustomer>();

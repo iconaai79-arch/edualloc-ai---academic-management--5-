@@ -133,6 +133,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
     const hasCustomQuarterly = customPrice?.quarterly !== undefined;
     const hasCustomYearly = customPrice?.yearly !== undefined;
 
+    const [activeStudents, setActiveStudents] = useState(0);
     const [activeLibraryStudents, setActiveLibraryStudents] = useState(0);
     const [activeBoardingStudents, setActiveBoardingStudents] = useState(0);
     const [activeTransportStudents, setActiveTransportStudents] = useState(0);
@@ -154,6 +155,7 @@ export const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({ instit
 
                 // Filter users to only 'student' role
                 const students = usersData.filter((u: any) => u.role === 'student');
+                setActiveStudents(students.length);
 
                 // Determine active library students (all students if an active academic year exists)
                 const hasActiveAcademicYear = academicYearsData.some((ay: any) => ay.status === 'active');

@@ -588,7 +588,7 @@ export function RetailCustomerPortal({ currentUser, currentInstitution }: Retail
                     institution={currentInstitution}
                     agentName={`${currentInstitution.name} Assistant`}
                     welcomeMessage={`Hello ${currentUser.name || 'there'}! Need assistance with your records, payments, or booking a new order? Let me know!`}
-                    contactPhone={currentInstitution.phone}
+                    contactPhone={(currentInstitution as any).phone || currentInstitution.phoneNumber}
                     contactEmail={currentInstitution.email}
                 />
             )}

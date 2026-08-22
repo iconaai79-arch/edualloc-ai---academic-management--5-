@@ -890,7 +890,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                 <td className="px-4 py-3">
                                                     <div>
                                                         <p className="font-bold text-slate-900 dark:text-white text-xs">{drug.name}</p>
-                                                        {drug.genericName && <p className="text-[10px] text-slate-400">{drug.genericName}</p>}
+                                                        {(drug as any).genericName && <p className="text-[10px] text-slate-400">{(drug as any).genericName}</p>}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-xs text-slate-500 font-semibold">{drug.category || '—'}</td>

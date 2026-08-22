@@ -750,14 +750,14 @@ export const TenantStorefrontView: React.FC<TenantStorefrontViewProps> = ({ inst
                     catalogItems={retailProducts.map(p => ({
                         id: p.id,
                         name: p.name,
-                        price: p.sellingPrice || p.price || 0,
+                        price: (p as any).sellingPrice || (p as any).price || p.unitPrice || 0,
                         category: p.category,
-                        inStock: p.currentStock || p.quantity || true,
+                        inStock: (p as any).currentStock !== undefined ? Boolean((p as any).currentStock > 0) : ((p.quantity || 0) > 0),
                         description: p.description
                     }))}
                     agentName={`${tenant.name} AI Assistant`}
                     welcomeMessage={`Hello! Welcome to ${tenant.name}. Looking for anything in our catalog or need assistance with prices and orders? Ask me anything!`}
-                    contactPhone={tenant.phone}
+                    contactPhone={(tenant as any).phone || tenant.phoneNumber}
                     contactEmail={tenant.email}
                     onOrderProduct={(item) => {
                         setSelectedProduct(retailProducts.find(p => p.id === item.id) || null);

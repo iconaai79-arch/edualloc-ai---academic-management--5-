@@ -713,7 +713,7 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
             const userFines = fines.filter(f => matchStatementUser(f.userId));
 
             const dataUri = await generateMemberLibraryHistoryPdf(
-                selectedStatementUser,
+                selectedStatementUser as any,
                 userTrans,
                 userFines,
                 getBookTitle,

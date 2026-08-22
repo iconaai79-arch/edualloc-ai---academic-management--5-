@@ -1706,7 +1706,7 @@ export interface Invoice {
     institutionId: string;
     issueDate: string;
     dueDate: string;
-    due_date: string;
+    due_date?: string;
     items: InvoiceItem[];
     subtotal?: number;
     taxRate?: number;
@@ -1723,9 +1723,9 @@ export interface Receipt {
     institutionId: string;
     paymentDate: string;
     amountPaid: number;
-    paidFor: string;
+    paidFor?: string;
     paymentMethod: string;
-    relatedTransactionId: string;
+    relatedTransactionId?: string;
     invoiceId?: string;
     studentId?: string;
 }

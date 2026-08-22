@@ -68,7 +68,7 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const currency = institution?.currency || 'KES';
+    const currency = (institution as any)?.currency || 'KES';
     const initialGreeting = welcomeMessage || `Hello! 👋 Welcome to ${institution.name}. I am your automated Sales & Support Assistant. How can I help you today?`;
 
     useEffect(() => {
@@ -92,9 +92,9 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         agentName,
         catalogItems,
         services,
-        contactPhone: contactPhone || institution.phone,
+        contactPhone: contactPhone || (institution as any)?.phone || (institution as any)?.phoneNumber,
         contactEmail: contactEmail || institution.email,
-        whatsappNumber: whatsappNumber || institution.phone
+        whatsappNumber: whatsappNumber || (institution as any)?.phone || (institution as any)?.phoneNumber
     };
 
     /**

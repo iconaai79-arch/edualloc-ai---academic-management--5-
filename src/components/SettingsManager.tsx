@@ -819,8 +819,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                         showTransportHub: true,
                         publicRegistrationEnabled: true
                     }),
-                    alumnaeRegistrationFeeEnabled: isFeeEnabled && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0,
-                    alumnae_registration_fee_enabled: isFeeEnabled && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0
+                    alumnaeRegistrationFeeEnabled: isFeeEnabled && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0
                 },
                 smsConfig: localSmsConfig,
                 emailConfig: localEmailConfig,

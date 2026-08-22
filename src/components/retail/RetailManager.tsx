@@ -240,7 +240,7 @@ export function RetailManager(props: RetailManagerProps) {
         businessSubType?.toLowerCase().includes('eatery');
 
     // Counts for status badges
-    const lowStockCount = useMemo(() => inventory.filter(i => (i.quantity || 0) <= (i.reorderPoint || 5)).length, [inventory]);
+    const lowStockCount = useMemo(() => inventory.filter(i => (i.quantity || 0) <= ((i as any).reorderPoint || (i as any).minStockLevel || 5)).length, [inventory]);
     const pendingReqCount = useMemo(() => requisitions.filter(r => r.status === 'pending').length, [requisitions]);
 
     // Theme dynamic style configurations

@@ -630,15 +630,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (logError) console.warn('[KCB IPN] Failed to log IPN:', logError);
 
         // 1. Locate matching transaction
-        const lookupKey = businessKey || originatorConversationID || '';
         let transaction: any = null;
-        if (lookupKey || transactionID) {
-            const { data } = await supabase
+        if (transactionID) {
+            const { data: txnById } = await supabase
                 .from('mpesa_transactions')
                 .select('*')
-                .or(`checkout_request_id.eq.${lookupKey},transaction_id.eq.${transactionID}`)
+                .eq('transaction_id', transactionID)
+                .order('created_at', { ascending: false })
+                .limit(1)
                 .maybeSingle();
-            transaction = data;
+            if (txnById) transaction = txnById;
+        }
+
+        const lookupKey = businessKey || originatorConversationID || '';
+        if (!transaction && lookupKey) {
+            const { data: txnByCheckout } = await supabase
+                .from('mpesa_transactions')
+                .select('*')
+                .eq('checkout_request_id', lookupKey)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (txnByCheckout) transaction = txnByCheckout;
+        }
+
+        if (!transaction && requestId) {
+            const { data: txnByReq } = await supabase
+                .from('mpesa_transactions')
+                .select('*')
+                .eq('request_id', requestId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (txnByReq) transaction = txnByReq;
+        }
+
+        if (!transaction && transactionReference && transactionReference !== transactionID) {
+            const { data: txnByRef } = await supabase
+                .from('mpesa_transactions')
+                .select('*')
+                .eq('transaction_id', transactionReference)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (txnByRef) transaction = txnByRef;
         }
 
         // --- Caller Authentication Check for Production Setups ---
@@ -1010,10 +1045,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     organization_short_code: organizationShortCode,
                     till_number: tillNumber,
                     metadata: txnMetadata
-                }).select().single();
+                }).select().maybeSingle();
 
                 if (!insertErr && newTxn) {
                     transaction = newTxn;
+                } else if (insertErr && (insertErr.code === '23505' || String(insertErr.message || '').includes('duplicate key') || String(insertErr.details || '').includes('already exists'))) {
+                    console.log(`[KCB IPN] Transaction ${transactionID} already exists in mpesa_transactions (duplicate key). Fetching existing record.`);
+                    const { data: existingTxn } = await supabase
+                        .from('mpesa_transactions')
+                        .select('*')
+                        .or(`transaction_id.eq.${transactionID},checkout_request_id.eq.${transactionID}`)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+                    if (existingTxn) {
+                        transaction = existingTxn;
+                    }
                 } else {
                     console.error('[KCB IPN] Failed to create transaction on the fly:', insertErr);
                 }

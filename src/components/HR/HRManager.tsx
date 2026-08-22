@@ -527,6 +527,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
             }
 
+            const salary = Number((member as any).baseSalary || meta.baseSalary || meta.salary || 0);
+            const houseAllowance = Number(meta.houseAllowance || meta.housingAllowance || 0);
+
             // Calculate NSSF based on statutory settings
             let nssf = 0;
             if (salary > 0) {
