@@ -36,6 +36,7 @@ import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
 import { CpaReportingDashboard } from './CpaReportingDashboard';
 import { BankFeedsManager } from './BankFeedsManager';
+import { ParentLedgerPortal } from './ParentLedgerPortal';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -2790,6 +2791,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         { id: 'home', label: 'Home', icon: HomeIcon },
         { id: 'billing', label: isDrivingSchool ? 'DS Invoices' : 'Students', icon: ZapIcon },
         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
+        { id: 'parent_portal', label: 'Parent Portal & Bot', icon: DevicePhoneMobileIcon },
         { id: 'student_invoices', label: 'Invoices', icon: ClipboardListIcon },
         { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
         { id: 'receipts', label: 'Receipts', icon: DocumentTextIcon },
@@ -6933,6 +6935,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
 
                 {activeTab === 'balances' && renderFeeBalancesContent()}
+
+                {activeTab === 'parent_portal' && (
+                    <ParentLedgerPortal
+                        institution={props.institution}
+                        students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                        onLogAction={props.onLogAction}
+                    />
+                )}
 
 
 
