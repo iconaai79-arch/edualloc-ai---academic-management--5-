@@ -1509,6 +1509,15 @@ export const apiService = {
                 if (isPseudoInvoice(item.invoiceId)) item.invoiceId = null;
             }
 
+            if (module === 'invoices') {
+                delete item.class_name;
+                delete item.className;
+                delete item.created_at;
+                delete item.createdAt;
+                delete item.updated_at;
+                delete item.updatedAt;
+            }
+
             // Safety net for Driving School modules to prevent schema mismatch errors
             if (module === 'ds_vehicles' || module === 'ds_instructors' || module === 'ds_students') {
                 delete item.start_time;
