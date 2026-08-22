@@ -16520,19 +16520,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </div>
                                         </div>
                                     );
-                                })()}                                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
-                                                                }`}>
-                                                                    {item.matchStatus === 'matched' ? '✓ matched' : '⚠ Unmatched'}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                })()}
 
-                                        </tbody>
-                                    </table>
-                                </div>
 
                                 {/* ── Progress bar — shown while posting ── */}
                                 {isProcessingBulkReceipts && bulkProgress.total > 0 && (
