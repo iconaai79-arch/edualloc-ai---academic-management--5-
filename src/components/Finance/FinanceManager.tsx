@@ -35,6 +35,7 @@ import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
 import { CpaReportingDashboard } from './CpaReportingDashboard';
+import { BankFeedsManager } from './BankFeedsManager';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -7201,96 +7202,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 {/* Dedicated Full-Page Bank & M-Pesa Feed Management Sub-Tab */}
                 {activeTab === 'receipts' && receiptsMainTab === 'bank_feed' && (
-                    <div className="w-full space-y-6 text-left animate-in fade-in duration-300">
-                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                            <div className="flex justify-between items-center pb-6 border-b border-slate-100 dark:border-slate-800">
-                                <div>
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-800/40 mb-2">
-                                        <ScaleIcon className="w-3.5 h-3.5" />
-                                        <span className="text-[9px] font-black uppercase tracking-widest">Live Gateway Integration</span>
-                                    </div>
-                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Unreconciled Bank & M-Pesa Feed</h3>
-                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Match incoming automated M-Pesa Paybill / Equity / KCB bank feeds directly to student ledger accounts</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={fetchBankFeeds}
-                                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer"
-                                >
-                                    <SparklesIcon className="w-4 h-4 text-indigo-500" />
-                                    Refresh Feeds
-                                </button>
-                            </div>
-
-                            {/* Summary Cards */}
-                            {(() => {
-                                const totalValue = unreconciledFeeds.reduce((sum, tx) => sum + (tx.amount || 0), 0);
-                                return (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                        <div className="bg-indigo-50 dark:bg-indigo-950/30 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
-                                            <p className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Pending Transactions</p>
-                                            <p className="text-2xl font-black text-indigo-950 dark:text-indigo-200">{unreconciledFeeds.length}</p>
-                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">Awaiting reconciliation</p>
-                                        </div>
-                                        <div className="bg-amber-50 dark:bg-amber-950/30 p-5 rounded-2xl border border-amber-100 dark:border-amber-900/40">
-                                            <p className="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Total Unmatched Value</p>
-                                            <p className="text-2xl font-black text-amber-950 dark:text-amber-200">KSh {totalValue.toLocaleString()}</p>
-                                            <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">Unallocated revenue</p>
-                                        </div>
-                                        <div className="bg-emerald-50 dark:bg-emerald-950/30 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-900/40">
-                                            <p className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Active Gateways</p>
-                                            <p className="text-2xl font-black text-emerald-950 dark:text-emerald-200">M-Pesa & Bank API</p>
-                                            <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">Real-time sync enabled</p>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-
-                            {/* Unreconciled Feed Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {unreconciledFeeds.map(tx => (
-                                    <div key={tx.id} className="p-6 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-3xl flex flex-col justify-between gap-4 hover:border-indigo-300 transition-all">
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <span className="inline-block px-2.5 py-1 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-lg text-[8px] font-black uppercase tracking-widest mb-1">
-                                                        {tx.provider || 'BANK'} Gateway
-                                                    </span>
-                                                    <h4 className="font-mono font-black text-slate-900 dark:text-white text-sm tracking-tight">{tx.transactionId}</h4>
-                                                </div>
-                                                <span className="text-base font-black text-emerald-600 dark:text-emerald-400">KSh {tx.amount.toLocaleString()}</span>
-                                            </div>
-                                            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                                                <p className="flex justify-between"><span className="font-bold text-slate-400">Payer Name:</span> <span className="font-black text-slate-800 dark:text-slate-200">{tx.senderName || '—'}</span></p>
-                                                <p className="flex justify-between"><span className="font-bold text-slate-400">Phone:</span> <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{tx.phoneNumber || '—'}</span></p>
-                                                <p className="flex justify-between"><span className="font-bold text-slate-400">Timestamp:</span> <span className="font-medium text-slate-500">{new Date(tx.timestamp).toLocaleString()}</span></p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedFeedTx(tx);
-                                                setShowReconcileModal(true);
-                                            }}
-                                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer text-center"
-                                        >
-                                            Reconcile & Match Student
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {loadingFeeds && (
-                                <div className="py-12 text-center text-xs text-slate-400 font-bold">Loading bank feeds...</div>
-                            )}
-
-                            {!loadingFeeds && unreconciledFeeds.length === 0 && (
-                                <div className="py-16 text-center text-xs text-slate-400 italic font-bold bg-slate-50 dark:bg-slate-950 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
-                                    No pending bank or M-Pesa feed transactions. All incoming payments are fully reconciled!
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <BankFeedsManager
+                        institution={props.institution}
+                        students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                        expenses={props.expenses || []}
+                        onReceiptCreated={(newRec) => {
+                            setMergedReceipts(prev => [newRec, ...prev]);
+                            if (props.onReceiptCreated) props.onReceiptCreated(newRec);
+                        }}
+                        onLogAction={props.onLogAction}
+                    />
                 )}
 
                 {/* Receive Other Income Modal */}
