@@ -1937,6 +1937,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         date: string;
         amount: number;
         payer: string;
+        excelPaymentMode: string;  // Raw Payment Mode string from Excel column E (e.g. "M-PESA paybill")
         rawDetails: string;
         matchedStudentId: string;
         matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none';
@@ -2664,10 +2665,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return {
                     id: `imp_row_${Date.now()}_${idx}`,
                     ref,
-                    receiptNumber: receiptRaw,  // Column G: Receipt # from the Excel
+                    receiptNumber: receiptRaw,          // Column G: Receipt #
                     date,
                     amount,
                     payer,
+                    excelPaymentMode: modeRaw,          // Column E: raw string e.g. "M-PESA paybill"
                     rawDetails: JSON.stringify(row),
                     matchedStudentId: matchedStudent ? matchedStudent.id : '',
                     matchConfidence,
@@ -2702,6 +2704,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const receiptNum = item.receiptNumber?.trim()
                     ? item.receiptNumber.trim()
                     : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
+                // Use the raw Excel Payment Mode in the description; fall back to mapped value
+                const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod;
                 return {
                     id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                     institutionId: props.institution.id,
@@ -2709,10 +2713,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     studentId: item.matchedStudentId,
                     studentName: student?.name || item.payer,
                     amountPaid: item.amount,
-                    paymentMethod: item.paymentMethod,
+                    paymentMethod: item.paymentMethod,        // mapped canonical value
+                    excelPaymentMode: item.excelPaymentMode,  // raw string from Excel column E
                     paymentDate: item.date,
                     relatedTransactionId: item.ref,
-                    paidFor: 'Excel Auto-Reconciled Fee Payment',
+                    paidFor: `Fee Payment via ${modeLabel}`,  // e.g. "Fee Payment via M-PESA paybill"
                     createdAt: new Date().toISOString()
                 };
             });
@@ -16391,17 +16396,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
                                                                 KSh {item.amount.toLocaleString()}
                                                             </td>
-                                                            <td className="px-4 py-3 text-left">
-                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                    item.paymentMethod === 'M-Pesa'
-                                                                        ? 'bg-green-100 text-green-800 border-green-300'
-                                                                        : item.paymentMethod === 'Bank Transfer'
-                                                                        ? 'bg-blue-100 text-blue-800 border-blue-300'
-                                                                        : 'bg-slate-100 text-slate-700 border-slate-300'
-                                                                }`}>
-                                                                    {item.paymentMethod === 'M-Pesa' ? '📱' : item.paymentMethod === 'Bank Transfer' ? '🏦' : '💵'} {item.paymentMethod}
-                                                                </span>
+                                                            <td className="px-4 py-3 text-left min-w-[140px]">
+                                                                {/* Raw Excel string from column E */}
+                                                                {item.excelPaymentMode && (
+                                                                    <span className="block text-[9px] text-slate-400 mb-1 font-mono truncate" title={item.excelPaymentMode}>
+                                                                        📋 {item.excelPaymentMode}
+                                                                    </span>
+                                                                )}
+                                                                {/* Editable mapped paymentMethod — user can correct mis-mapping */}
+                                                                <select
+                                                                    value={item.paymentMethod}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value as 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
+                                                                        setReconciledItems(prev => prev.map(i =>
+                                                                            i.id === item.id ? { ...i, paymentMethod: val } : i
+                                                                        ));
+                                                                    }}
+                                                                    className={`w-full px-2 py-1.5 rounded-xl text-[10px] font-black border outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${
+                                                                        item.paymentMethod === 'M-Pesa'
+                                                                            ? 'bg-green-100 text-green-800 border-green-300'
+                                                                            : item.paymentMethod === 'Bank Transfer'
+                                                                            ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                                                            : 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                    }`}
+                                                                >
+                                                                    <option value="M-Pesa">📱 M-Pesa</option>
+                                                                    <option value="Bank Transfer">🏦 Bank Transfer</option>
+                                                                    <option value="Cash">💵 Cash</option>
+                                                                    <option value="Cheque">📝 Cheque</option>
+                                                                </select>
                                                             </td>
+
                                                             <td className="px-4 py-3 text-left">
                                                                 <select
                                                                     value={item.matchedStudentId}
