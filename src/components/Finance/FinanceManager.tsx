@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
+import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { ZapIcon } from '../icons/ZapIcon';
@@ -3039,6 +3040,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [receiptSourceFilter, setReceiptSourceFilter] = useState('All');
 
     // Invoices states
+    const [showExcelInvoiceModal, setShowExcelInvoiceModal] = useState(false);
     const [searchInvoiceQuery, setSearchInvoiceQuery] = useState('');
     const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
     const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
@@ -7764,13 +7766,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Invoices Ledger</h3>
                                     <p className="text-xs text-slate-500 font-semibold mt-0.5">Track, audit, print and manage all academic billing invoices issued to students.</p>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5">
+                                    <button
+                                        onClick={() => setShowExcelInvoiceModal(true)}
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                                        title="Import and bill students directly from Excel / CSV spreadsheet"
+                                    >
+                                        <ArrowUpTrayIcon className="w-4 h-4" />
+                                        <span>📥 Import Excel Invoices</span>
+                                    </button>
                                     <button
                                         onClick={() => setInvoicesMainTab('wizard')}
-                                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95"
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
                                     >
                                         <SparklesIcon className="w-4 h-4" />
-                                        ⚡ Open Billing Wizard
+                                        <span>⚡ Open Billing Wizard</span>
                                     </button>
                                 </div>
                                 {selectedInvoiceIds.size > 0 && (
@@ -16585,6 +16595,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 onClose={() => setIsSiblingSplitModalOpen(false)}
                 students={mergedStudents || (props.students || [])}
                 onConfirmSplitPayment={handleConfirmSplitPayment}
+            />
+
+            {/* Excel / CSV Student Invoicing Modal */}
+            <ExcelStudentInvoiceModal
+                isOpen={showExcelInvoiceModal}
+                onClose={() => setShowExcelInvoiceModal(false)}
+                institution={props.institution}
+                students={mergedStudents || (props.students || [])}
+                companyDetails={props.companyDetails}
+                onGenerateInvoices={props.onGenerateInvoices}
+                onRefreshData={props.onRefreshData}
             />
             </div>
         </div>

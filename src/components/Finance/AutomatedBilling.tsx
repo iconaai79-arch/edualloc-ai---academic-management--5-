@@ -7,6 +7,9 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
+import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -54,7 +57,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     const [step, setStep] = useState<'config' | 'preview' | 'processing' | 'done'>('config');
 
     // Selection criteria states
-    const [targetType, setTargetType] = useState<'all' | 'individual' | 'class' | 'course'>('all');
+    const [targetType, setTargetType] = useState<'all' | 'individual' | 'class' | 'course' | 'excel'>('all');
+    const [showExcelInvoiceModal, setShowExcelInvoiceModal] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [selectedClass, setSelectedClass] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('');
@@ -474,32 +478,66 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     {/* Target Selector */}
                     <div className="space-y-4 pt-6 border-t border-slate-100 text-left">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Billing Target</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                             {[
                                 { id: 'all', label: 'All Students', desc: 'Invoices entire registry', icon: UsersIcon },
                                 { id: 'individual', label: 'Single Student', desc: 'Invoices one account', icon: UserIcon },
                                 { id: 'class', label: 'Class Group', desc: 'Filter by grade/stream', icon: UserGroupIcon },
                                 { id: 'course', label: 'By Course', desc: 'Filter by program', icon: AcademicCapIcon },
+                                { id: 'excel', label: 'Excel / CSV Sheet', desc: 'Import custom list', icon: ArrowUpTrayIcon },
                             ].map(option => (
                                 <button
                                     key={option.id}
                                     type="button"
-                                    onClick={() => setTargetType(option.id as any)}
-                                    className={`p-5 rounded-3xl border-2 text-left transition-all duration-300 relative overflow-hidden group flex flex-col justify-between min-h-[120px] ${
+                                    onClick={() => {
+                                        setTargetType(option.id as any);
+                                        if (option.id === 'excel') {
+                                            setShowExcelInvoiceModal(true);
+                                        }
+                                    }}
+                                    className={`p-4 rounded-3xl border-2 text-left transition-all duration-300 relative overflow-hidden group flex flex-col justify-between min-h-[110px] ${
                                         targetType === option.id 
                                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg scale-105' 
                                         : 'bg-slate-50 dark:bg-slate-950 border-transparent hover:bg-slate-100 hover:scale-[1.02] text-slate-700 dark:text-slate-355'
                                     }`}
                                 >
-                                    <option.icon className={`w-6 h-6 mb-3 ${targetType === option.id ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} transition-colors`} />
+                                    <option.icon className={`w-5 h-5 mb-2 ${targetType === option.id ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} transition-colors`} />
                                     <div>
                                         <p className="text-xs font-black uppercase tracking-tight">{option.label}</p>
-                                        <p className={`text-[9px] font-bold mt-0.5 ${targetType === option.id ? 'text-indigo-200' : 'text-slate-400'}`}>{option.desc}</p>
+                                        <p className={`text-[8.5px] font-bold mt-0.5 ${targetType === option.id ? 'text-indigo-200' : 'text-slate-400'}`}>{option.desc}</p>
                                     </div>
                                 </button>
                             ))}
                         </div>
                     </div>
+
+                    {targetType === 'excel' && (
+                        <div className="p-6 bg-emerald-50/50 dark:bg-emerald-950/20 border-2 border-dashed border-emerald-300 dark:border-emerald-800 rounded-3xl text-left space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+                                        <ArrowUpTrayIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h5 className="text-sm font-black text-slate-900 dark:text-white uppercase">
+                                            Excel / CSV Student Invoicing
+                                        </h5>
+                                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                            Upload your spreadsheet with student admission numbers, fee descriptions, and itemized amounts.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExcelInvoiceModal(true)}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-2"
+                                >
+                                    <SparklesIcon className="w-4 h-4" />
+                                    <span>Launch Excel Importer</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {targetType === 'individual' && (
                         <div className="space-y-2 animate-in fade-in slide-in-from-top-4 duration-300 text-left">
@@ -797,6 +835,16 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Excel / CSV Student Invoice Modal */}
+            <ExcelStudentInvoiceModal
+                isOpen={showExcelInvoiceModal}
+                onClose={() => setShowExcelInvoiceModal(false)}
+                institution={institution}
+                students={students}
+                companyDetails={companyDetails}
+                onGenerateInvoices={onGenerateInvoices}
+            />
         </div>
     );
 };
