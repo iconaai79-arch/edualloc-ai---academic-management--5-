@@ -37,6 +37,7 @@ import { AnnualReportWizard } from './AnnualReportWizard';
 import { CpaReportingDashboard } from './CpaReportingDashboard';
 import { BankFeedsManager } from './BankFeedsManager';
 import { ParentLedgerPortal } from './ParentLedgerPortal';
+import { AiFinancialIntelligence } from './AiFinancialIntelligence';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -933,7 +934,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [editStreamName, setEditStreamName] = useState('');
 
     // State for audit sub-tabs
-    const [auditSubTab, setAuditSubTab] = useState<'cpa_general_ledger' | 'audit_dashboard' | 'annual_report'>('cpa_general_ledger');
+    const [auditSubTab, setAuditSubTab] = useState<'cpa_general_ledger' | 'ai_sentinel' | 'audit_dashboard' | 'annual_report'>('cpa_general_ledger');
 
     // Dynamic settings sub-tabs based on school type
     const settingsSubTabs = useMemo(() => {
@@ -9982,6 +9983,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 📊 CPA General Ledger &amp; Financial Statements
                             </button>
                             <button
+                                onClick={() => setAuditSubTab('ai_sentinel')}
+                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
+                                    auditSubTab === 'ai_sentinel'
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                🤖 AI Financial Intelligence &amp; Sentinel
+                            </button>
+                            <button
                                 onClick={() => setAuditSubTab('audit_dashboard')}
                                 className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
                                     auditSubTab === 'audit_dashboard'
@@ -10013,6 +10024,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 transfers={props.bankTransfers || []}
                                 capitations={capitationDisbursements || []}
                                 bursaries={bursaryRecords || []}
+                                onLogAction={props.onLogAction}
+                            />
+                        )}
+
+                        {auditSubTab === 'ai_sentinel' && (
+                            <AiFinancialIntelligence
+                                institution={props.institution}
+                                students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                                invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                expenses={props.expenses || []}
+                                payroll={props.payrollRecords || []}
                                 onLogAction={props.onLogAction}
                             />
                         )}
