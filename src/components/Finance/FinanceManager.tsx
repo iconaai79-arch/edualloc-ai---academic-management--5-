@@ -7701,29 +7701,73 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'student_invoices' && (
-                    invoicesMainTab === 'wizard' ? (
-                        <AutomatedBilling 
-                            feeStructures={props.feeStructures}
-                            students={props.students}
-                            academicYears={props.academicYears}
-                            semesters={props.semesters}
-                            institution={props.institution}
-                            onGenerateInvoices={props.onGenerateInvoices}
-                            companyDetails={props.companyDetails}
-                            courses={props.courses || []}
-                        />
-                    ) : invoicesMainTab === 'history' ? (
-                        <InvoiceHistoryManager
-                            invoices={mappedInvoices}
-                            students={mergedStudents || (props.students || [])}
-                            institution={props.institution}
-                            currentUserName={props.userName || props.currentUser?.name || 'Finance Officer'}
-                            onRefreshData={props.onRefreshData}
-                            onOpenWizard={() => setInvoicesMainTab('wizard')}
-                            onOpenExcelImporter={() => setShowExcelInvoiceModal(true)}
-                        />
-                    ) : (
-                    <div className="space-y-6 text-left animate-in fade-in duration-300">
+                    <div className="space-y-6">
+                        {/* Sub-tabs header for Student Invoices */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-2 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar-horizontal">
+                            <div className="flex items-center gap-1.5">
+                                {[
+                                    { id: 'ledger', label: 'Invoices Ledger', icon: ClipboardListIcon, count: filteredStudentInvoices.length },
+                                    { id: 'history', label: 'Batch History & Undo', icon: ClockIcon },
+                                    { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setInvoicesMainTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 cursor-pointer ${
+                                            invoicesMainTab === tab.id
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        <tab.icon className="w-3.5 h-3.5" />
+                                        <span>{tab.label}</span>
+                                        {(tab as any).count !== undefined && (tab as any).count > 0 && (
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
+                                                invoicesMainTab === tab.id ? 'bg-white/25 text-white' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300'
+                                            }`}>
+                                                {(tab as any).count}
+                                            </span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setShowExcelInvoiceModal(true)}
+                                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+                                >
+                                    <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                    <span>Import Excel</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {invoicesMainTab === 'wizard' ? (
+                            <AutomatedBilling 
+                                feeStructures={props.feeStructures}
+                                students={props.students}
+                                academicYears={props.academicYears}
+                                semesters={props.semesters}
+                                institution={props.institution}
+                                onGenerateInvoices={props.onGenerateInvoices}
+                                companyDetails={props.companyDetails}
+                                courses={props.courses || []}
+                                onOpenHistory={() => setInvoicesMainTab('history')}
+                                onBackToLedger={() => setInvoicesMainTab('ledger')}
+                            />
+                        ) : invoicesMainTab === 'history' ? (
+                            <InvoiceHistoryManager
+                                invoices={mappedInvoices}
+                                students={mergedStudents || (props.students || [])}
+                                institution={props.institution}
+                                currentUserName={props.userName || props.currentUser?.name || 'Finance Officer'}
+                                onRefreshData={props.onRefreshData}
+                                onOpenWizard={() => setInvoicesMainTab('wizard')}
+                                onOpenExcelImporter={() => setShowExcelInvoiceModal(true)}
+                            />
+                        ) : (
+                        <div className="space-y-6 text-left animate-in fade-in duration-300">
                         {/* Header stats block */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
@@ -7787,6 +7831,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     >
                                         <ArrowUpTrayIcon className="w-4 h-4" />
                                         <span>📥 Import Excel Invoices</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setInvoicesMainTab('history')}
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                                        title="View batch billing history and undo invoices"
+                                    >
+                                        <ClockIcon className="w-4 h-4" />
+                                        <span>📜 Batch History & Undo</span>
                                     </button>
                                     <button
                                         onClick={() => setInvoicesMainTab('wizard')}
@@ -8073,8 +8125,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             )}
                         </div>
                     </div>
-                )
-            )}
+                )}
+                    </div>
+                )}
 
                 {/* Invoice Details Modal */}
                 {selectedInvoiceForDetails && (() => {

@@ -9,6 +9,8 @@ import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { ClipboardListIcon } from '../icons/ClipboardListIcon';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
 
 const parseMoneyAmount = (amt: any): number => {
@@ -28,6 +30,8 @@ interface AutomatedBillingProps {
     onGenerateInvoices: (invoices: any[]) => Promise<void>;
     companyDetails?: CompanyDetails;
     courses?: Course[];
+    onOpenHistory?: () => void;
+    onBackToLedger?: () => void;
 }
 
 export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
@@ -38,7 +42,9 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     institution,
     onGenerateInvoices,
     companyDetails,
-    courses: rawCourses = []
+    courses: rawCourses = [],
+    onOpenHistory,
+    onBackToLedger
 }) => {
     const feeStructures = Array.isArray(rawFeeStructures) ? rawFeeStructures : [];
     const students = Array.isArray(rawStudents) ? rawStudents : [];
@@ -537,9 +543,31 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Automate your revenue lifecycle. Generate term-based invoices for targeted students in seconds.</p>
                             </div>
                         </div>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-full text-[10px] font-black uppercase tracking-wider border border-indigo-100 dark:border-indigo-800 shrink-0">
-                            ⚡ Billing Form
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {onBackToLedger && (
+                                <button
+                                    type="button"
+                                    onClick={onBackToLedger}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                >
+                                    <ClipboardListIcon className="w-3.5 h-3.5" />
+                                    <span>Invoices Ledger</span>
+                                </button>
+                            )}
+                            {onOpenHistory && (
+                                <button
+                                    type="button"
+                                    onClick={onOpenHistory}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                                >
+                                    <ClockIcon className="w-3.5 h-3.5" />
+                                    <span>Batch History</span>
+                                </button>
+                            )}
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-indigo-100 dark:border-indigo-800">
+                                ⚡ Wizard
+                            </span>
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">

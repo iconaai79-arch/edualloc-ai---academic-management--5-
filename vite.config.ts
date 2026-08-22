@@ -131,8 +131,6 @@ export default defineConfig(({ mode }) => {
               if (normalizedId.includes('jspdf') || normalizedId.includes('jspdf-autotable')) return 'vendor-pdf';
               if (normalizedId.includes('xlsx')) return 'vendor-xlsx';
               if (normalizedId.includes('lucide-react')) return 'vendor-lucide';
-              if (normalizedId.includes('@supabase') || normalizedId.includes('@google/generative-ai')) return 'vendor-cloud';
-              if (normalizedId.includes('react') || normalizedId.includes('react-dom')) return 'vendor-react';
               return 'vendor';
             }
             if (normalizedId.includes('src/components/icons')) {
