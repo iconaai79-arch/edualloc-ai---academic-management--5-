@@ -309,6 +309,12 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 items = activeStaffCalculations.map(c => {
                     const member = staff.find(s => s.id === c.staffId) || { id: c.staffId, name: c.name, role: c.role } as User;
                     const allowances = [{ name: 'House Allowance', amount: c.houseAllowance }];
+                    if (Array.isArray(c.assignedAllowances)) {
+                        c.assignedAllowances.forEach(a => {
+                            if (Number(a.amount) > 0) allowances.push({ name: a.name || 'Allowance', amount: Number(a.amount) });
+                        });
+                    }
+
                     const deductions = [
                         { name: 'NSSF Pension', amount: Math.round(c.payroll.nssf) },
                         { name: 'SHIF Medical', amount: Math.round(c.payroll.shif) },
@@ -318,6 +324,12 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     if (c.payroll.biometricDeduction > 0) {
                         deductions.push({ name: 'Biometric Absence Penalty', amount: Math.round(c.payroll.biometricDeduction) });
                     }
+                    if (Array.isArray(c.assignedDeductions)) {
+                        c.assignedDeductions.forEach(d => {
+                            if (Number(d.amount) > 0) deductions.push({ name: d.name || 'Custom Deduction', amount: Number(d.amount) });
+                        });
+                    }
+
                     const syntheticRecord: PayrollRecord = {
                         id: `pay_${Date.now()}_${c.staffId}`,
                         institutionId: institution.id,
@@ -365,6 +377,12 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 const calc = activeStaffCalculations.find(c => c.staffId === staffId);
                 if (!calc) return;
                 const allowances = [{ name: 'House Allowance', amount: calc.houseAllowance }];
+                if (Array.isArray(calc.assignedAllowances)) {
+                    calc.assignedAllowances.forEach(a => {
+                        if (Number(a.amount) > 0) allowances.push({ name: a.name || 'Allowance', amount: Number(a.amount) });
+                    });
+                }
+
                 const deductions = [
                     { name: 'NSSF Pension', amount: Math.round(calc.payroll.nssf) },
                     { name: 'SHIF Medical', amount: Math.round(calc.payroll.shif) },
@@ -374,6 +392,12 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                 if (calc.payroll.biometricDeduction > 0) {
                     deductions.push({ name: 'Biometric Absence Penalty', amount: Math.round(calc.payroll.biometricDeduction) });
                 }
+                if (Array.isArray(calc.assignedDeductions)) {
+                    calc.assignedDeductions.forEach(d => {
+                        if (Number(d.amount) > 0) deductions.push({ name: d.name || 'Custom Deduction', amount: Number(d.amount) });
+                    });
+                }
+
                 record = {
                     id: `pay_${Date.now()}_${calc.staffId}`,
                     institutionId: institution.id,

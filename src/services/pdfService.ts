@@ -8838,7 +8838,7 @@ export const generateArrearsReportPdf = async (
 };
 
 /**
- * Generates an official Payslip for HR staff.
+ * Generates an official Payslip for HR staff with full statutory breakdown and employer contributions.
  */
 export const generateStaffPayslipPdf = async (
     staff: User,
@@ -8858,67 +8858,103 @@ export const generateStaffPayslipPdf = async (
     let yPos = setupPdfHeader(doc, headerImg);
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    doc.setFontSize(20);
+    let meta = staff.metadata || {};
+    if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+    }
+
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text("OFFICIAL PAYSLIP", 14, yPos);
-    yPos += 10;
+    doc.text("OFFICIAL SALARY PAYSLIP", 14, yPos);
+    yPos += 8;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Earnings Month: ${record.month}`, 14, yPos);
-    yPos += 12;
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Payroll Period: ${record.month}`, 14, yPos);
+    doc.text(`Disbursement Date: ${record.paymentDate ? new Date(record.paymentDate).toLocaleDateString() : new Date().toLocaleDateString()}`, pageWidth - 70, yPos);
+    doc.setTextColor(15, 23, 42);
+    yPos += 8;
 
-    // Staff Details Card
+    // Staff Details Card (2-column format)
     doc.setFillColor(248, 250, 252);
-    doc.roundedRect(14, yPos, pageWidth - 28, 30, 3, 3, 'F');
+    doc.roundedRect(14, yPos, pageWidth - 28, 38, 3, 3, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, yPos, pageWidth - 28, 38, 3, 3, 'S');
     
-    let detailsY = yPos + 8;
+    let detailsY = yPos + 7;
     doc.setFont('helvetica', 'bold');
-    doc.text("EMPLOYEE INFORMATION", 20, detailsY);
-    detailsY += 8;
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Name: ${staff.name || record.staffName || 'N/A'}`, 20, detailsY);
-    doc.text(`ID: ${staff.id.substring(0, 8)}`, pageWidth / 2, detailsY);
+    doc.setFontSize(8.5);
+    doc.text("EMPLOYEE & BANKING DETAILS", 20, detailsY);
     detailsY += 6;
-    doc.text(`Role/Title: ${staff.role || 'Staff Member'}`, 20, detailsY);
-    doc.text(`Email: ${staff.email || 'N/A'}`, pageWidth / 2, detailsY);
-    yPos += 38;
-
-    const basicSalary = record.basicSalary || record.basicPay || 0;
-    const netSalary = record.netSalary || record.netPay || 0;
-
-    // Parse allowances
-    const allowancesList = Array.isArray(record.allowances) ? record.allowances : [];
-    const totalAllowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
-
-    // Parse deductions
-    const deductionsList = Array.isArray(record.deductions) ? record.deductions : [];
-    const totalDeductions = deductionsList.reduce((acc: number, d: any) => acc + (d.amount || 0), 0);
-
-    const head = [['Description', 'Earnings (KES)', 'Deductions (KES)']];
     
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const staffIdCode = staff.staffId || (staff as any).staff_id || meta.staffId || meta.nationalId || staff.id.substring(0, 12);
+    const idNo = meta.nationalId || (staff as any).nationalId || '-';
+    const kraPin = meta.kraPin || (staff as any).kraPin || '-';
+    const nssfNo = meta.nssfNo || (staff as any).nssfNo || '-';
+    const shifNo = meta.shifNumber || meta.shifNo || (staff as any).shifNumber || '-';
+    const bankName = meta.bankName || (staff as any).bankName || 'Equity Bank';
+    const bankBranch = meta.bankBranch || (staff as any).bankBranch || 'Main';
+    const bankAcc = meta.bankAccountNumber || (staff as any).bankAccountNumber || staff.phoneNumber || '-';
+    const desig = meta.designation || staff.role || 'Staff Member';
+    const terms = meta.employmentTerms || 'Permanent & Pensionable';
+
+    // Left Column
+    doc.text(`Employee Name: ${staff.name || record.staffName || 'N/A'}`, 20, detailsY);
+    doc.text(`Staff ID / Ref: ${staffIdCode}`, 20, detailsY + 5);
+    doc.text(`Designation / Role: ${desig}`, 20, detailsY + 10);
+    doc.text(`Terms: ${terms}`, 20, detailsY + 15);
+
+    // Middle Column
+    const col2X = 95;
+    doc.text(`National ID: ${idNo}`, col2X, detailsY);
+    doc.text(`KRA PIN: ${kraPin}`, col2X, detailsY + 5);
+    doc.text(`NSSF No: ${nssfNo}`, col2X, detailsY + 10);
+    doc.text(`SHIF No: ${shifNo}`, col2X, detailsY + 15);
+
+    // Right Column
+    const col3X = 145;
+    doc.text(`Bank: ${bankName}`, col3X, detailsY);
+    doc.text(`Branch: ${bankBranch}`, col3X, detailsY + 5);
+    doc.text(`Account No: ${bankAcc}`, col3X, detailsY + 10);
+    doc.text(`Status: Paid`, col3X, detailsY + 15);
+
+    yPos += 44;
+
+    const basicSalary = record.basicSalary || (record as any).basicPay || 0;
+    const allowancesList = Array.isArray(record.allowances) ? record.allowances : [];
+    const totalAllowances = allowancesList.reduce((acc: number, a: any) => acc + (Number(a.amount) || 0), 0);
+    const grossEarnings = basicSalary + totalAllowances;
+
+    const deductionsList = Array.isArray(record.deductions) ? record.deductions : [];
+    const totalDeductions = deductionsList.reduce((acc: number, d: any) => acc + (Number(d.amount) || 0), 0);
+    const netSalary = record.netSalary || Math.max(0, grossEarnings - totalDeductions);
+
+    // Primary Earnings & Deductions Table
+    const head = [['Description', 'Earnings (KES)', 'Deductions (KES)']];
     const body: any[] = [
-        ['Basic Salary', basicSalary.toLocaleString(), '-'],
+        ['Basic Salary', basicSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '-'],
     ];
 
     allowancesList.forEach((a: any) => {
-        body.push([a.name, a.amount.toLocaleString(), '-']);
+        body.push([a.name || 'Allowance', (Number(a.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '-']);
     });
 
     deductionsList.forEach((d: any) => {
-        body.push([d.name, '-', d.amount.toLocaleString()]);
+        body.push([d.name || 'Deduction', '-', (Number(d.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
     });
 
     body.push([
-        'TOTALS',
-        (basicSalary + totalAllowances).toLocaleString(),
-        totalDeductions.toLocaleString()
+        { content: 'TOTAL GROSS EARNINGS / TOTAL DEDUCTIONS', styles: { fontStyle: 'bold' } },
+        { content: `KES ${grossEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold' } },
+        { content: `KES ${totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold' } }
     ]);
 
     body.push([
-        'NET PAYABLE',
-        { content: `KES ${netSalary.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } },
-        '-'
+        { content: 'NET TAKE-HOME PAYABLE', styles: { fontStyle: 'bold', fillColor: [240, 253, 244] } },
+        { content: `KES ${netSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, colSpan: 2, styles: { fontStyle: 'bold', fontSize: 10, halign: 'right', fillColor: [240, 253, 244], textColor: [22, 101, 52] } }
     ]);
 
     let primaryRGB = [79, 70, 229]; // default indigo-600
@@ -8928,12 +8964,8 @@ export const generateStaffPayslipPdf = async (
             const r = parseInt(hex.substring(0, 2), 16);
             const g = parseInt(hex.substring(2, 4), 16);
             const b = parseInt(hex.substring(4, 6), 16);
-            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-                primaryRGB = [r, g, b];
-            }
-        } catch (e) {
-            console.error('[pdfService] Error parsing primary color:', e);
-        }
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) primaryRGB = [r, g, b];
+        } catch (e) {}
     }
 
     doc.autoTable({
@@ -8941,23 +8973,74 @@ export const generateStaffPayslipPdf = async (
         head: head,
         body: body,
         theme: 'striped',
-        headStyles: { fillColor: primaryRGB },
-        styles: { fontSize: 9 }
+        headStyles: { fillColor: primaryRGB, fontSize: 8.5, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 2.2 },
+        columnStyles: {
+            0: { cellWidth: 90 },
+            1: { halign: 'right', cellWidth: 45 },
+            2: { halign: 'right', cellWidth: 45 }
+        }
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 25;
+    yPos = (doc as any).lastAutoTable.finalY + 8;
+
+    // Calculate Employer Contributions
+    // 1. NSSF Employer Matching: matches employee NSSF (or calculated Tier 1 + Tier 2)
+    const employeeNssfObj = deductionsList.find((d: any) => (d.name || '').toUpperCase().includes('NSSF'));
+    const employeeNssf = employeeNssfObj ? Number(employeeNssfObj.amount) : (grossEarnings > 0 ? (Math.min(grossEarnings, 9000) * 0.06 + Math.max(0, Math.min(grossEarnings, 108000) - 9000) * 0.06) : 0);
+    const employerNssf = Math.round(employeeNssf);
+
+    // 2. Housing Levy Employer Matching: 1.5% of gross
+    const employeeHlObj = deductionsList.find((d: any) => (d.name || '').toUpperCase().includes('HOUSING') || (d.name || '').toUpperCase().includes('AHL'));
+    const employeeHl = employeeHlObj ? Number(employeeHlObj.amount) : (grossEarnings * 0.015);
+    const employerHousingLevy = Math.round(employeeHl);
+
+    const totalEmployerContributions = employerNssf + employerHousingLevy;
+    const totalCostToEmployer = grossEarnings + totalEmployerContributions;
+
+    // Secondary Table: Employer Statutory Contributions
+    const employerHead = [['Employer Statutory Contributions (Not Deducted From Employee)', 'Amount (KES)']];
+    const employerBody: any[] = [
+        ['NSSF Employer Matching (Tier I & Tier II Pension)', `KES ${employerNssf.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        ['Affordable Housing Levy (AHL) Employer Contribution (1.5%)', `KES ${employerHousingLevy.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        [
+            { content: 'TOTAL EMPLOYER STATUTORY CONTRIBUTIONS', styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+            { content: `KES ${totalEmployerContributions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } }
+        ],
+        [
+            { content: 'TOTAL COST OF EMPLOYMENT TO INSTITUTION (Gross + Employer Contributions)', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } },
+            { content: `KES ${totalCostToEmployer.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [238, 242, 255], textColor: [67, 56, 202] } }
+        ]
+    ];
+
+    doc.autoTable({
+        startY: yPos,
+        head: employerHead,
+        body: employerBody,
+        theme: 'plain',
+        headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+        styles: { fontSize: 7.5, cellPadding: 1.8 },
+        columnStyles: {
+            0: { cellWidth: 135 },
+            1: { halign: 'right', cellWidth: 45 }
+        }
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 18;
+
+    // Signatures
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text("---------------------------------", 14, yPos);
-    doc.text(letterheadConfig?.signerName || "Authorized Signature", 14, yPos + 5);
+    doc.setFontSize(8);
+    doc.text("-----------------------------------------", 14, yPos);
+    doc.text(letterheadConfig?.signerName || "Authorized Bursar / HR Officer", 14, yPos + 4);
     if (letterheadConfig?.signerTitle) {
-        doc.text(letterheadConfig.signerTitle, 14, yPos + 10);
+        doc.text(letterheadConfig.signerTitle, 14, yPos + 8);
     }
 
-    doc.text("---------------------------------", pageWidth / 2, yPos);
-    doc.text("Employee Signature & Date", pageWidth / 2, yPos + 5);
+    doc.text("-----------------------------------------", pageWidth / 2, yPos);
+    doc.text("Employee Signature & Date of Receipt", pageWidth / 2, yPos + 4);
 
-    const footerText = letterheadConfig?.footerMessage || `${institution.name} — Confidential Payslip`;
+    const footerText = letterheadConfig?.footerMessage || `${institution.name} — Confidential Payroll Document`;
     setupPdfFooter(doc, footerImg, footerText);
     return doc.output('datauristring');
 };
@@ -8987,15 +9070,11 @@ export const generateBulkStaffPayslipsPdf = async (
             const r = parseInt(hex.substring(0, 2), 16);
             const g = parseInt(hex.substring(2, 4), 16);
             const b = parseInt(hex.substring(4, 6), 16);
-            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-                primaryRGB = [r, g, b];
-            }
-        } catch (e) {
-            console.error('[pdfService] Error parsing primary color:', e);
-        }
+            if (!isNaN(r) && !isNaN(g) && !isNaN(b)) primaryRGB = [r, g, b];
+        } catch (e) {}
     }
 
-    const footerText = letterheadConfig?.footerMessage || `${institution.name} — Confidential Payslip`;
+    const footerText = letterheadConfig?.footerMessage || `${institution.name} — Confidential Payroll Document`;
 
     items.forEach((item, index) => {
         if (index > 0) {
@@ -9005,65 +9084,102 @@ export const generateBulkStaffPayslipsPdf = async (
         const { staff, record } = item;
         let yPos = setupPdfHeader(doc, headerImg);
 
-        doc.setFontSize(20);
+        let meta = staff.metadata || {};
+        if (typeof meta === 'string') {
+            try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+        }
+
+        doc.setFontSize(18);
         doc.setFont('helvetica', 'bold');
-        doc.text("OFFICIAL PAYSLIP", 14, yPos);
-        yPos += 10;
+        doc.text("OFFICIAL SALARY PAYSLIP", 14, yPos);
+        yPos += 8;
 
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Earnings Month: ${record.month}`, 14, yPos);
-        doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - 60, yPos);
-        yPos += 12;
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Payroll Period: ${record.month}`, 14, yPos);
+        doc.text(`Disbursement Date: ${record.paymentDate ? new Date(record.paymentDate).toLocaleDateString() : new Date().toLocaleDateString()}`, pageWidth - 70, yPos);
+        doc.setTextColor(15, 23, 42);
+        yPos += 8;
 
-        // Staff Details Card
+        // Staff Details Card (2-column format)
         doc.setFillColor(248, 250, 252);
-        doc.roundedRect(14, yPos, pageWidth - 28, 30, 3, 3, 'F');
+        doc.roundedRect(14, yPos, pageWidth - 28, 38, 3, 3, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(14, yPos, pageWidth - 28, 38, 3, 3, 'S');
         
-        let detailsY = yPos + 8;
+        let detailsY = yPos + 7;
         doc.setFont('helvetica', 'bold');
-        doc.text("EMPLOYEE INFORMATION", 20, detailsY);
-        detailsY += 8;
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Name: ${staff.name || record.staffName || 'N/A'}`, 20, detailsY);
-        doc.text(`ID: ${(staff.staffId || staff.id).substring(0, 16)}`, pageWidth / 2, detailsY);
+        doc.setFontSize(8.5);
+        doc.text("EMPLOYEE & BANKING DETAILS", 20, detailsY);
         detailsY += 6;
-        doc.text(`Role/Title: ${staff.role || 'Staff Member'}`, 20, detailsY);
-        doc.text(`Email: ${staff.email || staff.phoneNumber || 'N/A'}`, pageWidth / 2, detailsY);
-        yPos += 38;
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const staffIdCode = staff.staffId || (staff as any).staff_id || meta.staffId || meta.nationalId || staff.id.substring(0, 12);
+        const idNo = meta.nationalId || (staff as any).nationalId || '-';
+        const kraPin = meta.kraPin || (staff as any).kraPin || '-';
+        const nssfNo = meta.nssfNo || (staff as any).nssfNo || '-';
+        const shifNo = meta.shifNumber || meta.shifNo || (staff as any).shifNumber || '-';
+        const bankName = meta.bankName || (staff as any).bankName || 'Equity Bank';
+        const bankBranch = meta.bankBranch || (staff as any).bankBranch || 'Main';
+        const bankAcc = meta.bankAccountNumber || (staff as any).bankAccountNumber || staff.phoneNumber || '-';
+        const desig = meta.designation || staff.role || 'Staff Member';
+        const terms = meta.employmentTerms || 'Permanent & Pensionable';
+
+        // Left Column
+        doc.text(`Employee Name: ${staff.name || record.staffName || 'N/A'}`, 20, detailsY);
+        doc.text(`Staff ID / Ref: ${staffIdCode}`, 20, detailsY + 5);
+        doc.text(`Designation / Role: ${desig}`, 20, detailsY + 10);
+        doc.text(`Terms: ${terms}`, 20, detailsY + 15);
+
+        // Middle Column
+        const col2X = 95;
+        doc.text(`National ID: ${idNo}`, col2X, detailsY);
+        doc.text(`KRA PIN: ${kraPin}`, col2X, detailsY + 5);
+        doc.text(`NSSF No: ${nssfNo}`, col2X, detailsY + 10);
+        doc.text(`SHIF No: ${shifNo}`, col2X, detailsY + 15);
+
+        // Right Column
+        const col3X = 145;
+        doc.text(`Bank: ${bankName}`, col3X, detailsY);
+        doc.text(`Branch: ${bankBranch}`, col3X, detailsY + 5);
+        doc.text(`Account No: ${bankAcc}`, col3X, detailsY + 10);
+        doc.text(`Status: Paid`, col3X, detailsY + 15);
+
+        yPos += 44;
 
         const basicSalary = record.basicSalary || (record as any).basicPay || 0;
-        const netSalary = record.netSalary || (record as any).netPay || 0;
-
         const allowancesList = Array.isArray(record.allowances) ? record.allowances : [];
-        const totalAllowances = allowancesList.reduce((acc: number, a: any) => acc + (a.amount || 0), 0);
+        const totalAllowances = allowancesList.reduce((acc: number, a: any) => acc + (Number(a.amount) || 0), 0);
+        const grossEarnings = basicSalary + totalAllowances;
 
         const deductionsList = Array.isArray(record.deductions) ? record.deductions : [];
-        const totalDeductions = deductionsList.reduce((acc: number, d: any) => acc + (d.amount || 0), 0);
+        const totalDeductions = deductionsList.reduce((acc: number, d: any) => acc + (Number(d.amount) || 0), 0);
+        const netSalary = record.netSalary || Math.max(0, grossEarnings - totalDeductions);
 
         const head = [['Description', 'Earnings (KES)', 'Deductions (KES)']];
         const body: any[] = [
-            ['Basic Salary', basicSalary.toLocaleString(), '-'],
+            ['Basic Salary', basicSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '-'],
         ];
 
         allowancesList.forEach((a: any) => {
-            body.push([a.name, a.amount.toLocaleString(), '-']);
+            body.push([a.name || 'Allowance', (Number(a.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), '-']);
         });
 
         deductionsList.forEach((d: any) => {
-            body.push([d.name, '-', d.amount.toLocaleString()]);
+            body.push([d.name || 'Deduction', '-', (Number(d.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
         });
 
         body.push([
-            'TOTALS',
-            (basicSalary + totalAllowances).toLocaleString(),
-            totalDeductions.toLocaleString()
+            { content: 'TOTAL GROSS EARNINGS / TOTAL DEDUCTIONS', styles: { fontStyle: 'bold' } },
+            { content: `KES ${grossEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold' } },
+            { content: `KES ${totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold' } }
         ]);
 
         body.push([
-            'NET PAYABLE',
-            { content: `KES ${netSalary.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [240, 249, 255] } },
-            '-'
+            { content: 'NET TAKE-HOME PAYABLE', styles: { fontStyle: 'bold', fillColor: [240, 253, 244] } },
+            { content: `KES ${netSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, colSpan: 2, styles: { fontStyle: 'bold', fontSize: 10, halign: 'right', fillColor: [240, 253, 244], textColor: [22, 101, 52] } }
         ]);
 
         doc.autoTable({
@@ -9071,21 +9187,68 @@ export const generateBulkStaffPayslipsPdf = async (
             head: head,
             body: body,
             theme: 'striped',
-            headStyles: { fillColor: primaryRGB },
-            styles: { fontSize: 9 }
+            headStyles: { fillColor: primaryRGB, fontSize: 8.5, fontStyle: 'bold' },
+            styles: { fontSize: 8, cellPadding: 2.2 },
+            columnStyles: {
+                0: { cellWidth: 90 },
+                1: { halign: 'right', cellWidth: 45 },
+                2: { halign: 'right', cellWidth: 45 }
+            }
         });
 
-        yPos = (doc as any).lastAutoTable.finalY + 25;
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+
+        // Calculate Employer Contributions
+        const employeeNssfObj = deductionsList.find((d: any) => (d.name || '').toUpperCase().includes('NSSF'));
+        const employeeNssf = employeeNssfObj ? Number(employeeNssfObj.amount) : (grossEarnings > 0 ? (Math.min(grossEarnings, 9000) * 0.06 + Math.max(0, Math.min(grossEarnings, 108000) - 9000) * 0.06) : 0);
+        const employerNssf = Math.round(employeeNssf);
+
+        const employeeHlObj = deductionsList.find((d: any) => (d.name || '').toUpperCase().includes('HOUSING') || (d.name || '').toUpperCase().includes('AHL'));
+        const employeeHl = employeeHlObj ? Number(employeeHlObj.amount) : (grossEarnings * 0.015);
+        const employerHousingLevy = Math.round(employeeHl);
+
+        const totalEmployerContributions = employerNssf + employerHousingLevy;
+        const totalCostToEmployer = grossEarnings + totalEmployerContributions;
+
+        const employerHead = [['Employer Statutory Contributions (Not Deducted From Employee)', 'Amount (KES)']];
+        const employerBody: any[] = [
+            ['NSSF Employer Matching (Tier I & Tier II Pension)', `KES ${employerNssf.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+            ['Affordable Housing Levy (AHL) Employer Contribution (1.5%)', `KES ${employerHousingLevy.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+            [
+                { content: 'TOTAL EMPLOYER STATUTORY CONTRIBUTIONS', styles: { fontStyle: 'bold', fillColor: [241, 245, 249] } },
+                { content: `KES ${totalEmployerContributions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] } }
+            ],
+            [
+                { content: 'TOTAL COST OF EMPLOYMENT TO INSTITUTION (Gross + Employer Contributions)', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } },
+                { content: `KES ${totalCostToEmployer.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', halign: 'right', fillColor: [238, 242, 255], textColor: [67, 56, 202] } }
+            ]
+        ];
+
+        doc.autoTable({
+            startY: yPos,
+            head: employerHead,
+            body: employerBody,
+            theme: 'plain',
+            headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold' },
+            styles: { fontSize: 7.5, cellPadding: 1.8 },
+            columnStyles: {
+                0: { cellWidth: 135 },
+                1: { halign: 'right', cellWidth: 45 }
+            }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 18;
+
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text("---------------------------------", 14, yPos);
-        doc.text(letterheadConfig?.signerName || "Authorized Signature", 14, yPos + 5);
+        doc.setFontSize(8);
+        doc.text("-----------------------------------------", 14, yPos);
+        doc.text(letterheadConfig?.signerName || "Authorized Bursar / HR Officer", 14, yPos + 4);
         if (letterheadConfig?.signerTitle) {
-            doc.text(letterheadConfig.signerTitle, 14, yPos + 10);
+            doc.text(letterheadConfig.signerTitle, 14, yPos + 8);
         }
 
-        doc.text("---------------------------------", pageWidth / 2, yPos);
-        doc.text("Employee Signature & Date", pageWidth / 2, yPos + 5);
+        doc.text("-----------------------------------------", pageWidth / 2, yPos);
+        doc.text("Employee Signature & Date of Receipt", pageWidth / 2, yPos + 4);
 
         setupPdfFooter(doc, footerImg, footerText);
     });

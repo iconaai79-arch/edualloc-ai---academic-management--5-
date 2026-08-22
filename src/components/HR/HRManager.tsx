@@ -489,18 +489,40 @@ export const HRManager: React.FC<HRManagerProps> = ({
         // Try to find the matching processed payroll record
         let record = payrollRecords.find(r => r.staffId === selectedStaffId && r.month === selectedMonth);
         if (!record) {
-            // Fallback generation on-the-fly
+            // Fallback generation on-the-fly with all custom allowances and deductions
             const salary = getStaffSalary(member);
             const houseAllowance = Math.round(salary * 0.15);
             const nssf = salary > 0 ? Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06 : 0;
             const shif = salary > 0 ? Math.max(300, salary * 0.0275) : 0;
             const housingLevy = salary * 0.015;
-            const deductions = [
+
+            let meta = member.metadata || {};
+            if (typeof meta === 'string') {
+                try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+            }
+
+            const allowances: Array<{ name: string; amount: number }> = [];
+            if (houseAllowance > 0) allowances.push({ name: 'House Allowance', amount: houseAllowance });
+            if (Array.isArray(meta.assignedAllowances)) {
+                meta.assignedAllowances.forEach((a: any) => {
+                    if (Number(a.amount) > 0) allowances.push({ name: a.name || 'Allowance', amount: Number(a.amount) });
+                });
+            }
+
+            const deductions: Array<{ name: string; amount: number }> = [
                 { name: 'NSSF Pension', amount: Math.round(nssf) },
                 { name: 'SHIF Medical', amount: Math.round(shif) },
                 { name: 'Housing Levy (AHL)', amount: Math.round(housingLevy) },
                 { name: 'PAYE Tax', amount: Math.round(Math.max(0, salary * 0.1 - 2400)) }
             ];
+
+            if (Array.isArray(meta.assignedDeductions)) {
+                meta.assignedDeductions.forEach((d: any) => {
+                    if (Number(d.amount) > 0) deductions.push({ name: d.name || 'Custom Deduction', amount: Number(d.amount) });
+                });
+            }
+
+            const totalAlls = allowances.reduce((a, b) => a + b.amount, 0);
             const totalDeds = deductions.reduce((a, b) => a + b.amount, 0);
             record = {
                 id: `pay_${Date.now()}_${member.id}`,
@@ -509,9 +531,9 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 staffName: member.name,
                 month: selectedMonth,
                 basicSalary: salary,
-                allowances: [{ name: 'House Allowance', amount: houseAllowance }],
+                allowances,
                 deductions,
-                netSalary: Math.max(0, salary + houseAllowance - totalDeds),
+                netSalary: Math.max(0, salary + totalAlls - totalDeds),
                 status: 'paid',
                 recordedBy: 'HR System',
                 paymentDate: new Date().toISOString()
@@ -567,14 +589,36 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     const nssf = salary > 0 ? Math.min(salary, 9000) * 0.06 + Math.max(0, Math.min(salary, 108000) - 9000) * 0.06 : 0;
                     const shif = salary > 0 ? Math.max(300, salary * 0.0275) : 0;
                     const housingLevy = salary * 0.015;
-                    const deductions = [
+
+                    let meta = s.metadata || {};
+                    if (typeof meta === 'string') {
+                        try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                    }
+
+                    const allowances: Array<{ name: string; amount: number }> = [];
+                    if (houseAllowance > 0) allowances.push({ name: 'House Allowance', amount: houseAllowance });
+                    if (Array.isArray(meta.assignedAllowances)) {
+                        meta.assignedAllowances.forEach((a: any) => {
+                            if (Number(a.amount) > 0) allowances.push({ name: a.name || 'Allowance', amount: Number(a.amount) });
+                        });
+                    }
+
+                    const deductions: Array<{ name: string; amount: number }> = [
                         { name: 'NSSF Pension', amount: Math.round(nssf) },
                         { name: 'SHIF Medical', amount: Math.round(shif) },
                         { name: 'Housing Levy (AHL)', amount: Math.round(housingLevy) },
                         { name: 'PAYE Tax', amount: Math.round(Math.max(0, salary * 0.1 - 2400)) }
                     ];
+
+                    if (Array.isArray(meta.assignedDeductions)) {
+                        meta.assignedDeductions.forEach((d: any) => {
+                            if (Number(d.amount) > 0) deductions.push({ name: d.name || 'Custom Deduction', amount: Number(d.amount) });
+                        });
+                    }
+
+                    const totalAlls = allowances.reduce((a, b) => a + b.amount, 0);
                     const totalDeds = deductions.reduce((a, b) => a + b.amount, 0);
-                    const netSalary = Math.max(0, salary + houseAllowance - totalDeds);
+                    const netSalary = Math.max(0, salary + totalAlls - totalDeds);
 
                     const syntheticRecord: PayrollRecord = {
                         id: `pay_${Date.now()}_${s.id}`,
@@ -583,7 +627,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         staffName: s.name,
                         month: selectedMonth,
                         basicSalary: salary,
-                        allowances: [{ name: 'House Allowance', amount: houseAllowance }],
+                        allowances,
                         deductions,
                         netSalary,
                         status: 'paid',
