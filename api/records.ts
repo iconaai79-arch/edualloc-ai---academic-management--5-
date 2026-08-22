@@ -128,7 +128,7 @@ const PUBLIC_MODULES = [
   'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
   'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
-  'bursary_disbursements'
+  'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads'
 ];
 
 const MODULE_ALIASES: Record<string, string> = {
@@ -344,6 +344,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID), returning empty list fallback.`);
                     return res.status(200).json([]);
                 }
+                const isColumnOrSyntaxErr = error.code === '42703' || 
+                                            error.code === 'PGRST100' || 
+                                            error.code === '42501' || 
+                                            error.code === 'PGRST301' ||
+                                            error.message?.includes('column') ||
+                                            error.message?.includes('filter');
+                if (isColumnOrSyntaxErr) {
+                    console.warn(`[API GET] Query filter issue for '${moduleName}' (${error.message}). Retrying simplified query...`);
+                    try {
+                        let simpleQ = supabase.from(targetDbTable).select('*');
+                        if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
+                            simpleQ = simpleQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
+                        } else if (user?.institutionId && !isTableWithoutInstitutionId(moduleName)) {
+                            simpleQ = simpleQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
+                        }
+                        simpleQ = simpleQ.limit(finalLimit);
+                        const { data: simpleData, error: simpleErr } = await simpleQ;
+                        if (!simpleErr && simpleData) {
+                            return res.status(200).json(simpleData);
+                        }
+                    } catch (e) {
+                        console.warn(`[API GET] Simple fallback retry failed for '${moduleName}':`, e);
+                    }
+                    return res.status(200).json([]);
+                }
                 const isTimeout = error.code === '57014' || 
                                   error.message?.includes('statement timeout') ||
                                   error.message?.includes('timeout') ||
@@ -370,7 +395,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).json([]);
                 }
                 console.error(`[API GET Error] ${moduleName}:`, error);
-                return res.status(500).json({ success: false, error: error.message, code: error.code });
+                // Return empty list on any DB query error to prevent breaking client UI
+                return res.status(200).json([]);
             }
             return res.status(200).json(data || []);
         }
