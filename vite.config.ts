@@ -136,15 +136,6 @@ export default defineConfig(({ mode }) => {
             if (normalizedId.includes('src/components/icons')) {
               return 'ui-icons';
             }
-            if (normalizedId.includes('src/components/superadminview')) {
-              return 'view-superadmin';
-            }
-            if (normalizedId.includes('src/components/adminview')) {
-              return 'view-admin';
-            }
-            if (normalizedId.includes('src/components/financeofficerview')) {
-              return 'view-finance';
-            }
           }
         }
       }

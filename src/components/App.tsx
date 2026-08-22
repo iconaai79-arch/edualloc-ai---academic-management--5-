@@ -7198,15 +7198,20 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                                             voteHeads={voteHeads}
                                             courses={courses}
                                             onRefreshData={loadData}
-                                            onGenerateInvoices={async (invoicesList: any) => {
-                                                for (const inv of invoicesList) {
-                                                    const saved = await apiService.saveModuleRecord('invoices', {
-                                                        ...inv,
-                                                        institutionId: activeInstitution!.id,
-                                                        createdAt: new Date().toISOString()
-                                                    });
-                                                    if (saved) {
-                                                        await apiService.allocatePrepaymentsToInvoice(saved);
+                                            onGenerateInvoices={async (invoicesList: any[]) => {
+                                                const timestamp = new Date().toISOString();
+                                                const preparedInvoices = (invoicesList || []).map((inv: any) => ({
+                                                    ...inv,
+                                                    institutionId: activeInstitution!.id,
+                                                    createdAt: inv.createdAt || timestamp,
+                                                    updatedAt: timestamp
+                                                }));
+                                                const savedInvoices = await apiService.saveModuleRecords('invoices', preparedInvoices);
+                                                if (savedInvoices && savedInvoices.length > 0) {
+                                                    const chunkSize = 15;
+                                                    for (let i = 0; i < savedInvoices.length; i += chunkSize) {
+                                                        const chunk = savedInvoices.slice(i, i + chunkSize);
+                                                        await Promise.allSettled(chunk.map((inv: any) => apiService.allocatePrepaymentsToInvoice(inv)));
                                                     }
                                                 }
                                                 await loadData();
