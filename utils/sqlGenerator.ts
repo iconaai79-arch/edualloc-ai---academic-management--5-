@@ -439,6 +439,25 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     payload JSONB
 );
+
+CREATE TABLE IF NOT EXISTS bursary_disbursements (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    donor_name TEXT,
+    cheque_number TEXT,
+    bank_name TEXT,
+    cheque_date TEXT,
+    total_amount DECIMAL(12, 2) DEFAULT 0.0,
+    allocated_amount DECIMAL(12, 2) DEFAULT 0.0,
+    allocations JSONB DEFAULT '[]'::jsonb,
+    notes TEXT,
+    bank_account_id TEXT,
+    posted_by TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 \n-- 7. OPERATIONS (STORE, LIBRARY, SECURITY) --\n
 CREATE TABLE IF NOT EXISTS inventory (
     id TEXT PRIMARY KEY,

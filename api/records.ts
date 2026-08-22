@@ -127,7 +127,8 @@ const PUBLIC_MODULES = [
   'feedback_submissions', 'guest_feedback', 'guest_feedbacks', 'lesson_ratings',
   'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
-  'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states'
+  'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
+  'bursary_disbursements'
 ];
 
 const MODULE_ALIASES: Record<string, string> = {
