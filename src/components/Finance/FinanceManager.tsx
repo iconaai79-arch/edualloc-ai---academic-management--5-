@@ -1966,6 +1966,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setBalancesCurrentPage(1);
     }, [searchBalances, balanceClassFilter, balanceStatusFilter, balanceSortOption, balancesPerPage]);
 
+    // Ensure statement preview scrolls to top when opened
+    useEffect(() => {
+        if (balPreviewStudentId) {
+            setTimeout(() => {
+                const scrollEl = document.getElementById('bal-preview-content-scroll');
+                if (scrollEl) scrollEl.scrollTop = 0;
+                const panelEl = document.getElementById('bal-preview-panel');
+                if (panelEl) panelEl.scrollTop = 0;
+            }, 10);
+        }
+    }, [balPreviewStudentId, balPreviewViewMode]);
+
     const studentFinanceData = useMemo(() => {
         const filteredStudents = mergedStudents.filter(s => matchesSelectedBranch(s));
         return filteredStudents.map(s => {
@@ -5377,10 +5389,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!balPrevStudent) return null;
 
                 return (
-                    <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200" onClick={(e) => {
+                    <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-2 sm:p-4 md:p-6 pt-3 sm:pt-6 md:pt-8 overflow-y-auto animate-in fade-in duration-200" onClick={(e) => {
                         if (e.target === e.currentTarget) setBalPreviewStudentId('');
                     }}>
-                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col my-auto relative animate-in zoom-in-95 duration-200 overflow-hidden">
+                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full max-h-[94vh] flex flex-col relative animate-in zoom-in-95 duration-200 overflow-hidden">
                             {/* Preview Panel Header Bar */}
                             <div className="shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 text-white p-4 px-6 rounded-t-[2.5rem] shadow-md border-b border-slate-800 z-10">
                                 <div className="flex items-center gap-3">
@@ -5403,7 +5415,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
 
-                            <div className="overflow-y-auto flex-1">
+                            <div id="bal-preview-content-scroll" className="overflow-y-auto flex-1">
                                 {/* TABLE MODE */}
                                 {balPreviewViewMode === 'table' && (
                                     <div className="bg-white dark:bg-slate-900 border border-t-0 border-slate-100 dark:border-slate-800/60 shadow-sm">
