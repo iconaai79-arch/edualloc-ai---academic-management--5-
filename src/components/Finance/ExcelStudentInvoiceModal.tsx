@@ -36,6 +36,47 @@ interface ParsedInvoiceRow {
     selected: boolean;
 }
 
+export const parseExcelDateString = (val: any, fallbackDate?: string): string => {
+    if (!val && val !== 0) return fallbackDate || new Date().toISOString().split('T')[0];
+    if (val instanceof Date && !isNaN(val.getTime())) {
+        return val.toISOString().split('T')[0];
+    }
+    const str = String(val).trim();
+    if (!str) return fallbackDate || new Date().toISOString().split('T')[0];
+    
+    // Check if standard YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        return str;
+    }
+    
+    // Check if numeric serial (Excel date serial number, e.g. 40000 - 60000)
+    const num = Number(str);
+    if (!isNaN(num) && num > 1000 && num < 100000) {
+        // Excel 1900 date system: 25569 days between 1899-12-30 and 1970-01-01
+        const dateObj = new Date(Math.round((num - 25569) * 86400 * 1000));
+        if (!isNaN(dateObj.getTime())) {
+            return dateObj.toISOString().split('T')[0];
+        }
+    }
+    
+    // Try DD/MM/YYYY or DD-MM-YYYY
+    const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyyMatch) {
+        const d = ddmmyyyyMatch[1].padStart(2, '0');
+        const m = ddmmyyyyMatch[2].padStart(2, '0');
+        const y = ddmmyyyyMatch[3];
+        return `${y}-${m}-${d}`;
+    }
+
+    // Try general Date.parse
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900 && parsed.getFullYear() < 2100) {
+        return parsed.toISOString().split('T')[0];
+    }
+
+    return fallbackDate || new Date().toISOString().split('T')[0];
+};
+
 export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> = ({
     isOpen,
     onClose,
@@ -284,7 +325,8 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
                     const nameRaw = idxName !== -1 ? String(row[idxName] || '').trim() : '';
                     const classRaw = idxClass !== -1 ? String(row[idxClass] || '').trim() : '';
                     const descRaw = idxDesc !== -1 ? String(row[idxDesc] || '').trim() : batchDescription;
-                    const dueDateRaw = idxDueDate !== -1 && String(row[idxDueDate] || '').trim() ? String(row[idxDueDate]).trim() : batchDueDate;
+                    const rawDue = idxDueDate !== -1 && row[idxDueDate] !== undefined ? row[idxDueDate] : batchDueDate;
+                    const dueDateRaw = parseExcelDateString(rawDue, batchDueDate);
                     const customInvNo = idxCustomInvNo !== -1 ? String(row[idxCustomInvNo] || '').trim() : undefined;
 
                     // Match student (exact and normalized)
@@ -455,8 +497,8 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
             let configRecord: any = null;
 
             try {
-                const configs = await apiService.getModuleRecords<any>('finance_numbering_configs');
-                configRecord = configs.find((c: any) => c.documentType === 'invoice' || c.document_type === 'invoice');
+                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs');
+                configRecord = (configs || []).find((c: any) => c.documentType === 'invoice' || c.document_type === 'invoice');
                 if (configRecord) {
                     invoicePrefix = configRecord.prefix || invoicePrefix;
                     nextInvoiceNumber = Number(configRecord.nextNumber || configRecord.next_number || 1001);

@@ -1509,6 +1509,37 @@ export const apiService = {
                 if (isPseudoInvoice(item.invoiceId)) item.invoiceId = null;
             }
 
+            if (module === 'invoices' || module === 'receipts') {
+                const parseDateHelper = (val: any): string | null => {
+                    if (!val && val !== 0) return null;
+                    if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().split('T')[0];
+                    const str = String(val).trim();
+                    if (!str) return null;
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+                    const num = Number(str);
+                    if (!isNaN(num) && num > 1000 && num < 100000) {
+                        const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+                        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+                    }
+                    const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                    if (ddmmyyyyMatch) {
+                        return `${ddmmyyyyMatch[3]}-${ddmmyyyyMatch[2].padStart(2, '0')}-${ddmmyyyyMatch[1].padStart(2, '0')}`;
+                    }
+                    const parsed = new Date(str);
+                    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900) {
+                        return parsed.toISOString().split('T')[0];
+                    }
+                    return null;
+                };
+
+                if (item.due_date !== undefined) item.due_date = parseDateHelper(item.due_date);
+                if (item.dueDate !== undefined) item.dueDate = parseDateHelper(item.dueDate);
+                if (item.issue_date !== undefined) item.issue_date = parseDateHelper(item.issue_date);
+                if (item.issueDate !== undefined) item.issueDate = parseDateHelper(item.issueDate);
+                if (item.payment_date !== undefined) item.payment_date = parseDateHelper(item.payment_date);
+                if (item.paymentDate !== undefined) item.paymentDate = parseDateHelper(item.paymentDate);
+            }
+
             if (module === 'invoices') {
                 if (item.student_id && (typeof item.student_id !== 'string' || item.student_id.startsWith('ext_') || item.student_id.startsWith('temp_') || item.student_id.trim() === '')) {
                     item.student_id = null;

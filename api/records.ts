@@ -519,6 +519,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (moduleName === 'invoices' || moduleName === 'receipts') {
+                const parseDate = (val: any): string | null => {
+                    if (!val && val !== 0) return null;
+                    if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().split('T')[0];
+                    const str = String(val).trim();
+                    if (!str) return null;
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+                    const num = Number(str);
+                    if (!isNaN(num) && num > 1000 && num < 100000) {
+                        const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+                        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+                    }
+                    const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                    if (ddmmyyyyMatch) {
+                        return `${ddmmyyyyMatch[3]}-${ddmmyyyyMatch[2].padStart(2, '0')}-${ddmmyyyyMatch[1].padStart(2, '0')}`;
+                    }
+                    const parsed = new Date(str);
+                    if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 1900) {
+                        return parsed.toISOString().split('T')[0];
+                    }
+                    return new Date().toISOString().split('T')[0];
+                };
+
                 const cleanBillingRecord = (rec: any) => {
                     if (!rec || typeof rec !== 'object') return rec;
                     const copy = { ...rec };
@@ -527,6 +549,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         copy.student_id = null;
                     }
                     if ('studentId' in copy) delete copy.studentId;
+
+                    if (copy.due_date !== undefined) copy.due_date = parseDate(copy.due_date);
+                    if (copy.dueDate !== undefined) {
+                        copy.due_date = copy.due_date || parseDate(copy.dueDate);
+                        delete copy.dueDate;
+                    }
+                    if (copy.issue_date !== undefined) copy.issue_date = parseDate(copy.issue_date);
+                    if (copy.issueDate !== undefined) {
+                        copy.issue_date = copy.issue_date || parseDate(copy.issueDate);
+                        delete copy.issueDate;
+                    }
+                    if (copy.payment_date !== undefined) copy.payment_date = parseDate(copy.payment_date);
+                    if (copy.paymentDate !== undefined) {
+                        copy.payment_date = copy.payment_date || parseDate(copy.paymentDate);
+                        delete copy.paymentDate;
+                    }
+
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBillingRecord) : cleanBillingRecord(currentPayload);
