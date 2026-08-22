@@ -2062,12 +2062,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     };
 
     const BankActionModal = () => {
-        if (!selectedTenantForBankAction) return null;
         const [amount, setAmount] = useState('');
         const [paymentType, setPaymentType] = useState<string>('Rent');
         const [processing, setProcessing] = useState(false);
 
         const handleInitiatePayment = async () => {
+            if (!selectedTenantForBankAction) return;
             if (!amount || isNaN(Number(amount))) {
                 alert("Please enter a valid amount");
                 return;
@@ -2088,6 +2088,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         };
 
         const handleVerifyAccount = async () => {
+            if (!selectedTenantForBankAction) return;
             setProcessing(true);
             try {
                 const res = await apiService.verifyKcbAccount(selectedTenantForBankAction.id);
@@ -2101,6 +2102,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
             setProcessing(false);
         };
+
+        if (!selectedTenantForBankAction) return null;
 
         return (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -2192,9 +2195,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     };
 
     const CoopBankB2bModal = () => {
-        if (!selectedTenantForCoopAction) return null;
-        
-        const tenantInvoices = invoices.filter(inv => inv.tenantId === selectedTenantForCoopAction.id);
+        const tenantInvoices = selectedTenantForCoopAction ? invoices.filter(inv => inv.tenantId === selectedTenantForCoopAction.id) : [];
         const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(tenantInvoices[0]?.id || '');
         const [simulatedAmount, setSimulatedAmount] = useState<string>('');
         const [processing, setProcessing] = useState(false);
@@ -2295,6 +2296,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
             setProcessing(false);
         };
+
+        if (!selectedTenantForCoopAction) return null;
 
         return (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">

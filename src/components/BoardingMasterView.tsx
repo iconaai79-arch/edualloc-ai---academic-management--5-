@@ -94,6 +94,66 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
 
     const isAuthorized = ['boarding_master', 'admin', 'super_admin', 'house_master', 'head_teacher', 'boarding_mistress'].includes(currentUser.role || '');
 
+    const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
+
+    const [houses, setHouses] = useState<BoardingHouseWithStats[]>([]);
+    const [stats, setStats] = useState({
+        totalHouses: 0,
+        totalRooms: 0,
+        totalBeds: 0,
+        occupiedBeds: 0,
+        availableBeds: 0,
+        occupancyRate: 0,
+        activeAllocations: 0,
+        pendingCheckIns: 0,
+        pendingCheckOuts: 0,
+        maintenanceIssues: 0
+    });
+    const [loading, setLoading] = useState(true);
+
+    const loadDashboardData = async () => {
+        if (!isAuthorized) return;
+        setLoading(true);
+        try {
+            const houseStats = await apiService.fetchModuleRecords<any>('v_house_statistics', currentInstitution.id);
+            const maintenanceLogs = await apiService.fetchMaintenanceLogs(currentInstitution.id);
+            const allocations = await apiService.fetchBedAllocations(currentInstitution.id);
+
+            const totalHouses = houseStats.length;
+            const totalRooms = houseStats.reduce((acc: number, h: any) => acc + (h.totalRooms || 0), 0);
+            const totalBeds = houseStats.reduce((acc: number, h: any) => acc + (h.totalBeds || 0), 0);
+            const occupiedBeds = houseStats.reduce((acc: number, h: any) => acc + (h.occupiedBeds || 0), 0);
+            const availableBeds = houseStats.reduce((acc: number, h: any) => acc + (h.availableBeds || 0), 0);
+
+            const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+
+            setStats({
+                totalHouses,
+                totalRooms,
+                totalBeds,
+                occupiedBeds,
+                availableBeds,
+                occupancyRate,
+                activeAllocations: allocations.filter((a: any) => a.status === 'Active').length,
+                pendingCheckIns: allocations.filter((a: any) => a.status === 'Active' && (!a.boardingCheckins || a.boardingCheckins.length === 0)).length,
+                pendingCheckOuts: allocations.filter((a: any) => a.status === 'Active' && a.boardingCheckins && a.boardingCheckins.length > 0 && (!a.boardingCheckouts || a.boardingCheckouts.length === 0)).length,
+                maintenanceIssues: maintenanceLogs.filter((l: any) => l.status === 'Pending').length
+            });
+
+            await onLogAction('Viewed boarding dashboard');
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAuthorized) {
+            loadDashboardData();
+        }
+    }, [currentInstitution.id, isAuthorized]);
+
     if (!isAuthorized) {
         return (
             <div className="flex items-center justify-center min-h-[60vh] bg-transparent">
@@ -114,29 +174,6 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
             </div>
         );
     }
-
-    const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
-
-    const [houses, setHouses] = useState<BoardingHouseWithStats[]>([]);
-    const [stats, setStats] = useState({
-        totalHouses: 0,
-        totalRooms: 0,
-        totalBeds: 0,
-        occupiedBeds: 0,
-        availableBeds: 0,
-        occupancyRate: 0,
-        activeAllocations: 0,
-        pendingCheckIns: 0,
-        pendingCheckOuts: 0,
-        maintenanceIssues: 0
-    });
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        loadDashboardData();
-    }, [currentInstitution.id]);
-
-    const loadDashboardData = async () => {
         setLoading(true);
         try {
             const houseStats = await apiService.fetchModuleRecords<any>('v_house_statistics', currentInstitution.id);

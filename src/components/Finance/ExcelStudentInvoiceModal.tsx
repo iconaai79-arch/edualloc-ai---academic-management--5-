@@ -104,8 +104,6 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
         return { studentAdmMap: admMap, studentNameMap: nameMap };
     }, [students]);
 
-    if (!isOpen) return null;
-
     // Reset state on close
     const handleClose = () => {
         setFile(null);
@@ -559,6 +557,8 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
             setIsGenerating(false);
         }
     };
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-md animate-fade-in">

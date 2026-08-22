@@ -106,10 +106,6 @@ export const Header: React.FC<HeaderProps> = ({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    if (!currentUser) return null;
-
-    const showTrialTimer = currentInstitution?.status === 'trial' && currentInstitution.trialEndsAt;
-
     const availableRoles = useMemo(() => {
         if (!currentUser) return [];
 
@@ -126,6 +122,10 @@ export const Header: React.FC<HeaderProps> = ({
         }
         return [...new Set(roles)];
     }, [currentUser]);
+
+    if (!currentUser) return null;
+
+    const showTrialTimer = currentInstitution?.status === 'trial' && currentInstitution.trialEndsAt;
 
     return (
         <header
