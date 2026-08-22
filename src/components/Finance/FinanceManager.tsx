@@ -5292,12 +5292,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     balPrevInvoices.some((i: any) => i.id === r.invoiceId)
                 );
                 const balPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? 0;
-                const balPrevTotalInvoiced = balPrevOpeningBal + balPrevInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
-                const balPrevTotalPaid = balPrevReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                const balPrevInvoicesTotal = balPrevInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+                const balPrevReceiptsTotal = balPrevReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                const balPrevTotalInvoiced = (balPrevOpeningBal > 0 ? balPrevOpeningBal : 0) + balPrevInvoicesTotal;
+                const balPrevTotalPaid = (balPrevOpeningBal < 0 ? Math.abs(balPrevOpeningBal) : 0) + balPrevReceiptsTotal;
                 const balPrevBalance = balPrevTotalInvoiced - balPrevTotalPaid;
 
                 const balPrevAllEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
-                    ...(balPrevOpeningBal > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: balPrevOpeningBal } }] : []),
+                    ...(Math.abs(balPrevOpeningBal) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: balPrevOpeningBal } }] : []),
                     ...balPrevInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                     ...balPrevReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                 ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
@@ -5306,8 +5308,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const balPrevLedger = balPrevAllEntries.map(entry => {
                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                     if (entry.eType === 'opening') {
-                        balPrevRunning += entry.data.amount || 0;
-                        return { date: formattedDate, description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
+                        const amt = entry.data.amount || 0;
+                        if (amt > 0) {
+                            balPrevRunning += amt;
+                            return {
+                                date: formattedDate,
+                                description: 'Opening Balance Brought Forward (Arrears)',
+                                debit: amt,
+                                credit: 0,
+                                balance: balPrevRunning,
+                                eType: 'invoice' as const
+                            };
+                        } else {
+                            const creditAmt = Math.abs(amt);
+                            balPrevRunning -= creditAmt;
+                            return {
+                                date: formattedDate,
+                                description: 'Opening Balance Brought Forward (Prepayment / Credit)',
+                                debit: 0,
+                                credit: creditAmt,
+                                balance: balPrevRunning,
+                                eType: 'payment' as const
+                            };
+                        }
                     } else if (entry.eType === 'invoice') {
                         balPrevRunning += entry.data.totalAmount || 0;
                         return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
@@ -15471,12 +15494,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     const sd = studentFinanceData.find(s => s.id === stmtStudentId);
                                     return sd?.totals?.openingBalance ?? 0;
                                 })();
-                                const totalInvoiced = openingBalForStmt + studentInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
-                                const totalPaid = studentReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
+                                const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                const totalInvoiced = (openingBalForStmt > 0 ? openingBalForStmt : 0) + invoicesTotal;
+                                const totalPaid = (openingBalForStmt < 0 ? Math.abs(openingBalForStmt) : 0) + receiptsTotal;
                                 const balance = totalInvoiced - totalPaid;
 
                                 const allEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
-                                    ...(openingBalForStmt > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt } }] : []),
+                                    ...(Math.abs(openingBalForStmt) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt } }] : []),
                                     ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                                     ...studentReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                                 ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
@@ -15485,8 +15510,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const ledger = allEntries.map(entry => {
                                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                                     if (entry.eType === 'opening') {
-                                        running += entry.data.amount || 0;
-                                        return { date: formattedDate, description: 'Opening Balance (Brought Forward)', debit: entry.data.amount || 0, credit: 0, balance: running, eType: 'invoice' as const };
+                                        const amt = entry.data.amount || 0;
+                                        if (amt > 0) {
+                                            running += amt;
+                                            return {
+                                                date: formattedDate,
+                                                description: 'Opening Balance Brought Forward (Arrears)',
+                                                debit: amt,
+                                                credit: 0,
+                                                balance: running,
+                                                eType: 'invoice' as const
+                                            };
+                                        } else {
+                                            const creditAmt = Math.abs(amt);
+                                            running -= creditAmt;
+                                            return {
+                                                date: formattedDate,
+                                                description: 'Opening Balance Brought Forward (Prepayment / Credit)',
+                                                debit: 0,
+                                                credit: creditAmt,
+                                                balance: running,
+                                                eType: 'payment' as const
+                                            };
+                                        }
                                     } else if (entry.eType === 'invoice') {
                                         running += entry.data.totalAmount || 0;
                                         return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: running, eType: 'invoice' as const };
