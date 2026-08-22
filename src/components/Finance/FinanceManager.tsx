@@ -1929,9 +1929,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Excel Payment Import & Auto-Reconcile State
     const [isExcelImportModalOpen, setIsExcelImportModalOpen] = useState(false);
     const [excelImportStep, setExcelImportStep] = useState<1 | 2 | 3>(1);
+    const [isParsingExcel, setIsParsingExcel] = useState(false);
     const [reconciledItems, setReconciledItems] = useState<Array<{
         id: string;
         ref: string;
+        receiptNumber: string;  // Receipt # from Excel column G
         date: string;
         amount: number;
         payer: string;
@@ -2451,15 +2453,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Reset the input so the same file can be re-selected later
+        e.target.value = '';
+
+        setIsParsingExcel(true);
+
+        // Yield to the event loop so React can render the loading state before heavy processing
+        await new Promise(r => setTimeout(r, 50));
+
         try {
             const buffer = await file.arrayBuffer();
-            const workbook = XLSX.read(buffer, { type: 'array' });
+            // Use 'buffer' type — file.arrayBuffer() returns an ArrayBuffer, not a raw array
+            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const rawRows: any[] = XLSX.utils.sheet_to_json(sheet);
 
             if (rawRows.length === 0) {
                 alert("The selected Excel file appears to be empty.");
+                setIsParsingExcel(false);
                 return;
             }
 
@@ -2479,44 +2491,138 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (name) nameMap[name] = student;
             });
 
+            // Yield again before the potentially-heavy reconciliation loop
+            await new Promise(r => setTimeout(r, 0));
+
+            // ─── Column resolver helpers ─────────────────────────────────────────
+            // Matches exact column names from the known Excel format:
+            //   A=ADM  B=Name  C=Amount  D=Reference  E=Payment Mode  F=Deposit Bank  G=Receipt #  H=Paid On
+            const resolveCol = (row: any, ...patterns: RegExp[]): string => {
+                const keys = Object.keys(row);
+                for (const pat of patterns) {
+                    const k = keys.find(key => pat.test(key));
+                    if (k && row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+                        return String(row[k]).trim();
+                    }
+                }
+                return '';
+            };
+
+            // Excel serial date → ISO date string (handles both numeric and string dates)
+            const excelDateToISO = (raw: any): string => {
+                if (!raw) return new Date().toISOString().split('T')[0];
+                if (typeof raw === 'number') {
+                    // Excel epoch: Jan 0, 1900 (serial 1 = Jan 1 1900; +1 for Lotus bug)
+                    const utc = new Date(Date.UTC(1899, 11, 30) + raw * 86400000);
+                    return utc.toISOString().split('T')[0];
+                }
+                const s = String(raw).trim();
+                // Try DD/MM/YYYY HH:MM or DD/MM/YYYY
+                const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+                // Try ISO or other parseable formats
+                const d = new Date(s);
+                if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+                return s;
+            };
+
             // Process each payment row from Excel
             const processed = rawRows.map((row, idx) => {
-                const keys = Object.keys(row);
-                
-                const refKey = keys.find(k => /ref|code|trans|receipt|doc|id/i.test(k));
-                const ref = refKey ? String(row[refKey]).trim() : `IMP-${Date.now()}-${idx + 1}`;
+                // ── Extract each column using prioritised patterns ───────────────
+                // Column A: ADM (admission number)
+                const admRaw = resolveCol(row,
+                    /^ADM$/i,
+                    /adm(ission)?[\s_#]*(no|num|number)?$/i,
+                    /^student[\s_]*(no|id|num)?$/i
+                );
 
-                const amountKey = keys.find(k => /amount|paid|credit|total|ksh|val/i.test(k));
-                const rawAmt = amountKey ? row[amountKey] : 0;
-                const amount = parseMoneyAmount(rawAmt);
+                // Column B: Name (student / payer name)
+                const nameRaw = resolveCol(row,
+                    /^name$/i,
+                    /student[\s_]*name/i,
+                    /payer[\s_]*name/i,
+                    /sender[\s_]*name/i
+                );
 
-                const dateKey = keys.find(k => /date|time|period/i.test(k));
-                const rawDate = dateKey ? String(row[dateKey]).trim() : '';
-                const date = rawDate || new Date().toISOString().split('T')[0];
+                // Column C: Amount
+                const amtRaw = resolveCol(row,
+                    /^amount$/i,
+                    /amount[\s_]*(paid|received|ksh)?/i,
+                    /^paid$/i,
+                    /^credit$/i,
+                    /^total$/i,
+                    /ksh/i
+                );
 
-                const payerKey = keys.find(k => /payer|sender|name|details|desc|particulars/i.test(k));
-                const payer = payerKey ? String(row[payerKey]).trim() : 'Excel Import';
+                // Column D: Reference (M-Pesa code / bank ref)
+                const refRaw = resolveCol(row,
+                    /^reference$/i,
+                    /^ref(erence)?[\s_]*(no|code|#)?$/i,
+                    /trans(action)?[\s_]*(code|id|ref)?/i,
+                    /mpesa[\s_]*(code|ref)?/i
+                );
 
-                const fullSearchText = `${ref} ${payer} ${JSON.stringify(row)}`.toLowerCase();
+                // Column E: Payment Mode
+                const modeRaw = resolveCol(row,
+                    /^payment[\s_]*mode$/i,
+                    /^pay[\s_]*mode$/i,
+                    /^mode[\s_]*(of[\s_]*payment)?$/i,
+                    /^payment[\s_]*type$/i
+                );
 
-                // Reconciliation Matching Engine
+                // Column G: Receipt # (pre-existing receipt number from the school system)
+                const receiptRaw = resolveCol(row,
+                    /^receipt[\s_]*(#|no|number)?$/i,
+                    /^rcpt/i
+                );
+
+                // Column H: Paid On (date)
+                const dateRaw = resolveCol(row,
+                    /^paid[\s_]*on$/i,
+                    /^date$/i,
+                    /^payment[\s_]*date$/i,
+                    /^trans[\s_]*date$/i,
+                    /date/i,
+                    /time/i
+                );
+
+                // ── Derive clean values ──────────────────────────────────────────
+                const ref = refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`;
+                const amount = parseMoneyAmount(amtRaw);
+                const payer = nameRaw || 'Excel Import';
+                const date = excelDateToISO(dateRaw || (row['Paid On'] ?? row['Date'] ?? ''));
+
+                // Payment method: prefer explicit column, fallback to reference heuristic
+                let paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' = 'M-Pesa';
+                if (modeRaw) {
+                    if (/bank/i.test(modeRaw)) paymentMethod = 'Bank Transfer';
+                    else if (/cash/i.test(modeRaw)) paymentMethod = 'Cash';
+                    else if (/cheque|chq/i.test(modeRaw)) paymentMethod = 'Cheque';
+                    else if (/mpesa|m-pesa|paybill/i.test(modeRaw)) paymentMethod = 'M-Pesa';
+                } else {
+                    const searchFull = `${ref} ${payer} ${JSON.stringify(row)}`.toLowerCase();
+                    if (/bank|cheque|chq|ft|eft|transfer/i.test(searchFull)) paymentMethod = 'Bank Transfer';
+                    else if (/cash/i.test(searchFull)) paymentMethod = 'Cash';
+                }
+
+                // ── Student matching (priority: ADM > Name > phone scan) ─────────
                 let matchedStudent: any = null;
                 let matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none' = 'none';
 
-                // Direct admission check
-                const admMatchKey = keys.find(k => /adm|admission|student|acc/i.test(k));
-                if (admMatchKey && row[admMatchKey]) {
-                    const directAdm = String(row[admMatchKey]).trim().toLowerCase();
-                    if (admMap[directAdm]) {
-                        matchedStudent = admMap[directAdm];
+                // 1. Direct ADM column match (most reliable — column A in their sheet)
+                if (admRaw) {
+                    const admKey = admRaw.toLowerCase();
+                    if (admMap[admKey]) {
+                        matchedStudent = admMap[admKey];
                         matchConfidence = 'exact_adm';
                     }
                 }
 
-                // Substring admission check
+                // 2. ADM substring in any cell value (handles zero-padded or partial)
                 if (!matchedStudent) {
+                    const rowText = JSON.stringify(row).toLowerCase();
                     for (const [adm, student] of Object.entries(admMap)) {
-                        if (adm.length >= 3 && fullSearchText.includes(adm)) {
+                        if (adm.length >= 2 && rowText.includes(adm)) {
                             matchedStudent = student;
                             matchConfidence = 'exact_adm';
                             break;
@@ -2524,11 +2630,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
-                // Phone check
+                // 3. Name column match against student roster (column B)
+                if (!matchedStudent && nameRaw) {
+                    const nameLower = nameRaw.toLowerCase();
+                    // Try full name exact
+                    if (nameMap[nameLower]) {
+                        matchedStudent = nameMap[nameLower];
+                        matchConfidence = 'exact_name';
+                    } else {
+                        // Try partial: if student name is a substring of the Excel name or vice-versa
+                        for (const [sName, student] of Object.entries(nameMap)) {
+                            if (sName.length >= 4 && (nameLower.includes(sName) || sName.includes(nameLower))) {
+                                matchedStudent = student;
+                                matchConfidence = 'exact_name';
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 4. Phone digit scan across entire row text
                 if (!matchedStudent) {
-                    const digits = fullSearchText.replace(/[^0-9]/g, '');
+                    const rowDigits = JSON.stringify(row).replace(/[^0-9]/g, '');
                     for (const [phone, student] of Object.entries(phoneMap)) {
-                        if (digits.includes(phone)) {
+                        if (phone.length >= 9 && rowDigits.includes(phone)) {
                             matchedStudent = student;
                             matchConfidence = 'exact_phone';
                             break;
@@ -2536,25 +2661,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
-                // Name check
-                if (!matchedStudent) {
-                    for (const [name, student] of Object.entries(nameMap)) {
-                        if (name.length >= 4 && fullSearchText.includes(name)) {
-                            matchedStudent = student;
-                            matchConfidence = 'exact_name';
-                            break;
-                        }
-                    }
-                }
-
-                // Method detection
-                let paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' = 'M-Pesa';
-                if (/bank|cheque|chq|ft|eft|transfer/i.test(fullSearchText)) paymentMethod = 'Bank Transfer';
-                else if (/cash/i.test(fullSearchText)) paymentMethod = 'Cash';
-
                 return {
                     id: `imp_row_${Date.now()}_${idx}`,
                     ref,
+                    receiptNumber: receiptRaw,  // Column G: Receipt # from the Excel
                     date,
                     amount,
                     payer,
@@ -2571,6 +2681,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         } catch (err: any) {
             console.error("Failed to parse Excel payments:", err);
             alert("Failed to parse Excel file. Please ensure it is a valid .xlsx or .csv document.");
+        } finally {
+            setIsParsingExcel(false);
         }
     };
 
@@ -2586,10 +2698,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             const newReceipts = matchedItems.map(item => {
                 const student = mergedStudents.find(s => s.id === item.matchedStudentId);
+                // Use the Receipt # from the Excel (column G) if present; only auto-generate if blank
+                const receiptNum = item.receiptNumber?.trim()
+                    ? item.receiptNumber.trim()
+                    : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
                 return {
                     id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                     institutionId: props.institution.id,
-                    receiptNumber: `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`,
+                    receiptNumber: receiptNum,
                     studentId: item.matchedStudentId,
                     studentName: student?.name || item.payer,
                     amountPaid: item.amount,
@@ -16116,23 +16232,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {/* Step 1: Upload File */}
                         {excelImportStep === 1 && (
                             <div className="py-12 px-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-950/50 space-y-4">
-                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                                    <ArrowUpTrayIcon className="w-8 h-8" />
-                                </div>
-                                <div>
-                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Select or Drop Excel Payment Statement</h4>
-                                    <p className="text-xs font-medium text-slate-500 max-w-md mx-auto mt-1">Supports M-Pesa statements, Bank Excel exports, or CSV files (.xlsx, .xls, .csv). Columns e.g. Trans Code, Date, Amount, Payer, Admission No will be auto-matched.</p>
-                                </div>
-                                <label className="inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer">
-                                    <ArrowUpTrayIcon className="w-4 h-4" />
-                                    <span>Browse Excel File</span>
-                                    <input
-                                        type="file"
-                                        accept=".xlsx, .xls, .csv"
-                                        onChange={handleFileUploadAndReconcile}
-                                        className="hidden"
-                                    />
-                                </label>
+                                {isParsingExcel ? (
+                                    <>
+                                        <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                                            <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Parsing & Auto-Reconciling...</h4>
+                                            <p className="text-xs font-medium text-slate-500 max-w-md mx-auto mt-1">Reading Excel rows and matching students. Please wait.</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                                            <ArrowUpTrayIcon className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Select or Drop Excel Payment Statement</h4>
+                                            <p className="text-xs font-medium text-slate-500 max-w-md mx-auto mt-1">Supports your school Excel format with columns: <span className="font-black text-slate-700 dark:text-slate-300">ADM · Name · Amount · Reference · Payment Mode · Deposit Bank · Receipt # · Paid On</span></p>
+                                        </div>
+                                        <label className={`inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer`}>
+                                            <ArrowUpTrayIcon className="w-4 h-4" />
+                                            <span>Browse Excel File</span>
+                                            <input
+                                                type="file"
+                                                accept=".xlsx, .xls, .csv"
+                                                onChange={handleFileUploadAndReconcile}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    </>
+                                )}
                             </div>
                         )}
 
@@ -16203,11 +16333,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <table className="w-full border-collapse text-xs">
                                         <thead>
                                             <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                <th className="px-4 py-3 text-left">Ref Code / Date</th>
-                                                <th className="px-4 py-3 text-left">Excel Payer Details</th>
+                                                <th className="px-4 py-3 text-left">ADM</th>
+                                                <th className="px-4 py-3 text-left">Name / Payer</th>
+                                                <th className="px-4 py-3 text-left">Reference · Date</th>
+                                                <th className="px-4 py-3 text-left">Receipt #</th>
                                                 <th className="px-4 py-3 text-right">Amount</th>
-                                                <th className="px-4 py-3 text-left">Matched Student (Auto-Reconciled)</th>
-                                                <th className="px-4 py-3 text-center">Match Status</th>
+                                                <th className="px-4 py-3 text-left">Mode</th>
+                                                <th className="px-4 py-3 text-left">Matched Student</th>
+                                                <th className="px-4 py-3 text-center">Status</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
@@ -16217,22 +16350,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     if (excelFilterStatus === 'unmatched' && item.matchStatus !== 'unmatched') return false;
                                                     if (excelFilterQuery) {
                                                         const q = excelFilterQuery.toLowerCase();
-                                                        return item.ref.toLowerCase().includes(q) || item.payer.toLowerCase().includes(q);
+                                                        return item.ref.toLowerCase().includes(q) ||
+                                                               item.payer.toLowerCase().includes(q) ||
+                                                               item.receiptNumber.toLowerCase().includes(q) ||
+                                                               item.rawDetails.toLowerCase().includes(q);
                                                     }
                                                     return true;
                                                 })
                                                 .map(item => {
+                                                    // Extract ADM from rawDetails for display
+                                                    let admDisplay = '';
+                                                    try {
+                                                        const raw = JSON.parse(item.rawDetails);
+                                                        const keys = Object.keys(raw);
+                                                        const admKey = keys.find(k => /^ADM$/i.test(k) || /adm(ission)?/i.test(k));
+                                                        if (admKey) admDisplay = String(raw[admKey]);
+                                                    } catch {}
+                                                    const matchedSt = studentFinanceData.find(s => s.id === item.matchedStudentId);
                                                     return (
                                                         <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                                             <td className="px-4 py-3 text-left">
-                                                                <span className="block font-mono font-bold text-slate-900 dark:text-white">{item.ref}</span>
-                                                                <span className="text-[10px] text-slate-400">{item.date} · {item.paymentMethod}</span>
+                                                                <span className="font-mono font-black text-slate-700 dark:text-slate-300 text-[11px]">{admDisplay || '—'}</span>
                                                             </td>
                                                             <td className="px-4 py-3 text-left">
                                                                 <span className="font-bold text-slate-800 dark:text-slate-200">{item.payer}</span>
                                                             </td>
+                                                            <td className="px-4 py-3 text-left">
+                                                                <span className="block font-mono font-bold text-slate-900 dark:text-white text-[11px]">{item.ref}</span>
+                                                                <span className="text-[10px] text-slate-400">{item.date}</span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-left">
+                                                                {item.receiptNumber ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                                        🧾 {item.receiptNumber}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-slate-400 italic">auto-generate</span>
+                                                                )}
+                                                            </td>
                                                             <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
                                                                 KSh {item.amount.toLocaleString()}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-left">
+                                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                    item.paymentMethod === 'M-Pesa'
+                                                                        ? 'bg-green-100 text-green-800 border-green-300'
+                                                                        : item.paymentMethod === 'Bank Transfer'
+                                                                        ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                                                        : 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                }`}>
+                                                                    {item.paymentMethod === 'M-Pesa' ? '📱' : item.paymentMethod === 'Bank Transfer' ? '🏦' : '💵'} {item.paymentMethod}
+                                                                </span>
                                                             </td>
                                                             <td className="px-4 py-3 text-left">
                                                                 <select
@@ -16256,10 +16424,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <option value="">-- Unmatched / Select Student --</option>
                                                                     {studentFinanceData.map(st => (
                                                                         <option key={st.id} value={st.id}>
-                                                                            {st.name} ({st.admissionNumber || (st as any).admission_number || 'No ADM'}) - {st.className}
+                                                                            {st.admissionNumber || (st as any).admission_number || '?'} · {st.name} · {st.className}
                                                                         </option>
                                                                     ))}
                                                                 </select>
+                                                                {matchedSt && (
+                                                                    <span className="text-[10px] text-emerald-600 font-bold mt-0.5 block">
+                                                                        ✓ {matchedSt.admissionNumber || ''} {matchedSt.name} ({item.matchConfidence})
+                                                                    </span>
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
                                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
@@ -16267,12 +16440,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                                                         : 'bg-amber-100 text-amber-800 border-amber-300'
                                                                 }`}>
-                                                                    {item.matchStatus === 'matched' ? `✓ ${item.matchConfidence}` : '⚠ Unmatched'}
+                                                                    {item.matchStatus === 'matched' ? '✓ matched' : '⚠ Unmatched'}
                                                                 </span>
                                                             </td>
                                                         </tr>
                                                     );
                                                 })}
+
                                         </tbody>
                                     </table>
                                 </div>
