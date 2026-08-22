@@ -121,12 +121,18 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      chunkSizeWarningLimit: 3000,
+      chunkSizeWarningLimit: 4500,
       rollupOptions: {
         output: {
           manualChunks(id) {
             const normalizedId = id.replace(/\\/g, '/').toLowerCase();
             if (normalizedId.includes('node_modules')) {
+              if (normalizedId.includes('tesseract.js')) return 'vendor-tesseract';
+              if (normalizedId.includes('jspdf') || normalizedId.includes('jspdf-autotable')) return 'vendor-pdf';
+              if (normalizedId.includes('xlsx')) return 'vendor-xlsx';
+              if (normalizedId.includes('lucide-react')) return 'vendor-lucide';
+              if (normalizedId.includes('@supabase') || normalizedId.includes('@google/generative-ai')) return 'vendor-cloud';
+              if (normalizedId.includes('react') || normalizedId.includes('react-dom')) return 'vendor-react';
               return 'vendor';
             }
             if (normalizedId.includes('src/components/icons')) {
@@ -137,6 +143,9 @@ export default defineConfig(({ mode }) => {
             }
             if (normalizedId.includes('src/components/adminview')) {
               return 'view-admin';
+            }
+            if (normalizedId.includes('src/components/financeofficerview')) {
+              return 'view-finance';
             }
           }
         }
