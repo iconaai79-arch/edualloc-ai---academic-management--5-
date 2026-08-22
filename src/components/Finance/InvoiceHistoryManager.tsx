@@ -85,17 +85,22 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
     // Build student lookup
     const studentMap = useMemo(() => {
         const map = new Map<string, User>();
-        students.forEach(s => map.set(s.id, s));
+        (students || []).forEach(s => {
+            if (s && s.id) map.set(s.id, s);
+        });
         return map;
     }, [students]);
 
     // Local manually persisted batches
     const [persistedBatches, setPersistedBatches] = useState<InvoiceBatch[]>(() => {
         try {
-            const stored = localStorage.getItem(`eduai_invoice_batches_${institution.id}`);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                if (Array.isArray(parsed)) return parsed;
+            const instId = institution?.id;
+            if (instId) {
+                const stored = localStorage.getItem(`eduai_invoice_batches_${instId}`);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (Array.isArray(parsed)) return parsed;
+                }
             }
         } catch (e) {}
         return [];
@@ -105,20 +110,25 @@ export const InvoiceHistoryManager: React.FC<InvoiceHistoryManagerProps> = ({
     const saveBatches = (batches: InvoiceBatch[]) => {
         setPersistedBatches(batches);
         try {
-            localStorage.setItem(`eduai_invoice_batches_${institution.id}`, JSON.stringify(batches));
-            apiService.saveModuleRecord('institution_module_states', {
-                institution_id: institution.id,
-                module_id: 'invoice_batches_history',
-                state_data: batches,
-                updated_at: new Date().toISOString()
-            }).catch(err => console.warn('[InvoiceHistoryManager] Sync warn:', err));
+            const instId = institution?.id;
+            if (instId) {
+                localStorage.setItem(`eduai_invoice_batches_${instId}`, JSON.stringify(batches));
+                apiService.saveModuleRecord('institution_module_states', {
+                    institution_id: instId,
+                    module_id: 'invoice_batches_history',
+                    state_data: batches,
+                    updated_at: new Date().toISOString()
+                }).catch(err => console.warn('[InvoiceHistoryManager] Sync warn:', err));
+            }
         } catch (e) {}
     };
 
     // Synthesize / group invoices into batches (from persisted records + dynamic grouping)
     const allBatches = useMemo<InvoiceBatch[]>(() => {
         const invoiceMap = new Map<string, Invoice>();
-        invoices.forEach(inv => invoiceMap.set(inv.id, inv));
+        (invoices || []).forEach(inv => {
+            if (inv && inv.id) invoiceMap.set(inv.id, inv);
+        });
 
         const result: InvoiceBatch[] = [];
         const processedInvoiceIds = new Set<string>();

@@ -183,7 +183,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [allBranchReceipts, setAllBranchReceipts] = useState<any[]>([]);
     const [allBranchEnrollments, setAllBranchEnrollments] = useState<any[]>([]);
 
-    const cleanId = React.useCallback((id?: string) => id ? String(id).trim().replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '', []);
+    const cleanId = useCallback((id?: string) => id ? String(id).trim().replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '', []);
 
     const getStudentAdmNumber = useCallback((s: any): string => {
         if (!s) return '';
@@ -698,7 +698,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         fetchSelectedBranchData();
     }, [selectedBranchId, selectedBranchTargetIds]);
 
-    const matchesSelectedBranch = React.useCallback((item: any) => {
+    const matchesSelectedBranch = useCallback((item: any) => {
         if (!item) return false;
 
         const bId = item.branchId || item.branch_id || item.institutionBranchId || item.metadata?.branchId || item.metadata?.branch_id;
