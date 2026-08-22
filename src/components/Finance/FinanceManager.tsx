@@ -2510,11 +2510,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             });
 
-            // Column resolver helper
+            // Column resolver helper (trims keys to handle headers with extra whitespace)
             const resolveCol = (row: any, ...patterns: RegExp[]): string => {
                 const keys = Object.keys(row);
                 for (const pat of patterns) {
-                    const k = keys.find(key => pat.test(key));
+                    const k = keys.find(key => pat.test(key.trim()));
                     if (k && row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
                         return String(row[k]).trim();
                     }
@@ -2539,11 +2539,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             // Process each payment row with O(1) matching
             const processed = rawRows.map((row, idx) => {
-                // Column A: ADM
+                // Column A: ADM (matches ADM, ADM NO, Adm No., Admission No, Reg No, Student ID, etc.)
                 const admRaw = resolveCol(row,
-                    /^ADM$/i,
-                    /adm(ission)?[\s_#]*(no|num|number)?$/i,
-                    /^student[\s_]*(no|id|num)?$/i
+                    /^adm(\.|\s|no|num|number|#|$)/i,
+                    /^admission(\.|\s|no|num|number|#|$)/i,
+                    /^reg(\.|\s|no|num|number|#|$)/i,
+                    /^registration(\.|\s|no|num|number|#|$)/i,
+                    /^student[\s_]*(no|id|num|adm|#)?$/i,
+                    /adm/i
                 );
 
                 // Column B: Name
@@ -2661,10 +2664,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
+                // Effective admission number: from Excel or from matched student
+                const studentAdm = matchedStudent ? (matchedStudent.admissionNumber || (matchedStudent as any).admission_number || '') : '';
+                const effectiveAdm = admRaw || studentAdm;
+
                 return {
                     id: `imp_row_${Date.now()}_${idx}`,
                     ref,
-                    admDisplay: admRaw || '',
+                    admDisplay: effectiveAdm,
                     receiptNumber: receiptRaw,
                     date,
                     amount,
@@ -16390,10 +16397,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
                                                         {paged.map(item => {
                                                             const matchedSt = studentFinanceData.find(s => s.id === item.matchedStudentId);
+                                                            const studentAdm = matchedSt ? (matchedSt.admissionNumber || (matchedSt as any).admission_number || '') : '';
+                                                            const displayAdm = item.admDisplay || studentAdm || '—';
                                                             return (
                                                                 <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                                                     <td className="px-4 py-3 text-left">
-                                                                        <span className="font-mono font-black text-slate-700 dark:text-slate-300 text-[11px]">{item.admDisplay || '—'}</span>
+                                                                        <span className="font-mono font-black text-slate-700 dark:text-slate-300 text-[11px]">{displayAdm}</span>
                                                                     </td>
                                                                     <td className="px-4 py-3 text-left">
                                                                         <span className="font-bold text-slate-800 dark:text-slate-200">{item.payer}</span>
@@ -16448,11 +16457,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             value={item.matchedStudentId}
                                                                             onChange={(e) => {
                                                                                 const val = e.target.value;
+                                                                                const selectedSt = studentFinanceData.find(s => s.id === val);
+                                                                                const newAdm = selectedSt ? (selectedSt.admissionNumber || (selectedSt as any).admission_number || '') : '';
                                                                                 setReconciledItems(prev => prev.map(i => {
                                                                                     if (i.id === item.id) {
                                                                                         return {
                                                                                             ...i,
                                                                                             matchedStudentId: val,
+                                                                                            admDisplay: newAdm || i.admDisplay,
                                                                                             matchStatus: val ? 'matched' : 'unmatched',
                                                                                             matchConfidence: val ? 'manual' : 'none'
                                                                                         };
