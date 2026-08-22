@@ -1933,6 +1933,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [reconciledItems, setReconciledItems] = useState<Array<{
         id: string;
         ref: string;
+        admDisplay: string;     // Extracted admission number for direct display without JSON.parse
         receiptNumber: string;  // Receipt # from Excel column G
         date: string;
         amount: number;
@@ -1946,6 +1947,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }>>([]);
     const [excelFilterQuery, setExcelFilterQuery] = useState('');
     const [excelFilterStatus, setExcelFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
+    const [excelPage, setExcelPage] = useState(1);
     const [isProcessingBulkReceipts, setIsProcessingBulkReceipts] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [bulkImportSuccessSummary, setBulkImportSuccessSummary] = useState<string | null>(null);
@@ -2465,11 +2467,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const buffer = await file.arrayBuffer();
-            // Use 'buffer' type — file.arrayBuffer() returns an ArrayBuffer, not a raw array
-            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+            // dense: true avoids sparse memory allocation and speeds up sheet reading by up to 10x
+            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet);
+            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
             if (rawRows.length === 0) {
                 alert("The selected Excel file appears to be empty.");
@@ -2477,28 +2479,38 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return;
             }
 
-            // Build student lookup maps for fast reconciliation
-            const admMap: Record<string, any> = {};
-            const phoneMap: Record<string, any> = {};
-            const nameMap: Record<string, any> = {};
+            // Build high-performance Maps for O(1) student reconciliation
+            const admMap = new Map<string, any>();
+            const phoneMap = new Map<string, any>();
+            const nameMap = new Map<string, any>();
 
             studentFinanceData.forEach(student => {
-                const adm = (student.admissionNumber || (student as any).admission_number || '').trim().toLowerCase();
-                if (adm) admMap[adm] = student;
+                const rawAdm = (student.admissionNumber || (student as any).admission_number || '').trim().toLowerCase();
+                if (rawAdm) {
+                    admMap.set(rawAdm, student);
+                    const digits = rawAdm.replace(/\D/g, '');
+                    if (digits && digits !== rawAdm) admMap.set(digits, student);
+                }
 
                 const phone = getStudentParentPhone(student);
-                if (phone && phone.length >= 6) phoneMap[phone] = student;
+                if (phone) {
+                    const cleanPhone = phone.replace(/\D/g, '');
+                    if (cleanPhone.length >= 9) {
+                        phoneMap.set(cleanPhone.slice(-9), student);
+                    }
+                }
 
                 const name = (student.name || '').trim().toLowerCase();
-                if (name) nameMap[name] = student;
+                if (name) {
+                    nameMap.set(name, student);
+                    const parts = name.split(/\s+/);
+                    if (parts.length > 1) {
+                        nameMap.set(parts.slice().reverse().join(' '), student);
+                    }
+                }
             });
 
-            // Yield again before the potentially-heavy reconciliation loop
-            await new Promise(r => setTimeout(r, 0));
-
-            // ─── Column resolver helpers ─────────────────────────────────────────
-            // Matches exact column names from the known Excel format:
-            //   A=ADM  B=Name  C=Amount  D=Reference  E=Payment Mode  F=Deposit Bank  G=Receipt #  H=Paid On
+            // Column resolver helper
             const resolveCol = (row: any, ...patterns: RegExp[]): string => {
                 const keys = Object.keys(row);
                 for (const pat of patterns) {
@@ -2510,35 +2522,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return '';
             };
 
-            // Excel serial date → ISO date string (handles both numeric and string dates)
+            // Excel serial date → ISO date string
             const excelDateToISO = (raw: any): string => {
                 if (!raw) return new Date().toISOString().split('T')[0];
                 if (typeof raw === 'number') {
-                    // Excel epoch: Jan 0, 1900 (serial 1 = Jan 1 1900; +1 for Lotus bug)
                     const utc = new Date(Date.UTC(1899, 11, 30) + raw * 86400000);
                     return utc.toISOString().split('T')[0];
                 }
                 const s = String(raw).trim();
-                // Try DD/MM/YYYY HH:MM or DD/MM/YYYY
                 const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-                if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
-                // Try ISO or other parseable formats
+                if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
                 const d = new Date(s);
                 if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
                 return s;
             };
 
-            // Process each payment row from Excel
+            // Process each payment row with O(1) matching
             const processed = rawRows.map((row, idx) => {
-                // ── Extract each column using prioritised patterns ───────────────
-                // Column A: ADM (admission number)
+                // Column A: ADM
                 const admRaw = resolveCol(row,
                     /^ADM$/i,
                     /adm(ission)?[\s_#]*(no|num|number)?$/i,
                     /^student[\s_]*(no|id|num)?$/i
                 );
 
-                // Column B: Name (student / payer name)
+                // Column B: Name
                 const nameRaw = resolveCol(row,
                     /^name$/i,
                     /student[\s_]*name/i,
@@ -2556,7 +2564,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /ksh/i
                 );
 
-                // Column D: Reference (M-Pesa code / bank ref)
+                // Column D: Reference
                 const refRaw = resolveCol(row,
                     /^reference$/i,
                     /^ref(erence)?[\s_]*(no|code|#)?$/i,
@@ -2572,13 +2580,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /^payment[\s_]*type$/i
                 );
 
-                // Column G: Receipt # (pre-existing receipt number from the school system)
+                // Column G: Receipt #
                 const receiptRaw = resolveCol(row,
                     /^receipt[\s_]*(#|no|number)?$/i,
                     /^rcpt/i
                 );
 
-                // Column H: Paid On (date)
+                // Column H: Paid On
                 const dateRaw = resolveCol(row,
                     /^paid[\s_]*on$/i,
                     /^date$/i,
@@ -2588,13 +2596,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /time/i
                 );
 
-                // ── Derive clean values ──────────────────────────────────────────
                 const ref = refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`;
                 const amount = parseMoneyAmount(amtRaw);
                 const payer = nameRaw || 'Excel Import';
                 const date = excelDateToISO(dateRaw || (row['Paid On'] ?? row['Date'] ?? ''));
 
-                // Payment method: prefer explicit column, fallback to reference heuristic
+                // Payment method mapping
                 let paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' = 'M-Pesa';
                 if (modeRaw) {
                     if (/bank/i.test(modeRaw)) paymentMethod = 'Bank Transfer';
@@ -2602,62 +2609,53 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     else if (/cheque|chq/i.test(modeRaw)) paymentMethod = 'Cheque';
                     else if (/mpesa|m-pesa|paybill/i.test(modeRaw)) paymentMethod = 'M-Pesa';
                 } else {
-                    const searchFull = `${ref} ${payer} ${JSON.stringify(row)}`.toLowerCase();
-                    if (/bank|cheque|chq|ft|eft|transfer/i.test(searchFull)) paymentMethod = 'Bank Transfer';
-                    else if (/cash/i.test(searchFull)) paymentMethod = 'Cash';
+                    const rowText = `${ref} ${payer}`.toLowerCase();
+                    if (/bank|cheque|chq|ft|eft|transfer/i.test(rowText)) paymentMethod = 'Bank Transfer';
+                    else if (/cash/i.test(rowText)) paymentMethod = 'Cash';
                 }
 
-                // ── Student matching (priority: ADM > Name > phone scan) ─────────
+                // O(1) Student Matching
                 let matchedStudent: any = null;
                 let matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none' = 'none';
 
-                // 1. Direct ADM column match (most reliable — column A in their sheet)
+                // 1. Direct ADM match (O(1))
                 if (admRaw) {
                     const admKey = admRaw.toLowerCase();
-                    if (admMap[admKey]) {
-                        matchedStudent = admMap[admKey];
-                        matchConfidence = 'exact_adm';
-                    }
+                    const admDigits = admRaw.replace(/\D/g, '');
+                    matchedStudent = admMap.get(admKey) || (admDigits ? admMap.get(admDigits) : null);
+                    if (matchedStudent) matchConfidence = 'exact_adm';
                 }
 
-                // 2. ADM substring in any cell value (handles zero-padded or partial)
-                if (!matchedStudent) {
-                    const rowText = JSON.stringify(row).toLowerCase();
-                    for (const [adm, student] of Object.entries(admMap)) {
-                        if (adm.length >= 2 && rowText.includes(adm)) {
-                            matchedStudent = student;
-                            matchConfidence = 'exact_adm';
-                            break;
-                        }
-                    }
-                }
-
-                // 3. Name column match against student roster (column B)
+                // 2. Direct Name match (O(1))
                 if (!matchedStudent && nameRaw) {
                     const nameLower = nameRaw.toLowerCase();
-                    // Try full name exact
-                    if (nameMap[nameLower]) {
-                        matchedStudent = nameMap[nameLower];
-                        matchConfidence = 'exact_name';
-                    } else {
-                        // Try partial: if student name is a substring of the Excel name or vice-versa
-                        for (const [sName, student] of Object.entries(nameMap)) {
-                            if (sName.length >= 4 && (nameLower.includes(sName) || sName.includes(nameLower))) {
-                                matchedStudent = student;
-                                matchConfidence = 'exact_name';
+                    matchedStudent = nameMap.get(nameLower);
+                    if (matchedStudent) matchConfidence = 'exact_name';
+                }
+
+                // 3. Phone check via Regex + O(1) Map
+                if (!matchedStudent) {
+                    const rowValues = Object.values(row).map(v => String(v)).join(' ');
+                    const phones = rowValues.match(/(?:254|0|\+254)?[17]\d{8}/g);
+                    if (phones) {
+                        for (const p of phones) {
+                            const clean = p.replace(/\D/g, '').slice(-9);
+                            if (phoneMap.has(clean)) {
+                                matchedStudent = phoneMap.get(clean);
+                                matchConfidence = 'exact_phone';
                                 break;
                             }
                         }
                     }
                 }
 
-                // 4. Phone digit scan across entire row text
+                // 4. Token ADM scan fallback (O(tokens))
                 if (!matchedStudent) {
-                    const rowDigits = JSON.stringify(row).replace(/[^0-9]/g, '');
-                    for (const [phone, student] of Object.entries(phoneMap)) {
-                        if (phone.length >= 9 && rowDigits.includes(phone)) {
-                            matchedStudent = student;
-                            matchConfidence = 'exact_phone';
+                    const tokens = Object.values(row).map(v => String(v).trim().toLowerCase()).filter(t => t.length >= 2);
+                    for (const t of tokens) {
+                        if (admMap.has(t)) {
+                            matchedStudent = admMap.get(t);
+                            matchConfidence = 'exact_adm';
                             break;
                         }
                     }
@@ -2666,11 +2664,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return {
                     id: `imp_row_${Date.now()}_${idx}`,
                     ref,
-                    receiptNumber: receiptRaw,          // Column G: Receipt #
+                    admDisplay: admRaw || '',
+                    receiptNumber: receiptRaw,
                     date,
                     amount,
                     payer,
-                    excelPaymentMode: modeRaw,          // Column E: raw string e.g. "M-PESA paybill"
+                    excelPaymentMode: modeRaw,
                     rawDetails: JSON.stringify(row),
                     matchedStudentId: matchedStudent ? matchedStudent.id : '',
                     matchConfidence,
@@ -2680,6 +2679,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             });
 
             setReconciledItems(processed);
+            setExcelPage(1);
             setExcelImportStep(2);
         } catch (err: any) {
             console.error("Failed to parse Excel payments:", err);
@@ -16320,9 +16320,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <SearchIcon className="absolute left-4 top-3 w-4 h-4 text-slate-400" />
                                         <input
                                             type="text"
-                                            placeholder="Search imported reference, payer or student..."
+                                            placeholder="Search imported reference, payer, receipt # or ADM..."
                                             value={excelFilterQuery}
-                                            onChange={(e) => setExcelFilterQuery(e.target.value)}
+                                            onChange={(e) => {
+                                                setExcelFilterQuery(e.target.value);
+                                                setExcelPage(1);
+                                            }}
                                             className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500"
                                         />
                                     </div>
@@ -16331,7 +16334,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <button
                                                 key={st}
                                                 type="button"
-                                                onClick={() => setExcelFilterStatus(st)}
+                                                onClick={() => {
+                                                    setExcelFilterStatus(st);
+                                                    setExcelPage(1);
+                                                }}
                                                 className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                                                     excelFilterStatus === st
                                                         ? 'bg-emerald-600 text-white shadow-md'
@@ -16344,136 +16350,177 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 </div>
 
-                                {/* Reconciled Items Table */}
-                                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl max-h-[400px]">
-                                    <table className="w-full border-collapse text-xs">
-                                        <thead>
-                                            <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                <th className="px-4 py-3 text-left">ADM</th>
-                                                <th className="px-4 py-3 text-left">Name / Payer</th>
-                                                <th className="px-4 py-3 text-left">Reference · Date</th>
-                                                <th className="px-4 py-3 text-left">Receipt #</th>
-                                                <th className="px-4 py-3 text-right">Amount</th>
-                                                <th className="px-4 py-3 text-left">Mode</th>
-                                                <th className="px-4 py-3 text-left">Matched Student</th>
-                                                <th className="px-4 py-3 text-center">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
-                                            {reconciledItems
-                                                .filter(item => {
-                                                    if (excelFilterStatus === 'matched' && item.matchStatus !== 'matched') return false;
-                                                    if (excelFilterStatus === 'unmatched' && item.matchStatus !== 'unmatched') return false;
-                                                    if (excelFilterQuery) {
-                                                        const q = excelFilterQuery.toLowerCase();
-                                                        return item.ref.toLowerCase().includes(q) ||
-                                                               item.payer.toLowerCase().includes(q) ||
-                                                               item.receiptNumber.toLowerCase().includes(q) ||
-                                                               item.rawDetails.toLowerCase().includes(q);
-                                                    }
-                                                    return true;
-                                                })
-                                                .map(item => {
-                                                    // Extract ADM from rawDetails for display
-                                                    let admDisplay = '';
-                                                    try {
-                                                        const raw = JSON.parse(item.rawDetails);
-                                                        const keys = Object.keys(raw);
-                                                        const admKey = keys.find(k => /^ADM$/i.test(k) || /adm(ission)?/i.test(k));
-                                                        if (admKey) admDisplay = String(raw[admKey]);
-                                                    } catch {}
-                                                    const matchedSt = studentFinanceData.find(s => s.id === item.matchedStudentId);
-                                                    return (
-                                                        <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                                                            <td className="px-4 py-3 text-left">
-                                                                <span className="font-mono font-black text-slate-700 dark:text-slate-300 text-[11px]">{admDisplay || '—'}</span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-left">
-                                                                <span className="font-bold text-slate-800 dark:text-slate-200">{item.payer}</span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-left">
-                                                                <span className="block font-mono font-bold text-slate-900 dark:text-white text-[11px]">{item.ref}</span>
-                                                                <span className="text-[10px] text-slate-400">{item.date}</span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-left">
-                                                                {item.receiptNumber ? (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                                        🧾 {item.receiptNumber}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-[10px] text-slate-400 italic">auto-generate</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
-                                                                KSh {item.amount.toLocaleString()}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-left min-w-[140px]">
-                                                                {/* Raw Excel string from column E */}
-                                                                {item.excelPaymentMode && (
-                                                                    <span className="block text-[9px] text-slate-400 mb-1 font-mono truncate" title={item.excelPaymentMode}>
-                                                                        📋 {item.excelPaymentMode}
-                                                                    </span>
-                                                                )}
-                                                                {/* Editable mapped paymentMethod — user can correct mis-mapping */}
-                                                                <select
-                                                                    value={item.paymentMethod}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value as 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
-                                                                        setReconciledItems(prev => prev.map(i =>
-                                                                            i.id === item.id ? { ...i, paymentMethod: val } : i
-                                                                        ));
-                                                                    }}
-                                                                    className={`w-full px-2 py-1.5 rounded-xl text-[10px] font-black border outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${
-                                                                        item.paymentMethod === 'M-Pesa'
-                                                                            ? 'bg-green-100 text-green-800 border-green-300'
-                                                                            : item.paymentMethod === 'Bank Transfer'
-                                                                            ? 'bg-blue-100 text-blue-800 border-blue-300'
-                                                                            : 'bg-slate-100 text-slate-700 border-slate-300'
-                                                                    }`}
-                                                                >
-                                                                    <option value="M-Pesa">📱 M-Pesa</option>
-                                                                    <option value="Bank Transfer">🏦 Bank Transfer</option>
-                                                                    <option value="Cash">💵 Cash</option>
-                                                                    <option value="Cheque">📝 Cheque</option>
-                                                                </select>
-                                                            </td>
+                                {/* Reconciled Items Table with Pagination */}
+                                {(() => {
+                                    const PAGE_SIZE = 25;
+                                    const filtered = reconciledItems.filter(item => {
+                                        if (excelFilterStatus === 'matched' && item.matchStatus !== 'matched') return false;
+                                        if (excelFilterStatus === 'unmatched' && item.matchStatus !== 'unmatched') return false;
+                                        if (excelFilterQuery) {
+                                            const q = excelFilterQuery.toLowerCase();
+                                            return item.ref.toLowerCase().includes(q) ||
+                                                   item.payer.toLowerCase().includes(q) ||
+                                                   item.receiptNumber.toLowerCase().includes(q) ||
+                                                   (item.admDisplay && item.admDisplay.toLowerCase().includes(q));
+                                        }
+                                        return true;
+                                    });
 
-                                                            <td className="px-4 py-3 text-left">
-                                                                <select
-                                                                    value={item.matchedStudentId}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        setReconciledItems(prev => prev.map(i => {
-                                                                            if (i.id === item.id) {
-                                                                                return {
-                                                                                    ...i,
-                                                                                    matchedStudentId: val,
-                                                                                    matchStatus: val ? 'matched' : 'unmatched',
-                                                                                    matchConfidence: val ? 'manual' : 'none'
-                                                                                };
-                                                                            }
-                                                                            return i;
-                                                                        }));
-                                                                    }}
-                                                                    className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                                                                >
-                                                                    <option value="">-- Unmatched / Select Student --</option>
-                                                                    {studentFinanceData.map(st => (
-                                                                        <option key={st.id} value={st.id}>
-                                                                            {st.admissionNumber || (st as any).admission_number || '?'} · {st.name} · {st.className}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                                {matchedSt && (
-                                                                    <span className="text-[10px] text-emerald-600 font-bold mt-0.5 block">
-                                                                        ✓ {matchedSt.admissionNumber || ''} {matchedSt.name} ({item.matchConfidence})
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                    item.matchStatus === 'matched'
-                                                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
+                                    const currentPage = Math.min(excelPage, totalPages);
+                                    const startIndex = (currentPage - 1) * PAGE_SIZE;
+                                    const paged = filtered.slice(startIndex, startIndex + PAGE_SIZE);
+
+                                    return (
+                                        <div className="space-y-3">
+                                            <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl max-h-[420px]">
+                                                <table className="w-full border-collapse text-xs">
+                                                    <thead>
+                                                        <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
+                                                            <th className="px-4 py-3 text-left">ADM</th>
+                                                            <th className="px-4 py-3 text-left">Name / Payer</th>
+                                                            <th className="px-4 py-3 text-left">Reference · Date</th>
+                                                            <th className="px-4 py-3 text-left">Receipt #</th>
+                                                            <th className="px-4 py-3 text-right">Amount</th>
+                                                            <th className="px-4 py-3 text-left">Mode</th>
+                                                            <th className="px-4 py-3 text-left">Matched Student</th>
+                                                            <th className="px-4 py-3 text-center">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
+                                                        {paged.map(item => {
+                                                            const matchedSt = studentFinanceData.find(s => s.id === item.matchedStudentId);
+                                                            return (
+                                                                <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                                    <td className="px-4 py-3 text-left">
+                                                                        <span className="font-mono font-black text-slate-700 dark:text-slate-300 text-[11px]">{item.admDisplay || '—'}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-left">
+                                                                        <span className="font-bold text-slate-800 dark:text-slate-200">{item.payer}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-left">
+                                                                        <span className="block font-mono font-bold text-slate-900 dark:text-white text-[11px]">{item.ref}</span>
+                                                                        <span className="text-[10px] text-slate-400">{item.date}</span>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-left">
+                                                                        {item.receiptNumber ? (
+                                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                                                🧾 {item.receiptNumber}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[10px] text-slate-400 italic">auto-generate</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                                                        KSh {item.amount.toLocaleString()}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-left min-w-[140px]">
+                                                                        {item.excelPaymentMode && (
+                                                                            <span className="block text-[9px] text-slate-400 mb-1 font-mono truncate" title={item.excelPaymentMode}>
+                                                                                📋 {item.excelPaymentMode}
+                                                                            </span>
+                                                                        )}
+                                                                        <select
+                                                                            value={item.paymentMethod}
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value as 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
+                                                                                setReconciledItems(prev => prev.map(i =>
+                                                                                    i.id === item.id ? { ...i, paymentMethod: val } : i
+                                                                                ));
+                                                                            }}
+                                                                            className={`w-full px-2 py-1.5 rounded-xl text-[10px] font-black border outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${
+                                                                                item.paymentMethod === 'M-Pesa'
+                                                                                    ? 'bg-green-100 text-green-800 border-green-300'
+                                                                                    : item.paymentMethod === 'Bank Transfer'
+                                                                                    ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                                                                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                            }`}
+                                                                        >
+                                                                            <option value="M-Pesa">📱 M-Pesa</option>
+                                                                            <option value="Bank Transfer">🏦 Bank Transfer</option>
+                                                                            <option value="Cash">💵 Cash</option>
+                                                                            <option value="Cheque">📝 Cheque</option>
+                                                                        </select>
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3 text-left">
+                                                                        <select
+                                                                            value={item.matchedStudentId}
+                                                                            onChange={(e) => {
+                                                                                const val = e.target.value;
+                                                                                setReconciledItems(prev => prev.map(i => {
+                                                                                    if (i.id === item.id) {
+                                                                                        return {
+                                                                                            ...i,
+                                                                                            matchedStudentId: val,
+                                                                                            matchStatus: val ? 'matched' : 'unmatched',
+                                                                                            matchConfidence: val ? 'manual' : 'none'
+                                                                                        };
+                                                                                    }
+                                                                                    return i;
+                                                                                }));
+                                                                            }}
+                                                                            className="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                                                                        >
+                                                                            <option value="">-- Unmatched / Select Student --</option>
+                                                                            {studentFinanceData.map(st => (
+                                                                                <option key={st.id} value={st.id}>
+                                                                                    {st.admissionNumber || (st as any).admission_number || '?'} · {st.name} · {st.className}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                        {matchedSt && (
+                                                                            <span className="text-[10px] text-emerald-600 font-bold mt-0.5 block">
+                                                                                ✓ {matchedSt.admissionNumber || ''} {matchedSt.name} ({item.matchConfidence})
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-center">
+                                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                            item.matchStatus === 'matched'
+                                                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                                                : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                        }`}>
+                                                                            {item.matchStatus === 'matched' ? '✓ matched' : '⚠ Unmatched'}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* Pagination Bar */}
+                                            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-2 py-1 text-xs text-slate-500">
+                                                <span>
+                                                    Showing <span className="font-bold text-slate-800 dark:text-slate-200">{filtered.length === 0 ? 0 : startIndex + 1}</span> to <span className="font-bold text-slate-800 dark:text-slate-200">{Math.min(startIndex + PAGE_SIZE, filtered.length)}</span> of <span className="font-bold text-slate-800 dark:text-slate-200">{filtered.length}</span> payment records
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        disabled={currentPage <= 1}
+                                                        onClick={() => setExcelPage(p => Math.max(1, p - 1))}
+                                                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-lg font-bold transition-all cursor-pointer"
+                                                    >
+                                                        ← Prev
+                                                    </button>
+                                                    <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                        Page {currentPage} of {totalPages}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        disabled={currentPage >= totalPages}
+                                                        onClick={() => setExcelPage(p => Math.min(totalPages, p + 1))}
+                                                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-lg font-bold transition-all cursor-pointer"
+                                                    >
+                                                        Next →
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}                                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                                                         : 'bg-amber-100 text-amber-800 border-amber-300'
                                                                 }`}>
                                                                     {item.matchStatus === 'matched' ? '✓ matched' : '⚠ Unmatched'}
