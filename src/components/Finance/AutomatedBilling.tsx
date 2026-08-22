@@ -266,21 +266,98 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return initialPrefs;
     }, [students]);
 
-    const totalProjectedRevenue = billingStudents.reduce((sum, s) => {
-        const boarder = isStudentBoarder(s);
-        const studentFeeStructures = activeFeeStructures.filter(f => {
-            // Course restriction filter
-            const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
-            if (!matchesCourse) return false;
+    // Robust resolver to determine applicable fee structures for a student without duplicate voteheads
+    const resolveStudentFeeStructures = useCallback((
+        student: User, 
+        activeStructures: FeeStructure[], 
+        isAnnual: boolean
+    ): FeeStructure[] => {
+        const boarder = isStudentBoarder(student);
+        const studentCourseId = getStudentCourseId(student);
 
-            // Boarding/Residence status filter
-            const appTo = f.applicableTo || f.applicable_to || 'all';
-            if (appTo === 'all') return true;
-            if (appTo === 'boarder') return boarder;
-            if (appTo === 'day_scholar') return !boarder;
+        // 1. Filter out candidate fee structures that don't match boarding status or course
+        const candidateStructures = activeStructures.filter(f => {
+            const appTo = (f.applicableTo || f.applicable_to || 'all').toLowerCase();
+            if (appTo === 'boarder' && !boarder) return false;
+            if (appTo === 'day_scholar' && boarder) return false;
 
+            const fCourse = f.courseId || (f as any).course_id || '';
+            const isGeneral = !fCourse || fCourse === 'all' || fCourse === 'ALL' || fCourse === 'general';
+            const isSpecificMatch = studentCourseId && (
+                fCourse === studentCourseId || 
+                (typeof fCourse === 'string' && typeof studentCourseId === 'string' && fCourse.toLowerCase() === studentCourseId.toLowerCase())
+            );
+
+            if (!isGeneral && !isSpecificMatch) return false;
             return true;
         });
+
+        // Helper to get normalized votehead key
+        const getVoteheadKey = (f: FeeStructure) => {
+            if (f.voteHeadId) return String(f.voteHeadId).trim();
+            return (f.name || '').trim().toLowerCase();
+        };
+
+        if (isAnnual) {
+            // Sort so course-specific entries come before general ones
+            const sorted = [...candidateStructures].sort((a, b) => {
+                const aHasCourse = !!(a.courseId || (a as any).course_id);
+                const bHasCourse = !!(b.courseId || (b as any).course_id);
+                return (bHasCourse ? 1 : 0) - (aHasCourse ? 1 : 0);
+            });
+
+            // Deduplicate per (votehead + term): course-specific overrides general for that term
+            const termVoteheadMap = new Map<string, FeeStructure>();
+            sorted.forEach(f => {
+                const vKey = getVoteheadKey(f);
+                const termKey = String(f.term || 'general').trim().toLowerCase();
+                const comboKey = `${vKey}___${termKey}`;
+                if (!termVoteheadMap.has(comboKey)) {
+                    termVoteheadMap.set(comboKey, f);
+                }
+            });
+
+            // Aggregate all unique terms for each votehead
+            const aggregatedMap = new Map<string, FeeStructure>();
+            termVoteheadMap.forEach((f) => {
+                const vKey = getVoteheadKey(f);
+                const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
+                const existing = aggregatedMap.get(vKey);
+                if (existing) {
+                    const existingAmt = parseMoneyAmount(existing.amount || (existing as any).allocatedAmount || 0);
+                    aggregatedMap.set(vKey, {
+                        ...existing,
+                        amount: existingAmt + amt
+                    });
+                } else {
+                    aggregatedMap.set(vKey, { ...f, amount: amt });
+                }
+            });
+
+            return Array.from(aggregatedMap.values());
+        } else {
+            // Single term: Sort so course-specific entries take precedence over general entries
+            const sorted = [...candidateStructures].sort((a, b) => {
+                const aHasCourse = !!(a.courseId || (a as any).course_id);
+                const bHasCourse = !!(b.courseId || (b as any).course_id);
+                return (bHasCourse ? 1 : 0) - (aHasCourse ? 1 : 0);
+            });
+
+            const deduplicatedMap = new Map<string, FeeStructure>();
+            sorted.forEach(f => {
+                const vKey = getVoteheadKey(f);
+                if (!deduplicatedMap.has(vKey)) {
+                    const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
+                    deduplicatedMap.set(vKey, { ...f, amount: amt });
+                }
+            });
+
+            return Array.from(deduplicatedMap.values());
+        }
+    }, [bedAllocations, studentEnrollmentMap, courses]);
+
+    const totalProjectedRevenue = billingStudents.reduce((sum, s) => {
+        const studentFeeStructures = resolveStudentFeeStructures(s, activeFeeStructures, selectedSem === 'annual');
         let studentSum = studentFeeStructures.reduce((acc, f) => {
             const amt = f.amount || (f as any).allocatedAmount || 0;
             const parsed = parseMoneyAmount(amt);
@@ -350,37 +427,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
         for (let i = 0; i < billingStudents.length; i++) {
             const s = billingStudents[i];
-            const boarder = isStudentBoarder(s);
-            let studentFeeStructures = activeFeeStructures.filter(f => {
-                const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
-                if (!matchesCourse) return false;
-
-                const appTo = f.applicableTo || f.applicable_to || 'all';
-                if (appTo === 'all') return true;
-                if (appTo === 'boarder') return boarder;
-                if (appTo === 'day_scholar') return !boarder;
-
-                return true;
-            });
-
-            if (selectedSem === 'annual') {
-                const groupedMap = new Map<string, typeof studentFeeStructures[0]>();
-                studentFeeStructures.forEach(f => {
-                    const key = f.voteHeadId ? String(f.voteHeadId) : f.name.trim().toLowerCase();
-                    const existing = groupedMap.get(key);
-                    const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
-                    if (existing) {
-                        const existingAmt = parseMoneyAmount(existing.amount || (existing as any).allocatedAmount || 0);
-                        existing.amount = existingAmt + amt;
-                        if ((existing as any).allocatedAmount !== undefined) {
-                            (existing as any).allocatedAmount = existingAmt + amt;
-                        }
-                    } else {
-                        groupedMap.set(key, { ...f, amount: amt });
-                    }
-                });
-                studentFeeStructures = Array.from(groupedMap.values());
-            }
+            const studentFeeStructures = resolveStudentFeeStructures(s, activeFeeStructures, selectedSem === 'annual');
             
             const baseAmount = studentFeeStructures.reduce((acc, f) => {
                 const amt = f.amount || (f as any).allocatedAmount || 0;
@@ -892,36 +939,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                         <div className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                             {billingStudents.slice(0, 5).map((s, idx) => {
                                 const boarder = isStudentBoarder(s);
-                                let studentFeeStructures = activeFeeStructures.filter(f => {
-                                    const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
-                                    if (!matchesCourse) return false;
-
-                                    const appTo = f.applicableTo || f.applicable_to || 'all';
-                                    if (appTo === 'all') return true;
-                                    if (appTo === 'boarder') return boarder;
-                                    if (appTo === 'day_scholar') return !boarder;
-
-                                    return true;
-                                });
-
-                                if (selectedSem === 'annual') {
-                                    const groupedMap = new Map<string, typeof studentFeeStructures[0]>();
-                                    studentFeeStructures.forEach(f => {
-                                        const key = f.voteHeadId ? String(f.voteHeadId) : f.name.trim().toLowerCase();
-                                        const existing = groupedMap.get(key);
-                                        const amt = parseMoneyAmount(f.amount || (f as any).allocatedAmount || 0);
-                                        if (existing) {
-                                            const existingAmt = parseMoneyAmount(existing.amount || (existing as any).allocatedAmount || 0);
-                                            existing.amount = existingAmt + amt;
-                                            if ((existing as any).allocatedAmount !== undefined) {
-                                                (existing as any).allocatedAmount = existingAmt + amt;
-                                            }
-                                        } else {
-                                            groupedMap.set(key, { ...f, amount: amt });
-                                        }
-                                    });
-                                    studentFeeStructures = Array.from(groupedMap.values());
-                                }
+                                const studentFeeStructures = resolveStudentFeeStructures(s, activeFeeStructures, selectedSem === 'annual');
 
                                 const baseAmount = studentFeeStructures.reduce((acc, f) => {
                                     const amt = f.amount || (f as any).allocatedAmount || 0;
