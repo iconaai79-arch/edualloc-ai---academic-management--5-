@@ -564,7 +564,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
         // Record batch history for Audit & Undo
         try {
-            const batchTitle = selectedFeeStructure?.name || `BILLING - ${selectedTerm || 'GENERAL'}`;
+            const ayName = academicYears.find(ay => ay.id === selectedAY)?.name || '';
+            const batchTitle = `BILLING - ${selectedSemName || selectedSem || 'GENERAL'}${ayName ? ` (${ayName})` : ''}`;
             const totalVal = mockInvoices.reduce((sum: number, inv: any) => sum + (Number(inv.totalAmount) || 0), 0);
             const batchAddedDate = billingDate ? new Date(billingDate).toISOString() : new Date().toISOString();
             const batchRecord = {
