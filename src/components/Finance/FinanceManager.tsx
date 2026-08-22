@@ -34,6 +34,7 @@ import { ProcurementHub } from './ProcurementHub';
 import { apiService } from '../../services/apiService';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
+import { CpaReportingDashboard } from './CpaReportingDashboard';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -930,7 +931,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [editStreamName, setEditStreamName] = useState('');
 
     // State for audit sub-tabs
-    const [auditSubTab, setAuditSubTab] = useState<'audit_dashboard' | 'annual_report'>('audit_dashboard');
+    const [auditSubTab, setAuditSubTab] = useState<'cpa_general_ledger' | 'audit_dashboard' | 'annual_report'>('cpa_general_ledger');
 
     // Dynamic settings sub-tabs based on school type
     const settingsSubTabs = useMemo(() => {
@@ -10037,18 +10038,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {/* Sub-tab toggle */}
                         <div className="flex gap-3 flex-wrap">
                             <button
+                                onClick={() => setAuditSubTab('cpa_general_ledger')}
+                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
+                                    auditSubTab === 'cpa_general_ledger'
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                📊 CPA General Ledger &amp; Financial Statements
+                            </button>
+                            <button
                                 onClick={() => setAuditSubTab('audit_dashboard')}
-                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
                                     auditSubTab === 'audit_dashboard'
                                         ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
                                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
                                 }`}
                             >
-                                🔍 Automated Audit
+                                🔍 Automated Forensic Audit
                             </button>
                             <button
                                 onClick={() => setAuditSubTab('annual_report')}
-                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all cursor-pointer ${
                                     auditSubTab === 'annual_report'
                                         ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
                                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
@@ -10057,6 +10068,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 📄 Annual Financial Report (MOE)
                             </button>
                         </div>
+
+                        {auditSubTab === 'cpa_general_ledger' && (
+                            <CpaReportingDashboard
+                                institution={props.institution}
+                                invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                expenses={props.expenses || []}
+                                payroll={props.payrollRecords || []}
+                                transfers={props.bankTransfers || []}
+                                capitations={capitationDisbursements || []}
+                                bursaries={bursaryRecords || []}
+                                onLogAction={props.onLogAction}
+                            />
+                        )}
 
                         {auditSubTab === 'audit_dashboard' && (
                             <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
