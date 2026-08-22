@@ -1510,8 +1510,12 @@ export const apiService = {
             }
 
             if (module === 'invoices') {
-                delete item.class_name;
-                delete item.className;
+                if (item.student_id && (typeof item.student_id !== 'string' || item.student_id.startsWith('ext_') || item.student_id.startsWith('temp_') || item.student_id.trim() === '')) {
+                    item.student_id = null;
+                }
+                if (item.studentId && (typeof item.studentId !== 'string' || item.studentId.startsWith('ext_') || item.studentId.startsWith('temp_') || item.studentId.trim() === '')) {
+                    item.studentId = null;
+                }
                 delete item.created_at;
                 delete item.createdAt;
                 delete item.updated_at;

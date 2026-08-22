@@ -85,9 +85,14 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
     const [filterMatched, setFilterMatched] = useState<'all' | 'matched' | 'unmatched'>('all');
 
     // Build lookup maps for instant student matching
-    const { studentAdmMap, studentNameMap } = useMemo(() => {
+    const { studentAdmMap, studentNormalizedAdmMap, studentNameMap, studentNormalizedNameMap } = useMemo(() => {
         const admMap = new Map<string, User>();
+        const normAdmMap = new Map<string, User>();
         const nameMap = new Map<string, User>();
+        const normNameMap = new Map<string, User>();
+
+        const normalizeAdm = (val: string) => String(val || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+        const normalizeName = (val: string) => String(val || '').toUpperCase().replace(/\s+/g, ' ').trim();
 
         students.forEach(s => {
             let meta = s.metadata || {};
@@ -95,13 +100,26 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
                 try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
             }
             const adm = String(s.admissionNumber || s.admission_number || meta.admissionNumber || meta.admission_no || meta.admNo || s.id || '').toUpperCase().trim();
-            if (adm) admMap.set(adm, s);
+            if (adm) {
+                admMap.set(adm, s);
+                const normAdm = normalizeAdm(adm);
+                if (normAdm) normAdmMap.set(normAdm, s);
+            }
 
             const name = (s.name || '').toUpperCase().trim();
-            if (name) nameMap.set(name, s);
+            if (name) {
+                nameMap.set(name, s);
+                const normName = normalizeName(name);
+                if (normName) normNameMap.set(normName, s);
+            }
         });
 
-        return { studentAdmMap: admMap, studentNameMap: nameMap };
+        return { 
+            studentAdmMap: admMap, 
+            studentNormalizedAdmMap: normAdmMap, 
+            studentNameMap: nameMap, 
+            studentNormalizedNameMap: normNameMap 
+        };
     }, [students]);
 
     // Reset state on close
@@ -269,13 +287,21 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
                     const dueDateRaw = idxDueDate !== -1 && String(row[idxDueDate] || '').trim() ? String(row[idxDueDate]).trim() : batchDueDate;
                     const customInvNo = idxCustomInvNo !== -1 ? String(row[idxCustomInvNo] || '').trim() : undefined;
 
-                    // Match student
+                    // Match student (exact and normalized)
                     let matchedStudent: User | undefined = undefined;
                     if (admRaw) {
                         matchedStudent = studentAdmMap.get(admRaw.toUpperCase());
+                        if (!matchedStudent) {
+                            const normAdm = admRaw.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+                            if (normAdm) matchedStudent = studentNormalizedAdmMap.get(normAdm);
+                        }
                     }
                     if (!matchedStudent && nameRaw) {
                         matchedStudent = studentNameMap.get(nameRaw.toUpperCase());
+                        if (!matchedStudent) {
+                            const normName = nameRaw.toUpperCase().replace(/\s+/g, ' ').trim();
+                            if (normName) matchedStudent = studentNormalizedNameMap.get(normName);
+                        }
                     }
 
                     // Build invoice items
@@ -444,24 +470,37 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
 
             for (let i = 0; i < rowsToInvoice.length; i++) {
                 const row = rowsToInvoice[i];
-                const studentId = row.matchedStudent ? row.matchedStudent.id : `ext_${row.admNo || i}`;
+                const studentId = row.matchedStudent ? row.matchedStudent.id : null;
                 const invoiceNumber = row.customInvoiceNo || `${invoicePrefix}${currentNum}`;
                 if (!row.customInvoiceNo) currentNum += 1;
 
-                const invObj: Partial<Invoice> = {
-                    id: `inv_xl_${Date.now()}_${i}_${studentId}`,
+                const invObj: any = {
+                    id: `inv_xl_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 7)}`,
                     invoiceNumber: invoiceNumber,
+                    invoice_number: invoiceNumber,
                     studentId: studentId,
+                    student_id: studentId,
                     totalAmount: row.totalAmount,
+                    total_amount: row.totalAmount,
                     status: 'pending',
                     issueDate: batchIssueDate,
+                    issue_date: batchIssueDate,
                     dueDate: row.dueDate || batchDueDate,
                     due_date: row.dueDate || batchDueDate,
                     items: row.items.length > 0 ? row.items : [
                         { description: row.description || batchDescription, quantity: 1, unitPrice: row.totalAmount, amount: row.totalAmount }
                     ],
                     institutionId: institution.id,
-                    className: row.className || (row.matchedStudent ? row.matchedStudent.metadata?.className : undefined)
+                    institution_id: institution.id,
+                    className: row.className || (row.matchedStudent ? (row.matchedStudent.metadata?.className || row.matchedStudent.metadata?.class) : undefined),
+                    class_name: row.className || (row.matchedStudent ? (row.matchedStudent.metadata?.className || row.matchedStudent.metadata?.class) : undefined),
+                    metadata: {
+                        studentName: row.studentName,
+                        admNo: row.admNo,
+                        className: row.className,
+                        importedFromExcel: true,
+                        importDate: new Date().toISOString()
+                    }
                 };
 
                 invoicesToPost.push(invObj);

@@ -518,6 +518,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(setTeacherRole) : setTeacherRole(currentPayload);
             }
 
+            if (moduleName === 'invoices' || moduleName === 'receipts') {
+                const cleanBillingRecord = (rec: any) => {
+                    if (!rec || typeof rec !== 'object') return rec;
+                    const copy = { ...rec };
+                    const sId = copy.student_id || copy.studentId;
+                    if (!sId || typeof sId !== 'string' || sId.startsWith('ext_') || sId.startsWith('temp_') || sId.trim() === '') {
+                        copy.student_id = null;
+                    }
+                    if ('studentId' in copy) delete copy.studentId;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBillingRecord) : cleanBillingRecord(currentPayload);
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 5;
