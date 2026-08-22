@@ -52,6 +52,25 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
     const [generationSuccess, setGenerationSuccess] = useState(false);
     const [generatedCount, setGeneratedCount] = useState(0);
 
+    // Live Progress & ETA calculation state
+    const [etaInfo, setEtaInfo] = useState<{
+        estimatedTimeText: string;
+        speedRate: number;
+        currentStudentName: string;
+        currentAdm: string;
+        completedCount: number;
+        totalCount: number;
+        currentPhase: string;
+    }>({
+        estimatedTimeText: 'Calculating ETA...',
+        speedRate: 0,
+        currentStudentName: '',
+        currentAdm: '',
+        completedCount: 0,
+        totalCount: 0,
+        currentPhase: 'Preparing spreadsheet invoices...'
+    });
+
     // Global batch settings
     const [batchDescription, setBatchDescription] = useState('School Fees Invoice');
     const [batchIssueDate, setBatchIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -391,7 +410,19 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
         }
 
         setIsGenerating(true);
-        setProgress(10);
+        setProgress(5);
+        const startTime = Date.now();
+        const total = rowsToInvoice.length;
+
+        setEtaInfo({
+            estimatedTimeText: 'Calculating ETA...',
+            speedRate: 0,
+            currentStudentName: rowsToInvoice[0]?.studentName || '',
+            currentAdm: rowsToInvoice[0]?.admNo || '',
+            completedCount: 0,
+            totalCount: total,
+            currentPhase: 'Initializing spreadsheet invoice compiler...'
+        });
 
         try {
             // Load sequential invoice numbering config
@@ -436,8 +467,44 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
                 };
 
                 invoicesToPost.push(invObj);
-                setProgress(Math.min(90, Math.round(((i + 1) / rowsToInvoice.length) * 80) + 10));
+
+                // Progress and ETA
+                const completed = i + 1;
+                const currentProg = Math.round((completed / total) * 90);
+                const elapsedSec = (Date.now() - startTime) / 1000;
+                const speedRate = elapsedSec > 0.1 ? parseFloat((completed / elapsedSec).toFixed(1)) : 0;
+                const remainingCount = total - completed;
+                const secRemaining = speedRate > 0 ? Math.max(0, Math.round(remainingCount / speedRate)) : 0;
+
+                let etaString = 'Calculating ETA...';
+                if (elapsedSec >= 0.2) {
+                    if (secRemaining <= 0) etaString = 'Almost complete...';
+                    else if (secRemaining < 60) etaString = `~${secRemaining}s remaining`;
+                    else etaString = `~${Math.floor(secRemaining / 60)}m ${secRemaining % 60}s remaining`;
+                }
+
+                setProgress(currentProg);
+                setEtaInfo({
+                    estimatedTimeText: etaString,
+                    speedRate: speedRate,
+                    currentStudentName: row.studentName,
+                    currentAdm: row.admNo,
+                    completedCount: completed,
+                    totalCount: total,
+                    currentPhase: `Invoicing ${row.studentName} (${completed}/${total})...`
+                });
+
+                if (i % 8 === 0 || i === rowsToInvoice.length - 1) {
+                    await new Promise(r => setTimeout(r, 12));
+                }
             }
+
+            setEtaInfo(prev => ({
+                ...prev,
+                currentPhase: 'Committing Excel invoices to financial ledger...',
+                estimatedTimeText: 'Finalizing ledger entries...'
+            }));
+            setProgress(95);
 
             // Update numbering sequence
             if (configRecord) {
@@ -540,8 +607,78 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
                 {/* Content Body */}
                 <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
 
-                    {/* Success State */}
-                    {generationSuccess ? (
+                    {/* Generation In-Progress State with Live ETA & Speed */}
+                    {isGenerating ? (
+                        <div className="py-12 px-6 sm:px-12 text-center space-y-8 animate-in fade-in zoom-in-95 duration-300">
+                            
+                            {/* Spinner & Header */}
+                            <div className="space-y-4">
+                                <div className="relative w-20 h-20 mx-auto">
+                                    <div className="w-20 h-20 border-4 border-indigo-100 dark:border-indigo-950/60 border-t-emerald-500 rounded-full animate-spin" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{progress}%</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        Generating Spreadsheet Invoices
+                                    </h4>
+                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                                        {etaInfo.currentPhase}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Progress Bar Container with ETA & Metrics */}
+                            <div className="max-w-xl mx-auto space-y-3">
+                                
+                                {/* Status Badges Header: ETA + Speed */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <div className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-full font-bold">
+                                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                                        <span>⏱️ Est. Time Remaining: <strong className="font-mono text-indigo-950 dark:text-indigo-100">{etaInfo.estimatedTimeText}</strong></span>
+                                    </div>
+                                    {etaInfo.speedRate > 0 && (
+                                        <div className="px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-full font-bold font-mono text-[11px]">
+                                            ⚡ {etaInfo.speedRate} inv/sec
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Animated Multi-color Progress Bar */}
+                                <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded-full p-1 border border-slate-200 dark:border-slate-700/60 overflow-hidden shadow-inner">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-emerald-600 via-teal-500 to-indigo-600 rounded-full transition-all duration-300 relative overflow-hidden shadow-md flex items-center justify-end pr-2"
+                                        style={{ width: `${Math.max(5, progress)}%` }}
+                                    >
+                                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-bar-stripes_1s_linear_infinite]" />
+                                    </div>
+                                </div>
+
+                                {/* Progress Counter */}
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1">
+                                    <span>{etaInfo.completedCount} of {etaInfo.totalCount} Invoices Created</span>
+                                    <span>{progress}% Completed</span>
+                                </div>
+                            </div>
+
+                            {/* Active Invoicing Card */}
+                            {etaInfo.currentStudentName && (
+                                <div className="max-w-md mx-auto p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-left">
+                                    <div className="truncate pr-2">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">Current Student In Pipeline</span>
+                                        <span className="text-xs font-black text-slate-900 dark:text-white truncate block">{etaInfo.currentStudentName}</span>
+                                    </div>
+                                    {etaInfo.currentAdm && (
+                                        <span className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                                            ADM: {etaInfo.currentAdm}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+
+                        </div>
+                    ) : generationSuccess ? (
                         <div className="p-12 text-center space-y-5 animate-in zoom-in-95">
                             <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto shadow-xl">
                                 <CheckCircleIcon className="w-12 h-12" />

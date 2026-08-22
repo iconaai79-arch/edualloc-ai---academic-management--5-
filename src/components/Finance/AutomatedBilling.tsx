@@ -56,6 +56,25 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     const [progress, setProgress] = useState(0);
     const [step, setStep] = useState<'config' | 'preview' | 'processing' | 'done'>('config');
 
+    // Live Progress & ETA calculation state
+    const [etaInfo, setEtaInfo] = useState<{
+        estimatedTimeText: string;
+        speedRate: number;
+        currentStudentName: string;
+        currentAdm: string;
+        completedCount: number;
+        totalCount: number;
+        currentPhase: string;
+    }>({
+        estimatedTimeText: 'Calculating ETA...',
+        speedRate: 0,
+        currentStudentName: '',
+        currentAdm: '',
+        completedCount: 0,
+        totalCount: 0,
+        currentPhase: 'Initializing precision billing engine...'
+    });
+
     // Selection criteria states
     const [targetType, setTargetType] = useState<'all' | 'individual' | 'class' | 'course' | 'excel'>('all');
     const [showExcelInvoiceModal, setShowExcelInvoiceModal] = useState(false);
@@ -285,13 +304,18 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     const handleRunBilling = async () => {
         setIsGenerating(true);
         setStep('processing');
-        
-        // Mock processing logic
         const total = billingStudents.length;
-        for (let i = 0; i <= 100; i += 10) {
-            setProgress(i);
-            await new Promise(r => setTimeout(r, 200));
-        }
+        const startTime = Date.now();
+
+        setEtaInfo({
+            estimatedTimeText: 'Calculating ETA...',
+            speedRate: 0,
+            currentStudentName: billingStudents[0]?.name || '',
+            currentAdm: billingStudents[0]?.admissionNumber || '',
+            completedCount: 0,
+            totalCount: total,
+            currentPhase: 'Initializing precision billing engine...'
+        });
 
         const instId = institution.id;
         let invoicePrefix = (companyDetails?.globalInvoicePrefix || 'INV-').trim();
@@ -310,7 +334,10 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         }
 
         let currentNum = nextInvoiceNumber;
-        const mockInvoices = billingStudents.map(s => {
+        const mockInvoices: any[] = [];
+
+        for (let i = 0; i < billingStudents.length; i++) {
+            const s = billingStudents[i];
             const boarder = isStudentBoarder(s);
             let studentFeeStructures = activeFeeStructures.filter(f => {
                 const matchesCourse = !f.courseId || f.courseId === getStudentCourseId(s);
@@ -396,7 +423,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
             const studentClass = studentClassMap.get(s.id) || '';
 
-            return {
+            mockInvoices.push({
                 id: `inv_auto_${Date.now()}_${s.id}`,
                 invoiceNumber: invoiceNumber,
                 studentId: s.id,
@@ -408,8 +435,45 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 items: invoiceItems,
                 institutionId: institution.id,
                 className: studentClass
-            };
-        });
+            });
+
+            // Live progress & ETA calculation
+            const completed = i + 1;
+            const currentProgress = Math.round((completed / total) * 90);
+            const elapsedSec = (Date.now() - startTime) / 1000;
+            const speedRate = elapsedSec > 0.1 ? parseFloat((completed / elapsedSec).toFixed(1)) : 0;
+            const remainingCount = total - completed;
+            const secRemaining = speedRate > 0 ? Math.max(0, Math.round(remainingCount / speedRate)) : 0;
+
+            let etaString = 'Calculating ETA...';
+            if (elapsedSec >= 0.2) {
+                if (secRemaining <= 0) etaString = 'Almost complete...';
+                else if (secRemaining < 60) etaString = `~${secRemaining}s remaining`;
+                else etaString = `~${Math.floor(secRemaining / 60)}m ${secRemaining % 60}s remaining`;
+            }
+
+            setProgress(currentProgress);
+            setEtaInfo({
+                estimatedTimeText: etaString,
+                speedRate: speedRate,
+                currentStudentName: s.name,
+                currentAdm: s.admissionNumber || s.admission_number || '',
+                completedCount: completed,
+                totalCount: total,
+                currentPhase: `Invoicing ${s.name} (${completed}/${total})...`
+            });
+
+            if (i % 8 === 0 || i === billingStudents.length - 1) {
+                await new Promise(r => setTimeout(r, 12));
+            }
+        }
+
+        setEtaInfo(prev => ({
+            ...prev,
+            currentPhase: 'Committing batch invoices to financial ledger...',
+            estimatedTimeText: 'Finalizing ledger entries...'
+        }));
+        setProgress(95);
 
         // Save back updated config
         if (configRecord) {
@@ -454,6 +518,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             }).catch(() => {});
         } catch (e) {}
 
+        setProgress(100);
         setStep('done');
         setIsGenerating(false);
     };
@@ -832,16 +897,82 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             )}
 
             {step === 'processing' && (
-                <div className="bg-white p-16 rounded-[4rem] border border-slate-100 shadow-2xl text-center space-y-10 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 h-1 bg-indigo-600 transition-all duration-300 shadow-[0_0_20px_rgba(79,70,229,0.5)]" style={{ width: `${progress}%` }} />
-                    <div className="space-y-4">
-                        <div className="w-24 h-24 border-8 border-slate-50 border-t-indigo-600 rounded-full animate-spin mx-auto mb-6" />
-                        <h3 className="text-2xl font-black text-slate-900">Engineered Precision Invoicing</h3>
-                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Executing Phase: Ledger Distribution ({progress}%)</p>
+                <div className="bg-white dark:bg-slate-900 p-10 md:p-14 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl text-center space-y-8 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                    
+                    {/* Top Glowing Shimmer Line */}
+                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100 dark:bg-slate-800">
+                        <div 
+                            className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-all duration-300 shadow-[0_0_15px_rgba(99,102,241,0.8)]" 
+                            style={{ width: `${progress}%` }} 
+                        />
                     </div>
-                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                        <p className="text-xs font-bold text-slate-500 italic">"Finalizing cryptographic billing signatures for institutional compliance..."</p>
+
+                    {/* Spinner & Phase Header */}
+                    <div className="space-y-4 pt-2">
+                        <div className="relative w-20 h-20 mx-auto">
+                            <div className="w-20 h-20 border-4 border-indigo-100 dark:border-indigo-950/60 border-t-indigo-600 rounded-full animate-spin" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">{progress}%</span>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                Generating Student Invoices
+                            </h3>
+                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                                {etaInfo.currentPhase}
+                            </p>
+                        </div>
                     </div>
+
+                    {/* Progress Bar Container with ETA & Metrics */}
+                    <div className="max-w-xl mx-auto space-y-3">
+                        
+                        {/* Status Badges Header: ETA + Speed + Counter */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-full font-bold">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                                <span>⏱️ Est. Time Remaining: <strong className="font-mono text-indigo-900 dark:text-indigo-200">{etaInfo.estimatedTimeText}</strong></span>
+                            </div>
+                            {etaInfo.speedRate > 0 && (
+                                <div className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-full font-bold font-mono text-[11px]">
+                                    ⚡ {etaInfo.speedRate} inv/sec
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Animated Multi-color Progress Bar */}
+                        <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded-full p-1 border border-slate-200 dark:border-slate-700/60 overflow-hidden shadow-inner">
+                            <div 
+                                className="h-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-500 rounded-full transition-all duration-300 relative overflow-hidden shadow-md flex items-center justify-end pr-2"
+                                style={{ width: `${Math.max(5, progress)}%` }}
+                            >
+                                <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-bar-stripes_1s_linear_infinite]" />
+                            </div>
+                        </div>
+
+                        {/* Progress Counter */}
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1">
+                            <span>{etaInfo.completedCount} of {etaInfo.totalCount} Invoices Created</span>
+                            <span>{progress}% Completed</span>
+                        </div>
+                    </div>
+
+                    {/* Active Invoicing Card */}
+                    {etaInfo.currentStudentName && (
+                        <div className="max-w-md mx-auto p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-left">
+                            <div className="truncate pr-2">
+                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">Current Student In Pipeline</span>
+                                <span className="text-xs font-black text-slate-900 dark:text-white truncate block">{etaInfo.currentStudentName}</span>
+                            </div>
+                            {etaInfo.currentAdm && (
+                                <span className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-mono font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                                    ADM: {etaInfo.currentAdm}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
                 </div>
             )}
 
