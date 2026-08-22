@@ -1,7 +1,7 @@
 import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_ACADEMIC_YEARS,
     INITIAL_SEMESTERS, INITIAL_ACADEMIC_LEVELS
-} from '../constants';
+} from '../src/constants';
 
 const escapeSql = (str: string | null | undefined) => {
     if (str === null || str === undefined) return 'NULL';
@@ -668,24 +668,24 @@ CREATE TABLE IF NOT EXISTS extension_requests (
     sql += `-- SEED INITIAL SYSTEM DATA\n`;
     sql += `-- ==========================================================================\n\n`;
 
-    INITIAL_INSTITUTIONS.forEach(i => {
+    INITIAL_INSTITUTIONS.forEach((i: any) => {
         sql += `INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests) VALUES (${escapeSql(i.id)}, ${escapeSql(i.name)}, ${escapeSql(i.email)}, ${escapeSql(i.phoneNumber)}, ${escapeSql(i.institutionType)}, ${escapeSql(i.status)}, ${escapeSql(i.institutionCode)}, TRUE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status;\n`;
     });
 
-    INITIAL_ACADEMIC_LEVELS.forEach(al => {
+    INITIAL_ACADEMIC_LEVELS.forEach((al: any) => {
         sql += `INSERT INTO academic_levels (id, name, institution_id) VALUES (${escapeSql(al.id)}, ${escapeSql(al.name)}, ${escapeSql(al.institutionId)}) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
-    INITIAL_ACADEMIC_YEARS.forEach(y => {
+    INITIAL_ACADEMIC_YEARS.forEach((y: any) => {
         sql += `INSERT INTO academic_years (id, name, start_date, end_date, institution_id, status) VALUES (${escapeSql(y.id)}, ${escapeSql(y.name)}, ${escapeSql(y.startDate)}, ${escapeSql(y.endDate)}, ${escapeSql(y.institutionId)}, ${escapeSql(y.status)}) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
-    INITIAL_SEMESTERS.forEach(s => {
+    INITIAL_SEMESTERS.forEach((s: any) => {
         sql += `INSERT INTO semesters (id, name, academic_year_id, institution_id, start_date, end_date, status, sessions) VALUES (${escapeSql(s.id)}, ${escapeSql(s.name)}, ${escapeSql(s.academicYearId)}, ${escapeSql(s.institutionId)}, ${escapeSql(s.startDate)}, ${escapeSql(s.endDate)}, ${escapeSql(s.status)}, ${escapeSql(JSON.stringify(s.sessions || []))}::jsonb) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
-    INITIAL_USERS.forEach(u => {
-        const expertiseStr = u.expertise && u.expertise.length > 0 ? `ARRAY[${u.expertise.map(e => escapeSql(e)).join(',')}]` : "ARRAY[]::TEXT[]";
+    INITIAL_USERS.forEach((u: any) => {
+        const expertiseStr = u.expertise && u.expertise.length > 0 ? `ARRAY[${u.expertise.map((e: any) => escapeSql(e)).join(',')}]` : "ARRAY[]::TEXT[]";
         sql += `INSERT INTO users (id, name, email, phone_number, staff_id, role, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expertiseStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
