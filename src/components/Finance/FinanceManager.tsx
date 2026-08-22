@@ -137,7 +137,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
-    const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics'>('roster');
+    const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -355,7 +355,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         // 4. Match from invoices for this student
         const sInvs = (props.invoices || []).filter((inv: any) => inv && (inv.studentId === s.id || inv.userId === s.id));
         for (const inv of sInvs) {
-            const invCls = inv.studentClass || inv.className || inv.gradeLevel || inv.metadata?.className || inv.metadata?.studentClass;
+            const invCls = (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || (inv as any).metadata?.className || (inv as any).metadata?.studentClass;
             if (invCls && String(invCls).trim() && String(invCls).trim() !== 'undefined' && String(invCls).trim() !== 'null' && String(invCls).trim() !== 'N/A') {
                 return String(invCls).trim();
             }
@@ -1133,7 +1133,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Financial Year states
     const [financialYears, setFinancialYears] = useState<Array<{ id: string; name: string; startDate: string; endDate: string; status: 'Active' | 'Closed' | 'Draft' | 'Archived' }>>(() => {
         try {
-            const stored = localStorage.getItem(`eduai_financial_periods_${institution.id}`);
+            const stored = localStorage.getItem(`eduai_financial_periods_${props.institution.id}`);
             if (stored) {
                 const parsed = JSON.parse(stored);
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -1158,10 +1158,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const updateAndPersistFinancialYears = (updated: Array<{ id: string; name: string; startDate: string; endDate: string; status: 'Active' | 'Closed' | 'Draft' | 'Archived' }>) => {
         setFinancialYears(updated);
         try {
-            localStorage.setItem(`eduai_financial_periods_${institution.id}`, JSON.stringify(updated));
+            localStorage.setItem(`eduai_financial_periods_${props.institution.id}`, JSON.stringify(updated));
             apiService.saveModuleRecord('institution_module_states', {
-                id: `financial_periods_${institution.id}`,
-                institutionId: institution.id,
+                id: `financial_periods_${props.institution.id}`,
+                institutionId: props.institution.id,
                 module: 'finance_periods',
                 state: updated,
                 updatedAt: new Date().toISOString()
@@ -8262,7 +8262,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 if (props.onRefreshData) {
                                                                     await props.onRefreshData();
                                                                 }
-                                                                setSelectedInvoiceForDetails(prev => prev ? ({
+                                                                setSelectedInvoiceForDetails((prev: any) => prev ? ({
                                                                     ...prev,
                                                                     issueDate: newDate.trim(),
                                                                     issue_date: newDate.trim(),
