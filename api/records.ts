@@ -398,6 +398,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Return empty list on any DB query error to prevent breaking client UI
                 return res.status(200).json([]);
             }
+
+            return res.status(200).json(data || []);
+        }
+
         const stripUniversalTransientKeys = (rec: any) => {
             if (!rec || typeof rec !== 'object') return rec;
             const copy = { ...rec };

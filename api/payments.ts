@@ -559,7 +559,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         body: 'grant_type=client_credentials'
                     });
                     if (uatTokenRes.ok) {
-                        const uatTokenData = await uatTokenRes.json();
+                        const uatTokenData: any = await uatTokenRes.json();
                         if (uatTokenData.access_token) {
                             const uatStkUrl = 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush';
                             const uatRes = await fetch(uatStkUrl, {
@@ -978,7 +978,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         body: 'grant_type=client_credentials'
                     });
                     if (uatTokenRes.ok) {
-                        const uatTokenData = await uatTokenRes.json();
+                        const uatTokenData: any = await uatTokenRes.json();
                         if (uatTokenData.access_token) {
                             const uatQueryUrl = 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query';
                             const uatRes = await fetch(uatQueryUrl, {
