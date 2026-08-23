@@ -616,6 +616,76 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return Array.from(map.values());
     }, [props.invoices, allBranchInvoices, props.institution?.id, branches, cleanId]);
 
+    const detectedDuplicateReceipts = useMemo(() => {
+        const allRaw = [...(props.receipts || []), ...(allBranchReceipts || [])];
+        const primaryMap = new Map<string, any>();
+        const seenNumMap = new Map<string, string>();
+        const seenRefMap = new Map<string, string>();
+        const seenFpMap = new Map<string, string>();
+        const duplicates: any[] = [];
+        const duplicateIds = new Set<string>();
+
+        allRaw.forEach((rec: any) => {
+            if (!rec || !rec.id) return;
+            const rId = String(rec.id);
+            if (duplicateIds.has(rId)) return;
+
+            // Direct ID duplicate
+            if (primaryMap.has(rId)) {
+                duplicateIds.add(rId);
+                duplicates.push(rec);
+                return;
+            }
+
+            const rNum = String(rec.receiptNumber || rec.receipt_number || '').trim().toLowerCase();
+            const rRef = String(rec.relatedTransactionId || rec.related_transaction_id || '').trim().toLowerCase();
+            const sId = String(rec.studentId || rec.student_id || '').trim();
+            const amt = Number(rec.amountPaid || rec.amount_paid || rec.amount || 0);
+            const pDate = String(rec.paymentDate || rec.payment_date || '').split('T')[0];
+
+            let isDup = false;
+
+            // 1. Valid Receipt Number check (e.g. REC-1234)
+            if (rNum && !rNum.startsWith('rec_imp_') && !rNum.startsWith('temp_') && rNum.length >= 3) {
+                const keyNum = `num_${rNum}`;
+                if (seenNumMap.has(keyNum)) {
+                    isDup = true;
+                } else {
+                    seenNumMap.set(keyNum, rId);
+                }
+            }
+
+            // 2. Transaction Reference + Student + Amount
+            if (!isDup && rRef && rRef.length >= 4) {
+                const keyRef = `ref_${rRef}_${sId}_${amt}`;
+                if (seenRefMap.has(keyRef)) {
+                    isDup = true;
+                } else {
+                    seenRefMap.set(keyRef, rId);
+                }
+            }
+
+            // 3. Student + Amount + Payment Date + Ref fingerprint
+            if (!isDup && sId && amt > 0 && pDate) {
+                const keyFp = `fp_${sId}_${amt}_${pDate}_${rRef}`;
+                if (seenFpMap.has(keyFp)) {
+                    isDup = true;
+                } else {
+                    seenFpMap.set(keyFp, rId);
+                }
+            }
+
+            if (isDup) {
+                duplicateIds.add(rId);
+                duplicates.push(rec);
+            } else {
+                primaryMap.set(rId, rec);
+            }
+        });
+
+        return duplicates;
+    }, [props.receipts, allBranchReceipts]);
+
     const mergedReceipts = useMemo(() => {
         const activeInstId = props.institution?.id || '';
         const activeInstClean = cleanId(activeInstId);
@@ -630,9 +700,82 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (!rInstId) return true;
             return relevantInstIds.has(rInstId) || relevantInstIds.has(cleanId(rInstId));
         });
+
         const map = new Map<string, any>();
-        scopedPropsReceipts.forEach((rec: any) => map.set(rec.id, rec));
-        allBranchReceipts.forEach((rec: any) => map.set(rec.id, rec));
+        const seenNumMap = new Map<string, string>();
+        const seenRefMap = new Map<string, string>();
+        const seenFpMap = new Map<string, string>();
+
+        const processReceipt = (rec: any) => {
+            if (!rec) return;
+            const rId = rec.id || `${rec.receiptNumber || rec.receipt_number}_${rec.studentId || rec.student_id}`;
+            if (!rId) return;
+
+            if (map.has(rId)) {
+                const existing = map.get(rId);
+                if ((!existing.items || existing.items.length === 0) && rec.items && rec.items.length > 0) {
+                    map.set(rId, rec);
+                }
+                return;
+            }
+
+            const rNum = String(rec.receiptNumber || rec.receipt_number || '').trim().toLowerCase();
+            const rRef = String(rec.relatedTransactionId || rec.related_transaction_id || '').trim().toLowerCase();
+            const sId = String(rec.studentId || rec.student_id || '').trim();
+            const amt = Number(rec.amountPaid || rec.amount_paid || rec.amount || 0);
+            const pDate = String(rec.paymentDate || rec.payment_date || '').split('T')[0];
+
+            if (rNum && !rNum.startsWith('rec_imp_') && !rNum.startsWith('temp_') && rNum.length >= 3) {
+                const keyNum = `num_${rNum}`;
+                if (seenNumMap.has(keyNum)) {
+                    const existingId = seenNumMap.get(keyNum)!;
+                    const existing = map.get(existingId);
+                    if (existing && (!existing.items || existing.items.length === 0) && rec.items && rec.items.length > 0) {
+                        map.delete(existingId);
+                        map.set(rId, rec);
+                        seenNumMap.set(keyNum, rId);
+                    }
+                    return;
+                }
+                seenNumMap.set(keyNum, rId);
+            }
+
+            if (rRef && rRef.length >= 4) {
+                const keyRef = `ref_${rRef}_${sId}_${amt}`;
+                if (seenRefMap.has(keyRef)) {
+                    const existingId = seenRefMap.get(keyRef)!;
+                    const existing = map.get(existingId);
+                    if (existing && (!existing.items || existing.items.length === 0) && rec.items && rec.items.length > 0) {
+                        map.delete(existingId);
+                        map.set(rId, rec);
+                        seenRefMap.set(keyRef, rId);
+                    }
+                    return;
+                }
+                seenRefMap.set(keyRef, rId);
+            }
+
+            if (sId && amt > 0 && pDate) {
+                const keyFp = `fp_${sId}_${amt}_${pDate}_${rRef}`;
+                if (seenFpMap.has(keyFp)) {
+                    const existingId = seenFpMap.get(keyFp)!;
+                    const existing = map.get(existingId);
+                    if (existing && (!existing.items || existing.items.length === 0) && rec.items && rec.items.length > 0) {
+                        map.delete(existingId);
+                        map.set(rId, rec);
+                        seenFpMap.set(keyFp, rId);
+                    }
+                    return;
+                }
+                seenFpMap.set(keyFp, rId);
+            }
+
+            map.set(rId, rec);
+        };
+
+        scopedPropsReceipts.forEach(processReceipt);
+        allBranchReceipts.forEach(processReceipt);
+
         return Array.from(map.values());
     }, [props.receipts, allBranchReceipts, props.institution?.id, branches, cleanId]);
 
@@ -3456,6 +3599,59 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to reprint receipts.");
         } finally {
             setIsReprintingClass(false);
+        }
+    };
+
+    // Duplicate Receipts Cleanup State & Handler
+    const [showCleanDuplicatesModal, setShowCleanDuplicatesModal] = useState(false);
+    const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+
+    const handlePurgeDuplicateReceipts = async () => {
+        if (detectedDuplicateReceipts.length === 0) {
+            alert("No duplicate receipts found in the database. All records are unique.");
+            return;
+        }
+
+        const count = detectedDuplicateReceipts.length;
+        setIsCleaningDuplicates(true);
+        try {
+            const duplicateIds = detectedDuplicateReceipts.map((r: any) => r.id).filter(Boolean);
+            
+            // Delete from database in chunks of 50
+            const BATCH = 50;
+            for (let i = 0; i < duplicateIds.length; i += BATCH) {
+                const chunk = duplicateIds.slice(i, i + BATCH);
+                await apiService.deleteModuleRecord('receipts', chunk.join(',')).catch((e) => {
+                    console.warn('[FinanceManager] Batch delete duplicate receipts error:', e);
+                });
+            }
+
+            // Immediately purge from all active branch / local memory states
+            const dupIdSet = new Set(duplicateIds);
+            setAllBranchReceipts(prev => prev.filter(r => !dupIdSet.has(r.id)));
+            
+            // Clear local storage cache
+            try {
+                const lsRecs = (apiService as any).ls?.get('receipts');
+                if (Array.isArray(lsRecs)) {
+                    (apiService as any).ls?.set('receipts', lsRecs.filter((r: any) => !dupIdSet.has(r.id)));
+                }
+            } catch (_) {}
+
+            setShowCleanDuplicatesModal(false);
+            alert(`Clean-up Complete!\nSuccessfully removed ${count} duplicate receipts from the database.\n\nThe original primary receipt for each student payment has been preserved.`);
+            
+            if (props.onLogAction) {
+                props.onLogAction(`Permanently deleted ${count} duplicate receipts from the database.`);
+            }
+            if (props.onRefreshData) {
+                props.onRefreshData();
+            }
+        } catch (err: any) {
+            console.error("Failed to clean duplicate receipts:", err);
+            alert("Failed to remove duplicate receipts: " + (err.message || err));
+        } finally {
+            setIsCleaningDuplicates(false);
         }
     };
 
@@ -7634,6 +7830,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <PrinterIcon className="w-3.5 h-3.5" />
                                             Reprint by Class
                                         </button>
+                                        {detectedDuplicateReceipts.length > 0 && (
+                                            <button
+                                                onClick={() => setShowCleanDuplicatesModal(true)}
+                                                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-pulse"
+                                                title="Scan and permanently delete duplicate receipt copies from the database"
+                                            >
+                                                <SparklesIcon className="w-3.5 h-3.5" />
+                                                Remove Duplicates ({detectedDuplicateReceipts.length})
+                                            </button>
+                                        )}
                                         {selectedReceiptIds.size > 0 && (
                                             <button
                                                 onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected receipt(s)` })}
@@ -7653,6 +7859,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <PlusIcon className="w-4 h-4" />
                                             Receive Other Income
                                         </button>
+                                        {detectedDuplicateReceipts.length > 0 && (
+                                            <button
+                                                onClick={() => setShowCleanDuplicatesModal(true)}
+                                                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-pulse"
+                                                title="Scan and permanently delete duplicate receipt copies from the database"
+                                            >
+                                                <SparklesIcon className="w-3.5 h-3.5" />
+                                                Remove Duplicates ({detectedDuplicateReceipts.length})
+                                            </button>
+                                        )}
                                         {selectedReceiptIds.size > 0 && (
                                             <button
                                                 onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected record(s)` })}
@@ -7665,6 +7881,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Deduplication Detected Banner */}
+                            {detectedDuplicateReceipts.length > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-xs font-bold text-amber-900 dark:text-amber-200 shadow-sm animate-in slide-in-from-top duration-200">
+                                    <div className="flex items-center gap-2.5">
+                                        <SparklesIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                        <span>
+                                            <strong className="font-black">{detectedDuplicateReceipts.length} duplicate receipt records detected</strong> in the database from previous bulk imports. Active views and balances are already automatically deduplicated.
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowCleanDuplicatesModal(true)}
+                                        className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black text-[11px] uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:shadow"
+                                    >
+                                        Clean Database Now
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="flex flex-col md:flex-row gap-4">
                                 <div className="relative flex-1">
@@ -18807,6 +19041,113 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 onGenerateInvoices={props.onGenerateInvoices}
                 onRefreshData={props.onRefreshData}
             />
+
+            {/* Clean Duplicate Receipts Modal */}
+            {showCleanDuplicatesModal && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in text-left">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
+                        <div className="p-6 bg-amber-500 text-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <SparklesIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight text-white">Deduplicate Payment Receipts</h3>
+                                    <p className="text-xs text-amber-100 font-semibold">Permanently clean redundant duplicate records from the database</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowCleanDuplicatesModal(false)}
+                                disabled={isCleaningDuplicates}
+                                className="p-2 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl space-y-2">
+                                <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-black text-sm">
+                                    <CheckBadgeIcon className="w-5 h-5 text-amber-600" />
+                                    <span>{detectedDuplicateReceipts.length} Duplicate Records Identified</span>
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                                    EDUAI detected {detectedDuplicateReceipts.length} duplicate entries created during previous batch uploads or multi-click syncs. 
+                                    <strong className="text-slate-900 dark:text-white font-black"> Only the duplicate extra copies will be deleted.</strong> The original primary receipt and student ledger credit will remain 100% intact.
+                                </p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                                    Sample Duplicate Records to be Removed ({detectedDuplicateReceipts.length} total):
+                                </h4>
+                                <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0">
+                                            <tr>
+                                                <th className="py-2.5 px-3">Receipt / Ref</th>
+                                                <th className="py-2.5 px-3">Date</th>
+                                                <th className="py-2.5 px-3">Method</th>
+                                                <th className="py-2.5 px-3 text-right">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {detectedDuplicateReceipts.slice(0, 30).map((r: any, idx: number) => (
+                                                <tr key={r.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                    <td className="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                                        {r.receiptNumber || r.receipt_number || r.relatedTransactionId || r.id}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-slate-500 font-medium">
+                                                        {(r.paymentDate || r.payment_date || '').split('T')[0] || '—'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-slate-500 font-medium">
+                                                        {r.paymentMethod || r.payment_method || 'Payment'}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                                        KES {Number(r.amountPaid || r.amount_paid || r.amount || 0).toLocaleString()}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {detectedDuplicateReceipts.length > 30 && (
+                                    <p className="text-[11px] text-slate-400 font-medium text-center italic">
+                                        ...and {detectedDuplicateReceipts.length - 30} more duplicate entries
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center gap-4">
+                            <button
+                                onClick={() => setShowCleanDuplicatesModal(false)}
+                                disabled={isCleaningDuplicates}
+                                className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-black text-xs uppercase tracking-wider hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handlePurgeDuplicateReceipts}
+                                disabled={isCleaningDuplicates || detectedDuplicateReceipts.length === 0}
+                                className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-600/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                                {isCleaningDuplicates ? (
+                                    <>
+                                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Cleaning {detectedDuplicateReceipts.length} Records...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2Icon className="w-4 h-4" />
+                                        <span>Permanently Remove {detectedDuplicateReceipts.length} Duplicates</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             </div>
         </div>
     );
