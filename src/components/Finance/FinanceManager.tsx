@@ -2608,6 +2608,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return '';
             };
 
+            // Like resolveCol but returns the RAW value (preserves Date objects from cellDates:true)
+            const resolveDateRaw = (row: any, ...patterns: RegExp[]): any => {
+                const keys = Object.keys(row);
+                for (const pat of patterns) {
+                    const k = keys.find(key => pat.test(key.trim()));
+                    if (k && row[k] !== undefined && row[k] !== null) {
+                        const v = row[k];
+                        // Reject empty strings, but accept 0, Date objects, and real values
+                        if (v instanceof Date) return v;
+                        if (typeof v === 'number') return v;
+                        if (String(v).trim() !== '') return String(v).trim();
+                    }
+                }
+                return null;
+            };
+
             // Universal date → ISO date string (handles JS Date, Excel serial, and all text formats)
             const excelDateToISO = (raw: any): string => {
                 const today = new Date().toISOString().split('T')[0];
@@ -2726,8 +2742,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /^rcpt/i
                 );
 
-                // Column H: Paid On
-                const dateRaw = resolveCol(row,
+                // Column H: Paid On — use resolveDateRaw to preserve JS Date objects from cellDates:true
+                const dateRaw = resolveDateRaw(row,
                     /^paid[\s_]*on$/i,
                     /^date$/i,
                     /^payment[\s_]*date$/i,
@@ -2739,7 +2755,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const ref = refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`;
                 const amount = parseMoneyAmount(amtRaw);
                 const payer = nameRaw || 'Excel Import';
-                const date = excelDateToISO(dateRaw || (row['Paid On'] ?? row['Date'] ?? ''));
+                // dateRaw may be a JS Date object, number serial, or string — excelDateToISO handles all
+                const date = excelDateToISO(dateRaw ?? row['Paid On'] ?? row['Date'] ?? null);
 
                 // Payment method mapping
                 let paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' = 'M-Pesa';
