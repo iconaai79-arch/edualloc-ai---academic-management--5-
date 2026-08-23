@@ -2962,6 +2962,91 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    // Unified Votehead Distribution Engine: automatically apportions payment amounts across invoice voteheads or configured fee structures
+    const computeVoteheadDistribution = useCallback((
+        amount: number,
+        studentId?: string,
+        invoiceId?: string
+    ): Array<{ description: string; name: string; amount: number; invoiceNumber?: string }> => {
+        const amountNum = Number(amount) || 0;
+        if (amountNum <= 0) return [];
+
+        // 1. Check specific target invoice or student's active invoices
+        let targetInvoice = invoiceId ? mappedInvoices.find(i => i.id === invoiceId) : null;
+        if (!targetInvoice && studentId) {
+            targetInvoice = mappedInvoices.find(i => i.studentId === studentId && i.status !== 'cancelled' && i.status !== 'quote');
+        }
+
+        if (targetInvoice) {
+            let invItems: any[] = [];
+            const rawItems = targetInvoice.voteHeads || targetInvoice.items;
+            if (typeof rawItems === 'string') {
+                try { invItems = JSON.parse(rawItems) || []; } catch(e) {}
+            } else if (Array.isArray(rawItems)) {
+                invItems = rawItems;
+            }
+
+            if (invItems.length > 0) {
+                const totalInvoiceAmt = invItems.reduce((sum: number, it: any) => sum + Number(it.amount || it.unitPrice || 0), 0);
+                if (totalInvoiceAmt > 0) {
+                    let runningAllocated = 0;
+                    const allocatedItems = invItems.map((it: any, idx: number) => {
+                        const itemTarget = Number(it.amount || it.unitPrice || 0);
+                        let itemAlloc = 0;
+                        if (idx === invItems.length - 1) {
+                            itemAlloc = Math.max(0, amountNum - runningAllocated);
+                        } else {
+                            itemAlloc = Math.round((itemTarget / totalInvoiceAmt) * amountNum);
+                            runningAllocated += itemAlloc;
+                        }
+                        const name = it.name || it.description || it.voteheadName || `Votehead ${idx + 1}`;
+                        return {
+                            description: name,
+                            name,
+                            amount: itemAlloc,
+                            invoiceNumber: targetInvoice.invoiceNumber || targetInvoice.id
+                        };
+                    });
+                    return allocatedItems.filter(it => it.amount > 0);
+                }
+            }
+        }
+
+        // 2. Check general configured voteheads if no invoice items
+        const voteHeads = props.voteHeads || [];
+        if (voteHeads.length > 0) {
+            const sorted = [...voteHeads].sort((a, b) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
+            const totalAllocatedTarget = sorted.reduce((sum, v) => sum + (Number(v.allocatedAmount) || 0), 0);
+
+            if (totalAllocatedTarget > 0) {
+                let runningAllocated = 0;
+                const result = sorted.map((vh, idx) => {
+                    const targetAmt = Number(vh.allocatedAmount) || 0;
+                    let itemAlloc = 0;
+                    if (idx === sorted.length - 1) {
+                        itemAlloc = Math.max(0, amountNum - runningAllocated);
+                    } else {
+                        itemAlloc = Math.round((targetAmt / totalAllocatedTarget) * amountNum);
+                        runningAllocated += itemAlloc;
+                    }
+                    return {
+                        description: vh.name,
+                        name: vh.name,
+                        amount: itemAlloc
+                    };
+                });
+                return result.filter(r => r.amount > 0);
+            }
+        }
+
+        // 3. Fallback standard allocation
+        return [{
+            description: 'Tuition & Academic Fees',
+            name: 'Tuition & Academic Fees',
+            amount: amountNum
+        }];
+    }, [mappedInvoices, props.voteHeads]);
+
     const handleConfirmBulkReceiptsPost = async () => {
         const matchedItems = reconciledItems.filter(item => item.matchStatus === 'matched' && item.matchedStudentId && item.amount > 0);
         if (matchedItems.length === 0) {
@@ -2988,6 +3073,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
                     const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod || 'Excel Bulk Import';
 
+                    // Compute automatic votehead distribution for this payment
+                    const voteheadAllocations = computeVoteheadDistribution(item.amount, item.matchedStudentId);
+
                     // Match existing receipt to allow overriding
                     let existingReceipt: any = null;
                     if (excelImportOverrideExisting) {
@@ -3006,6 +3094,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${item.id}`;
                     const originalCreatedAt = existingReceipt?.createdAt || existingReceipt?.created_at || new Date().toISOString();
 
+                    const paidForSummary = voteheadAllocations.map(a => `${a.name}: KES ${a.amount.toLocaleString()}`).join(', ');
+
                     const receipt = {
                         id: receiptId,
                         institutionId: props.institution.id,
@@ -3016,7 +3106,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         paymentMethod: item.paymentMethod || 'Bank Transfer',
                         paymentDate: item.date || new Date().toISOString().split('T')[0],
                         relatedTransactionId: item.ref || '',
-                        paidFor: `Fee Payment via ${modeLabel}`
+                        paidFor: paidForSummary || `Fee Payment via ${modeLabel}`,
+                        items: voteheadAllocations,
+                        allocations: JSON.stringify(voteheadAllocations),
+                        voteHeadBreakdown: JSON.stringify(voteheadAllocations)
                     };
 
                     chunkReceipts.push({ receipt, originalCreatedAt });
@@ -4564,8 +4657,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
+            // Ensure votehead distribution is attached
+            const existingBreakdown = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items;
+            const enrichedReceipt: any = {
+                ...receipt,
+                items: existingBreakdown 
+                    ? (typeof existingBreakdown === 'string' ? JSON.parse(existingBreakdown) : existingBreakdown) 
+                    : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
+            };
+
             await pdfService.downloadReceiptPdf(
-                receipt,
+                enrichedReceipt,
                 relatedTx,
                 props.institution,
                 props.companyDetails || {} as any,
@@ -4597,8 +4699,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
+            // Ensure votehead distribution is attached
+            const existingBreakdown = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items;
+            const enrichedReceipt: any = {
+                ...receipt,
+                items: existingBreakdown 
+                    ? (typeof existingBreakdown === 'string' ? JSON.parse(existingBreakdown) : existingBreakdown) 
+                    : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
+            };
+
             const dataUri = await pdfService.generateReceiptPdfDataUri(
-                receipt,
+                enrichedReceipt,
                 relatedTx,
                 props.institution,
                 props.companyDetails || {} as any,
@@ -4606,7 +4717,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 invoiceBalance,
                 props.currentUser?.name || 'Chief Accountant'
             );
-            setOnScreenReceiptModal({ receipt, dataUri, studentName, admNo });
+            setOnScreenReceiptModal({ receipt: enrichedReceipt, dataUri, studentName, admNo });
         } catch (err: any) {
             console.error("Failed to generate receipt preview:", err);
             alert("Failed to generate receipt preview: " + (err.message || err));
@@ -4623,8 +4734,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
             const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(receipt.amountPaid) || 0)) : undefined;
 
+            // Ensure votehead distribution is attached
+            const existingBreakdown = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items;
+            const enrichedReceipt: any = {
+                ...receipt,
+                items: existingBreakdown 
+                    ? (typeof existingBreakdown === 'string' ? JSON.parse(existingBreakdown) : existingBreakdown) 
+                    : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
+            };
+
             const dataUri = await pdfService.generateFinanceEposThermalReceiptPdfDataUri(
-                receipt,
+                enrichedReceipt,
                 student,
                 props.institution,
                 props.companyDetails || {} as any,
@@ -4635,7 +4755,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     remainingBalance
                 }
             );
-            setEposModalReceipt({ receipt, dataUri });
+            setEposModalReceipt({ receipt: enrichedReceipt, dataUri });
         } catch (err: any) {
             console.error("Failed to generate EPOS Thermal Receipt:", err);
             alert("Failed to generate EPOS Thermal Receipt: " + (err.message || err));

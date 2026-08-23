@@ -527,16 +527,40 @@ export const generateReceiptPdfDataUri = async (
     const paymentMethodText = `${receipt?.paymentMethod || 'M-PESA'} (${transaction?.transactionId || receipt?.relatedTransactionId || 'N/A'})`;
     doc.text(`Method / Channel     :  ${paymentMethodText}`, pageWidth / 2 + 6, tableStartY + 19);
 
-    // Main line items table
-    const head = [['#', 'DESCRIPTION / ITEM DETAILS', 'REFERENCE / TRANS ID', 'AMOUNT PAID (KES)']];
-    const body = [
-        [
-            1,
-            receipt?.paidFor || 'Platform Subscription Service Fee',
-            transaction?.transactionId || receipt?.relatedTransactionId || 'N/A',
-            `KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`
-        ]
-    ];
+    // Extract itemized votehead breakdown if available
+    let rawItems: any[] = [];
+    const possibleItems = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items || (receipt as any).voteheads;
+    if (typeof possibleItems === 'string') {
+        try { rawItems = JSON.parse(possibleItems); } catch (e) {}
+    } else if (Array.isArray(possibleItems)) {
+        rawItems = possibleItems;
+    }
+
+    // Main line items table with itemized votehead distribution
+    const head = [['#', 'VOTEHEAD / ALLOCATED FEE ITEM', 'REFERENCE / INVOICE', 'AMOUNT APPORTIONED (KES)']];
+    let body: any[] = [];
+    if (rawItems && rawItems.length > 0) {
+        body = rawItems.map((item: any, idx: number) => {
+            const itemDesc = item.description || item.name || item.voteheadName || `Votehead ${idx + 1}`;
+            const itemRef = item.invoiceNumber ? `Invoice #${item.invoiceNumber}` : (transaction?.transactionId || receipt?.relatedTransactionId || 'Direct Payment');
+            const itemAmt = Number(item.amount || item.allocatedAmount || 0);
+            return [
+                idx + 1,
+                itemDesc,
+                itemRef,
+                `KES ${itemAmt.toLocaleString()}.00`
+            ];
+        });
+    } else {
+        body = [
+            [
+                1,
+                receipt?.paidFor || 'Academic Tuition & School Fees',
+                transaction?.transactionId || receipt?.relatedTransactionId || 'N/A',
+                `KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`
+            ]
+        ];
+    }
 
     doc.autoTable({
         head: head,
@@ -1672,8 +1696,11 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
 
     // Line Items Content
     doc.setFont('helvetica', 'normal');
-    const rawItems = (receipt as any).items;
-    const items = rawItems && rawItems.length > 0 
+    let rawItems = (receipt as any).items || (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown;
+    if (typeof rawItems === 'string') {
+        try { rawItems = JSON.parse(rawItems); } catch(e) {}
+    }
+    const items = Array.isArray(rawItems) && rawItems.length > 0 
         ? rawItems 
         : [{ name: receipt.paidFor || 'Academic Tuition & School Fees', amount: receipt.amountPaid }];
 
