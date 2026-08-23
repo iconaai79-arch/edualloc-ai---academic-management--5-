@@ -1222,6 +1222,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [installmentClass, setInstallmentClass] = useState<string>('All');
     const [expandedInstallmentStudentIds, setExpandedInstallmentStudentIds] = useState<string[]>([]);
 
+    // Daily Fee Collection Summary Filter & Pagination States
+    const [dailyColTerm, setDailyColTerm] = useState<string>('all');
+    const [dailyColPeriod, setDailyColPeriod] = useState<'all' | 'today' | 'this_week' | 'this_month' | 'last_month' | 'custom'>('all');
+    const [dailyColStartDate, setDailyColStartDate] = useState('');
+    const [dailyColEndDate, setDailyColEndDate] = useState('');
+    const [dailyColSearch, setDailyColSearch] = useState('');
+    const [dailyColCurrentPage, setDailyColCurrentPage] = useState(1);
+    const [dailyColPerPage, setDailyColPerPage] = useState<number>(15);
+
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'grades_streams' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding' | 'numbering'>('opening_balance');
 
@@ -16449,18 +16458,114 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     return Array.isArray(items) ? items : [];
                                 };
 
-                                // 1. Daily Collection Summary calculation
-                                const collectionsByDate: Record<string, { date: string; minRcpt: string; maxRcpt: string; voteMap: Record<string, number>; total: number }> = {};
-                                const allVoteHeads: string[] = Array.from(new Set(
-                                    mappedInvoices.flatMap((inv: any) =>
-                                        getInvoiceItems(inv).map((v: any) => v.name || v.voteHeadName || v.description || 'General')
-                                    )
-                                ));
+                                // Discover all voteheads from Invoices, Fee Structures, and Voteheads table
+                                const voteHeadSet = new Set<string>();
+                                mappedInvoices.forEach((inv: any) => {
+                                    getInvoiceItems(inv).forEach((v: any) => {
+                                        const name = (v.name || v.voteHeadName || v.description || '').trim();
+                                        if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
+                                    });
+                                });
+                                mappedFeeStructures.forEach((fs: any) => {
+                                    getInvoiceItems(fs).forEach((v: any) => {
+                                        const name = (v.name || v.voteHeadName || v.description || '').trim();
+                                        if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
+                                    });
+                                });
+                                (props.voteHeads || []).forEach((vh: any) => {
+                                    const name = (vh.name || vh.voteHeadName || '').trim();
+                                    if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
+                                });
+                                const allVoteHeads: string[] = Array.from(voteHeadSet);
 
-                                mappedReceipts.forEach((rcpt: any) => {
+                                // 3. Helper for Term matching
+                                const getTermIndex = (dateStr: string) => {
+                                    if (!dateStr) return 0;
+                                    const d = new Date(dateStr);
+                                    if (isNaN(d.getTime())) return 0;
+                                    
+                                    const matchedSemIndex = (props.semesters || []).findIndex((sem: any) => {
+                                        if (!sem.startDate || !sem.endDate) return false;
+                                        const start = new Date(sem.startDate);
+                                        const end = new Date(sem.endDate);
+                                        return d >= start && d <= end;
+                                    });
+                                    if (matchedSemIndex !== -1) {
+                                        return Math.min(matchedSemIndex, 2);
+                                    }
+
+                                    const month = d.getMonth() + 1;
+                                    if (month >= 1 && month <= 4) return 0;
+                                    if (month >= 5 && month <= 8) return 1;
+                                    return 2;
+                                };
+
+                                // Filter receipts for Daily Collection based on Term, Period / Date Range, and Search
+                                const filteredDailyReceipts = mappedReceipts.filter((rcpt: any) => {
+                                    const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '';
+
+                                    // Filter by Term
+                                    if (dailyColTerm !== 'all' && dateStr) {
+                                        const tIdx = getTermIndex(dateStr);
+                                        if (dailyColTerm === 'term_1' && tIdx !== 0) return false;
+                                        if (dailyColTerm === 'term_2' && tIdx !== 1) return false;
+                                        if (dailyColTerm === 'term_3' && tIdx !== 2) return false;
+                                    }
+
+                                    // Filter by Date Range / Period
+                                    if (dateStr) {
+                                        const rcptDate = new Date(dateStr);
+                                        const now = new Date();
+                                        const todayStr = now.toISOString().split('T')[0];
+
+                                        if (dailyColPeriod === 'today') {
+                                            if (dateStr !== todayStr) return false;
+                                        } else if (dailyColPeriod === 'this_week') {
+                                            const oneWeekAgo = new Date();
+                                            oneWeekAgo.setDate(now.getDate() - 7);
+                                            if (rcptDate < oneWeekAgo) return false;
+                                        } else if (dailyColPeriod === 'this_month') {
+                                            if (rcptDate.getMonth() !== now.getMonth() || rcptDate.getFullYear() !== now.getFullYear()) return false;
+                                        } else if (dailyColPeriod === 'last_month') {
+                                            const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+                                            const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                                            if (rcptDate.getMonth() !== lastMonth || rcptDate.getFullYear() !== year) return false;
+                                        } else if (dailyColPeriod === 'custom') {
+                                            if (dailyColStartDate && dateStr < dailyColStartDate) return false;
+                                            if (dailyColEndDate && dateStr > dailyColEndDate) return false;
+                                        }
+                                    }
+
+                                    // Filter by Search Query
+                                    if (dailyColSearch) {
+                                        const q = dailyColSearch.trim().toLowerCase();
+                                        const rNum = String(rcpt.receiptNumber || rcpt.id || '').toLowerCase();
+                                        const sName = String((rcpt as any).studentName || (rcpt as any).student_name || (rcpt as any).payerName || '').toLowerCase();
+                                        const method = String(rcpt.paymentMethod || rcpt.method || '').toLowerCase();
+                                        const paidFor = String(rcpt.paidFor || (rcpt as any).description || '').toLowerCase();
+                                        const matches = dateStr.includes(q) || rNum.includes(q) || sName.includes(q) || method.includes(q) || paidFor.includes(q);
+                                        if (!matches) return false;
+                                    }
+
+                                    return true;
+                                });
+
+                                // Build student lookup helper for votehead breakdown
+                                const studentInvoicesMap = new Map<string, any[]>();
+                                mappedInvoices.forEach((inv: any) => {
+                                    const sId = inv.studentId || (inv as any).student_id || (inv as any).userId;
+                                    if (sId) {
+                                        if (!studentInvoicesMap.has(sId)) studentInvoicesMap.set(sId, []);
+                                        studentInvoicesMap.get(sId)!.push(inv);
+                                    }
+                                });
+
+                                const collectionsByDate: Record<string, { date: string; minRcpt: string; maxRcpt: string; voteMap: Record<string, number>; total: number; receiptCount: number }> = {};
+
+                                filteredDailyReceipts.forEach((rcpt: any) => {
                                     const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '—';
                                     if (!collectionsByDate[dateStr]) {
-                                        collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0 };
+                                        collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0, receiptCount: 0 };
                                     }
                                     const day = collectionsByDate[dateStr];
                                     const rNum = rcpt.receiptNumber || rcpt.id?.slice(-8);
@@ -16469,34 +16574,114 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     if (!day.minRcpt || rNum < day.minRcpt) day.minRcpt = rNum;
                                     if (!day.maxRcpt || rNum > day.maxRcpt) day.maxRcpt = rNum;
 
-                                    day.total += rcpt.amountPaid || 0;
+                                    const amt = Number(rcpt.amountPaid || (rcpt as any).amount_paid || (rcpt as any).amount || 0);
+                                    day.total += amt;
+                                    day.receiptCount += 1;
 
                                     // Distribute amount paid to voteheads
-                                    const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
-                                    if (inv) {
-                                        const items = getInvoiceItems(inv);
-                                        const totalInv = items.reduce((s, it) => s + (it.amount || 0), 0);
-                                        if (totalInv > 0) {
-                                            items.forEach((it: any) => {
-                                                const key = it.name || it.voteHeadName || it.description || 'General';
-                                                day.voteMap[key] = (day.voteMap[key] || 0) + ((it.amount || 0) / totalInv) * (rcpt.amountPaid || 0);
-                                            });
-                                        } else {
-                                            day.voteMap['General'] = (day.voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                    let allocated = false;
+
+                                    // 1. Direct Invoice Tag
+                                    if (rcpt.invoiceId) {
+                                        const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
+                                        if (inv) {
+                                            const items = getInvoiceItems(inv);
+                                            const totalInv = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+                                            if (totalInv > 0) {
+                                                items.forEach((it: any) => {
+                                                    const key = (it.name || it.voteHeadName || it.description || 'General').trim();
+                                                    day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalInv) * amt);
+                                                });
+                                                allocated = true;
+                                            }
                                         }
-                                    } else {
-                                        day.voteMap['General'] = (day.voteMap['General'] || 0) + (rcpt.amountPaid || 0);
+                                    }
+
+                                    // 2. Match student from Student Directory / Invoices / Class Fee Structure
+                                    if (!allocated) {
+                                        const sId = rcpt.studentId || (rcpt as any).student_id || (rcpt as any).userId;
+                                        const rAdm = String(rcpt.admissionNumber || (rcpt as any).admission_number || (rcpt as any).studentAdmissionNumber || (rcpt as any).admNo || (rcpt as any).adm_no || '').trim().toLowerCase();
+                                        const rName = String((rcpt as any).studentName || (rcpt as any).student_name || (rcpt as any).payerName || '').trim().toLowerCase();
+
+                                        const student = (mergedStudents.length > 0 ? mergedStudents : props.students).find((s: any) => {
+                                            if (!s) return false;
+                                            if (sId && (s.id === sId || (s as any).userId === sId)) return true;
+                                            const sAdm = getStudentAdmNumber(s).toLowerCase();
+                                            if (rAdm && sAdm && (sAdm === rAdm || sAdm.replace(/^0+/, '') === rAdm.replace(/^0+/, ''))) return true;
+                                            if (rName && s.name && s.name.trim().toLowerCase() === rName) return true;
+                                            return false;
+                                        });
+
+                                        if (student) {
+                                            const sInvs = studentInvoicesMap.get(student.id) || [];
+                                            if (sInvs.length > 0) {
+                                                const allItems = sInvs.flatMap((inv: any) => getInvoiceItems(inv));
+                                                const totalInv = allItems.reduce((s, it) => s + Number(it.amount || 0), 0);
+                                                if (totalInv > 0) {
+                                                    allItems.forEach((it: any) => {
+                                                        const key = (it.name || it.voteHeadName || it.description || 'General').trim();
+                                                        day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalInv) * amt);
+                                                    });
+                                                    allocated = true;
+                                                }
+                                            }
+
+                                            if (!allocated) {
+                                                const cls = (student.className || studentClassGroup(student) || '').trim().toLowerCase();
+                                                const matchingFs = mappedFeeStructures.find((fs: any) => {
+                                                    const fsCls = (fs.gradeLevel || fs.className || fs.name || '').trim().toLowerCase();
+                                                    return fsCls && (fsCls === cls || cls.includes(fsCls) || fsCls.includes(cls));
+                                                });
+                                                if (matchingFs) {
+                                                    const fsItems = getInvoiceItems(matchingFs);
+                                                    const totalFs = fsItems.reduce((s, it) => s + Number(it.amount || 0), 0);
+                                                    if (totalFs > 0) {
+                                                        fsItems.forEach((it: any) => {
+                                                            const key = (it.name || it.voteHeadName || it.description || 'General').trim();
+                                                            day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalFs) * amt);
+                                                        });
+                                                        allocated = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // 3. PaidFor / Description specific keyword match
+                                    if (!allocated) {
+                                        const paidFor = String(rcpt.paidFor || (rcpt as any).description || (rcpt as any).paymentFor || '').trim().toLowerCase();
+                                        const matchedVh = allVoteHeads.find(vh => vh.toLowerCase() !== 'general' && paidFor.includes(vh.toLowerCase()));
+                                        if (matchedVh) {
+                                            day.voteMap[matchedVh] = (day.voteMap[matchedVh] || 0) + amt;
+                                            allocated = true;
+                                        }
+                                    }
+
+                                    // 4. Default allocation to General
+                                    if (!allocated) {
+                                        day.voteMap['General'] = (day.voteMap['General'] || 0) + amt;
                                     }
                                 });
 
                                 const collectionList = Object.values(collectionsByDate).sort((a, b) => b.date.localeCompare(a.date));
 
+                                // Pagination for Daily Collection Summary
+                                const isDailyColAll = dailyColPerPage === 0;
+                                const totalDailyColRecords = collectionList.length;
+                                const totalDailyColPages = isDailyColAll ? 1 : Math.max(1, Math.ceil(totalDailyColRecords / dailyColPerPage));
+                                const paginatedCollectionList = isDailyColAll 
+                                    ? collectionList 
+                                    : collectionList.slice((dailyColCurrentPage - 1) * dailyColPerPage, dailyColCurrentPage * dailyColPerPage);
+
                                 // Payment method summaries for Daily Collection
                                 const paymentMethodSummary: Record<string, number> = {};
-                                mappedReceipts.forEach((r: any) => {
+                                filteredDailyReceipts.forEach((r: any) => {
                                     const method = r.paymentMethod || r.method || 'Cash';
                                     paymentMethodSummary[method] = (paymentMethodSummary[method] || 0) + (r.amountPaid || 0);
                                 });
+
+                                const totalCollectionsSum = collectionList.reduce((s, c) => s + c.total, 0);
+                                const totalReceiptsSum = collectionList.reduce((s, c) => s + c.receiptCount, 0);
 
                                 // 2. Cash Book calculation
                                 const allCashEntries = [
@@ -16627,26 +16812,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }).reverse();
 
                                 // 3. Fee Register calculation
-                                const getTermIndex = (dateStr: string) => {
-                                    if (!dateStr) return 0;
-                                    const d = new Date(dateStr);
-                                    if (isNaN(d.getTime())) return 0;
-                                    
-                                    const matchedSemIndex = (props.semesters || []).findIndex((sem: any) => {
-                                        if (!sem.startDate || !sem.endDate) return false;
-                                        const start = new Date(sem.startDate);
-                                        const end = new Date(sem.endDate);
-                                        return d >= start && d <= end;
-                                    });
-                                    if (matchedSemIndex !== -1) {
-                                        return Math.min(matchedSemIndex, 2);
-                                    }
-
-                                    const month = d.getMonth() + 1;
-                                    if (month >= 1 && month <= 4) return 0;
-                                    if (month >= 5 && month <= 8) return 1;
-                                    return 2;
-                                };
 
                                 const filteredFeeRegStudents = props.students.filter((s: any) => {
                                     if (!feeRegClass || feeRegClass === 'All') return true;
@@ -16717,10 +16882,192 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {/* 1. Collection Tab */}
                                         {ledgerSubTab === 'collection_summary' && (
                                             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
-                                                <div>
-                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Daily Fee Collection Summary</h3>
-                                                    <p className="text-[10px] text-slate-400 font-medium">Daily summary of collections broken down by date and voteheads</p>
+                                                {/* Header & Export Actions */}
+                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                    <div>
+                                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Daily Fee Collection Summary</h3>
+                                                        <p className="text-[10px] text-slate-400 font-medium">Daily summary of collections broken down by date, voteheads, and payment channels</p>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap items-center gap-2.5 print:hidden">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const headers = ['Date', 'Receipt Range', ...allVoteHeads, 'General', 'Total Collected'];
+                                                                const rows = collectionList.map(day => [
+                                                                    day.date,
+                                                                    day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`,
+                                                                    ...allVoteHeads.map(vh => Math.round(day.voteMap[vh] || 0)),
+                                                                    Math.round(day.voteMap['General'] || 0),
+                                                                    day.total
+                                                                ]);
+                                                                exportCSV(`daily_fee_collection_summary_${dailyColPeriod}`, headers, rows);
+                                                            }}
+                                                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                        >
+                                                            📥 Export CSV
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => window.print()}
+                                                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                        >
+                                                            🖨️ Print Report
+                                                        </button>
+                                                    </div>
                                                 </div>
+
+                                                {/* Summary Metric Stats */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                    <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Collected</p>
+                                                        <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">KSh {totalCollectionsSum.toLocaleString()}</p>
+                                                    </div>
+                                                    <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipts Processed</p>
+                                                        <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{totalReceiptsSum.toLocaleString()} receipts</p>
+                                                    </div>
+                                                    <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Active Transaction Days</p>
+                                                        <p className="text-xl font-black text-slate-900 dark:text-white mt-1">{totalDailyColRecords} days</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Filters Bar: Term, Period / Date Range, Search */}
+                                                <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 space-y-4">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                                        {/* Term Filter */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Academic Term</label>
+                                                            <select
+                                                                value={dailyColTerm}
+                                                                onChange={e => {
+                                                                    setDailyColTerm(e.target.value);
+                                                                    setDailyColCurrentPage(1);
+                                                                }}
+                                                                className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                                                            >
+                                                                <option value="all">All Terms</option>
+                                                                <option value="term_1">Term 1 / Semester 1</option>
+                                                                <option value="term_2">Term 2 / Semester 2</option>
+                                                                <option value="term_3">Term 3 / Semester 3</option>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Reporting Period */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Period / Date Range</label>
+                                                            <select
+                                                                value={dailyColPeriod}
+                                                                onChange={e => {
+                                                                    setDailyColPeriod(e.target.value as any);
+                                                                    setDailyColCurrentPage(1);
+                                                                }}
+                                                                className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                                                            >
+                                                                <option value="all">All Time</option>
+                                                                <option value="today">Today</option>
+                                                                <option value="this_week">This Week</option>
+                                                                <option value="this_month">This Month</option>
+                                                                <option value="last_month">Last Month</option>
+                                                                <option value="custom">Custom Date Range</option>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Search Filter */}
+                                                        <div className="space-y-1.5 lg:col-span-2">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Transactions</label>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Search by date (YYYY-MM-DD), receipt #, student, or channel..."
+                                                                    value={dailyColSearch}
+                                                                    onChange={e => {
+                                                                        setDailyColSearch(e.target.value);
+                                                                        setDailyColCurrentPage(1);
+                                                                    }}
+                                                                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400"
+                                                                />
+                                                                {(dailyColTerm !== 'all' || dailyColPeriod !== 'all' || dailyColSearch || dailyColStartDate || dailyColEndDate) && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setDailyColTerm('all');
+                                                                            setDailyColPeriod('all');
+                                                                            setDailyColStartDate('');
+                                                                            setDailyColEndDate('');
+                                                                            setDailyColSearch('');
+                                                                            setDailyColCurrentPage(1);
+                                                                        }}
+                                                                        className="px-3 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer"
+                                                                    >
+                                                                        Reset
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Custom Start & End Date Pickers */}
+                                                    {dailyColPeriod === 'custom' && (
+                                                        <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                                                            <div className="w-full sm:w-48 space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Start Date</label>
+                                                                <input
+                                                                    type="date"
+                                                                    value={dailyColStartDate}
+                                                                    onChange={e => {
+                                                                        setDailyColStartDate(e.target.value);
+                                                                        setDailyColCurrentPage(1);
+                                                                    }}
+                                                                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                />
+                                                            </div>
+                                                            <div className="w-full sm:w-48 space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">End Date</label>
+                                                                <input
+                                                                    type="date"
+                                                                    value={dailyColEndDate}
+                                                                    onChange={e => {
+                                                                        setDailyColEndDate(e.target.value);
+                                                                        setDailyColCurrentPage(1);
+                                                                    }}
+                                                                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Rows per page selector bar */}
+                                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500">
+                                                        <p className="font-bold">
+                                                            Showing <span className="text-slate-900 dark:text-white font-black">{totalDailyColRecords === 0 ? 0 : (isDailyColAll ? 1 : (dailyColCurrentPage - 1) * dailyColPerPage + 1)}</span> to <span className="text-slate-900 dark:text-white font-black">{isDailyColAll ? totalDailyColRecords : Math.min(dailyColCurrentPage * dailyColPerPage, totalDailyColRecords)}</span> of <span className="text-slate-900 dark:text-white font-black">{totalDailyColRecords}</span> days
+                                                        </p>
+
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rows per page:</span>
+                                                            {[10, 15, 25, 50, 100, 0].map(size => (
+                                                                <button
+                                                                    key={size}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setDailyColPerPage(size);
+                                                                        setDailyColCurrentPage(1);
+                                                                    }}
+                                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                                        dailyColPerPage === size
+                                                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                                                                    }`}
+                                                                >
+                                                                    {size === 0 ? 'All' : size}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Daily Fee Collection Summary Table */}
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-left">
                                                         <thead>
@@ -16733,31 +17080,128 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {collectionList.map((day, i) => (
+                                                            {paginatedCollectionList.map((day, i) => (
                                                                 <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                    <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
-                                                                    <TD cls="text-slate-500 font-bold">
+                                                                    <TD cls="font-bold text-slate-900 dark:text-white whitespace-nowrap">{day.date}</TD>
+                                                                    <TD cls="text-slate-500 font-bold whitespace-nowrap">
                                                                         {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} · ${day.maxRcpt}`}
                                                                     </TD>
                                                                     {allVoteHeads.map(vh => (
-                                                                        <TD key={vh} cls="font-medium text-slate-700 dark:text-slate-300">
+                                                                        <TD key={vh} cls="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                                                             {day.voteMap[vh] > 0 ? `KSh ${Math.round(day.voteMap[vh]).toLocaleString()}` : '—'}
                                                                         </TD>
                                                                     ))}
-                                                                    <TD cls="font-medium text-slate-700 dark:text-slate-300">
+                                                                    <TD cls="font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                                                         {day.voteMap['General'] > 0 ? `KSh ${Math.round(day.voteMap['General']).toLocaleString()}` : '—'}
                                                                     </TD>
-                                                                    <TD cls="font-black text-emerald-600">KSh {day.total.toLocaleString()}</TD>
+                                                                    <TD cls="font-black text-emerald-600 whitespace-nowrap">KSh {day.total.toLocaleString()}</TD>
                                                                 </tr>
                                                             ))}
-                                                            {collectionList.length === 0 && (
+                                                            {paginatedCollectionList.length === 0 && (
                                                                 <tr>
-                                                                    <td colSpan={allVoteHeads.length + 4} className="py-8 text-center text-slate-400 font-medium">No collections recorded.</td>
+                                                                    <td colSpan={allVoteHeads.length + 4} className="py-12 text-center text-slate-400 font-bold italic">
+                                                                        No collection records match the selected term, period, or search query.
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                            {/* Column Totals Row */}
+                                                            {collectionList.length > 0 && (
+                                                                <tr className="border-t-2 border-slate-200 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-950/20 font-black">
+                                                                    <TD cls="text-[10px] uppercase tracking-widest text-slate-900 dark:text-white">TOTALS</TD>
+                                                                    <TD cls="text-[10px] text-slate-500">{totalReceiptsSum} receipts</TD>
+                                                                    {allVoteHeads.map(vh => {
+                                                                        const vhTotal = collectionList.reduce((acc, d) => acc + (d.voteMap[vh] || 0), 0);
+                                                                        return (
+                                                                            <TD key={vh} cls="text-slate-900 dark:text-white whitespace-nowrap">
+                                                                                {vhTotal > 0 ? `KSh ${Math.round(vhTotal).toLocaleString()}` : '—'}
+                                                                            </TD>
+                                                                        );
+                                                                    })}
+                                                                    <TD cls="text-slate-900 dark:text-white whitespace-nowrap">
+                                                                        {(() => {
+                                                                            const genTotal = collectionList.reduce((acc, d) => acc + (d.voteMap['General'] || 0), 0);
+                                                                            return genTotal > 0 ? `KSh ${Math.round(genTotal).toLocaleString()}` : '—';
+                                                                        })()}
+                                                                    </TD>
+                                                                    <TD cls="text-emerald-600 whitespace-nowrap">KSh {totalCollectionsSum.toLocaleString()}</TD>
                                                                 </tr>
                                                             )}
                                                         </tbody>
                                                     </table>
                                                 </div>
+
+                                                {/* Windowed Pagination Bar */}
+                                                {!isDailyColAll && totalDailyColPages > 1 && (
+                                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/80">
+                                                        <p className="text-xs text-slate-400 font-bold">
+                                                            Page <span className="text-slate-900 dark:text-white font-black">{dailyColCurrentPage}</span> of <span className="text-slate-900 dark:text-white font-black">{totalDailyColPages}</span>
+                                                        </p>
+
+                                                        <div className="flex items-center gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDailyColCurrentPage(1)}
+                                                                disabled={dailyColCurrentPage === 1}
+                                                                className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                            >
+                                                                « First
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDailyColCurrentPage(prev => Math.max(1, prev - 1))}
+                                                                disabled={dailyColCurrentPage === 1}
+                                                                className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                            >
+                                                                ‹ Prev
+                                                            </button>
+
+                                                            {Array.from({ length: totalDailyColPages }, (_, i) => i + 1)
+                                                                .filter(p => p === 1 || p === totalDailyColPages || Math.abs(p - dailyColCurrentPage) <= 2)
+                                                                .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                                                                    if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) {
+                                                                        acc.push('...');
+                                                                    }
+                                                                    acc.push(page);
+                                                                    return acc;
+                                                                }, [])
+                                                                .map((item, idx) => (
+                                                                    item === '...' ? (
+                                                                        <span key={`col-ellipsis-${idx}`} className="px-2 text-xs font-black text-slate-300">...</span>
+                                                                    ) : (
+                                                                        <button
+                                                                            key={item}
+                                                                            type="button"
+                                                                            onClick={() => setDailyColCurrentPage(item as number)}
+                                                                            className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${
+                                                                                dailyColCurrentPage === item
+                                                                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                                            }`}
+                                                                        >
+                                                                            {item}
+                                                                        </button>
+                                                                    )
+                                                                ))}
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDailyColCurrentPage(prev => Math.min(totalDailyColPages, prev + 1))}
+                                                                disabled={dailyColCurrentPage === totalDailyColPages}
+                                                                className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                            >
+                                                                Next ›
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDailyColCurrentPage(totalDailyColPages)}
+                                                                disabled={dailyColCurrentPage === totalDailyColPages}
+                                                                className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                                            >
+                                                                Last »
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {/* Bottom Payment Method Summary */}
                                                 <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60">
