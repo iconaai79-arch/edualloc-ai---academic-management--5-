@@ -2400,17 +2400,72 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const studentFinanceData = useMemo(() => {
         const filteredStudents = mergedStudents.filter(s => matchesSelectedBranch(s));
         return filteredStudents.map(s => {
-            const enrollment = mergedEnrollments.find(e => e.userId === s.id);
-            const adm = studentAdmissionNumber(s);
+            const enrollment = mergedEnrollments.find(e => e.userId === s.id || (e as any).user_id === s.id || (e as any).studentId === s.id);
+            const adm = getStudentAdmNumber(s) || studentAdmissionNumber(s);
             const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
+
+            // Collect all student identifier variants for robust matching
+            const studentIds = new Set<string>();
+            if (s.id) {
+                studentIds.add(String(s.id).trim().toLowerCase());
+                studentIds.add(cleanId(String(s.id)).toLowerCase());
+            }
+            if ((s as any).userId) {
+                studentIds.add(String((s as any).userId).trim().toLowerCase());
+                studentIds.add(cleanId(String((s as any).userId)).toLowerCase());
+            }
+            if ((s as any).user_id) {
+                studentIds.add(String((s as any).user_id).trim().toLowerCase());
+                studentIds.add(cleanId(String((s as any).user_id)).toLowerCase());
+            }
+            if (adm && adm !== '—') {
+                const admClean = String(adm).trim().toLowerCase();
+                studentIds.add(admClean);
+                const noZeros = admClean.replace(/^0+/, '');
+                if (noZeros) studentIds.add(noZeros);
+            }
+            [
+                s.admissionNumber,
+                (s as any).admission_number,
+                (s as any).admissionNo,
+                (s as any).admNo,
+                (s as any).adm_no,
+                (s as any).staffId,
+                (s as any).staff_id,
+                (s as any).customStudentId,
+                (s as any).custom_student_id,
+                (s as any).regNo,
+                (s as any).reg_no,
+                (s as any).registrationNumber,
+                (s as any).registration_number,
+                enrollment?.admissionNumber,
+                enrollment?.admission_number,
+                enrollment?.admNo,
+                s.metadata?.admissionNumber,
+                s.metadata?.admission_number,
+                s.metadata?.admNo
+            ].forEach(val => {
+                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '—' && String(val).trim() !== 'undefined') {
+                    const str = String(val).trim().toLowerCase();
+                    studentIds.add(str);
+                    const stripped = str.replace(/^0+/, '');
+                    if (stripped) studentIds.add(stripped);
+                }
+            });
+
+            const studentNameLower = s.name ? String(s.name).trim().toLowerCase() : '';
 
             const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? extractStudentOpeningBalance(s));
 
-            const studentInvoices = mappedInvoices.filter(inv => 
-                (inv.studentId === s.id || (inv as any).student_id === s.id || String(inv.studentId) === String(s.id) || String((inv as any).student_id) === String(s.id) || (adm && adm !== '—' && (inv.admissionNumber === adm || inv.admission_number === adm))) && 
-                inv.status !== 'cancelled' && 
-                inv.status !== 'quote'
-            );
+            const studentInvoices = mappedInvoices.filter(inv => {
+                if (inv.status === 'cancelled' || inv.status === 'quote') return false;
+                const invStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
+                if (invStudentId && studentIds.has(invStudentId)) return true;
+                const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim().toLowerCase();
+                if (invAdm && (studentIds.has(invAdm) || (invAdm.replace(/^0+/, '') && studentIds.has(invAdm.replace(/^0+/, ''))))) return true;
+                if ((inv as any).studentName && studentNameLower && String((inv as any).studentName).trim().toLowerCase() === studentNameLower) return true;
+                return false;
+            });
             const invoicedWithoutOpening = studentInvoices.reduce((sum, inv) => {
                 const amt = inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
@@ -2418,14 +2473,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             
             const totalInvoiced = (openingBal > 0 ? openingBal : 0) + invoicedWithoutOpening;
 
-            const studentReceipts = mappedReceipts.filter(rec => 
-                rec.studentId === s.id || 
-                (rec as any).student_id === s.id || 
-                String(rec.studentId) === String(s.id) || 
-                String((rec as any).student_id) === String(s.id) ||
-                (adm && adm !== '—' && (rec.admissionNumber === adm || rec.admission_number === adm)) ||
-                studentInvoices.some(i => i.id === rec.invoiceId || i.id === (rec as any).invoice_id)
-            );
+            const studentReceipts = mappedReceipts.filter(rec => {
+                const recStudentId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
+                if (recStudentId && studentIds.has(recStudentId)) return true;
+                const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
+                if (recAdm && (studentIds.has(recAdm) || (recAdm.replace(/^0+/, '') && studentIds.has(recAdm.replace(/^0+/, ''))))) return true;
+                const recInvId = rec.invoiceId || (rec as any).invoice_id;
+                if (recInvId && studentInvoices.some(i => i.id === recInvId || String(i.id) === String(recInvId))) return true;
+                if ((rec as any).studentName && studentNameLower && String((rec as any).studentName).trim().toLowerCase() === studentNameLower) return true;
+                return false;
+            });
             const paid = studentReceipts.reduce((sum, rec) => {
                 const amt = rec.amountPaid || (rec as any).amount_paid || (rec as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
@@ -2465,13 +2522,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     openingBalance: openingBal,
                     invoicedWithoutOpening,
                     invoiced: totalInvoiced,
-                    paid,
+                    paid: totalPaid,
+                    receiptsPaid: paid,
                     balance,
                     prepayment
                 }
             };
         });
-    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch]);
+    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch, getStudentAdmNumber, cleanId]);
 
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
