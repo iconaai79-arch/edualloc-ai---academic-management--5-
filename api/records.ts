@@ -424,6 +424,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 delete copy.preferredLessonHours;
             }
             if (moduleName === 'receipts' || moduleName === 'payments' || moduleName === 'ds_payments') {
+                if (copy.amount !== undefined && copy.amount_paid === undefined) {
+                    copy.amount_paid = copy.amount;
+                }
+                delete copy.amount;
+                if (copy.amountPaid !== undefined) {
+                    if (copy.amount_paid === undefined) copy.amount_paid = copy.amountPaid;
+                    delete copy.amountPaid;
+                }
                 delete copy.admDisplay;
                 delete copy.excelPaymentMode;
                 delete copy.matchStatus;
@@ -433,6 +441,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 delete copy.student_adm;
                 delete copy.admission_number;
                 delete copy.admissionNumber;
+            }
+            if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
+                if (copy.amount !== undefined && copy.total_amount === undefined) {
+                    copy.total_amount = copy.amount;
+                }
+                delete copy.amount;
+                if (copy.totalAmount !== undefined) {
+                    if (copy.total_amount === undefined) copy.total_amount = copy.totalAmount;
+                    delete copy.totalAmount;
+                }
             }
             universalKeys.forEach(k => {
                 if (k in copy) delete copy[k];
@@ -657,6 +675,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.paymentDate !== undefined) {
                         copy.payment_date = copy.payment_date || parseDate(copy.paymentDate);
                         delete copy.paymentDate;
+                    }
+
+                    if (moduleName === 'receipts' || moduleName === 'payments' || moduleName === 'ds_payments') {
+                        if (copy.amount !== undefined && copy.amount_paid === undefined) {
+                            copy.amount_paid = copy.amount;
+                        }
+                        delete copy.amount;
+                        if (copy.amountPaid !== undefined) {
+                            if (copy.amount_paid === undefined) copy.amount_paid = copy.amountPaid;
+                            delete copy.amountPaid;
+                        }
+                    }
+                    if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
+                        if (copy.amount !== undefined && copy.total_amount === undefined) {
+                            copy.total_amount = copy.amount;
+                        }
+                        delete copy.amount;
+                        if (copy.totalAmount !== undefined) {
+                            if (copy.total_amount === undefined) copy.total_amount = copy.totalAmount;
+                            delete copy.totalAmount;
+                        }
                     }
 
                     // Strip un-cached transient fields that do not exist as physical columns
