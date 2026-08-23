@@ -69,6 +69,36 @@ export const AcademicYearManager: React.FC<AcademicYearManagerProps> = ({
         }
     }, [sortedAcademicYears, selectedYearId]);
 
+    // Auto-activate active semester/term based on current date
+    useEffect(() => {
+        if (!semesters || semesters.length === 0 || !onUpdateSemester) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const currentSem = semesters.find(s => {
+            if (!s.startDate || !s.endDate) return false;
+            const start = String(s.startDate).split('T')[0];
+            const end = String(s.endDate).split('T')[0];
+            return start <= todayStr && todayStr <= end;
+        });
+        if (currentSem && currentSem.status !== 'active') {
+            onUpdateSemester(currentSem.id, { status: 'active' });
+        }
+    }, [semesters, onUpdateSemester]);
+
+    // Auto-activate active academic year based on current date
+    useEffect(() => {
+        if (!academicYears || academicYears.length === 0 || !onUpdateAcademicYear) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const currentYear = academicYears.find(y => {
+            if (!y.startDate || !y.endDate) return false;
+            const start = String(y.startDate).split('T')[0];
+            const end = String(y.endDate).split('T')[0];
+            return start <= todayStr && todayStr <= end;
+        });
+        if (currentYear && currentYear.status !== 'active') {
+            onUpdateAcademicYear(currentYear.id, { status: 'active' });
+        }
+    }, [academicYears, onUpdateAcademicYear]);
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (listContainerRef.current && !listContainerRef.current.contains(event.target as Node)) {

@@ -1163,6 +1163,80 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setLocalSemesters(props.semesters || []);
     }, [props.semesters]);
 
+    // Auto-Activation Engine: Automatically activates term and academic year based on current date
+    const [autoActivateByDate, setAutoActivateByDate] = useState(true);
+
+    const autoSyncTermsAndYearsByDate = useCallback(async (termsList: any[], yearsList: any[], silent = false) => {
+        if (!termsList || termsList.length === 0) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // 1. Check matching term for today
+        const matchingTerm = termsList.find(t => {
+            if (!t.startDate || !t.endDate) return false;
+            const start = String(t.startDate).split('T')[0];
+            const end = String(t.endDate).split('T')[0];
+            return start <= todayStr && todayStr <= end;
+        });
+
+        if (matchingTerm && matchingTerm.status !== 'active') {
+            try {
+                const updatedList = termsList.map(t => {
+                    if (t.id === matchingTerm.id) return { ...t, status: 'active' as const };
+                    if (t.academicYearId === matchingTerm.academicYearId && t.status === 'active') {
+                        return { ...t, status: 'inactive' as const };
+                    }
+                    return t;
+                });
+                setLocalSemesters(updatedList);
+                await apiService.saveModuleRecord('semesters', { ...matchingTerm, status: 'active' as const });
+                const previouslyActive = termsList.filter(t => t.id !== matchingTerm.id && t.academicYearId === matchingTerm.academicYearId && t.status === 'active');
+                for (const prevTerm of previouslyActive) {
+                    await apiService.saveModuleRecord('semesters', { ...prevTerm, status: 'inactive' as const }).catch(() => {});
+                }
+                if (!silent) {
+                    console.log(`[Calendar] Auto-activated ${matchingTerm.name} for current date ${todayStr}`);
+                }
+            } catch (err) {
+                console.warn('[FinanceManager] Auto-activate term error:', err);
+            }
+        }
+
+        // 2. Check matching academic year for today
+        if (yearsList && yearsList.length > 0) {
+            const matchingYear = yearsList.find(y => {
+                if (!y.startDate || !y.endDate) return false;
+                const start = String(y.startDate).split('T')[0];
+                const end = String(y.endDate).split('T')[0];
+                return start <= todayStr && todayStr <= end;
+            });
+
+            if (matchingYear && matchingYear.status !== 'active') {
+                try {
+                    const updatedYears = yearsList.map(y => {
+                        if (y.id === matchingYear.id) return { ...y, status: 'active' as const };
+                        if (y.status === 'active') return { ...y, status: 'inactive' as const };
+                        return y;
+                    });
+                    setLocalAcademicYears(updatedYears);
+                    await apiService.saveModuleRecord('academic_years', { ...matchingYear, status: 'active' as const });
+                    const prevYears = yearsList.filter(y => y.id !== matchingYear.id && y.status === 'active');
+                    for (const prevY of prevYears) {
+                        await apiService.saveModuleRecord('academic_years', { ...prevY, status: 'inactive' as const }).catch(() => {});
+                    }
+                } catch (err) {
+                    console.warn('[FinanceManager] Auto-activate academic year error:', err);
+                }
+            }
+        }
+    }, []);
+
+    // Run auto-sync whenever terms/years load or when autoActivateByDate is toggled
+    useEffect(() => {
+        if (autoActivateByDate && localSemesters.length > 0) {
+            autoSyncTermsAndYearsByDate(localSemesters, localAcademicYears, true);
+        }
+    }, [autoActivateByDate, localSemesters, localAcademicYears, autoSyncTermsAndYearsByDate]);
+
     // Creation states for Academic Year
     const [isCreatingAy, setIsCreatingAy] = useState(false);
     const [newAyName, setNewAyName] = useState('');
@@ -11422,39 +11496,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     </p>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
-                                                                    {ay.status !== 'active' && (
-                                                                        <button 
-                                                                            onClick={async () => {
-                                                                                try {
-                                                                                    const activeYears = localAcademicYears.filter(y => y.status === 'active' && y.id !== ay.id);
-                                                                                    for (const activeAy of activeYears) {
-                                                                                        await apiService.saveModuleRecord('academic_years', { ...activeAy, status: 'inactive' as const });
-                                                                                    }
-                                                                                    const updatedAy = { ...ay, status: 'active' as const };
-                                                                                    await apiService.saveModuleRecord('academic_years', updatedAy);
-                                                                                    setLocalAcademicYears(prev => prev.map(item => {
-                                                                                        if (item.id === ay.id) return updatedAy;
-                                                                                        if (item.status === 'active') return { ...item, status: 'inactive' as const };
-                                                                                        return item;
-                                                                                    }));
-                                                                                    alert(`Academic Year ${ay.name} is now active!`);
-                                                                                    if (props.onRefreshData) await props.onRefreshData();
-                                                                                } catch (err: any) {
-                                                                                    alert("Failed to activate: " + (err.message || err));
-                                                                                }
-                                                                            }}
-                                                                            className="px-2.5 py-1 text-slate-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors border border-transparent hover:border-green-200"
-                                                                        >
-                                                                            Activate
-                                                                        </button>
-                                                                    )}
-                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                                        ay.status === 'active' 
-                                                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-250 dark:border-emerald-500/20' 
-                                                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-750'
-                                                                    }`}>
-                                                                        {ay.status === 'active' ? 'Active' : 'Inactive'}
-                                                                    </span>
+                                                                    {(() => {
+                                                                        const todayStr = new Date().toISOString().split('T')[0];
+                                                                        const isDateCurrentAy = ay.startDate && ay.endDate && (String(ay.startDate).split('T')[0] <= todayStr && todayStr <= String(ay.endDate).split('T')[0]);
+                                                                        const isAyActive = ay.status === 'active' || isDateCurrentAy;
+                                                                        return (
+                                                                            <>
+                                                                                {!isAyActive && (
+                                                                                    <button 
+                                                                                        onClick={async () => {
+                                                                                            try {
+                                                                                                const activeYears = localAcademicYears.filter(y => y.status === 'active' && y.id !== ay.id);
+                                                                                                for (const activeAy of activeYears) {
+                                                                                                    await apiService.saveModuleRecord('academic_years', { ...activeAy, status: 'inactive' as const });
+                                                                                                }
+                                                                                                const updatedAy = { ...ay, status: 'active' as const };
+                                                                                                await apiService.saveModuleRecord('academic_years', updatedAy);
+                                                                                                setLocalAcademicYears(prev => prev.map(item => {
+                                                                                                    if (item.id === ay.id) return updatedAy;
+                                                                                                    if (item.status === 'active') return { ...item, status: 'inactive' as const };
+                                                                                                    return item;
+                                                                                                }));
+                                                                                                alert(`Academic Year ${ay.name} is now active!`);
+                                                                                                if (props.onRefreshData) await props.onRefreshData();
+                                                                                            } catch (err: any) {
+                                                                                                alert("Failed to activate: " + (err.message || err));
+                                                                                            }
+                                                                                        }}
+                                                                                        className="px-2.5 py-1 text-slate-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors border border-transparent hover:border-green-200"
+                                                                                    >
+                                                                                        Activate
+                                                                                    </button>
+                                                                                )}
+                                                                                {isDateCurrentAy ? (
+                                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                                        Active (Current)
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                                                        ay.status === 'active' 
+                                                                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-250 dark:border-emerald-500/20' 
+                                                                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-750'
+                                                                                    }`}>
+                                                                                        {ay.status === 'active' ? 'Active' : 'Inactive'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </>
+                                                                        );
+                                                                    })()}
                                                                     <button 
                                                                         onClick={() => {
                                                                             setEditingAyId(ay.id);
@@ -11496,19 +11586,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 {/* Terms / Semesters list */}
                                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
-                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Terms / Semesters</h3>
-                                        <button 
-                                            onClick={() => {
-                                                if (localAcademicYears.length > 0 && !newTermAyId) {
-                                                    setNewTermAyId(localAcademicYears[0].id);
-                                                }
-                                                setIsCreatingTerm(!isCreatingTerm);
-                                            }}
-                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                        >
-                                            {isCreatingTerm ? 'Cancel' : 'Add Term'}
-                                        </button>
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800 flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Terms / Semesters</h3>
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5 shadow-sm">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                Auto-Calendar Active · Today: {new Date().toISOString().split('T')[0]}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => {
+                                                    autoSyncTermsAndYearsByDate(localSemesters, localAcademicYears);
+                                                    alert("Calendar synchronized! Active term updated based on current date.");
+                                                }}
+                                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-200/50 dark:border-indigo-800"
+                                                title="Auto-detect and activate the term matching today's date"
+                                            >
+                                                ⚡ Auto-Sync Current Term
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    if (localAcademicYears.length > 0 && !newTermAyId) {
+                                                        setNewTermAyId(localAcademicYears[0].id);
+                                                    }
+                                                    setIsCreatingTerm(!isCreatingTerm);
+                                                }}
+                                                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                            >
+                                                {isCreatingTerm ? 'Cancel' : 'Add Term'}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {isCreatingTerm && (
@@ -11636,8 +11744,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 const isEditing = editingTermId === sem.id;
                                                 const ay = localAcademicYears.find(y => y.id === sem.academicYearId);
                                                 const ayName = ay ? ay.name : 'Unknown Year';
+                                                const todayStr = new Date().toISOString().split('T')[0];
+                                                const isDateCurrentTerm = sem.startDate && sem.endDate && (String(sem.startDate).split('T')[0] <= todayStr && todayStr <= String(sem.endDate).split('T')[0]);
+                                                const isTermPast = sem.endDate && String(sem.endDate).split('T')[0] < todayStr;
+                                                const isTermUpcoming = sem.startDate && String(sem.startDate).split('T')[0] > todayStr;
+                                                const isActive = sem.status === 'active' || isDateCurrentTerm;
                                                 return (
-                                                    <div key={sem.id} className="p-4 bg-slate-50 dark:bg-slate-955 rounded-2xl border border-slate-100 dark:border-slate-900 space-y-3">
+                                                    <div key={sem.id} className={`p-4 rounded-2xl border space-y-3 transition-all ${
+                                                        isDateCurrentTerm 
+                                                        ? 'bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/60 shadow-sm'
+                                                        : 'bg-slate-50 dark:bg-slate-955 border-slate-100 dark:border-slate-900'
+                                                    }`}>
                                                         {isEditing ? (
                                                             <div className="space-y-3 text-left">
                                                                 <div className="space-y-1">
@@ -11708,13 +11825,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
-                                                                    {sem.status !== 'active' && (
+                                                                    {!isActive && (
                                                                         <button 
                                                                             onClick={async () => {
                                                                                 try {
                                                                                     const updatedSem = { ...sem, status: 'active' as const };
                                                                                     await apiService.saveModuleRecord('semesters', updatedSem);
-                                                                                    setLocalSemesters(prev => prev.map(item => item.id === sem.id ? updatedSem : item));
+                                                                                    setLocalSemesters(prev => prev.map(item => item.id === sem.id ? updatedSem : (item.academicYearId === sem.academicYearId ? { ...item, status: 'inactive' as const } : item)));
                                                                                     alert(`Term/Semester ${sem.name} is now active!`);
                                                                                     if (props.onRefreshData) await props.onRefreshData();
                                                                                 } catch (err: any) {
@@ -11726,13 +11843,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             Activate
                                                                         </button>
                                                                     )}
-                                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                                        sem.status === 'active' 
-                                                                        ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-550/20' 
-                                                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
-                                                                    }`}>
-                                                                        {sem.status === 'active' ? 'Active' : 'Inactive'}
-                                                                    </span>
+                                                                    {isDateCurrentTerm ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                            Active (Current)
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                                            sem.status === 'active' 
+                                                                            ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-550/20' 
+                                                                            : isTermPast 
+                                                                            ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-800'
+                                                                            : 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40'
+                                                                        }`}>
+                                                                            {sem.status === 'active' ? 'Active' : isTermPast ? 'Past Term' : isTermUpcoming ? 'Upcoming' : 'Inactive'}
+                                                                        </span>
+                                                                    )}
                                                                     <button 
                                                                         onClick={() => {
                                                                             setEditingTermId(sem.id);
