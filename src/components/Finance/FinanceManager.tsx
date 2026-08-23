@@ -3003,7 +3003,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         });
                     }
 
-                    const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                    const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${item.id}`;
                     const originalCreatedAt = existingReceipt?.createdAt || existingReceipt?.created_at || new Date().toISOString();
 
                     const receipt = {
