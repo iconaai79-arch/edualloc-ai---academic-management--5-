@@ -553,31 +553,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const fromName = emailConfig.from_name || emailConfig.fromName || branding.name;
 
             try {
-                const transporter = nodemailer.createTransport({
-                    host: host,
-                    port: Number(port || 587),
-                    secure: Number(port) === 465,
-                    auth: { user: username, pass: password },
-                    tls: { rejectUnauthorized: false }
-                });
-
                 const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
-
-                const info = await transporter.sendMail({
+                const mailOptions = {
                     from: `"${fromName}" <${fromEmail}>`,
                     to: recipient,
                     subject: subject || `${branding.name} Notification`,
                     text: message,
                     html: htmlContent,
-                    attachments: paramsMap.attachments // Supports { filename: string, content: string (base64) / Buffer, contentType: string }
-                });
+                    attachments: paramsMap.attachments
+                };
+
+                // Try primary port first, then fallback to 465 if ETIMEDOUT/ESOCKET
+                const tryPort = async (tryPortNum: number, trySecure: boolean) => {
+                    const t = nodemailer.createTransport({
+                        host,
+                        port: tryPortNum,
+                        secure: trySecure,
+                        auth: { user: username, pass: password },
+                        connectionTimeout: 10000,
+                        greetingTimeout: 8000,
+                        socketTimeout: 15000,
+                        tls: { rejectUnauthorized: false }
+                    });
+                    return t.sendMail(mailOptions);
+                };
+
+                let info: any;
+                try {
+                    info = await tryPort(Number(port || 587), Number(port) === 465);
+                } catch (firstErr: any) {
+                    const isConnErr = ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENOTFOUND'].includes(firstErr.code);
+                    const primaryPort = Number(port || 587);
+                    if (isConnErr && primaryPort !== 465) {
+                        console.warn(`[Email Gateway] Port ${primaryPort} timed out, retrying on 465 SSL...`);
+                        info = await tryPort(465, true);
+                    } else {
+                        throw firstErr;
+                    }
+                }
 
                 return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
             } catch (e: any) {
                 console.error("[Email Gateway] SMTP send error:", e);
                 let helpfulMsg = `SMTP Gateway error: ${e.message || 'Connection failed'}`;
-                if (e.responseCode === 535 || (e.message && e.message.includes('535'))) {
-                    helpfulMsg = `SMTP Authentication Failed (535): Invalid username or password. If using Gmail/Google Workspace, you must use a 16-character App Password (not your regular password). If using cPanel/Webmail, ensure the username is your full email address.`;
+                if (e.code === 'ETIMEDOUT' || e.code === 'ESOCKET') {
+                    helpfulMsg = `SMTP Connection Timeout: The server at ${host} did not respond on port ${port || 587} or 465. Common causes: (1) Firewall/ISP blocking outbound SMTP — try port 465 or 2525. (2) Wrong host — for Gmail use smtp.gmail.com; for cPanel use mail.yourdomain.com. (3) Server is down.`;
+                } else if (e.code === 'ECONNREFUSED') {
+                    helpfulMsg = `SMTP Connection Refused (${host}:${port}): The server actively refused the connection. Check the host and port in Settings → Email Configuration.`;
+                } else if (e.code === 'ENOTFOUND') {
+                    helpfulMsg = `SMTP Host Not Found: Cannot resolve "${host}". Check the SMTP host name in Settings → Email Configuration.`;
+                } else if (e.responseCode === 535 || (e.message && e.message.includes('535'))) {
+                    helpfulMsg = `SMTP Authentication Failed (535): Invalid username or password. For Gmail/Google Workspace: use a 16-character App Password (not your regular password). For cPanel/Webmail: use your full email address as the username.`;
+                } else if (e.responseCode === 534 || (e.message && e.message.includes('534'))) {
+                    helpfulMsg = `SMTP Auth Required (534): Enable "Less Secure Apps" or generate an App Password in your Google Account.`;
                 }
                 return res.status(200).json({ success: false, message: helpfulMsg, error: e.message, code: e.code });
             }
@@ -592,17 +620,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const alumnaName = getParam('alumnaName');
             const loginLink = getParam('loginLink') || `https://almamater.eduai.co.ke/?view=alumnae_social`;
-
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: emailConfig.host,
-                    port: Number(emailConfig.port || 587),
-                    secure: Number(emailConfig.port) === 465,
-                    auth: { user: emailConfig.username, pass: emailConfig.password },
-                    tls: { rejectUnauthorized: false }
-                });
-
-                const welcomeContent = `
+            const welcomeContent = `
                     <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Welcome to the Alumnae Circle!</h2>
                     <p>Hello <strong>${alumnaName}</strong>,</p>
                     <p>Congratulations! Your registration for the Alumnae Network is successful. We are thrilled to have you as part of our professional community.</p>
@@ -613,14 +631,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     <p style="font-size: 12px; color: #64748b;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
                 `;
 
-                const info = await transporter.sendMail({
-                    from: `"${branding.name} Alumnae" <${emailConfig.from_email || emailConfig.username}>`,
-                    to: recipient,
-                    subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
-                    html: wrapHtml(welcomeContent, branding)
+            try {
+                const createSmtpTransporter = (p: number, s: boolean) => nodemailer.createTransport({
+                    host: emailConfig.host,
+                    port: p,
+                    secure: s,
+                    auth: { user: emailConfig.username, pass: emailConfig.password },
+                    connectionTimeout: 10000,
+                    greetingTimeout: 8000,
+                    socketTimeout: 15000,
+                    tls: { rejectUnauthorized: false }
                 });
 
-                return res.status(200).json({ success: true, message: 'Welcome email sent successfully.', messageId: info.messageId });
+                const tryPortWelcome = async (tryPortNum: number, trySecure: boolean) => {
+                    const t = createSmtpTransporter(tryPortNum, trySecure);
+                    return t.sendMail({
+                        from: `"${branding.name} Alumnae" <${emailConfig.from_email || emailConfig.username}>`,
+                        to: recipient,
+                        subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
+                        html: wrapHtml(welcomeContent, branding)
+                    });
+                };
+
+                let info: any;
+                const pNum = Number(emailConfig.port || 587);
+                try {
+                    info = await tryPortWelcome(pNum, pNum === 465);
+                } catch (firstErr: any) {
+                    const isConnErr = ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENOTFOUND'].includes(firstErr.code);
+                    if (isConnErr && pNum !== 465) {
+                        console.warn(`[Email Gateway] Alumnae welcome port ${pNum} failed, retrying 465...`);
+                        info = await tryPortWelcome(465, true);
+                    } else {
+                        throw firstErr;
+                    }
+                }
+
+                return res.status(200).json({ success: true, message: 'Welcome email sent.', messageId: info.messageId });
             } catch (e: any) {
                 console.error("[Email Gateway] SMTP send welcome error:", e);
                 return res.status(200).json({ success: false, message: `SMTP Gateway welcome error: ${e.message || 'Connection failed'}` });
