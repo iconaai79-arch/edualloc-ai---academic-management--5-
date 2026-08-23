@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
@@ -3841,16 +3841,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handleDeleteReceipts = async (ids: string[]) => {
         if (ids.length === 0) return;
         setIsDeletingReceipts(true);
+        const deletedSet = new Set(ids);
         try {
+            // 1. Optimistically evict from local branch-receipt state immediately —
+            //    this is the root cause of "some not deleted": mergedReceipts merges
+            //    props.receipts AND allBranchReceipts, so allBranchReceipts must be
+            //    purged independently or deleted records re-surface after refresh.
+            setAllBranchReceipts(prev => prev.filter((r: any) => !deletedSet.has(r.id)));
+
+            // 2. Send deletions to backend in batches of 50
             for (let i = 0; i < ids.length; i += 50) {
                 await apiService.deleteModuleRecord('receipts', ids.slice(i, i + 50).join(','));
             }
+
             setSelectedReceiptIds(new Set());
             setReceiptDeleteConfirm(null);
+
+            // 3. Re-sync with server so props.receipts is also updated
             if (props.onRefreshData) await props.onRefreshData();
         } catch (err) {
             console.error('[FinanceManager] Delete receipts failed:', err);
-            alert('Failed to delete receipt(s). Please try again.');
+            // On failure, restore is not possible cleanly — just re-sync
+            if (props.onRefreshData) props.onRefreshData().catch(() => {});
+            alert('Failed to delete some receipt(s). The list has been refreshed.');
         } finally {
             setIsDeletingReceipts(false);
         }
