@@ -2642,8 +2642,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const phoneMap = new Map<string, any>();
             const nameMap = new Map<string, any>();
 
-            // Build high-performance Maps for O(1) student reconciliation across ALL students (independent of branch filter)
-            mergedStudents.forEach(student => {
+            // Build high-performance Maps for O(1) student reconciliation across ALL students in the system
+            const allAvailableStudents = [
+                ...(props.students || []),
+                ...(allBranchStudents || []),
+                ...(mergedStudents || [])
+            ];
+            const uniqueStudentsMap = new Map<string, any>();
+            allAvailableStudents.forEach(s => { if (s && s.id) uniqueStudentsMap.set(s.id, s); });
+            const allStudentsPool = Array.from(uniqueStudentsMap.values());
+
+            allStudentsPool.forEach(student => {
                 const ids = [
                     student.id,
                     student.admissionNumber,
@@ -2652,22 +2661,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     student.metadata?.admission_number,
                     (student as any).admNo,
                     (student as any).registrationNumber,
-                    (student as any).reg_no
+                    (student as any).reg_no,
+                    (student as any).staffId,
+                    (student as any).indexNumber,
+                    (student as any).index_number
                 ];
                 ids.forEach(idVal => {
                     if (idVal !== undefined && idVal !== null) {
                         const rawAdm = String(idVal).trim().toLowerCase();
                         if (rawAdm) {
                             admMap.set(rawAdm, student);
+                            const cleanAlnum = rawAdm.replace(/[^a-z0-9]/g, '');
+                            if (cleanAlnum) admMap.set(cleanAlnum, student);
                             const digits = rawAdm.replace(/\D/g, '');
-                            if (digits && digits !== rawAdm) admMap.set(digits, student);
-                            const rawInt = parseInt(rawAdm, 10);
-                            if (!isNaN(rawInt)) admMap.set(String(rawInt), student);
+                            if (digits) {
+                                admMap.set(digits, student);
+                                const noLeadingZeros = digits.replace(/^0+/, '');
+                                if (noLeadingZeros) admMap.set(noLeadingZeros, student);
+                            }
+                            const strippedPrefix = rawAdm.replace(/^(adm|std|reg|no|num|#|\/|-|_)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
+                            if (strippedPrefix) admMap.set(strippedPrefix, student);
                         }
                     }
                 });
 
-                const phone = getStudentParentPhone(student) || student.phoneNumber || (student as any).phone;
+                const phone = getStudentParentPhone(student) || student.phoneNumber || (student as any).phone || student.metadata?.parentPhone;
                 if (phone) {
                     const cleanPhone = String(phone).replace(/\D/g, '');
                     if (cleanPhone.length >= 9) {
@@ -2683,6 +2701,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const parts = name.split(/\s+/).filter(Boolean);
                     if (parts.length > 1) {
                         nameMap.set(parts.slice().reverse().join(' '), student);
+                        // Also index first + last name
+                        nameMap.set(`${parts[0]} ${parts[parts.length - 1]}`, student);
+                        nameMap.set(`${parts[parts.length - 1]} ${parts[0]}`, student);
                     }
                 }
             });
@@ -2955,55 +2976,67 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const newReceipts: any[] = [];
             const allExistingReceipts = [...(props.receipts || []), ...(allBranchReceipts || [])];
 
-            for (let i = 0; i < matchedItems.length; i++) {
-                const item = matchedItems[i];
-                const student = mergedStudents.find(s => s.id === item.matchedStudentId);
-                const receiptNum = item.receiptNumber?.trim()
-                    ? item.receiptNumber.trim()
-                    : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
-                const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod || 'Excel Bulk Import';
-                const adm = student ? studentAdmissionNumber(student) : undefined;
+            const CHUNK_SIZE = 50;
+            for (let i = 0; i < matchedItems.length; i += CHUNK_SIZE) {
+                const chunkItems = matchedItems.slice(i, i + CHUNK_SIZE);
+                const chunkReceipts: Array<{ receipt: any; originalCreatedAt: string }> = [];
 
-                // Match existing receipt to allow overriding
-                let existingReceipt: any = null;
-                if (excelImportOverrideExisting) {
-                    const targetReceiptNum = (item.receiptNumber || '').trim().toLowerCase();
-                    const targetRef = (item.ref || '').trim().toLowerCase();
-                    
-                    existingReceipt = allExistingReceipts.find((r: any) => {
-                        const rNum = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
-                        const rRef = String(r.relatedTransactionId || r.related_transaction_id || '').trim().toLowerCase();
-                        if (targetReceiptNum && rNum && rNum === targetReceiptNum) return true;
-                        if (targetRef && rRef && rRef === targetRef) return true;
-                        return false;
-                    });
+                for (const item of chunkItems) {
+                    const student = mergedStudents.find(s => s.id === item.matchedStudentId) || (props.students || []).find(s => s.id === item.matchedStudentId);
+                    const receiptNum = item.receiptNumber?.trim()
+                        ? item.receiptNumber.trim()
+                        : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
+                    const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod || 'Excel Bulk Import';
+
+                    // Match existing receipt to allow overriding
+                    let existingReceipt: any = null;
+                    if (excelImportOverrideExisting) {
+                        const targetReceiptNum = (item.receiptNumber || '').trim().toLowerCase();
+                        const targetRef = (item.ref || '').trim().toLowerCase();
+                        
+                        existingReceipt = allExistingReceipts.find((r: any) => {
+                            const rNum = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
+                            const rRef = String(r.relatedTransactionId || r.related_transaction_id || '').trim().toLowerCase();
+                            if (targetReceiptNum && rNum && rNum === targetReceiptNum) return true;
+                            if (targetRef && rRef && rRef === targetRef) return true;
+                            return false;
+                        });
+                    }
+
+                    const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                    const originalCreatedAt = existingReceipt?.createdAt || existingReceipt?.created_at || new Date().toISOString();
+
+                    const receipt = {
+                        id: receiptId,
+                        institutionId: props.institution.id,
+                        branchId: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
+                        receiptNumber: receiptNum,
+                        studentId: item.matchedStudentId,
+                        amountPaid: parseMoneyAmount(item.amount),
+                        paymentMethod: item.paymentMethod || 'Bank Transfer',
+                        paymentDate: item.date || new Date().toISOString().split('T')[0],
+                        relatedTransactionId: item.ref || '',
+                        paidFor: `Fee Payment via ${modeLabel}`
+                    };
+
+                    chunkReceipts.push({ receipt, originalCreatedAt });
                 }
 
-                const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-                const originalCreatedAt = existingReceipt?.createdAt || existingReceipt?.created_at || new Date().toISOString();
+                // Batch save current chunk with individual fallback
+                try {
+                    await apiService.saveModuleRecords('receipts', chunkReceipts.map(c => c.receipt));
+                } catch (batchErr) {
+                    for (const c of chunkReceipts) {
+                        await apiService.saveModuleRecord('receipts', c.receipt).catch(() => {});
+                    }
+                }
 
-                const receipt = {
-                    id: receiptId,
-                    institutionId: props.institution.id,
-                    branchId: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
-                    receiptNumber: receiptNum,
-                    studentId: item.matchedStudentId,
-                    amountPaid: parseMoneyAmount(item.amount),
-                    paymentMethod: item.paymentMethod || 'Bank Transfer',
-                    paymentDate: item.date || new Date().toISOString().split('T')[0],
-                    relatedTransactionId: item.ref || '',
-                    paidFor: `Fee Payment via ${modeLabel}`
-                };
-
-                // Save or override this receipt individually so progress is real
-                await apiService.saveModuleRecord('receipts', receipt).catch(async () => {
-                    await apiService.saveModuleRecords('receipts', [receipt]);
+                chunkReceipts.forEach(c => {
+                    newReceipts.push({ ...c.receipt, createdAt: c.originalCreatedAt });
                 });
 
-                newReceipts.push({ ...receipt, createdAt: originalCreatedAt });
-
                 // Update progress counter and yield to React so the UI re-renders
-                setBulkProgress({ current: i + 1, total: matchedItems.length });
+                setBulkProgress({ current: Math.min(i + CHUNK_SIZE, matchedItems.length), total: matchedItems.length });
                 await new Promise(r => setTimeout(r, 0));
             }
 
