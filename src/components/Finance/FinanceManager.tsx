@@ -1073,6 +1073,102 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }));
     }, [mergedReceipts, dsPayments, isDrivingSchool, mergedInvoices, matchesSelectedBranch]);
 
+    const invoicePaidAmountMap = useMemo(() => {
+        const directPaidMap = new Map<string, number>();
+        const studentReceiptsMap = new Map<string, any[]>();
+        const admReceiptsMap = new Map<string, any[]>();
+
+        (mappedReceipts || []).forEach((r: any) => {
+            const invId = r.invoiceId || r.invoice_id;
+            const sId = r.studentId || r.student_id;
+            const adm = String(r.admissionNumber || r.admission_number || '').trim().toLowerCase();
+            const amt = Number(r.amountPaid || r.amount_paid || r.amount || 0);
+            if (amt <= 0) return;
+
+            // Direct invoice tag
+            if (invId && invId !== 'null' && invId !== 'undefined' && !String(invId).startsWith('__opening_balance__')) {
+                directPaidMap.set(invId, (directPaidMap.get(invId) || 0) + amt);
+            }
+
+            if (sId) {
+                if (!studentReceiptsMap.has(sId)) studentReceiptsMap.set(sId, []);
+                studentReceiptsMap.get(sId)!.push(r);
+            }
+            if (adm) {
+                if (!admReceiptsMap.has(adm)) admReceiptsMap.set(adm, []);
+                admReceiptsMap.get(adm)!.push(r);
+            }
+        });
+
+        // Group invoices by student
+        const studentInvoicesMap = new Map<string, any[]>();
+        (mappedInvoices || []).forEach((inv: any) => {
+            const sId = inv.studentId || inv.student_id;
+            if (sId) {
+                if (!studentInvoicesMap.has(sId)) studentInvoicesMap.set(sId, []);
+                studentInvoicesMap.get(sId)!.push(inv);
+            }
+        });
+
+        const resultMap = new Map<string, number>();
+
+        // Process each student's invoices
+        studentInvoicesMap.forEach((invoices, sId) => {
+            const student = (props.students || []).find((s: any) => s.id === sId);
+            const sAdm = String(student?.admissionNumber || (student as any)?.admission_number || '').trim().toLowerCase();
+
+            // Collect all receipts belonging to this student
+            const matchedReceipts = new Set<any>();
+            (studentReceiptsMap.get(sId) || []).forEach(r => matchedReceipts.add(r));
+            if (sAdm && admReceiptsMap.has(sAdm)) {
+                (admReceiptsMap.get(sAdm) || []).forEach(r => matchedReceipts.add(r));
+            }
+
+            const totalStudentPaid = Array.from(matchedReceipts).reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount_paid || r.amount || 0), 0);
+
+            // Sort invoices chronologically (FIFO allocation)
+            const sortedInvoices = [...invoices].sort((a: any, b: any) => {
+                const dateA = new Date(a.issueDate || a.issue_date || a.createdAt || a.created_at || 0).getTime();
+                const dateB = new Date(b.issueDate || b.issue_date || b.createdAt || b.created_at || 0).getTime();
+                return dateA - dateB;
+            });
+
+            let remainingPaidPool = totalStudentPaid;
+
+            // Pass 1: Explicit direct links first
+            sortedInvoices.forEach(inv => {
+                const directAmt = directPaidMap.get(inv.id) || 0;
+                if (directAmt > 0) {
+                    resultMap.set(inv.id, directAmt);
+                    remainingPaidPool = Math.max(0, remainingPaidPool - directAmt);
+                }
+            });
+
+            // Pass 2: Allocate unassigned student payment pool across remaining invoices
+            sortedInvoices.forEach(inv => {
+                if (resultMap.has(inv.id)) return; // Already directly assigned
+                const invTotal = Number(inv.totalAmount || inv.total_amount || 0);
+                if (remainingPaidPool > 0) {
+                    const allocated = Math.min(invTotal, remainingPaidPool);
+                    resultMap.set(inv.id, allocated);
+                    remainingPaidPool -= allocated;
+                } else {
+                    resultMap.set(inv.id, 0);
+                }
+            });
+        });
+
+        // Fallback for any invoices not in studentInvoicesMap (e.g. general invoices)
+        (mappedInvoices || []).forEach((inv: any) => {
+            if (!resultMap.has(inv.id)) {
+                const directAmt = directPaidMap.get(inv.id) || 0;
+                resultMap.set(inv.id, directAmt);
+            }
+        });
+
+        return resultMap;
+    }, [mappedInvoices, mappedReceipts, props.students]);
+
     const mappedExpenses = useMemo(() => {
         return (props.expenses || []).filter((exp: any) => matchesSelectedBranch(exp));
     }, [props.expenses, matchesSelectedBranch]);
@@ -14845,7 +14941,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             pendingCount: 0
                                         };
                                     }
-                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                    const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                     const invAmt = inv.totalAmount || 0;
                                     const bal = Math.max(0, invAmt - paid);
 
@@ -14888,7 +14984,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     }
 
                                     // Status filter
-                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                    const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                     const bal = (inv.totalAmount || 0) - paid;
                                     if (collectionStatusFilter === 'cleared' && bal > 0) return false;
                                     if (collectionStatusFilter === 'pending' && (bal <= 0 || inv.status === 'overdue')) return false;
@@ -14900,7 +14996,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 // Dynamic stats for current filter selection
                                 const activeBilled = filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0);
                                 const activeCollected = filteredInvoices.reduce((sum: number, inv: any) => {
-                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                    const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                     return sum + Math.min(inv.totalAmount || 0, paid);
                                 }, 0);
                                 const activeOutstanding = Math.max(0, activeBilled - activeCollected);
@@ -15306,7 +15402,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         onClick={() => {
                                                             const rows = filteredInvoices.map((inv: any) => {
                                                                 const student = props.students.find((s: any) => s.id === inv.studentId);
-                                                                const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                                                const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                 const bal = (inv.totalAmount || 0) - paid;
                                                                 const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
                                                                 const sAdm = student?.admissionNumber || (student as any)?.admission_number || '—';
@@ -15393,7 +15489,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 const student = props.students.find((s: any) => s.id === inv.studentId);
                                                                 const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || '—');
                                                                 const sAdm = student?.admissionNumber || (student as any)?.admission_number || '—';
-                                                                const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                                                const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                 const bal = (inv.totalAmount || 0) - paid;
                                                                 const isCleared = bal <= 0;
 
@@ -16036,7 +16132,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const vhSummary = allVoteHeads.map(vh => {
                                                 let invoiced = 0, paid = 0;
                                                 mappedInvoices.forEach((inv: any) => {
-                                                    const invPaid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((a: number, r: any) => a + (r.amountPaid || 0), 0);
+                                                    const invPaid = invoicePaidAmountMap.get(inv.id) || 0;
                                                     const totalInv = inv.totalAmount || 0;
                                                     getInvoiceItems(inv).forEach((v: any) => {
                                                         const vName = v.name || v.voteHeadName || v.description || 'General';
