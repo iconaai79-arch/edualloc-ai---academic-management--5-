@@ -432,6 +432,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.amount_paid === undefined) copy.amount_paid = copy.amountPaid;
                     delete copy.amountPaid;
                 }
+                if (copy.date !== undefined) {
+                    if (copy.payment_date === undefined) copy.payment_date = copy.date;
+                    delete copy.date;
+                }
+                if (copy.receiptDate !== undefined) {
+                    if (copy.payment_date === undefined) copy.payment_date = copy.receiptDate;
+                    delete copy.receiptDate;
+                }
+                if (copy.receipt_date !== undefined) {
+                    if (copy.payment_date === undefined) copy.payment_date = copy.receipt_date;
+                    delete copy.receipt_date;
+                }
                 delete copy.admDisplay;
                 delete copy.excelPaymentMode;
                 delete copy.matchStatus;
@@ -450,6 +462,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (copy.totalAmount !== undefined) {
                     if (copy.total_amount === undefined) copy.total_amount = copy.totalAmount;
                     delete copy.totalAmount;
+                }
+                if (copy.date !== undefined) {
+                    if (copy.issue_date === undefined) copy.issue_date = copy.date;
+                    delete copy.date;
+                }
+                if (copy.invoiceDate !== undefined) {
+                    if (copy.issue_date === undefined) copy.issue_date = copy.invoiceDate;
+                    delete copy.invoiceDate;
+                }
+                if (copy.invoice_date !== undefined) {
+                    if (copy.issue_date === undefined) copy.issue_date = copy.invoice_date;
+                    delete copy.invoice_date;
                 }
             }
             universalKeys.forEach(k => {
@@ -686,6 +710,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.amount_paid === undefined) copy.amount_paid = copy.amountPaid;
                             delete copy.amountPaid;
                         }
+                        if (copy.date !== undefined) {
+                            if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.date);
+                            delete copy.date;
+                        }
+                        if (copy.receiptDate !== undefined) {
+                            if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.receiptDate);
+                            delete copy.receiptDate;
+                        }
+                        if (copy.receipt_date !== undefined) {
+                            if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.receipt_date);
+                            delete copy.receipt_date;
+                        }
                     }
                     if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
                         if (copy.amount !== undefined && copy.total_amount === undefined) {
@@ -695,6 +731,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (copy.totalAmount !== undefined) {
                             if (copy.total_amount === undefined) copy.total_amount = copy.totalAmount;
                             delete copy.totalAmount;
+                        }
+                        if (copy.date !== undefined) {
+                            if (copy.issue_date === undefined) copy.issue_date = parseDate(copy.date);
+                            delete copy.date;
+                        }
+                        if (copy.invoiceDate !== undefined) {
+                            if (copy.issue_date === undefined) copy.issue_date = parseDate(copy.invoiceDate);
+                            delete copy.invoiceDate;
+                        }
+                        if (copy.invoice_date !== undefined) {
+                            if (copy.issue_date === undefined) copy.issue_date = parseDate(copy.invoice_date);
+                            delete copy.invoice_date;
                         }
                     }
 
