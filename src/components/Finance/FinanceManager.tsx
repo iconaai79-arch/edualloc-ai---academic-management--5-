@@ -3851,6 +3851,92 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    // ── Receipt Edit & Transfer ──
+    const [receiptEditTarget, setReceiptEditTarget] = useState<any | null>(null);
+    const [receiptEditForm, setReceiptEditForm] = useState<{ amountPaid: string; paymentMethod: string; paymentDate: string; relatedTransactionId: string; paidFor: string; reason: string }>({ amountPaid: '', paymentMethod: 'Cash', paymentDate: '', relatedTransactionId: '', paidFor: '', reason: '' });
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+    const [receiptTransferTarget, setReceiptTransferTarget] = useState<any | null>(null);
+    const [transferStudentSearch, setTransferStudentSearch] = useState('');
+    const [transferTargetStudent, setTransferTargetStudent] = useState<any | null>(null);
+    const [transferReason, setTransferReason] = useState('');
+    const [isSavingTransfer, setIsSavingTransfer] = useState(false);
+
+    const openEditReceipt = (rec: any) => {
+        setReceiptEditTarget(rec);
+        setReceiptEditForm({
+            amountPaid: String(rec.amountPaid ?? rec.amount_paid ?? rec.amount ?? ''),
+            paymentMethod: rec.paymentMethod || rec.payment_method || 'Cash',
+            paymentDate: rec.paymentDate || rec.payment_date || rec.date || '',
+            relatedTransactionId: rec.relatedTransactionId || rec.related_transaction_id || '',
+            paidFor: rec.paidFor || rec.paid_for || '',
+            reason: '',
+        });
+    };
+
+    const handleSaveEditReceipt = async () => {
+        if (!receiptEditTarget || !receiptEditForm.reason.trim()) return;
+        setIsSavingEdit(true);
+        try {
+            const iso = new Date(receiptEditForm.paymentDate).toISOString();
+            const payload = {
+                ...receiptEditTarget,
+                amountPaid: parseFloat(receiptEditForm.amountPaid) || 0,
+                amount_paid: parseFloat(receiptEditForm.amountPaid) || 0,
+                paymentMethod: receiptEditForm.paymentMethod,
+                payment_method: receiptEditForm.paymentMethod,
+                paymentDate: receiptEditForm.paymentDate,
+                payment_date: receiptEditForm.paymentDate,
+                date: receiptEditForm.paymentDate,
+                relatedTransactionId: receiptEditForm.relatedTransactionId,
+                paidFor: receiptEditForm.paidFor,
+                editReason: receiptEditForm.reason,
+                editedAt: iso,
+                editedBy: props.userName || props.currentUser?.name || 'Finance Officer',
+            };
+            await apiService.updateModuleRecord('receipts', receiptEditTarget.id, payload);
+            setReceiptEditTarget(null);
+            if (props.onRefreshData) await props.onRefreshData();
+        } catch (err) {
+            console.error('[FinanceManager] Edit receipt failed:', err);
+            alert('Failed to save changes. Please try again.');
+        } finally {
+            setIsSavingEdit(false);
+        }
+    };
+
+    const openTransferReceipt = (rec: any) => {
+        setReceiptTransferTarget(rec);
+        setTransferStudentSearch('');
+        setTransferTargetStudent(null);
+        setTransferReason('');
+    };
+
+    const handleSaveTransferReceipt = async () => {
+        if (!receiptTransferTarget || !transferTargetStudent || !transferReason.trim()) return;
+        setIsSavingTransfer(true);
+        try {
+            const iso = new Date().toISOString();
+            const payload = {
+                ...receiptTransferTarget,
+                studentId: transferTargetStudent.id,
+                student_id: transferTargetStudent.id,
+                transferReason: transferReason,
+                transferredAt: iso,
+                transferredBy: props.userName || props.currentUser?.name || 'Finance Officer',
+                previousStudentId: receiptTransferTarget.studentId || receiptTransferTarget.student_id,
+            };
+            await apiService.updateModuleRecord('receipts', receiptTransferTarget.id, payload);
+            setReceiptTransferTarget(null);
+            if (props.onRefreshData) await props.onRefreshData();
+        } catch (err) {
+            console.error('[FinanceManager] Transfer receipt failed:', err);
+            alert('Failed to transfer receipt. Please try again.');
+        } finally {
+            setIsSavingTransfer(false);
+        }
+    };
+
     // Invoices filtering and pagination
     const filteredStudentInvoices = useMemo(() => {
         return mappedInvoices.filter((inv: any) => {
@@ -7475,6 +7561,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 🖨️ EPOS (80mm)
                                                             </button>
                                                             <button
+                                                                onClick={() => openEditReceipt(rec)}
+                                                                className="p-1.5 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                                                                title="Edit this receipt"
+                                                            >
+                                                                <PencilIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            {rec.studentId && (
+                                                                <button
+                                                                    onClick={() => openTransferReceipt(rec)}
+                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                                                                    title="Transfer to another student"
+                                                                >
+                                                                    <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                            <button
                                                                 onClick={() => setReceiptDeleteConfirm({ ids: [rec.id], label: rec.receiptNumber || 'this receipt' })}
                                                                 className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                                                                 title="Delete this receipt"
@@ -7584,6 +7686,143 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
                     </div>
                 )}
+
+                {/* ── Edit Receipt Modal ── */}
+                {receiptEditTarget && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 border border-slate-200 dark:border-slate-800 space-y-5 text-left animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 flex items-center justify-center">
+                                    <PencilIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Edit Transaction</h4>
+                                    <p className="text-xs font-semibold text-slate-400 mt-0.5">Receipt: {receiptEditTarget.receiptNumber}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Amount (KES)</label>
+                                    <input type="number" value={receiptEditForm.amountPaid} onChange={e => setReceiptEditForm(p => ({ ...p, amountPaid: e.target.value }))}
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-black text-slate-900 dark:text-white outline-none focus:border-amber-500" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Payment Method</label>
+                                    <select value={receiptEditForm.paymentMethod} onChange={e => setReceiptEditForm(p => ({ ...p, paymentMethod: e.target.value }))}
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500 cursor-pointer">
+                                        {['Cash', 'M-Pesa', 'Bank Transfer', 'Cheque', 'Bursary'].map(m => <option key={m}>{m}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Payment Date</label>
+                                    <input type="date" value={receiptEditForm.paymentDate ? new Date(receiptEditForm.paymentDate).toISOString().split('T')[0] : ''} onChange={e => setReceiptEditForm(p => ({ ...p, paymentDate: e.target.value }))}
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Reference / Trans. ID</label>
+                                    <input type="text" value={receiptEditForm.relatedTransactionId} onChange={e => setReceiptEditForm(p => ({ ...p, relatedTransactionId: e.target.value }))}
+                                        placeholder="e.g. MPesa Ref, Cheque No."
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500" />
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Paid For / Description</label>
+                                <input type="text" value={receiptEditForm.paidFor} onChange={e => setReceiptEditForm(p => ({ ...p, paidFor: e.target.value }))}
+                                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">✱ Reason for Edit <span className="text-rose-500">(required)</span></label>
+                                <textarea rows={2} value={receiptEditForm.reason} onChange={e => setReceiptEditForm(p => ({ ...p, reason: e.target.value }))}
+                                    placeholder="Explain why this transaction is being edited..."
+                                    className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500 resize-none" />
+                            </div>
+                            <div className="flex items-center justify-end gap-3">
+                                <button type="button" onClick={() => setReceiptEditTarget(null)} disabled={isSavingEdit}
+                                    className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                                <button type="button" onClick={handleSaveEditReceipt} disabled={isSavingEdit || !receiptEditForm.reason.trim()}
+                                    className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                                    <PencilIcon className="w-4 h-4" />
+                                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Transfer Receipt Modal ── */}
+                {receiptTransferTarget && (() => {
+                    const fromStudent = mergedStudents.find((s: any) => s.id === (receiptTransferTarget.studentId || receiptTransferTarget.student_id));
+                    const transferList = mergedStudents.filter((s: any) =>
+                        s.id !== (receiptTransferTarget.studentId || receiptTransferTarget.student_id) &&
+                        (transferStudentSearch.length < 2 || s.name?.toLowerCase().includes(transferStudentSearch.toLowerCase()) ||
+                         (s.admissionNumber || s.admission_number || '').toLowerCase().includes(transferStudentSearch.toLowerCase()))
+                    ).slice(0, 8);
+                    return (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
+                            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 border border-slate-200 dark:border-slate-800 space-y-5 text-left animate-in zoom-in-95 duration-200">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 flex items-center justify-center">
+                                        <ArrowsRightLeftIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Transfer to Another Student</h4>
+                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Receipt: {receiptTransferTarget.receiptNumber} · KES {(receiptTransferTarget.amountPaid ?? 0).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                                    <div className="flex justify-between"><span className="text-slate-400 font-bold uppercase text-[10px]">From:</span><span className="font-black text-slate-900 dark:text-white">{fromStudent?.name || 'Unknown Student'}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-400 font-bold uppercase text-[10px]">Amount:</span><span className="font-black text-emerald-600">KES {(receiptTransferTarget.amountPaid ?? 0).toLocaleString()}</span></div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Transfer To</label>
+                                    <div className="relative">
+                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <input type="text" placeholder="Search student name or ADM number..." value={transferStudentSearch}
+                                            onChange={e => { setTransferStudentSearch(e.target.value); setTransferTargetStudent(null); }}
+                                            className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500" />
+                                    </div>
+                                    {transferTargetStudent ? (
+                                        <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                                            <div>
+                                                <p className="text-xs font-black text-indigo-900 dark:text-indigo-100">{transferTargetStudent.name}</p>
+                                                <p className="text-[10px] font-semibold text-indigo-500">{transferTargetStudent.admissionNumber || transferTargetStudent.admission_number}</p>
+                                            </div>
+                                            <button type="button" onClick={() => { setTransferTargetStudent(null); setTransferStudentSearch(''); }}
+                                                className="text-indigo-400 hover:text-indigo-600 text-xs font-bold">✕ Change</button>
+                                        </div>
+                                    ) : transferStudentSearch.length >= 2 && (
+                                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                                            {transferList.length === 0 ? (
+                                                <p className="px-4 py-3 text-xs text-slate-400 font-semibold italic">No students found.</p>
+                                            ) : transferList.map((s: any) => (
+                                                <button key={s.id} type="button" onClick={() => { setTransferTargetStudent(s); setTransferStudentSearch(s.name); }}
+                                                    className="w-full px-4 py-2.5 text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white">{s.name}</p>
+                                                    <p className="text-[10px] font-semibold text-slate-400">{s.admissionNumber || s.admission_number}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">✱ Reason for Transfer <span className="text-rose-500">(required)</span></label>
+                                    <textarea rows={2} value={transferReason} onChange={e => setTransferReason(e.target.value)}
+                                        placeholder="Explain why this receipt is being transferred..."
+                                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 resize-none" />
+                                </div>
+                                <div className="flex items-center justify-end gap-3">
+                                    <button type="button" onClick={() => setReceiptTransferTarget(null)} disabled={isSavingTransfer}
+                                        className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                                    <button type="button" onClick={handleSaveTransferReceipt} disabled={isSavingTransfer || !transferTargetStudent || !transferReason.trim()}
+                                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                                        <ArrowsRightLeftIcon className="w-4 h-4" />
+                                        {isSavingTransfer ? 'Transferring...' : 'Confirm Transfer'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Dedicated Full-Page Bank & M-Pesa Feed Management Sub-Tab */}
                 {activeTab === 'receipts' && receiptsMainTab === 'bank_feed' && (
