@@ -444,6 +444,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.payment_date === undefined) copy.payment_date = copy.receipt_date;
                     delete copy.receipt_date;
                 }
+                if ('invoiceId' in copy) {
+                    const invId = copy.invoice_id || copy.invoiceId;
+                    if (!invId || typeof invId !== 'string' || invId.startsWith('ext_') || invId.startsWith('temp_') || invId.startsWith('guest_') || invId.trim() === '') {
+                        copy.invoice_id = null;
+                    } else {
+                        copy.invoice_id = invId;
+                    }
+                    delete copy.invoiceId;
+                }
+                if ('studentId' in copy) {
+                    const sId = copy.student_id || copy.studentId;
+                    if (!sId || typeof sId !== 'string' || sId.startsWith('ext_') || sId.startsWith('temp_') || sId.startsWith('guest_') || sId.trim() === '') {
+                        copy.student_id = null;
+                    } else {
+                        copy.student_id = sId;
+                    }
+                    delete copy.studentId;
+                }
+                if ('institutionId' in copy) {
+                    if (copy.institution_id === undefined) copy.institution_id = copy.institutionId;
+                    delete copy.institutionId;
+                }
+                if ('branchId' in copy) {
+                    if (copy.branch_id === undefined) copy.branch_id = copy.branchId;
+                    delete copy.branchId;
+                }
+                if ('bankAccountId' in copy) {
+                    if (copy.bank_account_id === undefined) copy.bank_account_id = copy.bankAccountId;
+                    delete copy.bankAccountId;
+                }
+                if ('voteheadId' in copy) {
+                    if (copy.votehead_id === undefined) copy.votehead_id = copy.voteheadId;
+                    delete copy.voteheadId;
+                }
+                if ('receiptNumber' in copy) {
+                    if (copy.receipt_number === undefined) copy.receipt_number = copy.receiptNumber;
+                    delete copy.receiptNumber;
+                }
+                if ('paymentMethod' in copy) {
+                    if (copy.payment_method === undefined) copy.payment_method = copy.paymentMethod;
+                    delete copy.paymentMethod;
+                }
+                if ('paymentDate' in copy) {
+                    if (copy.payment_date === undefined) copy.payment_date = copy.paymentDate;
+                    delete copy.paymentDate;
+                }
+                if ('relatedTransactionId' in copy) {
+                    if (copy.related_transaction_id === undefined) copy.related_transaction_id = copy.relatedTransactionId;
+                    delete copy.relatedTransactionId;
+                }
+                if ('paidFor' in copy) {
+                    if (copy.paid_for === undefined) copy.paid_for = copy.paidFor;
+                    delete copy.paidFor;
+                }
                 delete copy.admDisplay;
                 delete copy.adm_display;
                 delete copy.excelPaymentMode;
@@ -467,6 +521,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (copy.totalAmount !== undefined) {
                     if (copy.total_amount === undefined) copy.total_amount = copy.totalAmount;
                     delete copy.totalAmount;
+                }
+                if ('studentId' in copy) {
+                    const sId = copy.student_id || copy.studentId;
+                    if (!sId || typeof sId !== 'string' || sId.startsWith('ext_') || sId.startsWith('temp_') || sId.startsWith('guest_') || sId.trim() === '') {
+                        copy.student_id = null;
+                    } else {
+                        copy.student_id = sId;
+                    }
+                    delete copy.studentId;
+                }
+                if ('institutionId' in copy) {
+                    if (copy.institution_id === undefined) copy.institution_id = copy.institutionId;
+                    delete copy.institutionId;
+                }
+                if ('branchId' in copy) {
+                    if (copy.branch_id === undefined) copy.branch_id = copy.branchId;
+                    delete copy.branchId;
+                }
+                if ('invoiceNumber' in copy) {
+                    if (copy.invoice_number === undefined) copy.invoice_number = copy.invoiceNumber;
+                    delete copy.invoiceNumber;
+                }
+                if ('dueDate' in copy) {
+                    if (copy.due_date === undefined) copy.due_date = copy.dueDate;
+                    delete copy.dueDate;
+                }
+                if ('issueDate' in copy) {
+                    if (copy.issue_date === undefined) copy.issue_date = copy.issueDate;
+                    delete copy.issueDate;
                 }
                 if (copy.date !== undefined) {
                     if (copy.issue_date === undefined) copy.issue_date = copy.date;
@@ -686,8 +769,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const sId = copy.student_id || copy.studentId;
                         if (!sId || typeof sId !== 'string' || sId.startsWith('ext_') || sId.startsWith('temp_') || sId.startsWith('guest_') || sId.trim() === '') {
                             copy.student_id = null;
+                        } else {
+                            copy.student_id = sId;
                         }
                         if ('studentId' in copy) delete copy.studentId;
+
+                        if ('invoiceId' in copy) {
+                            const invId = copy.invoice_id || copy.invoiceId;
+                            if (!invId || typeof invId !== 'string' || invId.startsWith('ext_') || invId.startsWith('temp_') || invId.startsWith('guest_') || invId.trim() === '') {
+                                copy.invoice_id = null;
+                            } else {
+                                copy.invoice_id = invId;
+                            }
+                            delete copy.invoiceId;
+                        }
+                        if ('institutionId' in copy) {
+                            if (copy.institution_id === undefined) copy.institution_id = copy.institutionId;
+                            delete copy.institutionId;
+                        }
+                        if ('branchId' in copy) {
+                            if (copy.branch_id === undefined) copy.branch_id = copy.branchId;
+                            delete copy.branchId;
+                        }
+                        if ('bankAccountId' in copy) {
+                            if (copy.bank_account_id === undefined) copy.bank_account_id = copy.bankAccountId;
+                            delete copy.bankAccountId;
+                        }
+                        if ('voteheadId' in copy) {
+                            if (copy.votehead_id === undefined) copy.votehead_id = copy.voteheadId;
+                            delete copy.voteheadId;
+                        }
+                        if ('receiptNumber' in copy) {
+                            if (copy.receipt_number === undefined) copy.receipt_number = copy.receiptNumber;
+                            delete copy.receiptNumber;
+                        }
+                        if ('invoiceNumber' in copy) {
+                            if (copy.invoice_number === undefined) copy.invoice_number = copy.invoiceNumber;
+                            delete copy.invoiceNumber;
+                        }
+                        if ('paymentMethod' in copy) {
+                            if (copy.payment_method === undefined) copy.payment_method = copy.paymentMethod;
+                            delete copy.paymentMethod;
+                        }
+                        if ('relatedTransactionId' in copy) {
+                            if (copy.related_transaction_id === undefined) copy.related_transaction_id = copy.relatedTransactionId;
+                            delete copy.relatedTransactionId;
+                        }
+                        if ('paidFor' in copy) {
+                            if (copy.paid_for === undefined) copy.paid_for = copy.paidFor;
+                            delete copy.paidFor;
+                        }
                     }
 
                     if (copy.due_date !== undefined) copy.due_date = parseDate(copy.due_date);
