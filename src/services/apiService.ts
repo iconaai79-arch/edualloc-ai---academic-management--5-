@@ -1563,6 +1563,22 @@ export const apiService = {
                 delete item.instructor_id;
                 delete item.vehicle_id;
             }
+            if (module === 'ds_invoices' || module === 'ds_payments') {
+                delete item.message;
+                delete item.is_opening_balance;
+                delete item.isOpeningBalance;
+                delete item.notification_sent;
+                delete item.notificationSent;
+                delete item.phone;
+                delete item.email;
+                delete item.student_adm;
+                delete item.studentAdm;
+                delete item.offline_fallback;
+                delete item.offlineFallback;
+                delete item.offline;
+                delete item.success;
+                delete item.error;
+            }
             if (module === 'ds_lessons') {
                 delete item.confirmation_status;
                 if (item.notes) {
@@ -1571,7 +1587,15 @@ export const apiService = {
                 }
             }
             if (module === 'ds_students') {
+                const cat = item.license_category || item.licenseCategory || item.license_type_interested || item.licenseTypeInterested;
+                if (cat) {
+                    item.license_type_interested = cat;
+                }
+                delete item.license_category;
+                delete item.licenseCategory;
+                delete item.licenseTypeInterested;
                 delete item.preferred_lesson_hours;
+                delete item.preferredLessonHours;
             }
             if (module === 'ds_vehicles') {
                 delete item.assigned_instructor_id;

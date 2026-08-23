@@ -4818,6 +4818,9 @@ export interface DSPayment {
     deletionRequestedBy?: string;
     auditedBy?: string;
     auditedAt?: string;
+    notes?: string;
+    metadata?: Record<string, any>;
+    updatedAt?: string;
     createdAt: string;
 }
 

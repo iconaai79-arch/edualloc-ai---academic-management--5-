@@ -1110,7 +1110,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const totalDiscount = Number(data.discountAmount || 0);
             const totalSponsor = Number(data.sponsorAmount || 0);
             const initialBalance = Math.max(0, (data.totalAmount || 0) - totalDiscount - totalSponsor);
-            const inv = {
+            const isOpeningBalance = Boolean(data.isOpeningBalance);
+            const inv: any = {
                 ...data,
                 id: data.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 institutionId,
@@ -1121,11 +1122,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 balance: initialBalance,
                 createdAt: new Date().toISOString()
             };
+            delete inv.isOpeningBalance;
+            delete inv.message;
+
             await apiService.saveModuleRecord('ds_invoices', inv);
             success("Invoice generated successfully");
             
             // Trigger Automation
-            if (!inv.isOpeningBalance) {
+            if (!isOpeningBalance) {
                 await sendDocumentNotification('invoice', inv, inv.studentId);
             }
             
@@ -1171,7 +1175,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         const updatedBalance = Math.max(0, invoice.totalAmount - totalDiscount - totalSponsor - updatedPaidAmount);
         const newStatus = updatedBalance <= 0 ? 'Fully Paid' : (updatedPaidAmount > 0 ? 'Partially Paid' : 'Pending');
 
-        return {
+        const copy: any = {
             ...invoice,
             items: updatedItems,
             paidAmount: updatedPaidAmount,
@@ -1179,6 +1183,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             status: newStatus,
             updatedAt: new Date().toISOString()
         };
+        delete copy.message;
+        delete copy.isOpeningBalance;
+        return copy;
     }, []);
 
     const updateInvoice = useCallback(async (data: any) => {
@@ -1293,14 +1300,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
                 summary = distributions.join(', ') + (newBalance > 0 ? ` | Balance: KES ${newBalance?.toLocaleString()}` : ' | Fully Paid');
 
-                await apiService.saveModuleRecord('ds_invoices', {
+                const invPayload: any = {
                     ...invoice,
                     items: updatedItems,
                     paidAmount: newPaidAmount,
                     balance: newBalance,
                     status: newStatus,
                     updatedAt: new Date().toISOString()
-                });
+                };
+                delete invPayload.message;
+                delete invPayload.isOpeningBalance;
+
+                await apiService.saveModuleRecord('ds_invoices', invPayload);
             }
 
             await apiService.saveModuleRecord('ds_payments', pay);

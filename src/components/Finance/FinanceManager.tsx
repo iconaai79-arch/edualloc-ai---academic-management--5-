@@ -29,7 +29,6 @@ import { ScaleIcon } from '../icons/ScaleIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
-import { ClockIcon } from '../icons/ClockIcon';
 import { PhotoIcon } from '../icons/PhotoIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
@@ -189,7 +188,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
@@ -2013,6 +2012,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Notifications during Excel import are OFF by default — user must opt in
     const [excelImportSendSms, setExcelImportSendSms] = useState(false);
     const [excelImportSendEmail, setExcelImportSendEmail] = useState(false);
+    const [excelImportOverrideExisting, setExcelImportOverrideExisting] = useState(true);
 
     useEffect(() => {
         if (props.institution.id) {
@@ -2868,6 +2868,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const newReceipts: any[] = [];
+            const allExistingReceipts = [...(props.receipts || []), ...(allBranchReceipts || [])];
 
             for (let i = 0; i < matchedItems.length; i++) {
                 const item = matchedItems[i];
@@ -2877,8 +2878,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
                 const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod || 'Excel Bulk Import';
                 const adm = student ? studentAdmissionNumber(student) : undefined;
+
+                // Match existing receipt to allow overriding
+                let existingReceipt: any = null;
+                if (excelImportOverrideExisting) {
+                    const targetReceiptNum = (item.receiptNumber || '').trim().toLowerCase();
+                    const targetRef = (item.ref || '').trim().toLowerCase();
+                    
+                    existingReceipt = allExistingReceipts.find((r: any) => {
+                        const rNum = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
+                        const rRef = String(r.relatedTransactionId || r.related_transaction_id || '').trim().toLowerCase();
+                        if (targetReceiptNum && rNum && rNum === targetReceiptNum) return true;
+                        if (targetRef && rRef && rRef === targetRef) return true;
+                        return false;
+                    });
+                }
+
+                const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                const originalCreatedAt = existingReceipt?.createdAt || existingReceipt?.created_at || new Date().toISOString();
+
                 const receipt = {
-                    id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    id: receiptId,
                     institutionId: props.institution.id,
                     institution_id: props.institution.id,
                     branchId: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
@@ -2904,11 +2924,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     related_transaction_id: item.ref || '',
                     paidFor: `Fee Payment via ${modeLabel}`,
                     paid_for: `Fee Payment via ${modeLabel}`,
-                    createdAt: new Date().toISOString(),
-                    created_at: new Date().toISOString()
+                    createdAt: originalCreatedAt,
+                    created_at: originalCreatedAt,
+                    updatedAt: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 };
 
-                // Save this receipt individually so progress is real
+                // Save or override this receipt individually so progress is real
                 await apiService.saveModuleRecord('receipts', receipt).catch(async () => {
                     await apiService.saveModuleRecords('receipts', [receipt]);
                 });
@@ -2920,13 +2942,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 await new Promise(r => setTimeout(r, 0));
             }
 
-            // Immediately sync newly created receipts into local state so all statements reflect instantly
+            // Immediately sync newly created/updated receipts into local state so all statements reflect instantly
             if (newReceipts.length > 0) {
-                setAllBranchReceipts(prev => [...newReceipts, ...prev]);
+                setAllBranchReceipts(prev => {
+                    const updatedIds = new Set(newReceipts.map(r => r.id));
+                    const remainingPrev = prev.filter(r => !updatedIds.has(r.id));
+                    return [...newReceipts, ...remainingPrev];
+                });
             }
 
             if (props.onLogAction) {
-                props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0).toLocaleString()}`);
+                props.onLogAction(`Auto-reconciled and posted/updated ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0).toLocaleString()}`);
             }
 
             // --- Bulk Receipt Notifications (fire-and-forget, only if user opted in) ---
@@ -5926,7 +5952,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
                                     </button>
                                     <button type="button" onClick={() => { exportCSV(`statement_${balPrevStudent!.name.replace(/\s+/g, '_')}`, ['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'], balPrevLedger.map(e => [e.date, e.description, e.debit, e.credit, e.balance])); }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95">📥 CSV</button>
-                                    <button type="button" onClick={() => setBalPreviewStudentId('')} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">✕¢ Close</button>
+                                    <button type="button" onClick={() => setBalPreviewStudentId('')} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">✕ Close</button>
                                 </div>
                             </div>
 
@@ -7895,8 +7921,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
                         expenses={props.expenses || []}
                         onReceiptCreated={(newRec) => {
-                            setMergedReceipts(prev => [newRec, ...prev]);
-                            if (props.onReceiptCreated) props.onReceiptCreated(newRec);
+                            setAllBranchReceipts((prev: any[]) => [newRec, ...prev]);
+                            if ((props as any).onReceiptCreated) (props as any).onReceiptCreated(newRec);
+                            if (props.onRefreshData) props.onRefreshData();
                         }}
                         onLogAction={props.onLogAction}
                     />
@@ -10707,8 +10734,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
                                 expenses={props.expenses || []}
                                 payroll={props.payrollRecords || []}
-                                transfers={props.bankTransfers || []}
-                                capitations={capitationDisbursements || []}
+                                transfers={(props as any).bankTransfers || []}
+                                capitations={gokCapLogs || []}
                                 bursaries={bursaryRecords || []}
                                 onLogAction={props.onLogAction}
                             />
@@ -16460,9 +16487,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {selectedStudent && (
                                             <div className="space-y-6">
-                                                {/* View Mode Toolbar */}
-                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 text-white p-4 px-6 rounded-2xl shadow-md">
-                                                    <div className="flex items-center gap-2">
+                                                {/* View Mode Toolbar - Sticky with high z-index to prevent overlay and loss of controls */}
+                                                <div className="sticky top-2 z-30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/95 backdrop-blur-md text-white p-4 px-6 rounded-2xl shadow-xl border border-slate-800">
+                                                    <div className="flex items-center gap-3 flex-wrap">
                                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">View Mode:</span>
                                                         <div className="flex bg-slate-800 p-1 rounded-xl">
                                                             <button
@@ -16487,7 +16514,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             type="button"
                                                             disabled={isGeneratingStmtPdf}
                                                             onClick={handleOpenPdfModal}
-                                                            className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                                                            className="px-3.5 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                                                         >
                                                             👥 PDF Viewer Modal
                                                         </button>
@@ -16495,7 +16522,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             type="button"
                                                             disabled={isGeneratingStmtPdf}
                                                             onClick={handleDownloadPdf}
-                                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+                                                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
                                                         >
                                                             {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
                                                         </button>
@@ -16506,11 +16533,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 const rows = ledger.map(e => [e.date, e.description, e.debit, e.credit, e.balance]);
                                                                 exportCSV(`statement_${selectedStudent.name.replace(/\s+/g, '_')}`, headers, rows);
                                                             }}
-                                                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                                                         >
                                                             📥 CSV
                                                         </button>
-                                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">🖨️ Print</button>
+                                                        <button onClick={() => window.print()} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">🖨️ Print</button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setStmtStudentId('')}
+                                                            className="px-3 py-2 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                                                            title="Close statement and choose another student"
+                                                        >
+                                                            ✕ Close
+                                                        </button>
                                                     </div>
                                                 </div>
 
@@ -17185,13 +17220,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         )}
                                                                     </td>
                                                                     <td className="px-4 py-3 text-center">
-                                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
-                                                                            item.matchStatus === 'matched'
-                                                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                                                                : 'bg-amber-100 text-amber-800 border-amber-300'
-                                                                        }`}>
-                                                                            {item.matchStatus === 'matched' ? '✓ matched' : '⚠️ Unmatched'}
-                                                                        </span>
+                                                                        {(() => {
+                                                                            const allExistingReceipts = [...(props.receipts || []), ...(allBranchReceipts || [])];
+                                                                            const targetReceiptNum = (item.receiptNumber || '').trim().toLowerCase();
+                                                                            const targetRef = (item.ref || '').trim().toLowerCase();
+                                                                            const isExistingReceipt = allExistingReceipts.some((r: any) => {
+                                                                                const rNum = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
+                                                                                const rRef = String(r.relatedTransactionId || r.related_transaction_id || '').trim().toLowerCase();
+                                                                                return (targetReceiptNum && rNum && rNum === targetReceiptNum) || (targetRef && rRef && rRef === targetRef);
+                                                                            });
+
+                                                                            return (
+                                                                                <div className="flex flex-col items-center gap-1">
+                                                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                                                                                        item.matchStatus === 'matched'
+                                                                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                                                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                                    }`}>
+                                                                                        {item.matchStatus === 'matched' ? '✓ matched' : '⚠️ Unmatched'}
+                                                                                    </span>
+                                                                                    {isExistingReceipt && (
+                                                                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800" title="This payment matches an existing receipt number or reference and will update the existing receipt">
+                                                                                            🔄 Overwrites Existing
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })()}
                                                                     </td>
                                                                 </tr>
                                                             );
@@ -17277,23 +17332,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 {/* Notification opt-in toggles — OFF by default during bulk Excel import */}
                                 <div className="flex flex-col gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300 tracking-wider">📢 Notify parents?</span>
-                                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Off by default during bulk import</span>
+                                    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-3.5 bg-slate-50 dark:bg-slate-950/80 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                        <div className="flex items-center gap-4 flex-wrap">
+                                            <label className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setExcelImportOverrideExisting(v => !v)}>
+                                                <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportOverrideExisting ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportOverrideExisting ? 'translate-x-4' : ''}`} />
+                                                </div>
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">Override Existing Records</span>
+                                                <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">(Updates record if Receipt # or Reference matches)</span>
+                                            </label>
                                         </div>
-                                        <label className="flex items-center gap-2 cursor-pointer" onClick={() => setExcelImportSendSms(v => !v)}>
-                                            <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportSendSms ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                                                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportSendSms ? 'translate-x-4' : ''}`} />
-                                            </div>
-                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">SMS</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer" onClick={() => setExcelImportSendEmail(v => !v)}>
-                                            <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportSendEmail ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
-                                                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportSendEmail ? 'translate-x-4' : ''}`} />
-                                            </div>
-                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Email</span>
-                                        </label>
+
+                                        <div className="flex items-center gap-4 flex-wrap">
+                                            <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300 tracking-wider">📢 Notifications:</span>
+                                            <label className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setExcelImportSendSms(v => !v)}>
+                                                <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportSendSms ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportSendSms ? 'translate-x-4' : ''}`} />
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">SMS</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer select-none" onClick={() => setExcelImportSendEmail(v => !v)}>
+                                                <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportSendEmail ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportSendEmail ? 'translate-x-4' : ''}`} />
+                                                </div>
+                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Email</span>
+                                            </label>
+                                        </div>
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <button

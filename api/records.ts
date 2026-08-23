@@ -398,8 +398,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Return empty list on any DB query error to prevent breaking client UI
                 return res.status(200).json([]);
             }
-            return res.status(200).json(data || []);
-        }
+        const stripUniversalTransientKeys = (rec: any) => {
+            if (!rec || typeof rec !== 'object') return rec;
+            const copy = { ...rec };
+            const universalKeys = [
+                'offline_fallback', 'offlineFallback', 'offline', 'success', 'error',
+                'notification_sent', 'notificationSent', 'is_opening_balance', 'isOpeningBalance'
+            ];
+            if (!['broadcaster_messages', 'alumni_messages', 'feedback_submissions', 'activity_log', 'bulletin_items'].includes(moduleName)) {
+                universalKeys.push('message');
+            }
+            if (moduleName === 'ds_students') {
+                const cat = copy.license_category || copy.licenseCategory || copy.license_type_interested || copy.licenseTypeInterested;
+                if (cat) {
+                    copy.license_type_interested = cat;
+                }
+                delete copy.license_category;
+                delete copy.licenseCategory;
+                delete copy.licenseTypeInterested;
+                delete copy.preferred_lesson_hours;
+                delete copy.preferredLessonHours;
+            }
+            universalKeys.forEach(k => {
+                if (k in copy) delete copy[k];
+            });
+            return copy;
+        };
 
         if (req.method === 'POST') {
             // ── Bulk delete via POST (avoids DELETE-body stripping on Vercel/proxies) ──
@@ -466,17 +490,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete cleaned.id;
                     }
                 }
-                if (moduleName === 'receipts') {
-                    const isPseudo = (id: any) => typeof id === 'string' && (id.trim() === '' || id.startsWith('__opening_balance__') || id.startsWith('__'));
+                if (moduleName === 'receipts' || moduleName === 'ds_payments') {
+                    const isPseudo = (id: any) => typeof id === 'string' && (id.trim() === '' || id.startsWith('__opening_balance__') || id.startsWith('__') || id.startsWith('temp_'));
                     if (isPseudo(cleaned.invoice_id)) cleaned.invoice_id = null;
                     if (isPseudo(cleaned.invoiceId)) cleaned.invoiceId = null;
+                }
+                if (moduleName === 'ds_lessons') {
+                    const isInvalidFK = (id: any) => !id || (typeof id === 'string' && (id.trim() === '' || id.startsWith('temp_') || id.startsWith('__') || id.startsWith('unassigned') || id === 'null' || id === 'undefined'));
+                    if (isInvalidFK(cleaned.instructor_id)) cleaned.instructor_id = null;
+                    if (isInvalidFK(cleaned.instructorId)) cleaned.instructorId = null;
+                    if (isInvalidFK(cleaned.vehicle_id)) cleaned.vehicle_id = null;
+                    if (isInvalidFK(cleaned.vehicleId)) cleaned.vehicleId = null;
+                    if (isInvalidFK(cleaned.room_id)) cleaned.room_id = null;
+                    if (isInvalidFK(cleaned.roomId)) cleaned.roomId = null;
                 }
                 return cleaned;
             };
 
             const sanitizedRecords = Array.isArray(recordWithBranch)
-                ? recordWithBranch.map(sanitizeUUIDs)
-                : sanitizeUUIDs(recordWithBranch);
+                ? recordWithBranch.map(sanitizeUUIDs).map(stripUniversalTransientKeys)
+                : stripUniversalTransientKeys(sanitizeUUIDs(recordWithBranch));
 
             let currentPayload = sanitizedRecords;
             if (moduleName === 'his_patients') {
@@ -543,8 +576,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const setTeacherRole = (r: any) => (r && typeof r === 'object' ? { ...r, role: r.role || 'teacher' } : r);
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(setTeacherRole) : setTeacherRole(currentPayload);
             }
+            if (moduleName === 'ds_students') {
+                const cleanDsStudent = (s: any) => {
+                    if (!s || typeof s !== 'object') return s;
+                    const copy = { ...s };
+                    const cat = copy.license_category || copy.licenseCategory || copy.license_type_interested || copy.licenseTypeInterested;
+                    if (cat) {
+                        copy.license_type_interested = cat;
+                    }
+                    delete copy.license_category;
+                    delete copy.licenseCategory;
+                    delete copy.licenseTypeInterested;
+                    delete copy.preferred_lesson_hours;
+                    delete copy.preferredLessonHours;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanDsStudent) : cleanDsStudent(currentPayload);
+            }
 
-            if (moduleName === 'invoices' || moduleName === 'receipts') {
+            if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments'].includes(moduleName)) {
                 const parseDate = (val: any): string | null => {
                     if (!val && val !== 0) return null;
                     if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().split('T')[0];
@@ -570,11 +620,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanBillingRecord = (rec: any) => {
                     if (!rec || typeof rec !== 'object') return rec;
                     const copy = { ...rec };
-                    const sId = copy.student_id || copy.studentId;
-                    if (!sId || typeof sId !== 'string' || sId.startsWith('ext_') || sId.startsWith('temp_') || sId.trim() === '') {
-                        copy.student_id = null;
+                    if (moduleName === 'invoices' || moduleName === 'receipts' || moduleName === 'ds_payments' || moduleName === 'ds_invoices') {
+                        const sId = copy.student_id || copy.studentId;
+                        if (!sId || typeof sId !== 'string' || sId.startsWith('ext_') || sId.startsWith('temp_') || sId.startsWith('guest_') || sId.trim() === '') {
+                            copy.student_id = null;
+                        }
+                        if ('studentId' in copy) delete copy.studentId;
                     }
-                    if ('studentId' in copy) delete copy.studentId;
 
                     if (copy.due_date !== undefined) copy.due_date = parseDate(copy.due_date);
                     if (copy.dueDate !== undefined) {
@@ -591,6 +643,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         copy.payment_date = copy.payment_date || parseDate(copy.paymentDate);
                         delete copy.paymentDate;
                     }
+
+                    // Strip un-cached transient fields that do not exist as physical columns
+                    const transientColumns = [
+                        'message', 'isOpeningBalance', 'is_opening_balance',
+                        'notificationSent', 'notification_sent', 'phone', 'email',
+                        'studentAdm', 'student_adm', 'editReason', 'edit_reason',
+                        'transferReason', 'transfer_reason', 'deletionReason', 'deletion_reason',
+                        'deletionRequestedBy', 'deletion_requested_by', 'auditedBy', 'audited_by',
+                        'auditedAt', 'audited_at', 'previousStudentId', 'previous_student_id',
+                        'offline_fallback', 'offlineFallback', 'offline', 'success', 'error'
+                    ];
+                    transientColumns.forEach(col => {
+                        if (col in copy) {
+                            delete copy[col];
+                        }
+                    });
 
                     return copy;
                 };
@@ -629,7 +697,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id'].forEach(k => {
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id'].forEach(k => {
                             if (k in copy) copy[k] = null;
                         });
                         return copy;
@@ -730,7 +798,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const idsArray = Array.isArray(ids) ? ids : [ids];
-                let currentUpdateData = updateData;
+                let currentUpdateData = updateData && typeof updateData === 'object' ? stripUniversalTransientKeys(updateData) : updateData;
                 if (moduleName === 'his_patients' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
                     const opVal = copy.admission_number || copy.admissionNumber || copy.custom_patient_id || copy.customPatientId || copy.patient_number || copy.patientNumber || copy.op_number || copy.opNumber;
@@ -743,6 +811,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.opNumber;
                     delete copy.admissionNumber;
                     delete copy.name;
+                    currentUpdateData = copy;
+                } else if (moduleName === 'ds_students' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const cat = copy.license_category || copy.licenseCategory || copy.license_type_interested || copy.licenseTypeInterested;
+                    if (cat) {
+                        copy.license_type_interested = cat;
+                    }
+                    delete copy.license_category;
+                    delete copy.licenseCategory;
+                    delete copy.licenseTypeInterested;
+                    delete copy.preferred_lesson_hours;
+                    delete copy.preferredLessonHours;
+                    currentUpdateData = copy;
+                } else if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments'].includes(moduleName) && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const transientColumns = [
+                        'message', 'isOpeningBalance', 'is_opening_balance',
+                        'notificationSent', 'notification_sent', 'phone', 'email',
+                        'studentAdm', 'student_adm', 'editReason', 'edit_reason',
+                        'transferReason', 'transfer_reason', 'deletionReason', 'deletion_reason',
+                        'deletionRequestedBy', 'deletion_requested_by', 'auditedBy', 'audited_by',
+                        'auditedAt', 'audited_at', 'previousStudentId', 'previous_student_id',
+                        'offline_fallback', 'offlineFallback', 'offline', 'success', 'error'
+                    ];
+                    transientColumns.forEach(col => {
+                        if (col in copy) {
+                            delete copy[col];
+                        }
+                    });
                     currentUpdateData = copy;
                 }
                 let data: any = null;
