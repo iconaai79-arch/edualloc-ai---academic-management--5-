@@ -209,108 +209,112 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const targetDbTable = isStudentsAlias || isTeachersAlias ? 'users' : moduleName;
 
         if (req.method === 'GET') {
-            let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
-            if (isStudentsAlias) {
-                q = q.eq('role', 'student');
-            } else if (isTeachersAlias) {
-                q = q.eq('role', 'teacher');
-            }
-            
-            // Apply tenancy filter
-            // Skip tenancy filter for super admins, group admins, explicit institution queries, OR for public modules
             const targetInstParam = getStrParam(queryInstitutionId);
             const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
             const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (isPublicModule && !targetInstParam);
 
-            if (user && !shouldSkipTenancy) {
-                const isCounty = user.role?.startsWith('county_');
-                if (isCounty) {
-                    if (moduleName === 'counties') q = q.eq('id', user.institutionId);
-                    else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
-                    else if (moduleName === 'county_bursary_funds') q = q.eq('county_id', user.institutionId);
-                    else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('county_id', user.institutionId);
-                } else if (user.role?.startsWith('constituency_')) {
-                    if (moduleName === 'ng_cdf_funds') {
-                        q = q.or(`constituency_id.eq.${user.institutionId},constituency_name.eq.${user.institutionId}`);
-                    } else if (moduleName === 'ng_cdf_bursaries') {
-                        q = q.eq('constituency_name', user.institutionId);
-                    }
-                } else if (user.role === 'alumna') {
-                    if (moduleName === 'alumni_messages') {
-                        // Support both recipient_id and receiver_id for legacy/migration compatibility
-                        q = q.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},receiver_id.eq.${user.id}`);
-                    } else if (moduleName === 'alumnae_members') {
-                        // Allow alumnae to see other members (networking)
-                    } else if (['alumni_posts', 'alumni_comments', 'alumni_notifications'].includes(moduleName)) {
-                        // Social feed and notifications are accessible to verified alumnae
-                    } else if (!isTableWithoutInstitutionId(moduleName)) {
-                        q = q.eq('institution_id', user.institutionId);
-                    }
-                } else {
-                    if (user.institutionId) {
-                        if (moduleName === 'institutions') q = q.eq('id', user.institutionId);
-                        else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('institution_id', user.institutionId);
-                    }
+            const buildBaseQuery = () => {
+                let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
+                if (isStudentsAlias) {
+                    q = q.eq('role', 'student');
+                } else if (isTeachersAlias) {
+                    q = q.eq('role', 'teacher');
                 }
-            }
-
-            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
-            
-            if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                if (moduleName === 'branches') {
-                    q = q.eq('id', user.branchId);
-                } else {
-                    q = q.eq('branch_id', user.branchId);
-                }
-            }
-
-            if (getStrParam(id)) q = q.eq('id', getStrParam(id));
-            if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
-                q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
-            } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && user?.institutionId && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
-                q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
-            }
-            if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
-
-            // Custom filters from other query params
-            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
-            Object.entries(req.query).forEach(([key, value]) => {
-                if (!reservedParams.includes(key) && value) {
-                    const strVal = getStrParam(value);
-                    if (strVal) {
-                        const lowerKey = key.toLowerCase();
-                        if (lowerKey.includes('email')) {
-                            // Support case-insensitive email searches
-                            q = q.ilike(key, strVal.trim());
-                        } else if (lowerKey.includes('phone') || lowerKey === 'mobile') {
-                            // Support flexible phone number matching (ignore country code prefixes, spaces, formatting)
-                            const digits = strVal.replace(/\D/g, '');
-                            if (digits.length >= 9) {
-                                const last9 = digits.substring(digits.length - 9);
-                                const pattern = '%' + last9.split('').join('%') + '%';
-                                q = q.ilike(key, pattern);
-                            } else {
-                                q = q.eq(key, strVal);
-                            }
-                        } else {
-                            q = q.eq(key, strVal);
+                
+                // Apply tenancy filter
+                // Skip tenancy filter for super admins, group admins, explicit institution queries, OR for public modules
+                if (user && !shouldSkipTenancy) {
+                    const isCounty = user.role?.startsWith('county_');
+                    if (isCounty) {
+                        if (moduleName === 'counties') q = q.eq('id', user.institutionId);
+                        else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
+                        else if (moduleName === 'county_bursary_funds') q = q.eq('county_id', user.institutionId);
+                        else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('county_id', user.institutionId);
+                    } else if (user.role?.startsWith('constituency_')) {
+                        if (moduleName === 'ng_cdf_funds') {
+                            q = q.or(`constituency_id.eq.${user.institutionId},constituency_name.eq.${user.institutionId}`);
+                        } else if (moduleName === 'ng_cdf_bursaries') {
+                            q = q.eq('constituency_name', user.institutionId);
+                        }
+                    } else if (user.role === 'alumna') {
+                        if (moduleName === 'alumni_messages') {
+                            // Support both recipient_id and receiver_id for legacy/migration compatibility
+                            q = q.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},receiver_id.eq.${user.id}`);
+                        } else if (moduleName === 'alumnae_members') {
+                            // Allow alumnae to see other members (networking)
+                        } else if (['alumni_posts', 'alumni_comments', 'alumni_notifications'].includes(moduleName)) {
+                            // Social feed and notifications are accessible to verified alumnae
+                        } else if (!isTableWithoutInstitutionId(moduleName)) {
+                            q = q.eq('institution_id', user.institutionId);
+                        }
+                    } else {
+                        if (user.institutionId) {
+                            if (moduleName === 'institutions') q = q.eq('id', user.institutionId);
+                            else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('institution_id', user.institutionId);
                         }
                     }
                 }
-            });
 
-            const orderParam = getStrParam(order);
-            if (orderParam && orderParam.includes('.')) {
-                const [col, dir] = orderParam.split('.');
-                if (col) {
-                    q = q.order(col, { ascending: dir === 'asc' });
+                const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+                const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                
+                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                    if (moduleName === 'branches') {
+                        q = q.eq('id', user.branchId);
+                    } else {
+                        q = q.eq('branch_id', user.branchId);
+                    }
                 }
-            } else if (orderParam) {
-                q = q.order(orderParam, { ascending: true });
-            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)) {
-                q = q.order('created_at', { ascending: false });
-            }
+
+                if (getStrParam(id)) q = q.eq('id', getStrParam(id));
+                if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
+                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
+                } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && user?.institutionId && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
+                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
+                }
+                if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
+
+                // Custom filters from other query params
+                const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
+                Object.entries(req.query).forEach(([key, value]) => {
+                    if (!reservedParams.includes(key) && value) {
+                        const strVal = getStrParam(value);
+                        if (strVal) {
+                            const lowerKey = key.toLowerCase();
+                            if (lowerKey.includes('email')) {
+                                // Support case-insensitive email searches
+                                q = q.ilike(key, strVal.trim());
+                            } else if (lowerKey.includes('phone') || lowerKey === 'mobile') {
+                                // Support flexible phone number matching (ignore country code prefixes, spaces, formatting)
+                                const digits = strVal.replace(/\D/g, '');
+                                if (digits.length >= 9) {
+                                    const last9 = digits.substring(digits.length - 9);
+                                    const pattern = '%' + last9.split('').join('%') + '%';
+                                    q = q.ilike(key, pattern);
+                                } else {
+                                    q = q.eq(key, strVal);
+                                }
+                            } else {
+                                q = q.eq(key, strVal);
+                            }
+                        }
+                    }
+                });
+
+                const orderParam = getStrParam(order);
+                if (orderParam && orderParam.includes('.')) {
+                    const [col, dir] = orderParam.split('.');
+                    if (col) {
+                        q = q.order(col, { ascending: dir === 'asc' });
+                    }
+                } else if (orderParam) {
+                    q = q.order(orderParam, { ascending: true });
+                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)) {
+                    q = q.order('created_at', { ascending: false });
+                }
+
+                return q;
+            };
             
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
@@ -325,9 +329,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            q = q.range(offset, offset + finalLimit - 1);
+            const CHUNK_SIZE = 1000;
+            let data: any[] = [];
+            let error: any = null;
 
-            const { data, error } = await q;
+            if (finalLimit <= CHUNK_SIZE) {
+                const res = await buildBaseQuery().range(offset, offset + finalLimit - 1);
+                data = res.data || [];
+                error = res.error;
+            } else {
+                let currentOffset = offset;
+                let remaining = finalLimit;
+
+                while (remaining > 0) {
+                    const batchSize = Math.min(CHUNK_SIZE, remaining);
+                    const res = await buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1);
+                    if (res.error) {
+                        if (data.length === 0) {
+                            error = res.error;
+                        } else {
+                            console.warn(`[API GET] Chunk fetch error for '${moduleName}' at offset ${currentOffset}:`, res.error);
+                        }
+                        break;
+                    }
+                    const chunk = res.data || [];
+                    if (chunk.length === 0) break;
+                    data.push(...chunk);
+                    if (chunk.length < batchSize) break; // Reached end of dataset
+                    currentOffset += chunk.length;
+                    remaining -= chunk.length;
+                }
+            }
             if (error) {
                 const isTableMissing = error.code === '42P01' || 
                                        error.code === 'PGRST205' || 
