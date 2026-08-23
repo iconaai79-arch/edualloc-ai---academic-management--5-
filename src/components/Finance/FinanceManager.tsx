@@ -9423,13 +9423,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
                                         {paginatedStudentInvoices.map(inv => {
-                                            const studentId = inv.studentId || (inv as any).student_id;
-                                            const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
-                                            const admNum = student?.admissionNumber || student?.admission_number || '—';
-                                            const studentName = student?.name || 'Unknown Student';
-                                            const gradeName = student ? studentClassGroup(student) : '—';
-                                            const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
-                                            const paidAmount = allocations.reduce((sum, r) => sum + Number(r.amountPaid || (r as any).amount_paid || 0), 0);
+                                            const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
+                                            const student = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find((s: any) => {
+                                                if (!s) return false;
+                                                const sId = s.id || s.userId || s.user_id;
+                                                if (studentId && (sId === studentId || s.id === studentId)) return true;
+                                                const sAdm = getStudentAdmNumber(s);
+                                                const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
+                                                if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
+                                                if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
+                                                return false;
+                                            }) || (studentId ? studentFinanceData.find(s => s.id === studentId) : null);
+                                            const admNum = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
+                                            const studentName = student?.name || (inv as any).studentName || (inv as any).student_name || 'Unknown Student';
+                                            const gradeName = (student ? studentClassGroup(student) : null) || (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || '—';
+                                            const paidAmount = invoicePaidAmountMap.get(inv.id) || 0;
                                             const totalAmount = Number(inv.totalAmount || (inv as any).total_amount || 0);
 
                                             return (
@@ -15487,14 +15495,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
+                                                            const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
                                                             const rows = filteredInvoices.map((inv: any) => {
-                                                                const student = props.students.find((s: any) => s.id === inv.studentId);
+                                                                const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
+                                                                const student = allStudentsList.find((s: any) => {
+                                                                    if (!s) return false;
+                                                                    const sId = s.id || s.userId || s.user_id;
+                                                                    if (studentId && (sId === studentId || s.id === studentId)) return true;
+                                                                    const sAdm = getStudentAdmNumber(s);
+                                                                    const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
+                                                                    if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
+                                                                    if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
+                                                                    return false;
+                                                                }) || (props.students || []).find((s: any) => s.id === inv.studentId);
                                                                 const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                 const bal = (inv.totalAmount || 0) - paid;
-                                                                const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
-                                                                const sAdm = student?.admissionNumber || (student as any)?.admission_number || '—';
+                                                                const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
+                                                                const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                 return [
-                                                                    student?.name || '—',
+                                                                    student?.name || (inv as any).studentName || (inv as any).student_name || '—',
                                                                     sAdm,
                                                                     cls,
                                                                     inv.invoiceNumber || inv.id?.slice(-8),
@@ -15573,9 +15592,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </tr>
                                                         ) : (
                                                             paginatedInvoices.map((inv: any, i: number) => {
-                                                                const student = props.students.find((s: any) => s.id === inv.studentId);
-                                                                const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || '—');
-                                                                const sAdm = student?.admissionNumber || (student as any)?.admission_number || '—';
+                                                                const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+                                                                const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
+                                                                const student = allStudentsList.find((s: any) => {
+                                                                    if (!s) return false;
+                                                                    const sId = s.id || s.userId || s.user_id;
+                                                                    if (studentId && (sId === studentId || s.id === studentId)) return true;
+                                                                    const sAdm = getStudentAdmNumber(s);
+                                                                    const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
+                                                                    if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
+                                                                    if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
+                                                                    return false;
+                                                                }) || (props.students || []).find((s: any) => s.id === inv.studentId);
+                                                                const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
+                                                                const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                 const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                                                 const bal = (inv.totalAmount || 0) - paid;
                                                                 const isCleared = bal <= 0;
@@ -15583,7 +15613,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 return (
                                                                     <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                                                         <td className="py-3 px-4">
-                                                                            <p className="font-black text-slate-900 dark:text-white text-xs">{student?.name || inv.studentName || inv.studentId || '—'}</p>
+                                                                            <p className="font-black text-slate-900 dark:text-white text-xs">{student?.name || (inv as any).studentName || (inv as any).student_name || inv.studentId || '—'}</p>
                                                                             <p className="text-[9px] text-slate-400 font-mono font-bold uppercase tracking-wider mt-0.5">Adm: {sAdm}</p>
                                                                         </td>
                                                                         <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300">
