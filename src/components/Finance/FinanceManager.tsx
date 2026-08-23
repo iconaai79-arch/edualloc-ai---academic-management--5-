@@ -81,14 +81,40 @@ const parseMoneyAmount = (amt: any): number => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
+const sanitizeExcelDate = (raw: any): string | null => {
+    if (!raw && raw !== 0) return null;
+    // Already a JS Date
+    if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw.toISOString().split('T')[0];
+    // Pure numeric serial
+    if (typeof raw === 'number') {
+        if (raw < 1 || raw > 200000) return null;
+        const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000);
+        return isNaN(utc.getTime()) ? null : utc.toISOString().split('T')[0];
+    }
+    const s = String(raw).trim();
+    if (!s || s === '0001-01-01') return null;
+    // Detect "MM/DD/SERIAL" e.g. 12/31/46034 where the "year" > 9999 is actually an Excel serial
+    const badFmt = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{5,})$/);
+    if (badFmt) {
+        const serial = parseInt(badFmt[3], 10);
+        if (serial > 1 && serial < 200000) {
+            const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+            if (!isNaN(utc.getTime())) return utc.toISOString().split('T')[0];
+        }
+    }
+    return null; // not a bad date — handled by normal path
+};
+
 const formatLedgerDate = (rawDate: any, entryData?: any) => {
     const candidate = rawDate || entryData?.paymentDate || entryData?.payment_date || entryData?.issueDate || entryData?.issue_date || entryData?.date || entryData?.createdAt || entryData?.created_at || entryData?.receiptDate;
     if (!candidate || candidate === '0001-01-01') return '—';
-    const str = String(candidate).trim();
+    // Try to fix bad Excel-serial-in-year dates first
+    const fixed = sanitizeExcelDate(candidate);
+    const str = fixed || String(candidate).trim();
     if (!str || str === '—') return '—';
     try {
         const d = new Date(str);
-        if (!isNaN(d.getTime())) {
+        if (!isNaN(d.getTime()) && d.getFullYear() > 1970 && d.getFullYear() < 2100) {
             return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         }
     } catch {}
@@ -2485,11 +2511,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const buffer = await file.arrayBuffer();
-            // dense: true avoids sparse memory allocation; cellDates: true converts serial dates → JS Date
+            // dense: true avoids sparse memory allocation; cellDates: true converts serial dates → JS Date objects
+            // NOTE: do NOT pass raw: false — it overrides cellDates and causes serials to leak into format strings
             const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true, cellDates: true });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
             if (rawRows.length === 0) {
                 alert("The selected Excel file appears to be empty.");
@@ -7267,7 +7294,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-xs font-semibold text-slate-500">
-                                                        {rec.paymentDate ? new Date(rec.paymentDate).toLocaleDateString() : 'N/A'}
+                                                        {formatLedgerDate(rec.paymentDate || (rec as any).payment_date || (rec as any).date)}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex items-center justify-center gap-1.5">
