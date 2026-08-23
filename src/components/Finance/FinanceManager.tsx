@@ -575,9 +575,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         const map = new Map<string, any>();
         scopedPropsStudents.forEach((s: any) => map.set(s.id, s));
-        allBranchStudents.forEach((s: any) => {
-            if (!map.has(s.id)) map.set(s.id, s);
-        });
+        allBranchStudents.forEach((s: any) => map.set(s.id, s));
         return Array.from(map.values());
     }, [props.students, allBranchStudents, props.institution?.id, branches, cleanId]);
 
@@ -605,9 +603,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         const map = new Map<string, any>();
         scopedPropsInvoices.forEach((inv: any) => map.set(inv.id, inv));
-        allBranchInvoices.forEach((inv: any) => {
-            if (!map.has(inv.id)) map.set(inv.id, inv);
-        });
+        allBranchInvoices.forEach((inv: any) => map.set(inv.id, inv));
         return Array.from(map.values());
     }, [props.invoices, allBranchInvoices, props.institution?.id, branches, cleanId]);
 
@@ -627,9 +623,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         const map = new Map<string, any>();
         scopedPropsReceipts.forEach((rec: any) => map.set(rec.id, rec));
-        allBranchReceipts.forEach((rec: any) => {
-            if (!map.has(rec.id)) map.set(rec.id, rec);
-        });
+        allBranchReceipts.forEach((rec: any) => map.set(rec.id, rec));
         return Array.from(map.values());
     }, [props.receipts, allBranchReceipts, props.institution?.id, branches, cleanId]);
 
@@ -1020,10 +1014,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [editingDsFee, setEditingDsFee] = useState<any>(null);
     const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
     const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
+    const extractStudentOpeningBalance = useCallback((s: any): number => {
+        if (!s) return 0;
+        const val = s.metadata?.openingBalance ??
+                    s.metadata?.opening_balance ??
+                    s.openingBalance ??
+                    s.opening_balance ??
+                    s.metadata?.balanceBf ??
+                    s.metadata?.balance_bf ??
+                    s.balanceBf ??
+                    s.balance_bf ??
+                    s.metadata?.balance ??
+                    0;
+        return parseMoneyAmount(val);
+    }, []);
+
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
         const initialMap: Record<string, number> = {};
         props.students.forEach(s => {
-            initialMap[s.id] = s.metadata?.openingBalance || 0;
+            const ob = s.metadata?.openingBalance ?? s.metadata?.opening_balance ?? s.openingBalance ?? s.opening_balance ?? s.metadata?.balanceBf ?? s.metadata?.balance_bf ?? s.balanceBf ?? s.balance_bf ?? s.metadata?.balance ?? 0;
+            initialMap[s.id] = parseMoneyAmount(ob);
         });
         return initialMap;
     });
@@ -1033,7 +1043,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setOpeningBalancesMap(prev => {
             const newMap: Record<string, number> = {};
             mergedStudents.forEach(s => {
-                newMap[s.id] = parseMoneyAmount(s.metadata?.openingBalance ?? prev[s.id] ?? 0);
+                const rawOb = s.metadata?.openingBalance ?? s.metadata?.opening_balance ?? s.openingBalance ?? s.opening_balance ?? s.metadata?.balanceBf ?? s.metadata?.balance_bf ?? s.balanceBf ?? s.balance_bf ?? s.metadata?.balance;
+                newMap[s.id] = parseMoneyAmount(rawOb !== undefined ? rawOb : (prev[s.id] ?? 0));
             });
             return newMap;
         });
@@ -2053,7 +2064,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const adm = studentAdmissionNumber(s);
             const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
 
-            const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? s.metadata?.openingBalance ?? 0);
+            const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? extractStudentOpeningBalance(s));
 
             const studentInvoices = mappedInvoices.filter(inv => 
                 (inv.studentId === s.id || (inv as any).student_id === s.id || String(inv.studentId) === String(s.id) || String((inv as any).student_id) === String(s.id) || (adm && adm !== '—' && (inv.admissionNumber === adm || inv.admission_number === adm))) && 
@@ -2933,6 +2944,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             if (props.onLogAction) {
                 props.onLogAction(`Auto-reconciled and posted/updated ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0).toLocaleString()}`);
+            }
+
+            if (props.onRefreshData) {
+                props.onRefreshData();
             }
 
             // --- Bulk Receipt Notifications (fire-and-forget, only if user opted in) ---
