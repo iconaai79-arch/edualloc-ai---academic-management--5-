@@ -3817,6 +3817,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [mappedReceipts, searchReceiptQuery, receiptSourceFilter, mergedStudents, receiptsMainTab]);
 
     const [receiptCurrentPage, setReceiptCurrentPage] = useState(1);
+    const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
+    const [isDeletingReceipts, setIsDeletingReceipts] = useState(false);
+    const [receiptDeleteConfirm, setReceiptDeleteConfirm] = useState<{ ids: string[]; label: string } | null>(null);
 
     const paginatedReceipts = useMemo(() => {
         const startIndex = (receiptCurrentPage - 1) * 10;
@@ -3827,7 +3830,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     useEffect(() => {
         setReceiptCurrentPage(1);
+        setSelectedReceiptIds(new Set());
     }, [searchReceiptQuery, receiptSourceFilter]);
+
+    const handleDeleteReceipts = async (ids: string[]) => {
+        if (ids.length === 0) return;
+        setIsDeletingReceipts(true);
+        try {
+            for (let i = 0; i < ids.length; i += 50) {
+                await apiService.deleteModuleRecord('receipts', ids.slice(i, i + 50).join(','));
+            }
+            setSelectedReceiptIds(new Set());
+            setReceiptDeleteConfirm(null);
+            if (props.onRefreshData) await props.onRefreshData();
+        } catch (err) {
+            console.error('[FinanceManager] Delete receipts failed:', err);
+            alert('Failed to delete receipt(s). Please try again.');
+        } finally {
+            setIsDeletingReceipts(false);
+        }
+    };
 
     // Invoices filtering and pagination
     const filteredStudentInvoices = useMemo(() => {
@@ -7197,15 +7219,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <PrinterIcon className="w-3.5 h-3.5" />
                                             Reprint by Class
                                         </button>
+                                        {selectedReceiptIds.size > 0 && (
+                                            <button
+                                                onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected receipt(s)` })}
+                                                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-in fade-in duration-200"
+                                            >
+                                                <Trash2Icon className="w-3.5 h-3.5" />
+                                                Delete Selected ({selectedReceiptIds.size})
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
-                                    <button
-                                        onClick={() => setShowOtherIncomeModal(true)}
-                                        className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Receive Other Income
-                                    </button>
+                                    <div className="flex flex-nowrap items-center gap-2 shrink-0">
+                                        <button
+                                            onClick={() => setShowOtherIncomeModal(true)}
+                                            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-2 transition-all active:scale-95 hover:shadow-lg"
+                                        >
+                                            <PlusIcon className="w-4 h-4" />
+                                            Receive Other Income
+                                        </button>
+                                        {selectedReceiptIds.size > 0 && (
+                                            <button
+                                                onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected record(s)` })}
+                                                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-in fade-in duration-200"
+                                            >
+                                                <Trash2Icon className="w-3.5 h-3.5" />
+                                                Delete Selected ({selectedReceiptIds.size})
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
 
@@ -7240,6 +7282,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <table className="w-full border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800/60">
+                                            <th className="px-4 py-4 w-10">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={paginatedReceipts.length > 0 && paginatedReceipts.every(r => selectedReceiptIds.has(r.id))}
+                                                    onChange={e => {
+                                                        if (e.target.checked) {
+                                                            setSelectedReceiptIds(prev => new Set([...prev, ...paginatedReceipts.map(r => r.id)]));
+                                                        } else {
+                                                            setSelectedReceiptIds(prev => { const n = new Set(prev); paginatedReceipts.forEach(r => n.delete(r.id)); return n; });
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                                                    title="Select all on this page"
+                                                />
+                                            </th>
                                             {receiptsMainTab === 'student_fees' ? (
                                                 <>
                                                     <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
@@ -7289,8 +7346,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 }
                                             }
 
+                                            const isSelected = selectedReceiptIds.has(rec.id);
                                             return (
-                                                <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                                                <tr key={rec.id} className={`transition-colors ${isSelected ? 'bg-rose-50/40 dark:bg-rose-950/20' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/10'}`}>
+                                                    <td className="px-4 py-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => {
+                                                                setSelectedReceiptIds(prev => {
+                                                                    const n = new Set(prev);
+                                                                    n.has(rec.id) ? n.delete(rec.id) : n.add(rec.id);
+                                                                    return n;
+                                                                });
+                                                            }}
+                                                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+                                                        />
+                                                    </td>
                                                     {receiptsMainTab === 'student_fees' ? (
                                                         <>
                                                             <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
@@ -7362,6 +7434,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             >
                                                                 🖨️ EPOS (80mm)
                                                             </button>
+                                                            <button
+                                                                onClick={() => setReceiptDeleteConfirm({ ids: [rec.id], label: rec.receiptNumber || 'this receipt' })}
+                                                                className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                                                title="Delete this receipt"
+                                                            >
+                                                                <Trash2Icon className="w-3.5 h-3.5" />
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -7369,7 +7448,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         })}
                                         {filteredReceipts.length === 0 && (
                                             <tr>
-                                                <td colSpan={9} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
+                                                <td colSpan={10} className="py-12 text-center text-xs text-slate-400 font-medium italic">No receipts matched your criteria.</td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -7413,6 +7492,55 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Receipt Delete Confirmation Modal ── */}
+                {receiptDeleteConfirm && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-slate-200 dark:border-slate-800 space-y-6 text-left animate-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 flex items-center justify-center shadow-lg shadow-rose-500/20">
+                                    <ExclamationTriangleIcon className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Delete Receipt{receiptDeleteConfirm.ids.length > 1 ? 's' : ''}?</h4>
+                                    <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mt-0.5">This action cannot be undone.</p>
+                                </div>
+                            </div>
+                            <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400 font-bold uppercase text-[10px]">Target:</span>
+                                    <span className="font-black text-slate-900 dark:text-white">{receiptDeleteConfirm.label}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400 font-bold uppercase text-[10px]">Records to Delete:</span>
+                                    <span className="font-black text-rose-600">{receiptDeleteConfirm.ids.length}</span>
+                                </div>
+                            </div>
+                            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                                ⚠️ Deleting receipt(s) will permanently remove them from the ledger and immediately recalculate the affected student account balances.
+                            </p>
+                            <div className="flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setReceiptDeleteConfirm(null)}
+                                    disabled={isDeletingReceipts}
+                                    className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteReceipts(receiptDeleteConfirm.ids)}
+                                    disabled={isDeletingReceipts}
+                                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-500/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                    <Trash2Icon className="w-4 h-4" />
+                                    {isDeletingReceipts ? 'Deleting...' : `Confirm Delete (${receiptDeleteConfirm.ids.length})`}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
