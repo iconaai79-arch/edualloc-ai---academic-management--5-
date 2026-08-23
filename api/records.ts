@@ -313,13 +313,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
-                    ? 5000
-                    : 1000
+                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
+                    ? 100000
+                    : 10000
             );
-            if (isNaN(finalLimit)) finalLimit = 1000;
-            if (finalLimit > 10000 && !['school_registry'].includes(moduleName)) {
-                finalLimit = 10000;
+            if (isNaN(finalLimit)) finalLimit = 100000;
+            if (finalLimit > 100000) {
+                finalLimit = 100000;
             }
             
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;

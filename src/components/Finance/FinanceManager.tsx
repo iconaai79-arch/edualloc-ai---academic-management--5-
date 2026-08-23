@@ -456,6 +456,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setAllBranchInvoices([]);
         setAllBranchReceipts([]);
         setAllBranchEnrollments([]);
+        if (props.institution?.id) {
+            apiService.fetchModuleRecords('receipts', props.institution.id, undefined, { limit: 100000, order: 'payment_date.desc' })
+                .then((recs: any[]) => {
+                    if (recs && Array.isArray(recs) && recs.length > 0) {
+                        setAllBranchReceipts(recs);
+                    }
+                })
+                .catch(() => {});
+        }
     }, [props.institution?.id]);
 
     useEffect(() => {

@@ -1199,8 +1199,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                     (isAcademic || isSuper) ? apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []) : Promise.resolve([]),
                     (isAcademic || isSuper) ? apiService.fetchAcademicLevels(instId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
-                    apiService.fetchTransactions(instId, { limit: transactionLimit }).catch(() => []),
-                    apiService.fetchModuleRecords<Receipt>('receipts', instId, undefined, { limit: receiptLimit }).catch(() => []),
+                    apiService.fetchTransactions(instId, { limit: 100000 }).catch(() => []),
+                    apiService.fetchModuleRecords<Receipt>('receipts', instId, undefined, { limit: 100000 }).catch(() => []),
                     apiService.fetchModuleRecords<ActivityLog>('activity_log', instId, undefined, { limit: activityLogLimit }).catch(() => []),
                     apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).catch(() => []),
                 ]);
@@ -1430,6 +1430,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                         apiService.fetchFeeStructures(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchFinancialPeriods(effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<FeedbackSubmission>('feedback_submissions', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<Receipt>('receipts', effectiveInstIdFinal, undefined, { limit: 100000, order: 'payment_date.desc' }).catch(() => []),
                     ]),
                     // Acad Batch
                     isAcademic ? Promise.all([
@@ -1540,7 +1541,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 const [finResults, acadResults, countyResults, businessResults, coopResults, legalResults, carResults, systemResults] = results;
 
                 // Destructure Results
-                if (finResults) [inv, ext, vh, fs, fp, fb] = finResults;
+                let fRecs: any[] = [];
+                if (finResults) [inv, ext, vh, fs, fp, fb, fRecs] = finResults;
                 if (isAcademic && acadResults) [sar, enr, abs, con, att, timetableRecords, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, lo, obs, fCheckIn, disc] = acadResults;
                 if (isCounty && countyResults) {
                     const [cinvData, ccatsData, cstoresData, bAppsData, bFundsData, cAttData, cCheckInData] = countyResults;
@@ -1578,6 +1580,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
                 if (demoLeads) setDemoRequests(demoLeads);
 
                 setInvoices(inv || []);
+                if (fRecs && Array.isArray(fRecs) && fRecs.length > 0) {
+                    setReceipts(fRecs);
+                }
                 setExtensionRequests(ext || []);
                 setVoteHeads(vh || []);
                 setFeeStructures(fs || []);
