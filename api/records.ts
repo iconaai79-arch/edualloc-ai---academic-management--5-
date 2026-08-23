@@ -423,6 +423,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 delete copy.preferred_lesson_hours;
                 delete copy.preferredLessonHours;
             }
+            if (moduleName === 'receipts' || moduleName === 'payments' || moduleName === 'ds_payments') {
+                delete copy.admDisplay;
+                delete copy.excelPaymentMode;
+                delete copy.matchStatus;
+                delete copy.matchConfidence;
+                delete copy.matchedStudentId;
+                delete copy.studentAdm;
+                delete copy.student_adm;
+                delete copy.admission_number;
+                delete copy.admissionNumber;
+            }
             universalKeys.forEach(k => {
                 if (k in copy) delete copy[k];
             });
