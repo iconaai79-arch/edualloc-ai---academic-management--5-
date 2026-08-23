@@ -93,8 +93,20 @@ const sanitizeExcelDate = (raw: any): string | null => {
     }
     const s = String(raw).trim();
     if (!s || s === '0001-01-01') return null;
+
+    // Detect ISO-serial-as-year: "+046033-12-31" or "046033-12-31"
+    // (JS Date serializes large-year dates with a leading + e.g. new Date(year=46033))
+    const isoSerial = s.match(/^\+?(\d{5,})-(\d{1,2})-(\d{1,2})/);
+    if (isoSerial) {
+        const serial = parseInt(isoSerial[1], 10);
+        if (serial > 1 && serial < 200000) {
+            const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+            if (!isNaN(utc.getTime())) return utc.toISOString().split('T')[0];
+        }
+    }
+
     // Detect "MM/DD/SERIAL" e.g. 12/31/46034 where the "year" > 9999 is actually an Excel serial
-    const badFmt = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{5,})$/);
+    const badFmt = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{5,})$/);
     if (badFmt) {
         const serial = parseInt(badFmt[3], 10);
         if (serial > 1 && serial < 200000) {
@@ -102,6 +114,16 @@ const sanitizeExcelDate = (raw: any): string | null => {
             if (!isNaN(utc.getTime())) return utc.toISOString().split('T')[0];
         }
     }
+
+    // Detect plain serial stored as a string: "46034"
+    if (/^\d{5}$/.test(s)) {
+        const serial = parseInt(s, 10);
+        if (serial > 1 && serial < 200000) {
+            const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+            if (!isNaN(utc.getTime())) return utc.toISOString().split('T')[0];
+        }
+    }
+
     return null; // not a bad date — handled by normal path
 };
 
