@@ -535,7 +535,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             console.log('[KCB STK] Sending Buni payload:', JSON.stringify(stkPayload));
 
-            const stkPushRes = await fetch(finalStkUrl, {
+            let stkPushRes = await fetch(finalStkUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${access_token}`,
@@ -544,7 +544,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 body: JSON.stringify(stkPayload)
             });
 
-            const stkPushText = await stkPushRes.text();
+            let stkPushText = await stkPushRes.text();
+
+            // Auto-fallback for WSO2 Gateway Error 900901: Sandbox key offered to API with no sandbox endpoint
+            if (!stkPushRes.ok && (stkPushText.includes('900901') || stkPushText.includes('Sandbox key offered') || stkPushText.includes('sandbox endpoint'))) {
+                console.warn('[KCB STK] Sandbox key detected on production endpoint. Auto-retrying with UAT sandbox endpoint (https://uat.buni.kcbgroup.com)...');
+                try {
+                    const uatTokenRes = await fetch('https://uat.buni.kcbgroup.com/token?grant_type=client_credentials', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Basic ${authHeaderVal}`,
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: 'grant_type=client_credentials'
+                    });
+                    if (uatTokenRes.ok) {
+                        const uatTokenData = await uatTokenRes.json();
+                        if (uatTokenData.access_token) {
+                            const uatStkUrl = 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/stkpush';
+                            const uatRes = await fetch(uatStkUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${uatTokenData.access_token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(stkPayload)
+                            });
+                            const uatText = await uatRes.text();
+                            if (uatRes.ok) {
+                                stkPushRes = uatRes;
+                                stkPushText = uatText;
+                                console.log('[KCB STK] UAT Sandbox fallback succeeded!');
+                            } else {
+                                stkPushText = uatText;
+                            }
+                        }
+                    }
+                } catch (retryErr) {
+                    console.error('[KCB STK] UAT Sandbox fallback attempt failed:', retryErr);
+                }
+            }
+
             if (!stkPushRes.ok) {
                 console.error(`[KCB STK] Push request failed with status ${stkPushRes.status}:`, stkPushText);
                 // Parse KCB Buni envelope format: {"header":{"statusCode":"1","statusDescription":"..."},"response":{}}
@@ -554,6 +594,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Extract message from KCB Buni envelope or fallback formats
                 const kcbStatusDesc = parsedError?.header?.statusDescription || parsedError?.header?.statusdescription;
                 const kcbStatusCode = parsedError?.header?.statusCode || parsedError?.header?.statuscode;
+                const errCode = parsedError?.code || parsedError?.fault?.code || kcbStatusCode;
+                const errDesc = parsedError?.description || parsedError?.message || parsedError?.fault?.description || kcbStatusDesc;
+
                 let errorMessage = kcbStatusDesc ||
                                    parsedError?.message || parsedError?.description ||
                                    parsedError?.errorDescription ||
@@ -561,7 +604,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                    `KCB STK push failed with status ${stkPushRes.status}.`;
 
                 // Provide actionable guidance for common KCB error codes
-                if (kcbStatusDesc?.toLowerCase().includes('wrong credentials') || kcbStatusCode === '1') {
+                if (String(errCode) === '900901' || String(errDesc).includes('Sandbox key offered') || String(stkPushText).includes('Sandbox key offered')) {
+                    errorMessage = 'KCB Key Mismatch (Error 900901): Sandbox keys were offered to a Production endpoint. ' +
+                                  'If you are testing, change Environment to "Sandbox" in Settings → KCB Buni Credentials. ' +
+                                  'If you are going live, please generate and paste your Production App Key and Secret from the KCB Buni Developer Portal.';
+                } else if (String(errCode) === '900902' || String(errDesc).includes('Production key offered')) {
+                    errorMessage = 'KCB Key Mismatch (Error 900902): Production keys were offered to a Sandbox endpoint. ' +
+                                  'Change Environment to "Production" in Settings → KCB Buni Credentials.';
+                } else if (kcbStatusDesc?.toLowerCase().includes('wrong credentials') || kcbStatusCode === '1') {
                     errorMessage = 'KCB STK Push rejected: Wrong credentials. ' +
                                   'Please verify that your App Key, App Secret, and Short Code / Till Number configurations are correct.';
                 } else if (kcbStatusDesc?.toLowerCase().includes('subscription') || kcbStatusCode === '900') {
@@ -900,7 +950,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const password = Buffer.from((shortCode || '123456') + passkeyVal + timestamp).toString('base64');
 
             console.log(`[KCB Query] Querying transaction status at ${finalQueryUrl}`);
-            const queryRes = await fetch(finalQueryUrl, {
+            let queryRes = await fetch(finalQueryUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${access_token}`,
@@ -914,11 +964,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 })
             });
 
-            const queryText = await queryRes.text();
+            let queryText = await queryRes.text();
+
+            // Auto-fallback for WSO2 Gateway Error 900901 in query
+            if (!queryRes.ok && (queryText.includes('900901') || queryText.includes('Sandbox key offered'))) {
+                try {
+                    const uatTokenRes = await fetch('https://uat.buni.kcbgroup.com/token?grant_type=client_credentials', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Basic ${authHeaderVal}`,
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: 'grant_type=client_credentials'
+                    });
+                    if (uatTokenRes.ok) {
+                        const uatTokenData = await uatTokenRes.json();
+                        if (uatTokenData.access_token) {
+                            const uatQueryUrl = 'https://uat.buni.kcbgroup.com/mm/api/request/1.0.0/query';
+                            const uatRes = await fetch(uatQueryUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'Authorization': `Bearer ${uatTokenData.access_token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    shortCode: shortCode,
+                                    password: password,
+                                    timestamp: timestamp,
+                                    checkoutRequestID: checkoutRequestId
+                                })
+                            });
+                            if (uatRes.ok) {
+                                queryRes = uatRes;
+                                queryText = await uatRes.text();
+                            }
+                        }
+                    }
+                } catch (_) {}
+            }
+
             if (!queryRes.ok) {
+                let errMsg = `KCB Status query failed with status ${queryRes.status}.`;
+                if (queryText.includes('900901') || queryText.includes('Sandbox key offered')) {
+                    errMsg = 'KCB Key Mismatch (Error 900901): Sandbox key offered to Production endpoint. Please switch Environment to "Sandbox" in Settings.';
+                }
                 return res.status(200).json({
                     success: false,
-                    message: `KCB Status query failed with status ${queryRes.status}.`,
+                    message: errMsg,
                     details: queryText
                 });
             }
