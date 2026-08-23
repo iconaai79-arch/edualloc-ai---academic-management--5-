@@ -220,6 +220,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return allowed.includes(uRole) || uRoles.some(r => allowed.includes(r));
     }, [props.currentUser]);
 
+    const isSuperAdmin = useMemo(() => {
+        const uRole = String(props.currentUser?.role || (props.currentUser as any)?.userType || (props.currentUser as any)?.user_type || '').toLowerCase().trim();
+        const uRoles: string[] = Array.isArray((props.currentUser as any)?.roles)
+            ? (props.currentUser as any).roles.map((r: any) => String(r).toLowerCase().trim())
+            : [];
+        const superAdminRoles = ['super_admin', 'superadmin', 'system_admin', 'system_administrator', 'developer'];
+        return superAdminRoles.includes(uRole) || uRoles.some(r => superAdminRoles.includes(r));
+    }, [props.currentUser]);
+
     // Driving School Mode States
     const [dsInvoices, setDsInvoices] = useState<any[]>([]);
     const [dsPayments, setDsPayments] = useState<any[]>([]);
@@ -7926,11 +7935,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <PrinterIcon className="w-3.5 h-3.5" />
                                             Reprint by Class
                                         </button>
-                                        {detectedDuplicateReceipts.length > 0 && (
+                                        {isSuperAdmin && detectedDuplicateReceipts.length > 0 && (
                                             <button
                                                 onClick={() => setShowCleanDuplicatesModal(true)}
                                                 className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-pulse"
-                                                title="Scan and permanently delete duplicate receipt copies from the database"
+                                                title="Scan and permanently delete duplicate receipt copies from the database (Super Admin Only)"
                                             >
                                                 <SparklesIcon className="w-3.5 h-3.5" />
                                                 Remove Duplicates ({detectedDuplicateReceipts.length})
@@ -7955,11 +7964,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <PlusIcon className="w-4 h-4" />
                                             Receive Other Income
                                         </button>
-                                        {detectedDuplicateReceipts.length > 0 && (
+                                        {isSuperAdmin && detectedDuplicateReceipts.length > 0 && (
                                             <button
                                                 onClick={() => setShowCleanDuplicatesModal(true)}
                                                 className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-pulse"
-                                                title="Scan and permanently delete duplicate receipt copies from the database"
+                                                title="Scan and permanently delete duplicate receipt copies from the database (Super Admin Only)"
                                             >
                                                 <SparklesIcon className="w-3.5 h-3.5" />
                                                 Remove Duplicates ({detectedDuplicateReceipts.length})
@@ -7978,8 +7987,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 )}
                             </div>
 
-                            {/* Deduplication Detected Banner */}
-                            {detectedDuplicateReceipts.length > 0 && (
+                            {/* Deduplication Detected Banner (Super Admin Only) */}
+                            {isSuperAdmin && detectedDuplicateReceipts.length > 0 && (
                                 <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-xs font-bold text-amber-900 dark:text-amber-200 shadow-sm animate-in slide-in-from-top duration-200">
                                     <div className="flex items-center gap-2.5">
                                         <SparklesIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -19138,8 +19147,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 onRefreshData={props.onRefreshData}
             />
 
-            {/* Clean Duplicate Receipts Modal */}
-            {showCleanDuplicatesModal && (
+            {/* Clean Duplicate Receipts Modal (Super Admin Only) */}
+            {isSuperAdmin && showCleanDuplicatesModal && (
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in text-left">
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
                         <div className="p-6 bg-amber-500 text-white flex justify-between items-center">
