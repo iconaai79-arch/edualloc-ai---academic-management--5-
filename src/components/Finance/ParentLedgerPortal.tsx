@@ -85,15 +85,19 @@ export const ParentLedgerPortal: React.FC<ParentLedgerPortalProps> = ({
         );
     }, [students, searchStudentQuery]);
 
-    // Student Invoices & Receipts
+    // Student Invoices & Receipts (sorted latest to oldest)
     const studentInvoices = useMemo(() => {
         if (!currentStudent) return [];
-        return invoices.filter(inv => inv.studentId === currentStudent.id);
+        return invoices
+            .filter(inv => inv.studentId === currentStudent.id || (inv as any).student_id === currentStudent.id)
+            .sort((a: any, b: any) => new Date(b.issueDate || b.date || b.createdAt || 0).getTime() - new Date(a.issueDate || a.date || a.createdAt || 0).getTime());
     }, [invoices, currentStudent]);
 
     const studentReceipts = useMemo(() => {
         if (!currentStudent) return [];
-        return receipts.filter(rec => rec.studentId === currentStudent.id);
+        return receipts
+            .filter(rec => rec.studentId === currentStudent.id || (rec as any).student_id === currentStudent.id)
+            .sort((a: any, b: any) => new Date(b.paymentDate || b.payment_date || b.date || b.createdAt || 0).getTime() - new Date(a.paymentDate || a.payment_date || a.date || a.createdAt || 0).getTime());
     }, [receipts, currentStudent]);
 
     // Student Financial Totals

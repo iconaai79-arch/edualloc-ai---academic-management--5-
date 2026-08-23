@@ -3662,6 +3662,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 rec.paymentMethod === receiptSourceFilter;
 
             return matchesQuery && matchesSource;
+        }).sort((a: any, b: any) => {
+            const timeA = new Date(a.paymentDate || a.payment_date || a.date || a.createdAt || a.created_at || 0).getTime();
+            const timeB = new Date(b.paymentDate || b.payment_date || b.date || b.createdAt || b.created_at || 0).getTime();
+            return timeB - timeA;
         });
     }, [mappedReceipts, searchReceiptQuery, receiptSourceFilter, mergedStudents, receiptsMainTab]);
 
@@ -5507,7 +5511,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 });
 
                 let balPrevRunning = 0;
-                const balPrevLedger = balPrevAllEntries.map(entry => {
+                const balPrevLedgerChronological = balPrevAllEntries.map(entry => {
                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                     if (entry.eType === 'opening') {
                         const amt = parseMoneyAmount(entry.data.amount || 0);
@@ -5544,6 +5548,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: balPrevRunning, eType: 'payment' as const };
                     }
                 });
+
+                // Display statement ledger from latest transaction to oldest
+                const balPrevLedger = [...balPrevLedgerChronological].reverse();
 
                 const handleBalPrevDownloadPdf = async () => {
                     if (!balPrevStudent) return;
@@ -15705,7 +15712,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 });
 
                                 let running = 0;
-                                const ledger = allEntries.map(entry => {
+                                const ledgerChronological = allEntries.map(entry => {
                                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                                     if (entry.eType === 'opening') {
                                         const amt = parseMoneyAmount(entry.data.amount || 0);
@@ -15742,6 +15749,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: running, eType: 'payment' as const };
                                     }
                                 });
+
+                                // Display statement ledger from latest transaction to oldest
+                                const ledger = [...ledgerChronological].reverse();
 
                                 const handleDownloadPdf = async () => {
                                     if (!selectedStudent) return;
