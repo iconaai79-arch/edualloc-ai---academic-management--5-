@@ -4,6 +4,7 @@ import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
 import { InvoiceHistoryManager } from './InvoiceHistoryManager';
+import { ReceiptHistoryManager } from './ReceiptHistoryManager';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { AcademicCapIcon } from '../icons/AcademicCapIcon';
 import { ZapIcon } from '../icons/ZapIcon';
@@ -12,6 +13,8 @@ import { BarChart3Icon } from '../icons/BarChart3Icon';
 import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
 import { ClipboardListIcon } from '../icons/ClipboardListIcon';
 import { CreditCardIcon } from '../icons/CreditCardIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+
 import { PlusIcon } from '../icons/PlusIcon';
 import { TrashIcon } from '../icons/TrashIcon';
 import { PencilIcon } from '../icons/PencilIcon';
@@ -3159,7 +3162,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind' | 'suspense_account' | 'exam_permits'>('student_fees');
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind' | 'suspense_account' | 'exam_permits' | 'history'>('student_fees');
     const [suspenseTransactions, setSuspenseTransactions] = useState<UnmatchedTransaction[]>([]);
     const [selectedSuspenseTx, setSelectedSuspenseTx] = useState<UnmatchedTransaction | null>(null);
     const [isSuspenseModalOpen, setIsSuspenseModalOpen] = useState(false);
@@ -6621,6 +6624,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     { id: 'exam_permits', label: '🎓 Digital Exam Permits', icon: QrCodeIcon },
                                     { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon, count: bulkBursaryDisbursements.length },
                                     { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon, count: goodsProposals.length },
+                                    { id: 'history', label: '🕑 History', icon: ClockIcon, count: undefined },
                                 ].map(sub => (
                                     <button
                                         key={sub.id}
@@ -8011,6 +8015,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         userName={props.userName || props.currentUser?.name || 'Finance Officer'}
                     />
                 )}
+
+                {/* ── Income History & Audit Log Tab ── */}
+                {activeTab === 'receipts' && receiptsMainTab === 'history' && (
+                    <ReceiptHistoryManager
+                        receipts={mappedReceipts}
+                        students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                        institution={props.institution}
+                        currentUserName={props.userName || props.currentUser?.name || 'Finance Officer'}
+                        onRefreshData={props.onRefreshData}
+                    />
+                )}
+
 
                 {activeTab === 'student_invoices' && (
                     <div className="space-y-6">
