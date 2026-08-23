@@ -2908,8 +2908,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     paymentDate: item.date || new Date().toISOString().split('T')[0],
                     relatedTransactionId: item.ref || '',
                     paidFor: `Fee Payment via ${modeLabel}`,
-                    createdAt: originalCreatedAt,
-                    updatedAt: new Date().toISOString()
+                    createdAt: originalCreatedAt
                 };
 
                 // Save or override this receipt individually so progress is real
