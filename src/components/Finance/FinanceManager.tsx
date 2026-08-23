@@ -2119,6 +2119,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setBalancesCurrentPage(1);
     }, [searchBalances, balanceClassFilter, balanceStatusFilter, balanceSortOption, balancesPerPage]);
 
+    // Fee Collection Report States
+    const [collectionClassFilter, setCollectionClassFilter] = useState<string>('All');
+    const [collectionSearchQuery, setCollectionSearchQuery] = useState<string>('');
+    const [collectionStatusFilter, setCollectionStatusFilter] = useState<string>('All');
+    const [collectionCurrentPage, setCollectionCurrentPage] = useState<number>(1);
+    const [collectionPerPage, setCollectionPerPage] = useState<number>(15);
+    const [collection3DMode, setCollection3DMode] = useState<'3d_bars' | '3d_donuts' | 'matrix'>('3d_bars');
+    const [collection3DSelectedClass, setCollection3DSelectedClass] = useState<string | null>(null);
+
     // Ensure statement preview scrolls to top when opened
     useEffect(() => {
         if (balPreviewStudentId) {
@@ -14564,77 +14573,697 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             )}
 
-                            {/* Fee Collection Report */}
-                            {reportsSubTab === 'collection' && (
-                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-                                        <div>
-                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Collection Report</h3>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">All payments received across all invoices with student class tracking</p>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const rows = mappedInvoices.map((inv: any) => {
-                                                        const student = props.students.find((s: any) => s.id === inv.studentId);
-                                                        const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
-                                                        const bal = (inv.totalAmount || 0) - paid;
-                                                        const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
-                                                        return [student?.name || '—', cls, inv.invoiceNumber || inv.id?.slice(-8), inv.totalAmount || 0, paid, bal, bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'];
-                                                    });
-                                                    exportCSV('fee_collection_report', ['Student', 'Class', 'Invoice #', 'Amount', 'Paid', 'Balance', 'Status'], rows);
-                                                }}
-                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                                            >
-                                                📥 Export CSV
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => window.print()}
-                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                                            >
-                                                🖨️ Print Report
-                                            </button>
-                                            <span className="text-2xl font-black text-emerald-600 ml-2">{collectionRate.toFixed(1)}%</span>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4 mb-6">
-                                        {[{label:'Total Billed', val: totalBilled, cls:'bg-indigo-50 text-indigo-600'},{label:'Collected', val: totalCollected, cls:'bg-emerald-50 text-emerald-600'},{label:'Outstanding', val: outstanding, cls:'bg-rose-50 text-rose-600'}].map((s,i)=>(
-                                            <div key={i} className={`${s.cls} rounded-2xl p-5`}>
-                                                <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">{s.label}</p>
-                                                <p className="text-xl font-black">KSh {s.val.toLocaleString()}</p>
+                            {/* Fee Collection Report — with 3D Per-Class Graphical Analytics, Class Filtering & Pagination */}
+                            {reportsSubTab === 'collection' && (() => {
+                                // 1. Compute comprehensive per-class financial metrics for 3D visualizations
+                                const classMap: Record<string, {
+                                    className: string;
+                                    billed: number;
+                                    collected: number;
+                                    outstanding: number;
+                                    invoicesCount: number;
+                                    studentsSet: Set<string>;
+                                    clearedCount: number;
+                                    pendingCount: number;
+                                }> = {};
+
+                                mappedInvoices.forEach((inv: any) => {
+                                    const student = props.students.find((s: any) => s.id === inv.studentId);
+                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || 'General');
+                                    if (!classMap[cls]) {
+                                        classMap[cls] = {
+                                            className: cls,
+                                            billed: 0,
+                                            collected: 0,
+                                            outstanding: 0,
+                                            invoicesCount: 0,
+                                            studentsSet: new Set(),
+                                            clearedCount: 0,
+                                            pendingCount: 0
+                                        };
+                                    }
+                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                    const invAmt = inv.totalAmount || 0;
+                                    const bal = Math.max(0, invAmt - paid);
+
+                                    classMap[cls].billed += invAmt;
+                                    classMap[cls].collected += Math.min(invAmt, paid);
+                                    classMap[cls].outstanding += bal;
+                                    classMap[cls].invoicesCount += 1;
+                                    if (inv.studentId) classMap[cls].studentsSet.add(inv.studentId);
+                                    if (bal <= 0) classMap[cls].clearedCount += 1;
+                                    else classMap[cls].pendingCount += 1;
+                                });
+
+                                const classMetricsList = Object.values(classMap).map(c => ({
+                                    ...c,
+                                    studentCount: c.studentsSet.size || c.invoicesCount,
+                                    rate: c.billed > 0 ? (c.collected / c.billed) * 100 : 0
+                                })).sort((a, b) => b.billed - a.billed);
+
+                                const availableClasses = Array.from(new Set(classMetricsList.map(c => c.className))).sort();
+                                const maxClassBilled = Math.max(1, ...classMetricsList.map(c => c.billed));
+
+                                // 2. Filter individual invoices based on active filters
+                                const filteredInvoices = mappedInvoices.filter((inv: any) => {
+                                    const student = props.students.find((s: any) => s.id === inv.studentId);
+                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || 'General');
+                                    const sName = student?.name || inv.studentName || '';
+                                    const sAdm = (student?.admissionNumber || (student as any)?.admission_number || studentAdmissionNumber(student) || '');
+                                    const invNum = inv.invoiceNumber || inv.id || '';
+
+                                    // Class filter
+                                    if (collectionClassFilter !== 'All' && cls !== collectionClassFilter) {
+                                        return false;
+                                    }
+
+                                    // Search filter
+                                    if (collectionSearchQuery.trim()) {
+                                        const q = collectionSearchQuery.trim().toLowerCase();
+                                        const matches = sName.toLowerCase().includes(q) || sAdm.toLowerCase().includes(q) || invNum.toLowerCase().includes(q) || cls.toLowerCase().includes(q);
+                                        if (!matches) return false;
+                                    }
+
+                                    // Status filter
+                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                    const bal = (inv.totalAmount || 0) - paid;
+                                    if (collectionStatusFilter === 'cleared' && bal > 0) return false;
+                                    if (collectionStatusFilter === 'pending' && (bal <= 0 || inv.status === 'overdue')) return false;
+                                    if (collectionStatusFilter === 'overdue' && inv.status !== 'overdue') return false;
+
+                                    return true;
+                                });
+
+                                // Dynamic stats for current filter selection
+                                const activeBilled = filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0);
+                                const activeCollected = filteredInvoices.reduce((sum: number, inv: any) => {
+                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                    return sum + Math.min(inv.totalAmount || 0, paid);
+                                }, 0);
+                                const activeOutstanding = Math.max(0, activeBilled - activeCollected);
+                                const activeCollectionRate = activeBilled > 0 ? (activeCollected / activeBilled) * 100 : 0;
+
+                                // 3. Pagination computation
+                                const totalFilteredRecords = filteredInvoices.length;
+                                const isPaginationAll = collectionPerPage === 0;
+                                const totalPages = isPaginationAll ? 1 : Math.max(1, Math.ceil(totalFilteredRecords / collectionPerPage));
+                                const currentPage = Math.min(collectionCurrentPage, totalPages);
+                                const startIndex = isPaginationAll ? 0 : (currentPage - 1) * collectionPerPage;
+                                const paginatedInvoices = isPaginationAll ? filteredInvoices : filteredInvoices.slice(startIndex, startIndex + collectionPerPage);
+
+                                return (
+                                    <div className="space-y-8 animate-in fade-in duration-300">
+                                        
+                                        {/* 3D GRAPHICAL PRESENTATION PER CLASS */}
+                                        <div className="bg-slate-950 rounded-[2.5rem] border border-slate-800 shadow-2xl p-8 text-white relative overflow-hidden">
+                                            {/* Glowing ambient background lights */}
+                                            <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+                                            <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-emerald-600/20 rounded-full blur-[120px] pointer-events-none"></div>
+
+                                            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6 mb-8">
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                                            Interactive 3D Analytics
+                                                        </span>
+                                                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                                            {classMetricsList.length} Classes Tracked
+                                                        </span>
+                                                    </div>
+                                                    <h3 className="text-xl font-black text-white uppercase tracking-tight mt-2 flex items-center gap-2">
+                                                        <span>🧊 3D Fee Collection &amp; Realization by Class</span>
+                                                    </h3>
+                                                    <p className="text-xs text-slate-400 font-medium">Volumetric isometric comparison of billed versus collected amounts across all school forms and streams</p>
+                                                </div>
+
+                                                {/* 3D Mode Selector Tabs */}
+                                                <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-2xl border border-slate-800">
+                                                    <button
+                                                        onClick={() => setCollection3DMode('3d_bars')}
+                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                                            collection3DMode === '3d_bars'
+                                                                ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                                        }`}
+                                                    >
+                                                        <span>🏛️ 3D Isometric Columns</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setCollection3DMode('3d_donuts')}
+                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                                            collection3DMode === '3d_donuts'
+                                                                ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-600/30'
+                                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                                        }`}
+                                                    >
+                                                        <span>🍩 3D Ring Meters</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setCollection3DMode('matrix')}
+                                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                                            collection3DMode === 'matrix'
+                                                                ? 'bg-gradient-to-r from-amber-600 to-orange-500 text-white shadow-lg shadow-amber-600/30'
+                                                                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                                        }`}
+                                                    >
+                                                        <span>📊 League Matrix</span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-xs">
-                                            <thead><tr className="border-b border-slate-100 dark:border-slate-800">
-                                                {['Student','Class','Invoice #','Amount','Paid','Balance','Status'].map(h=>(<th key={h} className="py-3 px-4 font-black text-slate-400 uppercase tracking-widest text-[10px]">{h}</th>))}
-                                            </tr></thead>
-                                            <tbody>
-                                                {mappedInvoices.slice(0,100).map((inv: any, i: number) => {
-                                                    const student = props.students.find((s: any) => s.id === inv.studentId);
-                                                    const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
-                                                    const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
-                                                    const bal = (inv.totalAmount || 0) - paid;
-                                                    return (
-                                                        <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                            <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{student?.name || inv.studentId || '—'}</td>
-                                                            <td className="py-3 px-4 font-bold text-slate-600 dark:text-slate-400">{cls}</td>
-                                                            <td className="py-3 px-4 text-slate-500">{inv.invoiceNumber || inv.id?.slice(-8)}</td>
-                                                            <td className="py-3 px-4 font-black text-slate-700">KSh {(inv.totalAmount||0).toLocaleString()}</td>
-                                                            <td className="py-3 px-4 font-black text-emerald-600">KSh {paid.toLocaleString()}</td>
-                                                            <td className="py-3 px-4 font-black text-rose-600">KSh {bal.toLocaleString()}</td>
-                                                            <td className="py-3 px-4"><span className={`text-[10px] font-black px-2 py-1 rounded-full ${bal <= 0 ? 'bg-emerald-50 text-emerald-700' : inv.status === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'}</span></td>
+
+                                            {/* VIEW 1: 3D ISOMETRIC EXTRUDED COLUMNS */}
+                                            {collection3DMode === '3d_bars' && (
+                                                <div className="relative z-10 space-y-6">
+                                                    {/* Legend */}
+                                                    <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-900/80 rounded-2xl border border-slate-800 text-xs">
+                                                        <div className="flex items-center gap-6">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-3.5 h-3.5 rounded bg-indigo-500 shadow-md shadow-indigo-500/50"></div>
+                                                                <span className="font-bold text-slate-300">Total Billed</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-3.5 h-3.5 rounded bg-emerald-500 shadow-md shadow-emerald-500/50"></div>
+                                                                <span className="font-bold text-slate-300">Amount Collected</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-3.5 h-3.5 rounded bg-rose-500 shadow-md shadow-rose-500/50"></div>
+                                                                <span className="font-bold text-slate-300">Outstanding Due</span>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">💡 Tip: Click any 3D pillar to filter the table to that class</p>
+                                                    </div>
+
+                                                    {/* 3D Isometric Stage */}
+                                                    <div className="p-8 bg-gradient-to-b from-slate-900/90 to-slate-950/95 rounded-3xl border border-slate-800 overflow-x-auto custom-scrollbar-horizontal">
+                                                        <div className="min-w-[720px] flex items-end justify-around gap-6 pt-16 pb-8 px-4" style={{ perspective: '1200px' }}>
+                                                            {classMetricsList.map((metric, idx) => {
+                                                                const billedHeight = Math.max(24, Math.round((metric.billed / maxClassBilled) * 160));
+                                                                const collectedHeight = Math.max(12, Math.round((metric.collected / maxClassBilled) * 160));
+                                                                const outstandingHeight = Math.max(8, Math.round((metric.outstanding / maxClassBilled) * 160));
+                                                                const isSelected = collectionClassFilter === metric.className;
+
+                                                                return (
+                                                                    <div
+                                                                        key={idx}
+                                                                        onClick={() => {
+                                                                            setCollectionClassFilter(isSelected ? 'All' : metric.className);
+                                                                            setCollectionCurrentPage(1);
+                                                                        }}
+                                                                        className={`flex flex-col items-center group cursor-pointer transition-all duration-300 ${
+                                                                            isSelected ? 'scale-105 opacity-100' : 'hover:-translate-y-2 hover:scale-102 opacity-90 hover:opacity-100'
+                                                                        }`}
+                                                                    >
+                                                                        {/* Top Metric Badge */}
+                                                                        <div className="mb-3 px-2.5 py-1 bg-slate-800/90 group-hover:bg-indigo-600 rounded-lg text-[10px] font-black tracking-tight text-slate-200 group-hover:text-white transition-all shadow-md border border-slate-700">
+                                                                            {metric.rate.toFixed(0)}% Paid
+                                                                        </div>
+
+                                                                        {/* 3D Tri-Pillar Cluster */}
+                                                                        <div className="flex items-end gap-2 p-3 bg-slate-900/60 group-hover:bg-slate-850/80 rounded-2xl border border-slate-800/80 transition-all shadow-xl">
+                                                                            
+                                                                            {/* 3D Pillar 1: Billed (Indigo) */}
+                                                                            <div className="flex flex-col items-center relative">
+                                                                                <div 
+                                                                                    className="w-7 rounded-t-md relative transition-all duration-500 shadow-2xl"
+                                                                                    style={{
+                                                                                        height: `${billedHeight}px`,
+                                                                                        background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                                                                                        boxShadow: '0 10px 20px -3px rgba(99, 102, 241, 0.4), inset 0 2px 4px rgba(255,255,255,0.4)'
+                                                                                    }}
+                                                                                >
+                                                                                    {/* 3D Isometric Top Facet */}
+                                                                                    <div className="absolute -top-2 left-0 right-0 h-2 bg-indigo-300 rounded-t-sm transform -skew-x-12 opacity-80"></div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* 3D Pillar 2: Collected (Emerald) */}
+                                                                            <div className="flex flex-col items-center relative">
+                                                                                <div 
+                                                                                    className="w-7 rounded-t-md relative transition-all duration-500 shadow-2xl"
+                                                                                    style={{
+                                                                                        height: `${collectedHeight}px`,
+                                                                                        background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+                                                                                        boxShadow: '0 10px 20px -3px rgba(16, 185, 129, 0.4), inset 0 2px 4px rgba(255,255,255,0.4)'
+                                                                                    }}
+                                                                                >
+                                                                                    {/* 3D Isometric Top Facet */}
+                                                                                    <div className="absolute -top-2 left-0 right-0 h-2 bg-emerald-300 rounded-t-sm transform -skew-x-12 opacity-80"></div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* 3D Pillar 3: Outstanding (Rose) */}
+                                                                            <div className="flex flex-col items-center relative">
+                                                                                <div 
+                                                                                    className="w-7 rounded-t-md relative transition-all duration-500 shadow-2xl"
+                                                                                    style={{
+                                                                                        height: `${outstandingHeight}px`,
+                                                                                        background: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
+                                                                                        boxShadow: '0 10px 20px -3px rgba(244, 63, 94, 0.4), inset 0 2px 4px rgba(255,255,255,0.4)'
+                                                                                    }}
+                                                                                >
+                                                                                    {/* 3D Isometric Top Facet */}
+                                                                                    <div className="absolute -top-2 left-0 right-0 h-2 bg-rose-300 rounded-t-sm transform -skew-x-12 opacity-80"></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* 3D Pedestal Base / Label */}
+                                                                        <div className="mt-4 text-center">
+                                                                            <p className={`text-xs font-black uppercase tracking-wider ${isSelected ? 'text-indigo-400 underline underline-offset-4' : 'text-slate-300 group-hover:text-white'}`}>
+                                                                                {metric.className}
+                                                                            </p>
+                                                                            <p className="text-[9px] text-slate-500 font-bold mt-0.5">
+                                                                                KSh {(metric.collected / 1000).toFixed(0)}k / {(metric.billed / 1000).toFixed(0)}k
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* VIEW 2: 3D DONUT & RADIAL COLLECTION METERS */}
+                                            {collection3DMode === '3d_donuts' && (
+                                                <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                    {classMetricsList.map((metric, idx) => {
+                                                        const isSelected = collectionClassFilter === metric.className;
+                                                        const strokeDash = Math.round((metric.rate / 100) * 251.2);
+
+                                                        return (
+                                                            <div
+                                                                key={idx}
+                                                                onClick={() => {
+                                                                    setCollectionClassFilter(isSelected ? 'All' : metric.className);
+                                                                    setCollectionCurrentPage(1);
+                                                                }}
+                                                                className={`p-6 rounded-3xl border transition-all cursor-pointer relative overflow-hidden group ${
+                                                                    isSelected
+                                                                        ? 'bg-indigo-950/60 border-indigo-500 shadow-2xl shadow-indigo-500/20'
+                                                                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center justify-between mb-4">
+                                                                    <span className="text-xs font-black uppercase tracking-widest text-white">{metric.className}</span>
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                                        metric.rate >= 80 ? 'bg-emerald-500/20 text-emerald-400' : metric.rate >= 50 ? 'bg-amber-500/20 text-amber-400' : 'bg-rose-500/20 text-rose-400'
+                                                                    }`}>
+                                                                        {metric.rate >= 80 ? 'High' : metric.rate >= 50 ? 'Moderate' : 'Critical'}
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* 3D Circular Progress Gauge */}
+                                                                <div className="flex justify-center my-4 relative">
+                                                                    <svg className="w-32 h-32 transform -rotate-90">
+                                                                        <circle cx="64" cy="64" r="40" stroke="currentColor" strokeWidth="10" className="text-slate-800 fill-transparent" />
+                                                                        <circle
+                                                                            cx="64"
+                                                                            cy="64"
+                                                                            r="40"
+                                                                            stroke="url(#gradientDonut)"
+                                                                            strokeWidth="10"
+                                                                            strokeDasharray="251.2"
+                                                                            strokeDashoffset={251.2 - strokeDash}
+                                                                            strokeLinecap="round"
+                                                                            className="transition-all duration-1000 ease-out fill-transparent"
+                                                                        />
+                                                                        <defs>
+                                                                            <linearGradient id="gradientDonut" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                                                <stop offset="0%" stopColor="#10b981" />
+                                                                                <stop offset="100%" stopColor="#6366f1" />
+                                                                            </linearGradient>
+                                                                        </defs>
+                                                                    </svg>
+                                                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                                        <span className="text-xl font-black text-white">{metric.rate.toFixed(0)}%</span>
+                                                                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Realized</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="space-y-1.5 pt-3 border-t border-slate-800 text-[11px]">
+                                                                    <div className="flex justify-between text-slate-400 font-bold">
+                                                                        <span>Billed:</span>
+                                                                        <span className="text-white">KSh {metric.billed.toLocaleString()}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-emerald-400 font-bold">
+                                                                        <span>Collected:</span>
+                                                                        <span>KSh {metric.collected.toLocaleString()}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-rose-400 font-bold">
+                                                                        <span>Due:</span>
+                                                                        <span>KSh {metric.outstanding.toLocaleString()}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+
+                                            {/* VIEW 3: CLASS LEAGUE MATRIX */}
+                                            {collection3DMode === 'matrix' && (
+                                                <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                    {classMetricsList.map((metric, idx) => (
+                                                        <div key={idx} className="p-5 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-3">
+                                                            <div className="flex justify-between items-center">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-black text-indigo-400">#{idx + 1}</span>
+                                                                    <h4 className="font-black text-sm text-white">{metric.className}</h4>
+                                                                </div>
+                                                                <span className="text-sm font-black text-emerald-400">{metric.rate.toFixed(1)}%</span>
+                                                            </div>
+                                                            {/* 3D Progress Bar */}
+                                                            <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800 shadow-inner">
+                                                                <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-teal-400 to-emerald-400 transition-all duration-700 shadow-sm" style={{ width: `${Math.min(100, metric.rate)}%` }}></div>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-2 text-center pt-2 text-[10px]">
+                                                                <div className="p-2 bg-slate-950 rounded-xl"><p className="text-slate-500 font-black uppercase">Billed</p><p className="font-bold text-white mt-0.5">{(metric.billed/1000).toFixed(0)}k</p></div>
+                                                                <div className="p-2 bg-slate-950 rounded-xl"><p className="text-emerald-500 font-black uppercase">Paid</p><p className="font-bold text-emerald-400 mt-0.5">{(metric.collected/1000).toFixed(0)}k</p></div>
+                                                                <div className="p-2 bg-slate-950 rounded-xl"><p className="text-rose-500 font-black uppercase">Due</p><p className="font-bold text-rose-400 mt-0.5">{(metric.outstanding/1000).toFixed(0)}k</p></div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* STAT CARDS FOR ACTIVE SELECTION */}
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                            <div className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 rounded-3xl p-6 text-indigo-900 dark:text-indigo-200">
+                                                <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-indigo-500">
+                                                    {collectionClassFilter === 'All' ? 'Total School Billed' : `${collectionClassFilter} Billed`}
+                                                </p>
+                                                <p className="text-2xl font-black">KSh {activeBilled.toLocaleString()}</p>
+                                                <p className="text-[10px] text-indigo-400 mt-1 font-bold">{filteredInvoices.length} Invoices Listed</p>
+                                            </div>
+
+                                            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 rounded-3xl p-6 text-emerald-900 dark:text-emerald-200">
+                                                <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-emerald-500">Amount Collected</p>
+                                                <p className="text-2xl font-black">KSh {activeCollected.toLocaleString()}</p>
+                                                <p className="text-[10px] text-emerald-400 mt-1 font-bold">{activeCollectionRate.toFixed(1)}% Realization Rate</p>
+                                            </div>
+
+                                            <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 rounded-3xl p-6 text-rose-900 dark:text-rose-200">
+                                                <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-rose-500">Outstanding Balance</p>
+                                                <p className="text-2xl font-black">KSh {activeOutstanding.toLocaleString()}</p>
+                                                <p className="text-[10px] text-rose-400 mt-1 font-bold">Uncollected Arrears</p>
+                                            </div>
+
+                                            <div className="bg-slate-900 text-white rounded-3xl p-6 flex flex-col justify-between border border-slate-800 shadow-sm">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Class Scope</span>
+                                                    <span className="px-2 py-0.5 bg-indigo-600 rounded text-[9px] font-black uppercase">{collectionClassFilter}</span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-3xl font-black text-emerald-400">{activeCollectionRate.toFixed(1)}%</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">Overall Target Realization</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* FILTER CONTROLS & SEARCH BAR */}
+                                        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800/80 p-6 shadow-sm space-y-4">
+                                            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                                                
+                                                {/* Left: Filters */}
+                                                <div className="flex flex-wrap items-center gap-3 flex-1">
+                                                    
+                                                    {/* Search Input */}
+                                                    <div className="relative flex-1 min-w-[220px]">
+                                                        <input
+                                                            type="text"
+                                                            value={collectionSearchQuery}
+                                                            onChange={e => {
+                                                                setCollectionSearchQuery(e.target.value);
+                                                                setCollectionCurrentPage(1);
+                                                            }}
+                                                            placeholder="Search student name, adm no, invoice #..."
+                                                            className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500"
+                                                        />
+                                                        <span className="absolute left-3 top-3 text-slate-400 text-xs">🔍</span>
+                                                    </div>
+
+                                                    {/* Class Filter Dropdown */}
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Class:</label>
+                                                        <select
+                                                            value={collectionClassFilter}
+                                                            onChange={e => {
+                                                                setCollectionClassFilter(e.target.value);
+                                                                setCollectionCurrentPage(1);
+                                                            }}
+                                                            className="py-2.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                                        >
+                                                            <option value="All">All Classes ({classMetricsList.length})</option>
+                                                            {availableClasses.map(c => (
+                                                                <option key={c} value={c}>{c}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Status Filter Dropdown */}
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status:</label>
+                                                        <select
+                                                            value={collectionStatusFilter}
+                                                            onChange={e => {
+                                                                setCollectionStatusFilter(e.target.value);
+                                                                setCollectionCurrentPage(1);
+                                                            }}
+                                                            className="py-2.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-indigo-500"
+                                                        >
+                                                            <option value="All">All Statuses</option>
+                                                            <option value="cleared">Cleared / Fully Paid</option>
+                                                            <option value="pending">Pending Balance</option>
+                                                            <option value="overdue">Overdue</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right: Actions (CSV, Print, Reset) */}
+                                                <div className="flex items-center gap-2">
+                                                    {(collectionClassFilter !== 'All' || collectionSearchQuery || collectionStatusFilter !== 'All') && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCollectionClassFilter('All');
+                                                                setCollectionSearchQuery('');
+                                                                setCollectionStatusFilter('All');
+                                                                setCollectionCurrentPage(1);
+                                                            }}
+                                                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                        >
+                                                            Clear Filters
+                                                        </button>
+                                                    )}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const rows = filteredInvoices.map((inv: any) => {
+                                                                const student = props.students.find((s: any) => s.id === inv.studentId);
+                                                                const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                                                const bal = (inv.totalAmount || 0) - paid;
+                                                                const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
+                                                                const sAdm = student?.admissionNumber || (student as any)?.admission_number || '—';
+                                                                return [
+                                                                    student?.name || '—',
+                                                                    sAdm,
+                                                                    cls,
+                                                                    inv.invoiceNumber || inv.id?.slice(-8),
+                                                                    inv.totalAmount || 0,
+                                                                    paid,
+                                                                    bal,
+                                                                    bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'
+                                                                ];
+                                                            });
+                                                            exportCSV(`fee_collection_${collectionClassFilter.replace(/\s+/g, '_').toLowerCase()}`, ['Student Name', 'Adm No', 'Class', 'Invoice #', 'Amount Billed', 'Paid', 'Balance', 'Status'], rows);
+                                                        }}
+                                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                    >
+                                                        📥 Export CSV
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.print()}
+                                                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                    >
+                                                        🖨️ Print Report
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Records per page selector */}
+                                            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800/60 text-xs text-slate-500">
+                                                <p className="font-bold">
+                                                    Showing <span className="text-slate-900 dark:text-white font-black">{totalFilteredRecords === 0 ? 0 : startIndex + 1}</span> to <span className="text-slate-900 dark:text-white font-black">{isPaginationAll ? totalFilteredRecords : Math.min(startIndex + collectionPerPage, totalFilteredRecords)}</span> of <span className="text-slate-900 dark:text-white font-black">{totalFilteredRecords}</span> invoices
+                                                </p>
+
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rows per page:</span>
+                                                    {[10, 15, 25, 50, 100, 0].map(size => (
+                                                        <button
+                                                            key={size}
+                                                            onClick={() => {
+                                                                setCollectionPerPage(size);
+                                                                setCollectionCurrentPage(1);
+                                                            }}
+                                                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all ${
+                                                                collectionPerPage === size
+                                                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                            }`}
+                                                        >
+                                                            {size === 0 ? 'All' : size}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* INVOICES TABLE */}
+                                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 overflow-hidden">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="border-b border-slate-100 dark:border-slate-800 font-black uppercase tracking-widest text-[10px] text-slate-400">
+                                                            <th className="py-3.5 px-4">Student</th>
+                                                            <th className="py-3.5 px-4">Class</th>
+                                                            <th className="py-3.5 px-4">Invoice #</th>
+                                                            <th className="py-3.5 px-4 text-right">Amount Billed</th>
+                                                            <th className="py-3.5 px-4 text-right">Paid</th>
+                                                            <th className="py-3.5 px-4 text-right">Balance</th>
+                                                            <th className="py-3.5 px-4 text-center">Status</th>
                                                         </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                                        {paginatedInvoices.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={7} className="py-12 text-center text-slate-400 font-bold italic">
+                                                                    No invoices match the selected class or search query.
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            paginatedInvoices.map((inv: any, i: number) => {
+                                                                const student = props.students.find((s: any) => s.id === inv.studentId);
+                                                                const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || '—');
+                                                                const sAdm = student?.admissionNumber || (student as any)?.admission_number || '—';
+                                                                const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                                                const bal = (inv.totalAmount || 0) - paid;
+                                                                const isCleared = bal <= 0;
+
+                                                                return (
+                                                                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                        <td className="py-3 px-4">
+                                                                            <p className="font-black text-slate-900 dark:text-white text-xs">{student?.name || inv.studentName || inv.studentId || '—'}</p>
+                                                                            <p className="text-[9px] text-slate-400 font-mono font-bold uppercase tracking-wider mt-0.5">Adm: {sAdm}</p>
+                                                                        </td>
+                                                                        <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300">
+                                                                            <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-[10px] font-black">
+                                                                                {cls}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="py-3 px-4 font-mono font-bold text-slate-500 text-[11px]">
+                                                                            {inv.invoiceNumber || inv.id?.slice(-8)}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 font-black text-slate-900 dark:text-white text-right">
+                                                                            KSh {(inv.totalAmount || 0).toLocaleString()}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 font-black text-emerald-600 text-right">
+                                                                            KSh {paid.toLocaleString()}
+                                                                        </td>
+                                                                        <td className={`py-3 px-4 font-black text-right ${isCleared ? 'text-emerald-500' : 'text-rose-600'}`}>
+                                                                            KSh {bal.toLocaleString()}
+                                                                        </td>
+                                                                        <td className="py-3 px-4 text-center">
+                                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider inline-block ${
+                                                                                isCleared
+                                                                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-800 dark:text-emerald-400'
+                                                                                    : inv.status === 'overdue'
+                                                                                    ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:border-rose-800 dark:text-rose-400'
+                                                                                    : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:border-amber-800 dark:text-amber-400'
+                                                                            }`}>
+                                                                                {isCleared ? '✓ Cleared' : inv.status === 'overdue' ? '⚠️ Overdue' : '⏳ Pending'}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* PAGINATION NAVIGATION BAR */}
+                                            {!isPaginationAll && totalPages > 1 && (
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-4 border-t border-slate-100 dark:border-slate-800/80">
+                                                    <p className="text-xs text-slate-400 font-bold">
+                                                        Page <span className="text-slate-900 dark:text-white font-black">{currentPage}</span> of <span className="text-slate-900 dark:text-white font-black">{totalPages}</span>
+                                                    </p>
+
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            onClick={() => setCollectionCurrentPage(1)}
+                                                            disabled={currentPage === 1}
+                                                            className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                        >
+                                                            « First
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setCollectionCurrentPage(prev => Math.max(1, prev - 1))}
+                                                            disabled={currentPage === 1}
+                                                            className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                        >
+                                                            ‹ Prev
+                                                        </button>
+
+                                                        {/* Page numbers window */}
+                                                        {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+                                                            .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                                                            .map((pageNum, pIdx, arr) => {
+                                                                const prevPage = arr[pIdx - 1];
+                                                                const showEllipsis = prevPage && pageNum - prevPage > 1;
+
+                                                                return (
+                                                                    <React.Fragment key={pageNum}>
+                                                                        {showEllipsis && <span className="px-1 text-slate-400 text-xs font-bold">…</span>}
+                                                                        <button
+                                                                            onClick={() => setCollectionCurrentPage(pageNum)}
+                                                                            className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${
+                                                                                currentPage === pageNum
+                                                                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                                            }`}
+                                                                        >
+                                                                            {pageNum}
+                                                                        </button>
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+
+                                                        <button
+                                                            onClick={() => setCollectionCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                            disabled={currentPage === totalPages}
+                                                            className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                        >
+                                                            Next ›
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setCollectionCurrentPage(totalPages)}
+                                                            disabled={currentPage === totalPages}
+                                                            className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                                        >
+                                                            Last »
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Outstanding Balances — 7 Sub-Tabs */}
                             {reportsSubTab === 'outstanding' && (() => {
