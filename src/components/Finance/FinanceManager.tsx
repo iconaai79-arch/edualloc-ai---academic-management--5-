@@ -2485,11 +2485,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const buffer = await file.arrayBuffer();
-            // dense: true avoids sparse memory allocation and speeds up sheet reading by up to 10x
-            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true });
+            // dense: true avoids sparse memory allocation; cellDates: true converts serial dates → JS Date
+            const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true, cellDates: true });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
             if (rawRows.length === 0) {
                 alert("The selected Excel file appears to be empty.");
@@ -2559,19 +2559,70 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return '';
             };
 
-            // Excel serial date → ISO date string
+            // Universal date → ISO date string (handles JS Date, Excel serial, and all text formats)
             const excelDateToISO = (raw: any): string => {
-                if (!raw) return new Date().toISOString().split('T')[0];
-                if (typeof raw === 'number') {
-                    const utc = new Date(Date.UTC(1899, 11, 30) + raw * 86400000);
-                    return utc.toISOString().split('T')[0];
+                const today = new Date().toISOString().split('T')[0];
+                if (!raw && raw !== 0) return today;
+
+                // Already a JS Date object (from cellDates: true)
+                if (raw instanceof Date) {
+                    if (isNaN(raw.getTime())) return today;
+                    return raw.toISOString().split('T')[0];
                 }
+
+                // Numeric serial (fallback — shouldn't fire with cellDates:true but kept for safety)
+                if (typeof raw === 'number') {
+                    if (raw < 1) return today;
+                    const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000);
+                    return isNaN(utc.getTime()) ? today : utc.toISOString().split('T')[0];
+                }
+
                 const s = String(raw).trim();
-                const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-                if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+                if (!s) return today;
+
+                // Strip time portion first: "22/08/2026 14:30" → "22/08/2026"
+                const noTime = s.split(/[T ]/)[0];
+
+                // DD/MM/YYYY or DD-MM-YYYY
+                const dmy4 = noTime.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+                if (dmy4) return `${dmy4[3]}-${dmy4[2].padStart(2,'0')}-${dmy4[1].padStart(2,'0')}`;
+
+                // YYYY/MM/DD or YYYY-MM-DD (already ISO-like)
+                const ymd = noTime.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+                if (ymd) return `${ymd[1]}-${ymd[2].padStart(2,'0')}-${ymd[3].padStart(2,'0')}`;
+
+                // DD-Mon-YY or DD-Mon-YYYY e.g. 22-Aug-26 / 22 Aug 2026
+                const monNames: Record<string,string> = {
+                    jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+                    jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'
+                };
+                const dmy_mon = s.match(/^(\d{1,2})[\s-]([A-Za-z]{3,9})[\s-,]*(\d{2,4})$/);
+                if (dmy_mon) {
+                    const mon = monNames[dmy_mon[2].slice(0,3).toLowerCase()];
+                    const yr = dmy_mon[3].length === 2 ? `20${dmy_mon[3]}` : dmy_mon[3];
+                    if (mon) return `${yr}-${mon}-${dmy_mon[1].padStart(2,'0')}`;
+                }
+
+                // Mon DD, YYYY or Mon DD YYYY e.g. "Aug 22, 2026"
+                const mon_dmy = s.match(/^([A-Za-z]{3,9})[\s,]+(\d{1,2})[\s,]+(\d{2,4})$/);
+                if (mon_dmy) {
+                    const mon = monNames[mon_dmy[1].slice(0,3).toLowerCase()];
+                    const yr = mon_dmy[3].length === 2 ? `20${mon_dmy[3]}` : mon_dmy[3];
+                    if (mon) return `${yr}-${mon}-${mon_dmy[2].padStart(2,'0')}`;
+                }
+
+                // DD/MM/YY or DD-MM-YY (2-digit year)
+                const dmy2 = noTime.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})$/);
+                if (dmy2) {
+                    const yr = parseInt(dmy2[3]) > 50 ? `19${dmy2[3]}` : `20${dmy2[3]}`;
+                    return `${yr}-${dmy2[2].padStart(2,'0')}-${dmy2[1].padStart(2,'0')}`;
+                }
+
+                // Last resort: try native Date.parse (handles ISO and some locale strings)
                 const d = new Date(s);
                 if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-                return s;
+
+                return today;
             };
 
             // Process each payment row with O(1) matching
