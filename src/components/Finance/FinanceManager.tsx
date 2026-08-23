@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
@@ -127,16 +127,16 @@ const sanitizeExcelDate = (raw: any): string | null => {
         }
     }
 
-    return null; // not a bad date — handled by normal path
+    return null; // not a bad date â€” handled by normal path
 };
 
 const formatLedgerDate = (rawDate: any, entryData?: any) => {
     const candidate = rawDate || entryData?.paymentDate || entryData?.payment_date || entryData?.issueDate || entryData?.issue_date || entryData?.date || entryData?.createdAt || entryData?.created_at || entryData?.receiptDate;
-    if (!candidate || candidate === '0001-01-01') return '—';
+    if (!candidate || candidate === '0001-01-01') return 'â€”';
     // Try to fix bad Excel-serial-in-year dates first
     const fixed = sanitizeExcelDate(candidate);
     const str = fixed || String(candidate).trim();
-    if (!str || str === '—') return '—';
+    if (!str || str === 'â€”') return 'â€”';
     try {
         const d = new Date(str);
         if (!isNaN(d.getTime()) && d.getFullYear() > 1970 && d.getFullYear() < 2100) {
@@ -144,7 +144,7 @@ const formatLedgerDate = (rawDate: any, entryData?: any) => {
         }
     } catch {}
     const rawSplit = str.split('T')[0]?.trim();
-    return rawSplit || '—';
+    return rawSplit || 'â€”';
 };
 
 interface FinanceManagerProps {
@@ -341,7 +341,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             s.course
         ];
         for (const val of directCandidates) {
-            if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
+            if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== 'â€”') {
                 return String(val).trim();
             }
         }
@@ -365,7 +365,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 s.metadata.course
             ];
             for (const val of metaCandidates) {
-                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
+                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== 'â€”') {
                     return String(val).trim();
                 }
             }
@@ -400,7 +400,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     enr.metadata?.stream
                 ];
                 for (const val of enrCandidates) {
-                    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
+                    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== 'â€”') {
                         return String(val).trim();
                     }
                 }
@@ -1830,7 +1830,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }
 
     function studentAdmissionNumber(student: any): string {
-        if (!student) return '—';
+        if (!student) return 'â€”';
 
         // 1. Direct student fields
         const directAdm = 
@@ -1847,7 +1847,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             student.metadata?.registrationNumber ||
             student.metadata?.regNo;
 
-        if (directAdm && String(directAdm).trim() !== '' && String(directAdm).trim() !== '—') {
+        if (directAdm && String(directAdm).trim() !== '' && String(directAdm).trim() !== 'â€”') {
             return String(directAdm).trim();
         }
 
@@ -1872,14 +1872,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 enr.metadata?.admNo ||
                 enr.metadata?.staffId;
             
-            if (enrAdm && String(enrAdm).trim() !== '' && String(enrAdm).trim() !== '—') {
+            if (enrAdm && String(enrAdm).trim() !== '' && String(enrAdm).trim() !== 'â€”') {
                 return String(enrAdm).trim();
             }
         }
 
         // 3. Fallback: Generate a clean admission code from staffId or student ID slice
         const cleanId = (student.staffId || student.id || '').replace(/^user_/, '').replace(/^stu_/, '').slice(-6).toUpperCase();
-        return cleanId ? `ADM-${cleanId}` : '—';
+        return cleanId ? `ADM-${cleanId}` : 'â€”';
     }
 
     const exportCSV = (filename: string, headers: string[], rows: (string | number | undefined | null)[][]) => {
@@ -2010,6 +2010,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isProcessingBulkReceipts, setIsProcessingBulkReceipts] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [bulkImportSuccessSummary, setBulkImportSuccessSummary] = useState<string | null>(null);
+    // Notifications during Excel import are OFF by default â€” user must opt in
+    const [excelImportSendSms, setExcelImportSendSms] = useState(false);
+    const [excelImportSendEmail, setExcelImportSendEmail] = useState(false);
 
     useEffect(() => {
         if (props.institution.id) {
@@ -2053,7 +2056,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? s.metadata?.openingBalance ?? 0);
 
             const studentInvoices = mappedInvoices.filter(inv => 
-                (inv.studentId === s.id || (inv as any).student_id === s.id || String(inv.studentId) === String(s.id) || String((inv as any).student_id) === String(s.id) || (adm && adm !== '—' && (inv.admissionNumber === adm || inv.admission_number === adm))) && 
+                (inv.studentId === s.id || (inv as any).student_id === s.id || String(inv.studentId) === String(s.id) || String((inv as any).student_id) === String(s.id) || (adm && adm !== 'â€”' && (inv.admissionNumber === adm || inv.admission_number === adm))) && 
                 inv.status !== 'cancelled' && 
                 inv.status !== 'quote'
             );
@@ -2069,7 +2072,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 (rec as any).student_id === s.id || 
                 String(rec.studentId) === String(s.id) || 
                 String((rec as any).student_id) === String(s.id) ||
-                (adm && adm !== '—' && (rec.admissionNumber === adm || rec.admission_number === adm)) ||
+                (adm && adm !== 'â€”' && (rec.admissionNumber === adm || rec.admission_number === adm)) ||
                 studentInvoices.some(i => i.id === rec.invoiceId || i.id === (rec as any).invoice_id)
             );
             const paid = studentReceipts.reduce((sum, rec) => {
@@ -2149,7 +2152,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 (s.admissionNumber || '').toLowerCase().includes(query) ||
                 ((s as any).admission_number || '').toLowerCase().includes(query) ||
                 (s.metadata?.admissionNumber || '').toLowerCase().includes(query) ||
-                (adm && adm !== '—' && adm.toLowerCase().includes(query))
+                (adm && adm !== 'â€”' && adm.toLowerCase().includes(query))
             );
 
             const cls = s.className || studentClassGroup(s);
@@ -2306,7 +2309,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const s = students[0];
                         messageText = reminderTemplate
                             .replace(/\{student_name\}/g, s.name || 'Student')
-                            .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || '—')
+                            .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || 'â€”')
                             .replace(/\{balance\}/g, (s.totals.balance || 0).toLocaleString())
                             .replace(/\{class_name\}/g, s.className || 'Class')
                             .replace(/\{school_name\}/g, schoolName);
@@ -2337,7 +2340,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 noPhoneStudents.forEach(s => {
                     const text = reminderTemplate
                         .replace(/\{student_name\}/g, s.name || 'Student')
-                        .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || '—')
+                        .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || 'â€”')
                         .replace(/\{balance\}/g, (s.totals.balance || 0).toLocaleString())
                         .replace(/\{class_name\}/g, s.className || 'Class')
                         .replace(/\{school_name\}/g, schoolName);
@@ -2361,7 +2364,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const phone = getStudentParentPhone(student);
                     const text = reminderTemplate
                         .replace(/\{student_name\}/g, student.name || 'Student')
-                        .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
+                        .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || 'â€”')
                         .replace(/\{balance\}/g, (student.totals.balance || 0).toLocaleString())
                         .replace(/\{class_name\}/g, student.className || 'Class')
                         .replace(/\{school_name\}/g, schoolName);
@@ -2536,8 +2539,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         try {
             const buffer = await file.arrayBuffer();
-            // dense: true avoids sparse memory allocation; cellDates: true converts serial dates → JS Date objects
-            // NOTE: do NOT pass raw: false — it overrides cellDates and causes serials to leak into format strings
+            // dense: true avoids sparse memory allocation; cellDates: true converts serial dates â†’ JS Date objects
+            // NOTE: do NOT pass raw: false â€” it overrides cellDates and causes serials to leak into format strings
             const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true, cellDates: true });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
@@ -2627,7 +2630,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return null;
             };
 
-            // Universal date → ISO date string (handles JS Date, Excel serial, and all text formats)
+            // Universal date â†’ ISO date string (handles JS Date, Excel serial, and all text formats)
             const excelDateToISO = (raw: any): string => {
                 const today = new Date().toISOString().split('T')[0];
                 if (!raw && raw !== 0) return today;
@@ -2638,7 +2641,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     return raw.toISOString().split('T')[0];
                 }
 
-                // Numeric serial (fallback — shouldn't fire with cellDates:true but kept for safety)
+                // Numeric serial (fallback â€” shouldn't fire with cellDates:true but kept for safety)
                 if (typeof raw === 'number') {
                     if (raw < 1) return today;
                     const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000);
@@ -2648,7 +2651,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const s = String(raw).trim();
                 if (!s) return today;
 
-                // Strip time portion first: "22/08/2026 14:30" → "22/08/2026"
+                // Strip time portion first: "22/08/2026 14:30" â†’ "22/08/2026"
                 const noTime = s.split(/[T ]/)[0];
 
                 // DD/MM/YYYY or DD-MM-YYYY
@@ -2745,7 +2748,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /^rcpt/i
                 );
 
-                // Column H: Paid On — use resolveDateRaw to preserve JS Date objects from cellDates:true
+                // Column H: Paid On â€” use resolveDateRaw to preserve JS Date objects from cellDates:true
                 const dateRaw = resolveDateRaw(row,
                     /^paid[\s_]*on$/i,
                     /^date$/i,
@@ -2758,7 +2761,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const ref = refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`;
                 const amount = parseMoneyAmount(amtRaw);
                 const payer = nameRaw || 'Excel Import';
-                // dateRaw may be a JS Date object, number serial, or string — excelDateToISO handles all
+                // dateRaw may be a JS Date object, number serial, or string â€” excelDateToISO handles all
                 const date = excelDateToISO(dateRaw ?? row['Paid On'] ?? row['Date'] ?? null);
 
                 // Payment method mapping
@@ -2884,8 +2887,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     receipt_number: receiptNum,
                     studentId: item.matchedStudentId,
                     student_id: item.matchedStudentId,
-                    admissionNumber: adm !== '—' ? adm : undefined,
-                    admission_number: adm !== '—' ? adm : undefined,
+                    admissionNumber: adm !== 'â€”' ? adm : undefined,
+                    admission_number: adm !== 'â€”' ? adm : undefined,
                     studentName: student?.name || item.payer,
                     student_name: student?.name || item.payer,
                     amountPaid: parseMoneyAmount(item.amount),
@@ -2926,24 +2929,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0).toLocaleString()}`);
             }
 
-            // --- Bulk Receipt Notifications (fire-and-forget) ---
-            try {
-                const bulkSchool = props.institution.name || 'School';
-                for (const rec of newReceipts) {
-                    const bStudent = mergedStudents.find((s: any) => s.id === rec.studentId);
-                    if (!bStudent) continue;
-                    const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
-                    const bSms = `[${bulkSchool}] KSh ${rec.amountPaid.toLocaleString()} received. Receipt: ${rec.receiptNumber}. Download: ${bLink}`;
-                    if (sendSmsNotification) {
-                        if (bStudent.phoneNumber) apiService.sendSms(bStudent.phoneNumber, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
-                        if (bStudent.metadata?.parentPhone) apiService.sendSms(bStudent.metadata.parentPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+            // --- Bulk Receipt Notifications (fire-and-forget, only if user opted in) ---
+            if (excelImportSendSms || excelImportSendEmail) {
+                try {
+                    const bulkSchool = props.institution.name || 'School';
+                    for (const rec of newReceipts) {
+                        const bStudent = mergedStudents.find((s: any) => s.id === rec.studentId);
+                        if (!bStudent) continue;
+                        const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
+                        const bSms = `[${bulkSchool}] KSh ${rec.amountPaid.toLocaleString()} received. Receipt: ${rec.receiptNumber}. Download: ${bLink}`;
+                        if (excelImportSendSms) {
+                            if (bStudent.phoneNumber) apiService.sendSms(bStudent.phoneNumber, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                            if (bStudent.metadata?.parentPhone) apiService.sendSms(bStudent.metadata.parentPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                        }
+                        if (excelImportSendEmail && bStudent.email) {
+                            const bHtml = `<p>Dear ${bStudent.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${rec.amountPaid.toLocaleString()}</strong> received. Receipt No: <strong>${rec.receiptNumber}</strong>.</p><p>Download: <a href="${bLink}">${bLink}</a></p><p>${bulkSchool} Accounts Office</p>`;
+                            apiService.sendEmail(bStudent.email, `Receipt ${rec.receiptNumber} â€“ ${bulkSchool}`, bHtml).catch(() => {});
+                        }
                     }
-                    if (sendEmailNotification && bStudent.email) {
-                        const bHtml = `<p>Dear ${bStudent.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${rec.amountPaid.toLocaleString()}</strong> received. Receipt No: <strong>${rec.receiptNumber}</strong>.</p><p>Download: <a href="${bLink}">${bLink}</a></p><p>${bulkSchool} Accounts Office</p>`;
-                        apiService.sendEmail(bStudent.email, `Receipt ${rec.receiptNumber} – ${bulkSchool}`, bHtml).catch(() => {});
-                    }
-                }
-            } catch (_bne) { /* bulk notifications non-critical */ }
+                } catch (_bne) { /* bulk notifications non-critical */ }
+            }
 
             setBulkImportSuccessSummary(`Successfully auto-reconciled and posted ${newReceipts.length} receipts totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}!`);
             setExcelImportStep(3);
@@ -3851,7 +3856,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
-    // ── Receipt Edit & Transfer ──
+    // â”€â”€ Receipt Edit & Transfer â”€â”€
     const [receiptEditTarget, setReceiptEditTarget] = useState<any | null>(null);
     const [receiptEditForm, setReceiptEditForm] = useState<{ amountPaid: string; paymentMethod: string; paymentDate: string; relatedTransactionId: string; paidFor: string; reason: string }>({ amountPaid: '', paymentMethod: 'Cash', paymentDate: '', relatedTransactionId: '', paidFor: '', reason: '' });
     const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -3942,10 +3947,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return mappedInvoices.filter((inv: any) => {
             const studentId = inv.studentId || inv.student_id;
             const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
-            const adm = student?.admissionNumber || student?.admission_number || '—';
+            const adm = student?.admissionNumber || student?.admission_number || 'â€”';
             const sName = student?.name || 'Unknown Student';
-            const sClass = student ? studentClassGroup(student) : '—';
-            const invNo = inv.invoiceNumber || inv.invoice_number || '—';
+            const sClass = student ? studentClassGroup(student) : 'â€”';
+            const invNo = inv.invoiceNumber || inv.invoice_number || 'â€”';
 
             let matchesQuery = true;
             if (searchInvoiceQuery) {
@@ -4058,7 +4063,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (notifyStudent?.metadata?.parentPhone) apiService.sendSms(notifyStudent.metadata.parentPhone, smsText, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
                 }
                 if (sendEmailNotification && notifyStudent?.email) {
-                    apiService.sendEmail(notifyStudent.email, `Payment Receipt ${receiptNumber} – ${notifySchool}`, emailHtml).catch(() => {});
+                    apiService.sendEmail(notifyStudent.email, `Payment Receipt ${receiptNumber} â€“ ${notifySchool}`, emailHtml).catch(() => {});
                 }
             } catch (_ne) { /* notifications are non-critical */ }
 
@@ -4405,7 +4410,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
             const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
-            const admNo = student?.admissionNumber || (student as any)?.admission_number || '—';
+            const admNo = student?.admissionNumber || (student as any)?.admission_number || 'â€”';
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
@@ -5047,7 +5052,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setBulkBursaryAllocations([]);
             setBulkBursaryNotes('');
             setBulkBursaryBankAccountId('');
-            setBulkBursarySuccess(`✓ Bursary cheque disbursed to ${bulkBursaryAllocations.length} student(s). Individual receipts posted.`);
+            setBulkBursarySuccess(`âœ“ Bursary cheque disbursed to ${bulkBursaryAllocations.length} student(s). Individual receipts posted.`);
             setTimeout(() => setBulkBursarySuccess(''), 6000);
         } catch (e) {
             console.error('Bulk bursary failed:', e);
@@ -5277,7 +5282,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             className="py-3 px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/25 active:scale-95 cursor-pointer shrink-0"
                             title="Split a single bulk M-Pesa / Bank payment across siblings into distinct receipts"
                         >
-                            <span>👨‍👩‍👧‍👦 Split Sibling Payment</span>
+                            <span>ðŸ‘¨â€ðŸ‘©â€ðŸ‘§â€ðŸ‘¦ Split Sibling Payment</span>
                         </button>
                         <button
                             type="button"
@@ -5285,7 +5290,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             className="py-3 px-4 bg-indigo-900 hover:bg-indigo-800 text-indigo-200 border border-indigo-700/50 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-900/25 active:scale-95 cursor-pointer shrink-0"
                             title="Generate and analyze fee balances grouped by Boarding House / Household"
                         >
-                            <span>🏡 Boarding Household Balances</span>
+                            <span>ðŸ¡ Boarding Household Balances</span>
                         </button>
                         <button
                             type="button"
@@ -5302,7 +5307,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             type="button"
                             onClick={() => {
                                 const exportData = studentFinanceData.map(s => [
-                                    s.admissionNumber || '—',
+                                    s.admissionNumber || 'â€”',
                                     s.name,
                                     s.className || studentClassGroup(s),
                                     s.totals.invoiced,
@@ -5372,7 +5377,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             type="button"
                             onClick={() => {
                                 const exportData = studentFinanceData.map(s => [
-                                    s.admissionNumber || '—',
+                                    s.admissionNumber || 'â€”',
                                     s.name,
                                     s.className || studentClassGroup(s),
                                     s.totals.invoiced,
@@ -5521,7 +5526,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {classData.map(student => (
                                                 <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
                                                     <td className="px-8 py-4 text-left">
-                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">{student.admissionNumber || student.admission_number || 'â€”'}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
                                                         <div className="flex flex-col gap-1">
@@ -5559,7 +5564,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             title={p.notes || `Promised KSh ${p.promisedAmount.toLocaleString()} on ${p.promisedDate}`}
                                                                         >
                                                                             <ClockIcon className={`w-3 h-3 ${isOverdue ? 'text-rose-600 animate-pulse' : 'text-amber-600'}`} />
-                                                                            {isOverdue ? `🚨 Overdue: KSh ${p.promisedAmount.toLocaleString()} (${p.promisedDate})` : `⏳ PTP: KSh ${p.promisedAmount.toLocaleString()} (${p.promisedDate})`}
+                                                                            {isOverdue ? `ðŸš¨ Overdue: KSh ${p.promisedAmount.toLocaleString()} (${p.promisedDate})` : `â³ PTP: KSh ${p.promisedAmount.toLocaleString()} (${p.promisedDate})`}
                                                                         </span>
                                                                     </div>
                                                                 );
@@ -5570,7 +5575,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                                             {student.lastUpdatedTime > 0 
                                                                 ? new Date(student.lastUpdatedTime).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: '2-digit' }) 
-                                                                : '—'}
+                                                                : 'â€”'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
@@ -5665,7 +5670,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <span className="text-xs font-bold text-slate-600 dark:text-slate-400 ml-2">
                             {balancesPerPage === 'All'
                                 ? `Showing all ${filteredFinanceStudents.length} students`
-                                : `Showing ${Math.min((balancesCurrentPage - 1) * (balancesPerPage as number) + 1, filteredFinanceStudents.length)}–${Math.min(balancesCurrentPage * (balancesPerPage as number), filteredFinanceStudents.length)} of ${filteredFinanceStudents.length} students`}
+                                : `Showing ${Math.min((balancesCurrentPage - 1) * (balancesPerPage as number) + 1, filteredFinanceStudents.length)}â€“${Math.min(balancesCurrentPage * (balancesPerPage as number), filteredFinanceStudents.length)} of ${filteredFinanceStudents.length} students`}
                         </span>
                     </div>
 
@@ -5738,14 +5743,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     (i as any).student_id === balPreviewStudentId ||
                     String(i.studentId) === String(balPreviewStudentId) ||
                     String((i as any).student_id) === String(balPreviewStudentId) ||
-                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (i.admissionNumber === balPrevResolvedAdmNo || (i as any).admission_number === balPrevResolvedAdmNo))
+                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== 'â€”' && (i.admissionNumber === balPrevResolvedAdmNo || (i as any).admission_number === balPrevResolvedAdmNo))
                 );
                 const balPrevReceipts = mappedReceipts.filter((r: any) =>
                     r.studentId === balPreviewStudentId ||
                     (r as any).student_id === balPreviewStudentId ||
                     String(r.studentId) === String(balPreviewStudentId) ||
                     String((r as any).student_id) === String(balPreviewStudentId) ||
-                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
+                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== 'â€”' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
                     balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
                 );
                 const balPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[balPreviewStudentId] ?? balPrevStudentRaw?.metadata?.openingBalance ?? 0);
@@ -5795,12 +5800,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     } else if (entry.eType === 'invoice') {
                         const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
                         balPrevRunning += invAmt;
-                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} — ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
+                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} â€” ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
                     } else {
                         const paidAmt = parseMoneyAmount(entry.data.amountPaid || (entry.data as any).amount_paid || (entry.data as any).amount || 0);
                         balPrevRunning -= paidAmt;
                         const mode = entry.data.excelPaymentMode || entry.data.paymentMethod || (entry.data as any).payment_method || entry.data.method || 'Payment';
-                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: balPrevRunning, eType: 'payment' as const };
+                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} Â· ${mode}`, debit: 0, credit: paidAmt, balance: balPrevRunning, eType: 'payment' as const };
                     }
                 });
 
@@ -5853,20 +5858,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="flex items-center gap-3">
                                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                                     <span className="text-xs font-black uppercase tracking-widest text-slate-200">{balPrevStudent.name}</span>
-                                    <span className="text-[10px] text-slate-400 font-bold">· {balPrevResolvedAdmNo} · {(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</span>
+                                    <span className="text-[10px] text-slate-400 font-bold">Â· {balPrevResolvedAdmNo} Â· {(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</span>
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {/* View Mode Toggle */}
                                     <div className="flex bg-slate-800 p-0.5 rounded-xl">
-                                        <button type="button" onClick={() => setBalPreviewViewMode('table')} className={`px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${balPreviewViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>📊 Table</button>
-                                        <button type="button" onClick={() => setBalPreviewViewMode('preview')} className={`px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${balPreviewViewMode === 'preview' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>📄 PDF Preview</button>
+                                        <button type="button" onClick={() => setBalPreviewViewMode('table')} className={`px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${balPreviewViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>ðŸ“Š Table</button>
+                                        <button type="button" onClick={() => setBalPreviewViewMode('preview')} className={`px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${balPreviewViewMode === 'preview' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>ðŸ“„ PDF Preview</button>
                                     </div>
-                                    <button type="button" disabled={isGeneratingStmtPdf} onClick={handleBalPrevOpenModal} className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50">👁️ PDF Viewer</button>
+                                    <button type="button" disabled={isGeneratingStmtPdf} onClick={handleBalPrevOpenModal} className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50">ðŸ‘ï¸ PDF Viewer</button>
                                     <button type="button" disabled={isGeneratingStmtPdf} onClick={handleBalPrevDownloadPdf} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-md disabled:opacity-50">
-                                        {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
+                                        {isGeneratingStmtPdf ? 'â³ Generating...' : 'ðŸ“„ Download PDF'}
                                     </button>
-                                    <button type="button" onClick={() => { exportCSV(`statement_${balPrevStudent!.name.replace(/\s+/g, '_')}`, ['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'], balPrevLedger.map(e => [e.date, e.description, e.debit, e.credit, e.balance])); }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95">📥 CSV</button>
-                                    <button type="button" onClick={() => setBalPreviewStudentId('')} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">✕ Close</button>
+                                    <button type="button" onClick={() => { exportCSV(`statement_${balPrevStudent!.name.replace(/\s+/g, '_')}`, ['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'], balPrevLedger.map(e => [e.date, e.description, e.debit, e.credit, e.balance])); }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95">ðŸ“¥ CSV</button>
+                                    <button type="button" onClick={() => setBalPreviewStudentId('')} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">âœ• Close</button>
                                 </div>
                             </div>
 
@@ -5886,7 +5891,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{balPrevStudent.name}</p></div>
                                             <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{balPrevResolvedAdmNo}</p></div>
                                             <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</p></div>
-                                            <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balPrevBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
+                                            <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balPrevBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : 'âœ“ FULLY PAID'}</p></div>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-3 border-b border-slate-100 dark:border-slate-800">
@@ -5914,8 +5919,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
                                                                 <td className="py-2 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
                                                                 <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
-                                                                <td className="py-2 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
-                                                                <td className="py-2 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
+                                                                <td className="py-2 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : 'â€”'}</td>
+                                                                <td className="py-2 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : 'â€”'}</td>
                                                                 <td className={`py-2 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
                                                             </tr>
                                                         ))}
@@ -5931,7 +5936,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         )}
                                         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-center">
                                             <p className="text-[10px] text-slate-400 font-medium">This is a computer-generated statement and does not require a signature.</p>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toISOString().split('T')[0]}</p>
+                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} Â· {new Date().toISOString().split('T')[0]}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -5959,7 +5964,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     )}
                                                     <div>
                                                         <h2 className="text-xl font-black tracking-tight text-indigo-950">{props.institution.name}</h2>
-                                                        <p className="text-[11px] text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} · {props.institution.phoneNumber || '+254 700 000000'}</p>
+                                                        <p className="text-[11px] text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} Â· {props.institution.phoneNumber || '+254 700 000000'}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -5987,7 +5992,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div className="text-right">
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Account Status</p>
                                                 <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${balPrevBalance > 0 ? 'bg-rose-100 text-rose-700' : balPrevBalance < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                    {balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}
+                                                    {balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : 'âœ“ FULLY PAID'}
                                                 </span>
                                             </div>
                                         </div>
@@ -6022,8 +6027,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <tr key={i} className={`border-b border-slate-100 ${entry.eType === 'payment' ? 'bg-emerald-50/60' : i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                                                             <td className="py-2 px-3 text-slate-500 whitespace-nowrap font-mono text-[10px]">{entry.date}</td>
                                                             <td className="py-2 px-3 font-medium text-slate-800 text-[11px]">{entry.description}</td>
-                                                            <td className="py-2 px-3 font-black text-slate-700 text-[11px]">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
-                                                            <td className="py-2 px-3 font-black text-emerald-600 text-[11px]">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
+                                                            <td className="py-2 px-3 font-black text-slate-700 text-[11px]">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : 'â€”'}</td>
+                                                            <td className="py-2 px-3 font-black text-emerald-600 text-[11px]">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : 'â€”'}</td>
                                                             <td className={`py-2 px-3 font-black whitespace-nowrap text-[11px] ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[9px] opacity-60">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
                                                         </tr>
                                                     ))}
@@ -6055,7 +6060,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <div className="border-t border-slate-200 pt-3 flex justify-between items-end">
                                             <div>
                                                 <p className="text-[9px] text-slate-400 font-medium">This is a computer-generated statement of account.</p>
-                                                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                                                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{props.institution.name} Â· {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                                             </div>
                                             <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
                                                 <p className="text-[7px] text-slate-300 font-black uppercase tracking-widest text-center leading-tight">Official<br/>Stamp</p>
@@ -6141,7 +6146,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
                             <div className="flex items-center justify-between px-1">
                                 <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                    📢 Matching Target: {reminderTargetStudents.length} Students / Parents
+                                    ðŸ“¢ Matching Target: {reminderTargetStudents.length} Students / Parents
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-400">
                                     Filtered Outstanding: KSh {reminderTargetStudents.reduce((sum, s) => sum + s.totals.balance, 0).toLocaleString()}
@@ -6294,7 +6299,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                                 <div className="flex justify-between text-xs">
                                     <span className="font-bold text-slate-500">Admission No:</span>
-                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedStudentForPromise.admissionNumber || (selectedStudentForPromise as any).admission_number || '—'}</span>
+                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{selectedStudentForPromise.admissionNumber || (selectedStudentForPromise as any).admission_number || 'â€”'}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                     <span className="font-bold text-slate-500">Current Net Balance:</span>
@@ -6430,10 +6435,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <div className="flex gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 overflow-x-auto">
                             {[
                                 { id: 'all', label: 'All Promises' },
-                                { id: 'pending', label: '⏳ Pending' },
-                                { id: 'overdue', label: '🚨 Overdue' },
-                                { id: 'fulfilled', label: '✅ Fulfilled' },
-                                { id: 'cancelled', label: '❌ Cancelled' }
+                                { id: 'pending', label: 'â³ Pending' },
+                                { id: 'overdue', label: 'ðŸš¨ Overdue' },
+                                { id: 'fulfilled', label: 'âœ… Fulfilled' },
+                                { id: 'cancelled', label: 'âŒ Cancelled' }
                             ].map(tab => (
                                 <button
                                     key={tab.id}
@@ -6493,7 +6498,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <span className="text-[10px] font-bold text-slate-400">{p.className} ({p.admissionNumber})</span>
                                                         </td>
                                                         <td className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300">
-                                                            {p.parentPhone || '—'}
+                                                            {p.parentPhone || 'â€”'}
                                                         </td>
                                                         <td className="px-4 py-3 text-right font-black text-amber-600 dark:text-amber-400">
                                                             KSh {p.promisedAmount.toLocaleString()}
@@ -6524,7 +6529,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg text-[9px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800/40 hover:bg-indigo-100 transition-all cursor-pointer"
                                                                             title="Send PTP Reminder SMS to Parent"
                                                                         >
-                                                                            📲 SMS Reminder
+                                                                            ðŸ“² SMS Reminder
                                                                         </button>
                                                                         <button
                                                                             type="button"
@@ -6587,7 +6592,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     {isSidebarOpen && (
                         <div className="animate-fade-in whitespace-nowrap">
                             <h2 className="text-[13px] font-black uppercase tracking-tighter text-slate-900 dark:text-white leading-none mb-1">
-                                {themeMode === 'futuristic' ? '⚡ Cyber Fiscal HUD' : 'Fiscal Hub'}
+                                {themeMode === 'futuristic' ? 'âš¡ Cyber Fiscal HUD' : 'Fiscal Hub'}
                             </h2>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">
                                 {themeMode === 'futuristic' ? 'AI Ledger & Gateway' : 'Finance & Fee Control'}
@@ -6729,10 +6734,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     { id: 'other_income', label: 'Other Income', icon: BanknotesIcon, count: mappedReceipts.filter((r: any) => !r.studentId).length },
                                     { id: 'bank_feed', label: 'Bank & M-Pesa', icon: BuildingLibraryIcon, count: unreconciledFeeds.length },
                                     { id: 'suspense_account', label: 'Unmatched / Suspense', icon: ExclamationTriangleIcon, count: suspenseTransactions.filter((s: any) => s.status === 'Unmatched').length },
-                                    { id: 'exam_permits', label: '🎓 Digital Exam Permits', icon: QrCodeIcon },
+                                    { id: 'exam_permits', label: 'ðŸŽ“ Digital Exam Permits', icon: QrCodeIcon },
                                     { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon, count: bulkBursaryDisbursements.length },
                                     { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon, count: goodsProposals.length },
-                                    { id: 'history', label: '🕑 History', icon: ClockIcon, count: undefined },
+                                    { id: 'history', label: 'ðŸ•‘ History', icon: ClockIcon, count: undefined },
                                 ].map(sub => (
                                     <button
                                         key={sub.id}
@@ -6809,7 +6814,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }`}
                                 title="Switch between Futuristic Cyber HUD and Classic ERP Theme"
                             >
-                                <span>{themeMode === 'futuristic' ? '✨ Futuristic HUD' : '🏛️ Classic ERP'}</span>
+                                <span>{themeMode === 'futuristic' ? 'âœ¨ Futuristic HUD' : 'ðŸ›ï¸ Classic ERP'}</span>
                                 <span className="px-2 py-0.5 bg-black/40 rounded-full text-[9px] font-mono">
                                     {themeMode === 'futuristic' ? 'Switch to Classic' : 'Switch to Futuristic'}
                                 </span>
@@ -6862,10 +6867,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     })).sort((a, b) => b.balance - a.balance);
 
                     const homeSubTabs = [
-                        { id: 'registry', label: 'Students Registry', icon: '🎓' },
-                        { id: 'communication', label: 'Communication Hub', icon: '💬' },
-                        { id: 'reports', label: 'Financial Reports', icon: '📊' },
-                        { id: 'dashboard', label: 'Financial Dashboard', icon: '💰' },
+                        { id: 'registry', label: 'Students Registry', icon: 'ðŸŽ“' },
+                        { id: 'communication', label: 'Communication Hub', icon: 'ðŸ’¬' },
+                        { id: 'reports', label: 'Financial Reports', icon: 'ðŸ“Š' },
+                        { id: 'dashboard', label: 'Financial Dashboard', icon: 'ðŸ’°' },
                     ];
 
                     return (
@@ -6940,13 +6945,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <p className="text-xs text-slate-500 max-w-md mx-auto">Select a report view below to open it in the official financial statement & ledger command center.</p>
                                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-4xl mx-auto pt-4">
                                         {[
-                                            { id: 'collection', label: 'Fee Collection', icon: '📥' },
-                                            { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
-                                            { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
-                                            { id: 'expenses', label: 'Expense Summary', icon: '💸' },
-                                            { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
-                                            { id: 'annual', label: 'Annual Report', icon: '📊' },
-                                            { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
+                                            { id: 'collection', label: 'Fee Collection', icon: 'ðŸ“¥' },
+                                            { id: 'outstanding', label: 'Outstanding Balances', icon: 'âš ï¸' },
+                                            { id: 'ledger', label: 'Receipts Ledger', icon: 'ðŸ§¾' },
+                                            { id: 'expenses', label: 'Expense Summary', icon: 'ðŸ’¸' },
+                                            { id: 'payroll_summary', label: 'Payroll Summary', icon: 'ðŸ‘”' },
+                                            { id: 'annual', label: 'Annual Report', icon: 'ðŸ“Š' },
+                                            { id: 'student_statement', label: 'Student Statement', icon: 'ðŸŽ“' },
                                         ].map(item => (
                                             <button
                                                 key={item.id}
@@ -6975,7 +6980,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div>
                                                 <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Finance Command Centre</p>
                                                 <h2 className="text-3xl font-black tracking-tight">{props.institution.name}</h2>
-                                                <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence — {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                                <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence â€” {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                                             </div>
                                             <div className="flex flex-col items-end gap-2">
                                                 <div className="text-right">
@@ -6992,15 +6997,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     {/* KPI Cards Row */}
                                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
                                         {[
-                                            { label: 'Total Billed', value: totalBilled, color: 'indigo', icon: '📋', sub: `${mappedInvoices.length} invoices` },
-                                            { label: 'Collected', value: totalCollected, color: 'emerald', icon: '✅', sub: `${mappedReceipts.length} receipts` },
-                                            { label: 'Outstanding', value: outstanding, color: 'rose', icon: '⚠️', sub: `${pendingInvoices} pending` },
-                                            { label: 'Net Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? '📈' : '📉', sub: `After KSh ${totalExpenses.toLocaleString()} expenses` },
+                                            { label: 'Total Billed', value: totalBilled, color: 'indigo', icon: 'ðŸ“‹', sub: `${mappedInvoices.length} invoices` },
+                                            { label: 'Collected', value: totalCollected, color: 'emerald', icon: 'âœ…', sub: `${mappedReceipts.length} receipts` },
+                                            { label: 'Outstanding', value: outstanding, color: 'rose', icon: 'âš ï¸', sub: `${pendingInvoices} pending` },
+                                            { label: 'Net Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? 'ðŸ“ˆ' : 'ðŸ“‰', sub: `After KSh ${totalExpenses.toLocaleString()} expenses` },
                                         ].map((kpi, i) => (
                                             <div key={i} className={`bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}>
                                                 <div className="flex justify-between items-start mb-4">
                                                     <span className="text-2xl">{kpi.icon}</span>
-                                                    <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-${kpi.color}-50 text-${kpi.color}-600`}>{kpi.color === 'emerald' || kpi.color === 'teal' ? '▲' : '▼'}</span>
+                                                    <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-${kpi.color}-50 text-${kpi.color}-600`}>{kpi.color === 'emerald' || kpi.color === 'teal' ? 'â–²' : 'â–¼'}</span>
                                                 </div>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{kpi.label}</p>
                                                 <p className="text-xl font-black text-slate-900 dark:text-white">KSh {kpi.value.toLocaleString()}</p>
@@ -7025,7 +7030,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <div>
                                                     <div className="flex items-center gap-2">
                                                         <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                                                            {themeMode === 'futuristic' ? '📈 Real-Time Revenue Velocity (6 Months)' : '6-Month Revenue Trend'}
+                                                            {themeMode === 'futuristic' ? 'ðŸ“ˆ Real-Time Revenue Velocity (6 Months)' : '6-Month Revenue Trend'}
                                                         </h4>
                                                         {themeMode === 'futuristic' && (
                                                             <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[9px] font-mono animate-pulse">
@@ -7139,7 +7144,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
                                         }`}>
                                             <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white mb-1">
-                                                {themeMode === 'futuristic' ? '⚡ AI Audit & Class Arrears' : 'Outstanding by Class'}
+                                                {themeMode === 'futuristic' ? 'âš¡ AI Audit & Class Arrears' : 'Outstanding by Class'}
                                             </h4>
                                             <p className="text-[10px] text-slate-400 font-medium mb-6">Class balance ranking & risk analysis</p>
                                             <div className="space-y-4">
@@ -7160,7 +7165,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     : 'bg-emerald-500'
                                                                 }`} style={{ width: `${pct}%` }} />
                                                             </div>
-                                                            <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected · {c.count} students</p>
+                                                            <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected Â· {c.count} students</p>
                                                         </div>
                                                     );
                                                 })}
@@ -7174,7 +7179,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
                                             <div className="flex justify-between items-center mb-6">
                                                 <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Receipts</h4>
-                                                <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All →</button>
+                                                <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All â†’</button>
                                             </div>
                                             <div className="space-y-3">
                                                 {recentReceipts.length === 0 ? (
@@ -7183,7 +7188,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-                                                                <span className="text-xs">✓</span>
+                                                                <span className="text-xs">âœ“</span>
                                                             </div>
                                                             <div>
                                                                 <p className="text-[11px] font-black text-slate-800 dark:text-white">{r.studentName || r.payerName || 'Student'}</p>
@@ -7201,17 +7206,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Quick Access</h4>
                                             <div className="space-y-3">
                                                 {[
-                                                    { label: 'Students & Invoices', tab: 'billing', emoji: '🎓', color: 'bg-indigo-50 text-indigo-700' },
-                                                    { label: 'Fee Balances', tab: 'balances', emoji: '⚖️', color: 'bg-rose-50 text-rose-700' },
-                                                    { label: 'Receipts', tab: 'receipts', emoji: '🧾', color: 'bg-emerald-50 text-emerald-700' },
-                                                    { label: 'Billing Wizard', tab: 'wizard', emoji: '⚡', color: 'bg-amber-50 text-amber-700' },
-                                                    { label: 'Expense Governance', tab: 'expenses', emoji: '💸', color: 'bg-orange-50 text-orange-700' },
-                                                    { label: 'HR & Payroll', tab: 'payroll', emoji: '👔', color: 'bg-teal-50 text-teal-700' },
+                                                    { label: 'Students & Invoices', tab: 'billing', emoji: 'ðŸŽ“', color: 'bg-indigo-50 text-indigo-700' },
+                                                    { label: 'Fee Balances', tab: 'balances', emoji: 'âš–ï¸', color: 'bg-rose-50 text-rose-700' },
+                                                    { label: 'Receipts', tab: 'receipts', emoji: 'ðŸ§¾', color: 'bg-emerald-50 text-emerald-700' },
+                                                    { label: 'Billing Wizard', tab: 'wizard', emoji: 'âš¡', color: 'bg-amber-50 text-amber-700' },
+                                                    { label: 'Expense Governance', tab: 'expenses', emoji: 'ðŸ’¸', color: 'bg-orange-50 text-orange-700' },
+                                                    { label: 'HR & Payroll', tab: 'payroll', emoji: 'ðŸ‘”', color: 'bg-teal-50 text-teal-700' },
                                                 ].map((link, i) => (
                                                     <button key={i} onClick={() => setActiveTab(link.tab as any)} className={`w-full flex items-center gap-3 p-3 rounded-2xl ${link.color} hover:scale-[1.02] transition-all duration-200 text-left`}>
                                                         <span className="text-lg">{link.emoji}</span>
                                                         <span className="text-[11px] font-black uppercase tracking-tight">{link.label}</span>
-                                                        <span className="ml-auto text-xs opacity-50">→</span>
+                                                        <span className="ml-auto text-xs opacity-50">â†’</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -7364,7 +7369,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </select>
                             </div>
 
-                            {/* ── Selection banner ── */}
+                            {/* â”€â”€ Selection banner â”€â”€ */}
                             {selectedReceiptIds.size > 0 && (
                                 <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-bold text-indigo-800 dark:text-indigo-200 animate-in slide-in-from-top duration-200">
                                     <span>
@@ -7448,14 +7453,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {paginatedReceipts.map(rec => {
                                             const student = rec.studentId ? mergedStudents.find(s => s.id === rec.studentId) : null;
                                             const enrollment = student ? enrollments.find(e => e.userId === student.id) : null;
-                                            const admNum = enrollment?.admissionNumber || enrollment?.admission_number || student?.admissionNumber || student?.admission_number || '—';
+                                            const admNum = enrollment?.admissionNumber || enrollment?.admission_number || student?.admissionNumber || student?.admission_number || 'â€”';
                                             const studentName = student?.name || 'Unknown Student';
-                                            const gradeName = student ? studentClassGroup(student) : '—';
+                                            const gradeName = student ? studentClassGroup(student) : 'â€”';
 
                                             // Parse other income string formatting "Category - Description (From Payer)"
                                             let category = 'Other Income';
                                             let description = rec.paidFor || '';
-                                            let payer = '—';
+                                            let payer = 'â€”';
                                             if (!rec.studentId && rec.paidFor) {
                                                 const fromIdx = rec.paidFor.lastIndexOf(' (From ');
                                                 if (fromIdx >= 0) {
@@ -7467,7 +7472,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         description = mainPart.substring(hypIdx + 3);
                                                     } else {
                                                         category = mainPart;
-                                                        description = '—';
+                                                        description = 'â€”';
                                                     }
                                                 }
                                             }
@@ -7518,7 +7523,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
-                                                        {rec.relatedTransactionId || '—'}
+                                                        {rec.relatedTransactionId || 'â€”'}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
@@ -7544,21 +7549,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest border border-indigo-200 dark:border-indigo-800/40 transition-all cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
                                                                 title="View Official Receipt On-Screen Preview"
                                                             >
-                                                                👁️ Preview
+                                                                ðŸ‘ï¸ Preview
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDownloadReceipt(rec)}
                                                                 className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer whitespace-nowrap"
                                                                 title="Download standard A4 PDF Receipt"
                                                             >
-                                                                📄 A4 PDF
+                                                                ðŸ“„ A4 PDF
                                                             </button>
                                                             <button
                                                                 onClick={() => handlePrintEposThermalReceipt(rec)}
                                                                 className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800/40 transition-all cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
                                                                 title="Print on EPOS 80mm Thermal Printer"
                                                             >
-                                                                🖨️ EPOS (80mm)
+                                                                ðŸ–¨ï¸ EPOS (80mm)
                                                             </button>
                                                             <button
                                                                 onClick={() => openEditReceipt(rec)}
@@ -7638,7 +7643,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {/* ── Receipt Delete Confirmation Modal ── */}
+                {/* â”€â”€ Receipt Delete Confirmation Modal â”€â”€ */}
                 {receiptDeleteConfirm && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-slate-200 dark:border-slate-800 space-y-6 text-left animate-in zoom-in-95 duration-200">
@@ -7662,7 +7667,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
                             <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-                                ⚠️ Deleting receipt(s) will permanently remove them from the ledger and immediately recalculate the affected student account balances.
+                                âš ï¸ Deleting receipt(s) will permanently remove them from the ledger and immediately recalculate the affected student account balances.
                             </p>
                             <div className="flex items-center justify-end gap-3">
                                 <button
@@ -7687,7 +7692,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {/* ── Edit Receipt Modal ── */}
+                {/* â”€â”€ Edit Receipt Modal â”€â”€ */}
                 {receiptEditTarget && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-200">
                         <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8 border border-slate-200 dark:border-slate-800 space-y-5 text-left animate-in zoom-in-95 duration-200">
@@ -7731,7 +7736,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500" />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">✱ Reason for Edit <span className="text-rose-500">(required)</span></label>
+                                <label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">âœ± Reason for Edit <span className="text-rose-500">(required)</span></label>
                                 <textarea rows={2} value={receiptEditForm.reason} onChange={e => setReceiptEditForm(p => ({ ...p, reason: e.target.value }))}
                                     placeholder="Explain why this transaction is being edited..."
                                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500 resize-none" />
@@ -7749,7 +7754,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {/* ── Transfer Receipt Modal ── */}
+                {/* â”€â”€ Transfer Receipt Modal â”€â”€ */}
                 {receiptTransferTarget && (() => {
                     const fromStudent = mergedStudents.find((s: any) => s.id === (receiptTransferTarget.studentId || receiptTransferTarget.student_id));
                     const transferList = mergedStudents.filter((s: any) =>
@@ -7766,7 +7771,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                     <div>
                                         <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Transfer to Another Student</h4>
-                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Receipt: {receiptTransferTarget.receiptNumber} · KES {(receiptTransferTarget.amountPaid ?? 0).toLocaleString()}</p>
+                                        <p className="text-xs font-semibold text-slate-400 mt-0.5">Receipt: {receiptTransferTarget.receiptNumber} Â· KES {(receiptTransferTarget.amountPaid ?? 0).toLocaleString()}</p>
                                     </div>
                                 </div>
                                 <div className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs space-y-1">
@@ -7788,7 +7793,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <p className="text-[10px] font-semibold text-indigo-500">{transferTargetStudent.admissionNumber || transferTargetStudent.admission_number}</p>
                                             </div>
                                             <button type="button" onClick={() => { setTransferTargetStudent(null); setTransferStudentSearch(''); }}
-                                                className="text-indigo-400 hover:text-indigo-600 text-xs font-bold">✕ Change</button>
+                                                className="text-indigo-400 hover:text-indigo-600 text-xs font-bold">âœ• Change</button>
                                         </div>
                                     ) : transferStudentSearch.length >= 2 && (
                                         <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
@@ -7805,7 +7810,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     )}
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">✱ Reason for Transfer <span className="text-rose-500">(required)</span></label>
+                                    <label className="text-[10px] font-black uppercase text-rose-500 tracking-wider">âœ± Reason for Transfer <span className="text-rose-500">(required)</span></label>
                                     <textarea rows={2} value={transferReason} onChange={e => setTransferReason(e.target.value)}
                                         placeholder="Explain why this receipt is being transferred..."
                                         className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 resize-none" />
@@ -7959,7 +7964,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {/* Bursaries Disbursement Panel — within receipts tab */}
+                {/* Bursaries Disbursement Panel â€” within receipts tab */}
                 {activeTab === 'receipts' && receiptsMainTab === 'bursaries' && (() => {
                     const allocTotal = bulkBursaryAllocations.reduce((s, a) => s + (a.amount || 0), 0);
                     const remaining = bulkBursaryTotalAmount - allocTotal;
@@ -8039,7 +8044,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 {bulkBursaryTotalAmount > 0 && (
                                     <div className={`flex justify-between items-center p-4 rounded-2xl border text-xs font-black uppercase tracking-wider ${remaining < 0 ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-600' : remaining === 0 ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-700 text-emerald-600' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-700 text-amber-600'}`}>
                                         <span>Allocated: KES {allocTotal.toLocaleString()}</span>
-                                        <span>{remaining < 0 ? '⚠ Over-allocated by ' : remaining === 0 ? '✓ Fully allocated' : 'Remaining: '}{remaining !== 0 ? `KES ${Math.abs(remaining).toLocaleString()}` : ''}</span>
+                                        <span>{remaining < 0 ? 'âš  Over-allocated by ' : remaining === 0 ? 'âœ“ Fully allocated' : 'Remaining: '}{remaining !== 0 ? `KES ${Math.abs(remaining).toLocaleString()}` : ''}</span>
                                     </div>
                                 )}
 
@@ -8057,7 +8062,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         setBulkBursaryStudentSearch('');
                                                     }} className="w-full p-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex justify-between items-center">
                                                         <span>{s.name}</span>
-                                                        <span className="text-[9px] text-slate-400 uppercase tracking-wider">{s.admissionNumber || s.admission_number || '—'}</span>
+                                                        <span className="text-[9px] text-slate-400 uppercase tracking-wider">{s.admissionNumber || s.admission_number || 'â€”'}</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -8092,7 +8097,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 <button onClick={handleBulkBursaryDisburse} disabled={isSavingBulkBursary || bulkBursaryAllocations.length === 0 || !bulkBursaryDonor || !bulkBursaryCheque}
                                     className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50">
-                                    {isSavingBulkBursary ? 'Processing...' : `Disburse & Post ${bulkBursaryAllocations.length} Receipt${bulkBursaryAllocations.length !== 1 ? 's' : ''} →`}
+                                    {isSavingBulkBursary ? 'Processing...' : `Disburse & Post ${bulkBursaryAllocations.length} Receipt${bulkBursaryAllocations.length !== 1 ? 's' : ''} â†’`}
                                 </button>
                             </div>
                         </div>
@@ -8125,7 +8130,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-950/30">
                                                     <div>
                                                         <div className="text-xs font-black text-slate-800 dark:text-white">{d.donorName}</div>
-                                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Cheque: {d.chequeNumber} {d.bankName ? `· ${d.bankName}` : ''} · {d.chequeDate}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Cheque: {d.chequeNumber} {d.bankName ? `Â· ${d.bankName}` : ''} Â· {d.chequeDate}</div>
                                                         {d.notes && <div className="text-[10px] text-slate-400 mt-0.5 italic">{d.notes}</div>}
                                                     </div>
                                                     <div className="flex items-center gap-3 shrink-0">
@@ -8135,7 +8140,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </div>
                                                         <button onClick={async () => {
                                                             const inst = props.institution;
-                                                            const lines = (d.allocations || []).map((a: any) => `  • ${a.studentName} (${a.admNo || '—'}): KES ${(a.amount || 0).toLocaleString()}`).join('\n');
+                                                            const lines = (d.allocations || []).map((a: any) => `  â€¢ ${a.studentName} (${a.admNo || 'â€”'}): KES ${(a.amount || 0).toLocaleString()}`).join('\n');
                                                             const content = `BURSARY DONOR ACKNOWLEDGEMENT\n${'='.repeat(50)}\nInstitution: ${inst.name}\nDate: ${new Date().toLocaleDateString()}\n\nDear ${d.donorName},\n\nWe gratefully acknowledge receipt of a bursary cheque (Ref: ${d.chequeNumber}${d.bankName ? ', ' + d.bankName : ''}) dated ${d.chequeDate} for a total of KES ${(d.totalAmount || 0).toLocaleString()}.\n\nThe funds have been distributed as follows:\n${lines}\n\nTotal Allocated: KES ${(d.allocatedAmount || 0).toLocaleString()}\n${d.notes ? 'Notes: ' + d.notes + '\n' : ''}\nThank you for your generous support of our students.\n\nSigned: ${d.postedBy || ''}\n${inst.name}\nDate: ${new Date().toLocaleDateString()}`;
                                                             const blob = new Blob([content], { type: 'text/plain' });
                                                             const url = URL.createObjectURL(blob);
@@ -8153,7 +8158,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <div key={i} className="flex items-center justify-between px-4 py-2.5">
                                                             <div>
                                                                 <div className="text-xs font-black text-slate-700 dark:text-slate-200">{a.studentName}</div>
-                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{a.admNo || '—'}</div>
+                                                                <div className="text-[9px] text-slate-400 uppercase tracking-wider font-bold">{a.admNo || 'â€”'}</div>
                                                             </div>
                                                             <div className="text-xs font-black text-slate-800 dark:text-white">KES {(a.amount || 0).toLocaleString()}</div>
                                                         </div>
@@ -8264,7 +8269,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         ) : p.status === 'credited' ? (
                                                             <span className="text-[10px] text-slate-400 font-bold italic">Cleared & Receipt Issued</span>
                                                         ) : (
-                                                            <span className="text-[10px] text-slate-400 font-bold">—</span>
+                                                            <span className="text-[10px] text-slate-400 font-bold">â€”</span>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -8396,7 +8401,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             }}
                                                             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-slate-950 font-black rounded-xl text-[10px] uppercase tracking-widest shadow-md transition-all active:scale-95 italic"
                                                         >
-                                                            🎯 Match &amp; Re-allocate
+                                                            ðŸŽ¯ Match &amp; Re-allocate
                                                         </button>
                                                     ) : (
                                                         <span className="text-[10px] text-emerald-500 font-bold">
@@ -8423,7 +8428,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     />
                 )}
 
-                {/* ── Income History & Audit Log Tab ── */}
+                {/* â”€â”€ Income History & Audit Log Tab â”€â”€ */}
                 {activeTab === 'receipts' && receiptsMainTab === 'history' && (
                     <ReceiptHistoryManager
                         receipts={mappedReceipts}
@@ -8565,7 +8570,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         title="Import and bill students directly from Excel / CSV spreadsheet"
                                     >
                                         <ArrowUpTrayIcon className="w-4 h-4" />
-                                        <span>📥 Import Excel Invoices</span>
+                                        <span>ðŸ“¥ Import Excel Invoices</span>
                                     </button>
                                     <button
                                         onClick={() => setInvoicesMainTab('history')}
@@ -8573,14 +8578,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         title="View batch billing history and undo invoices"
                                     >
                                         <ClockIcon className="w-4 h-4" />
-                                        <span>📜 Batch History & Undo</span>
+                                        <span>ðŸ“œ Batch History & Undo</span>
                                     </button>
                                     <button
                                         onClick={() => setInvoicesMainTab('wizard')}
                                         className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
                                     >
                                         <SparklesIcon className="w-4 h-4" />
-                                        <span>⚡ Open Billing Wizard</span>
+                                        <span>âš¡ Open Billing Wizard</span>
                                     </button>
                                 </div>
                                 {selectedInvoiceIds.size > 0 && (
@@ -8678,9 +8683,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {paginatedStudentInvoices.map(inv => {
                                             const studentId = inv.studentId || (inv as any).student_id;
                                             const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
-                                            const admNum = student?.admissionNumber || student?.admission_number || '—';
+                                            const admNum = student?.admissionNumber || student?.admission_number || 'â€”';
                                             const studentName = student?.name || 'Unknown Student';
-                                            const gradeName = student ? studentClassGroup(student) : '—';
+                                            const gradeName = student ? studentClassGroup(student) : 'â€”';
                                             const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
                                             const paidAmount = allocations.reduce((sum, r) => sum + Number(r.amountPaid || (r as any).amount_paid || 0), 0);
                                             const totalAmount = Number(inv.totalAmount || (inv as any).total_amount || 0);
@@ -8703,7 +8708,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             }}
                                                         />
                                                     </td>
-                                                    <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-100">{inv.invoiceNumber || (inv as any).invoice_number || '—'}</td>
+                                                    <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-100">{inv.invoiceNumber || (inv as any).invoice_number || 'â€”'}</td>
                                                     <td className="px-6 py-4">
                                                         <div className="text-xs font-extrabold text-slate-800 dark:text-slate-200">{studentName}</div>
                                                         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">ADM: {admNum}</div>
@@ -8726,7 +8731,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </td>
                                                     <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
                                                         <div className="flex items-center gap-1.5">
-                                                            <span>{inv.issueDate || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : '—')}</span>
+                                                            <span>{inv.issueDate || ((inv as any).createdAt ? new Date((inv as any).createdAt).toISOString().split('T')[0] : 'â€”')}</span>
                                                             <button
                                                                 type="button"
                                                                 onClick={async (e) => {
@@ -8905,8 +8910,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const studentId = inv.studentId || inv.student_id;
                     const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
                     const sName = student?.name || 'Unknown Student';
-                    const admNum = student?.admissionNumber || student?.admission_number || '—';
-                    const sClass = student ? studentClassGroup(student) : '—';
+                    const admNum = student?.admissionNumber || student?.admission_number || 'â€”';
+                    const sClass = student ? studentClassGroup(student) : 'â€”';
                     
                     let items: any[] = [];
                     if (typeof inv.items === 'string') {
@@ -8922,7 +8927,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
                                     <div>
                                         <span className="text-[10px] font-black uppercase text-indigo-650 tracking-wider">Invoice Overview</span>
-                                        <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">Invoice: {inv.invoiceNumber || inv.invoice_number || '—'}</h3>
+                                        <h3 className="text-xl font-black text-slate-900 dark:text-white mt-1">Invoice: {inv.invoiceNumber || inv.invoice_number || 'â€”'}</h3>
                                     </div>
                                     <button 
                                         onClick={() => setSelectedInvoiceForDetails(null)}
@@ -8952,7 +8957,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Date Added / Issue Date</span>
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                                    {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : '—')}
+                                                    {inv.issueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : 'â€”')}
                                                 </p>
                                                 <button
                                                     type="button"
@@ -9015,7 +9020,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         const name = item.name || item.voteheadName || item.description || 'Unnamed Item';
                                                         const amount = Number(item.amount || item.unitPrice || 0);
                                                         const paid = Number(item.paid || 0);
-                                                        const prio = item.priority !== undefined ? item.priority : '—';
+                                                        const prio = item.priority !== undefined ? item.priority : 'â€”';
                                                         return (
                                                             <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/5 transition-colors">
                                                                 <td className="px-4 py-3 text-xs font-bold text-slate-700 dark:text-slate-200">{name}</td>
@@ -9088,12 +9093,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                         <h2 className="text-2xl font-black tracking-tight mb-1">Free Primary Education</h2>
                                         <p className="text-sm text-emerald-100">Capitation Grant Disbursement & Allocation Tracker</p>
-                                        <p className="text-[10px] text-emerald-200/70 mt-2 uppercase tracking-wider">Per MoE FPE Operational Manual — June 2020</p>
+                                        <p className="text-[10px] text-emerald-200/70 mt-2 uppercase tracking-wider">Per MoE FPE Operational Manual â€” June 2020</p>
                                     </div>
                                     <div className="text-right shrink-0">
                                         <p className="text-[10px] font-black text-emerald-200 uppercase tracking-widest">Full Year Capitation</p>
                                         <p className="text-3xl font-black tabular-nums">KES {gokTotalFull.toLocaleString()}</p>
-                                        <p className="text-[10px] text-emerald-200 mt-1">{trancheLabels[gokTranche]} → <span className="text-white font-black">KES {gokTotalReceived.toLocaleString()}</span></p>
+                                        <p className="text-[10px] text-emerald-200 mt-1">{trancheLabels[gokTranche]} â†’ <span className="text-white font-black">KES {gokTotalReceived.toLocaleString()}</span></p>
                                     </div>
                                 </div>
                             </div>
@@ -9251,7 +9256,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <option value="">-- Select Account --</option>
                                                     {bankAccounts.map((acc: any) => (
                                                         <option key={acc.id} value={acc.id}>
-                                                            {acc.bankName} — {acc.accountName} ({acc.accountNumber})
+                                                            {acc.bankName} â€” {acc.accountName} ({acc.accountNumber})
                                                         </option>
                                                     ))}
                                                 </select>
@@ -9273,7 +9278,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             className="mt-5 w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/30 transition-all active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2"
                                         >
                                             {isSavingGokCap ? (
-                                                <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Processing…</>
+                                                <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Processingâ€¦</>
                                             ) : (
                                                 <><BuildingLibraryIcon className="w-4 h-4" />Post Capitation Disbursement</>
                                             )}
@@ -9320,19 +9325,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                     {/* MoE Regulation Card */}
                                     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] p-6 text-white shadow-xl">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">MoE FPE Manual — June 2020</p>
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">MoE FPE Manual â€” June 2020</p>
                                         <div className="space-y-3 text-[11px]">
                                             <div className="flex gap-3 items-start">
                                                 <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">T1</div>
-                                                <span className="text-slate-300">Term 1 — <strong className="text-white">50%</strong> of annual allocation</span>
+                                                <span className="text-slate-300">Term 1 â€” <strong className="text-white">50%</strong> of annual allocation</span>
                                             </div>
                                             <div className="flex gap-3 items-start">
                                                 <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">T2</div>
-                                                <span className="text-slate-300">Term 2 — <strong className="text-white">30%</strong> of annual allocation</span>
+                                                <span className="text-slate-300">Term 2 â€” <strong className="text-white">30%</strong> of annual allocation</span>
                                             </div>
                                             <div className="flex gap-3 items-start">
                                                 <div className="w-6 h-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5">T3</div>
-                                                <span className="text-slate-300">Term 3 — <strong className="text-white">20%</strong> of annual allocation</span>
+                                                <span className="text-slate-300">Term 3 â€” <strong className="text-white">20%</strong> of annual allocation</span>
                                             </div>
                                             <div className="border-t border-slate-700 pt-3 mt-3">
                                                 <p className="text-slate-400 text-[10px]">Funds must be utilised within the financial year and are subject to audit by KNEC & MoE inspectors.</p>
@@ -9391,8 +9396,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <td className="px-4 py-3 font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">KES {Number(log.totalReceived).toLocaleString()}</td>
                                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">KES {Number(log.simbaAmount).toLocaleString()}</td>
                                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">KES {Number(log.gpaAmount).toLocaleString()}</td>
-                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{log.referenceNumber || '—'}</td>
-                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 max-w-[200px] truncate" title={log.notes}>{log.notes || '—'}</td>
+                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{log.referenceNumber || 'â€”'}</td>
+                                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 max-w-[200px] truncate" title={log.notes}>{log.notes || 'â€”'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -9806,7 +9811,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     onClick={() => setShowRecordExpenseModal(true)}
                                     className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md flex items-center gap-1.5"
                                 >
-                                    💸 Post Expense
+                                    ðŸ’¸ Post Expense
                                 </button>
                             </div>
                             <div className="space-y-4">
@@ -9826,23 +9831,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <p className="text-sm font-black text-slate-900">{exp.description}</p>
                                                     <p className="text-[9px] font-bold text-slate-500 mt-1 flex flex-wrap gap-1.5">
                                                         <span className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                            🗳️ {vhName}
+                                                            ðŸ—³ï¸ {vhName}
                                                         </span>
                                                         <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-350 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                            🏦 {bankDetails}
+                                                            ðŸ¦ {bankDetails}
                                                         </span>
                                                         {exp.payeeName && (
                                                             <span className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                                👤 To: {exp.payeeName}
+                                                                ðŸ‘¤ To: {exp.payeeName}
                                                             </span>
                                                         )}
                                                         {(exp.signatureData || (exp as any).signature_data) && (
                                                             <span className="bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider font-black">
-                                                                ✍️ Signed
+                                                                âœï¸ Signed
                                                             </span>
                                                         )}
                                                     </p>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5">{exp.category} • {exp.date} • Method: {exp.paymentMethod || 'Cash'}</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5">{exp.category} â€¢ {exp.date} â€¢ Method: {exp.paymentMethod || 'Cash'}</p>
                                                 </div>
                                             </div>
                                             <div className="text-right flex flex-col items-end gap-2">
@@ -9862,7 +9867,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     )}
                                                     className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-1"
                                                 >
-                                                    📄 Print Voucher
+                                                    ðŸ“„ Print Voucher
                                                 </button>
                                             </div>
                                         </div>
@@ -9889,7 +9894,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                💵 Inter-Bank Transfers
+                                ðŸ’µ Inter-Bank Transfers
                             </button>
                             <button
                                 onClick={() => setTransfersSubTab('vote')}
@@ -9899,7 +9904,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         : 'bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
                                 }`}
                             >
-                                📊 Inter-Vote Transfers
+                                ðŸ“Š Inter-Vote Transfers
                             </button>
                         </div>
 
@@ -10037,7 +10042,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <div className="font-bold text-slate-900 dark:text-white">{destAcc?.bankName || 'Unknown'}</div>
                                                                     <div className="text-[8px] font-black text-slate-400 tracking-wider">{destAcc?.accountNumber}</div>
                                                                 </td>
-                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{bt.referenceNumber || '—'}</td>
+                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{bt.referenceNumber || 'â€”'}</td>
                                                                 <td className="p-4 text-right font-black text-indigo-650 dark:text-indigo-400">KES {Number(bt.amount).toLocaleString()}</td>
                                                             </tr>
                                                         );
@@ -10186,7 +10191,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <td className="p-4 font-bold text-slate-900 dark:text-white">
                                                                     {destVH?.name || 'Unknown Vote Head'}
                                                                 </td>
-                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{vt.referenceNumber || '—'}</td>
+                                                                <td className="p-4 font-mono text-[10px] text-slate-500">{vt.referenceNumber || 'â€”'}</td>
                                                                 <td className="p-4 text-right font-black text-indigo-650 dark:text-indigo-400">KES {Number(vt.amount).toLocaleString()}</td>
                                                             </tr>
                                                         );
@@ -10274,7 +10279,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 className="w-full p-4 hover:bg-slate-50 text-left text-xs font-bold text-slate-700 flex flex-col"
                                                             >
                                                                 <span>{student.name}</span>
-                                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || '—'}</span>
+                                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || 'â€”'}</span>
                                                             </button>
                                                         ))
                                                     )}
@@ -10397,7 +10402,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             disabled={isSavingBursary}
                                             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
                                         >
-                                            {isSavingBursary ? "Processing Settlement..." : "Post Bursary Cheque →"}
+                                            {isSavingBursary ? "Processing Settlement..." : "Post Bursary Cheque â†’"}
                                         </button>
                                     </div>
                                 </>
@@ -10437,7 +10442,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 className="w-full p-4 hover:bg-slate-50 text-left text-xs font-bold text-slate-700 flex flex-col"
                                                             >
                                                                 <span>{student.name}</span>
-                                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || '—'}</span>
+                                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || 'â€”'}</span>
                                                             </button>
                                                         ))
                                                     )}
@@ -10531,7 +10536,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             disabled={isSavingBursary}
                                             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
                                         >
-                                            {isSavingBursary ? "Submitting Request..." : "Submit CDF Application →"}
+                                            {isSavingBursary ? "Submitting Request..." : "Submit CDF Application â†’"}
                                         </button>
                                     </div>
                                 </>
@@ -10568,7 +10573,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <tr key={rec.id}>
                                                     <td className="py-4 text-xs font-bold text-slate-900">{rec.studentName}</td>
                                                     <td className="py-4 text-xs text-slate-500">{rec.constituencyName}</td>
-                                                    <td className="py-4 text-xs font-mono text-indigo-600">{rec.chequeNumber || '—'}</td>
+                                                    <td className="py-4 text-xs font-mono text-indigo-600">{rec.chequeNumber || 'â€”'}</td>
                                                     <td className="py-4 text-xs text-right font-black text-slate-800">KES {(rec.amountApproved || rec.amountRequested || 0)?.toLocaleString()}</td>
                                                     <td className="py-4 text-xs">
                                                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
@@ -10578,8 +10583,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             {rec.status || 'pending'}
                                                         </span>
                                                     </td>
-                                                    <td className="py-4 text-xs text-slate-400">{rec.disbursedAt ? new Date(rec.disbursedAt).toLocaleDateString() : (rec.appliedAt ? new Date(rec.appliedAt).toLocaleDateString() : '—')}</td>
-                                                    <td className="py-4 text-xs font-medium text-slate-500">{rec.vettedBy || '—'}</td>
+                                                    <td className="py-4 text-xs text-slate-400">{rec.disbursedAt ? new Date(rec.disbursedAt).toLocaleDateString() : (rec.appliedAt ? new Date(rec.appliedAt).toLocaleDateString() : 'â€”')}</td>
+                                                    <td className="py-4 text-xs font-medium text-slate-500">{rec.vettedBy || 'â€”'}</td>
                                                 </tr>
                                             ))
                                         )}
@@ -10603,7 +10608,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
                                 }`}
                             >
-                                📊 CPA General Ledger &amp; Financial Statements
+                                ðŸ“Š CPA General Ledger &amp; Financial Statements
                             </button>
                             <button
                                 onClick={() => setAuditSubTab('ai_sentinel')}
@@ -10613,7 +10618,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
                                 }`}
                             >
-                                🤖 AI Financial Intelligence &amp; Sentinel
+                                ðŸ¤– AI Financial Intelligence &amp; Sentinel
                             </button>
                             <button
                                 onClick={() => setAuditSubTab('audit_dashboard')}
@@ -10623,7 +10628,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
                                 }`}
                             >
-                                🔍 Automated Forensic Audit
+                                ðŸ” Automated Forensic Audit
                             </button>
                             <button
                                 onClick={() => setAuditSubTab('annual_report')}
@@ -10633,7 +10638,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700'
                                 }`}
                             >
-                                📄 Annual Financial Report (MOE)
+                                ðŸ“„ Annual Financial Report (MOE)
                             </button>
                         </div>
 
@@ -10784,7 +10789,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className="text-xs font-semibold text-slate-500">{student.admissionNumber || student.admission_number || '—'}</span>
+                                                        <span className="text-xs font-semibold text-slate-500">{student.admissionNumber || student.admission_number || 'â€”'}</span>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{studentClassGroup(student)}</span>
@@ -11181,7 +11186,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                     {isCreatingAy && (
                                         <div className="p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60 space-y-4 animate-in slide-in-from-top duration-200">
-                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">➕ Register Academic Year</h4>
+                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">âž• Register Academic Year</h4>
                                             <div className="space-y-3">
                                                 <div className="space-y-1">
                                                     <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Academic Year Name</label>
@@ -11428,7 +11433,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                     {isCreatingTerm && (
                                         <div className="p-5 bg-slate-50 dark:bg-slate-955 rounded-3xl border border-slate-100 dark:border-slate-800/60 space-y-4 animate-in slide-in-from-top duration-200">
-                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">➕ Register Term / Semester</h4>
+                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">âž• Register Term / Semester</h4>
                                             <div className="space-y-3">
                                                 <div className="space-y-1">
                                                     <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Academic Year</label>
@@ -11620,7 +11625,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         <p className="text-sm font-black text-slate-900 dark:text-white">{sem.name}</p>
                                                                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold border border-slate-200 dark:border-slate-700">{ayName}</span>
                                                                     </div>
-                                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Duration: {sem.startDate || '—'} to {sem.endDate || '—'}</p>
+                                                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Duration: {sem.startDate || 'â€”'} to {sem.endDate || 'â€”'}</p>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
                                                                     {sem.status !== 'active' && (
@@ -11871,7 +11876,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </span>
                                                             </div>
                                                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                                                                Cycle: {fy.startDate || '—'} to {fy.endDate || '—'}
+                                                                Cycle: {fy.startDate || 'â€”'} to {fy.endDate || 'â€”'}
                                                             </p>
                                                         </div>
 
@@ -12232,8 +12237,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 }}
                                                                 className="px-3 py-2 bg-transparent hover:bg-slate-100 focus:bg-white dark:hover:bg-slate-800 dark:focus:bg-slate-900 border border-transparent focus:border-indigo-500 rounded-lg outline-none font-bold text-xs text-slate-700 dark:text-slate-300 transition-all mx-auto"
                                                             >
-                                                                <option value="fixed">💵 Fixed Amount</option>
-                                                                <option value="percentage">📊 Percentage Share</option>
+                                                                <option value="fixed">ðŸ’µ Fixed Amount</option>
+                                                                <option value="percentage">ðŸ“Š Percentage Share</option>
                                                             </select>
                                                         </td>
                                                         {/* Value Column */}
@@ -12311,7 +12316,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {/* Add / Edit Form */}
                                         <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60">
                                             <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                                                {editingBankAccountId ? '✏️ Edit Account' : '➕ Register Account'}
+                                                {editingBankAccountId ? 'âœï¸ Edit Account' : 'âž• Register Account'}
                                             </h4>
                                             <div className="space-y-3">
                                                 <div className="space-y-1">
@@ -12410,8 +12415,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <option value="Not Configured">Not Configured</option>
                                                             ) : (
                                                                 <>
-                                                                    <option value="Connected">🟢 Connected</option>
-                                                                    <option value="Disconnected">🔴 Disconnected</option>
+                                                                    <option value="Connected">ðŸŸ¢ Connected</option>
+                                                                    <option value="Disconnected">ðŸ”´ Disconnected</option>
                                                                 </>
                                                             )}
                                                         </select>
@@ -12463,7 +12468,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <p className="text-xs font-bold text-slate-800 dark:text-white">{ba.bankName}</p>
                                                             {ba.integrationService && ba.integrationService !== 'None' && (
                                                                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${ba.integrationStatus === 'Connected' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-450 border border-emerald-250 dark:border-emerald-800/65' : 'bg-rose-50 text-rose-600 dark:bg-rose-955 dark:text-rose-400 border border-rose-200 dark:border-rose-900'}`}>
-                                                                    {ba.integrationStatus === 'Connected' ? '🟢 Connected' : '🔴 Disconnected'}
+                                                                    {ba.integrationStatus === 'Connected' ? 'ðŸŸ¢ Connected' : 'ðŸ”´ Disconnected'}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -12472,7 +12477,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             {ba.accountName} {ba.branchName && `(${ba.branchName} Branch)`}
                                                             {ba.integrationService && ba.integrationService !== 'None' && (
                                                                 <span className="text-slate-450 dark:text-slate-500 font-bold ml-1.5">
-                                                                    — Linked: {ba.integrationService}
+                                                                    â€” Linked: {ba.integrationService}
                                                                 </span>
                                                             )}
                                                         </p>
@@ -12518,7 +12523,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {/* Add / Edit Form */}
                                         <div className="space-y-4 p-5 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800/60">
                                             <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                                                {editingGrantId ? '✏️ Edit Grant' : '➕ Record Grant'}
+                                                {editingGrantId ? 'âœï¸ Edit Grant' : 'âž• Record Grant'}
                                             </h4>
                                             <div className="space-y-3">
                                                 <div className="space-y-1">
@@ -13062,7 +13067,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div className="flex-1 min-w-0">
                                                 <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{importerFile?.name}</h4>
                                                 <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">
-                                                    {(importerFile ? importerFile.size / 1024 : 0).toFixed(1)} KB • {importerRawData.length} Rows
+                                                    {(importerFile ? importerFile.size / 1024 : 0).toFixed(1)} KB â€¢ {importerRawData.length} Rows
                                                 </p>
                                             </div>
                                             <button 
@@ -13206,7 +13211,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex flex-col"
                                                     >
                                                         <span>{student.name}</span>
-                                                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || '—'}</span>
+                                                        <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.admissionNumber || student.admission_number || 'â€”'}</span>
                                                     </button>
                                                 ))
                                             )}
@@ -13377,7 +13382,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 onChange={e => setSendSmsNotification(e.target.checked)}
                                                 className="w-4 h-4 accent-indigo-600 cursor-pointer"
                                             />
-                                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">📱 SMS</span>
+                                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">ðŸ“± SMS</span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
@@ -13386,7 +13391,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 onChange={e => setSendEmailNotification(e.target.checked)}
                                                 className="w-4 h-4 accent-indigo-600 cursor-pointer"
                                             />
-                                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">✉️ Email (with PDF link)</span>
+                                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1">âœ‰ï¸ Email (with PDF link)</span>
                                         </label>
                                     </div>
                                     <p className="text-[9px] text-slate-400 font-medium">Student &amp; parent will receive receipt confirmation with a download link.</p>
@@ -13394,7 +13399,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 {isSavingManualPay && (
                                     <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-center gap-3 text-amber-800 dark:text-amber-200 font-bold text-xs animate-pulse text-center">
-                                        <span className="animate-spin text-base">⏳</span>
+                                        <span className="animate-spin text-base">â³</span>
                                         <span>Posting transaction in progress... Please do not close or click again to prevent duplicate receipts.</span>
                                     </div>
                                 )}
@@ -13406,7 +13411,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 >
                                     {isSavingManualPay ? (
                                         <>
-                                            <span className="animate-spin text-sm">⏳</span>
+                                            <span className="animate-spin text-sm">â³</span>
                                             <span>Posting Transaction in Progress...</span>
                                         </>
                                     ) : (
@@ -13483,7 +13488,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 {isReconciling && (
                                     <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-center gap-3 text-emerald-800 dark:text-emerald-200 font-bold text-xs animate-pulse text-center">
-                                        <span className="animate-spin text-base">⏳</span>
+                                        <span className="animate-spin text-base">â³</span>
                                         <span>Reconciling payment feed in progress... Please do not click again to avoid duplicate receipts.</span>
                                     </div>
                                 )}
@@ -13495,7 +13500,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 >
                                     {isReconciling ? (
                                         <>
-                                            <span className="animate-spin text-sm">⏳</span>
+                                            <span className="animate-spin text-sm">â³</span>
                                             <span>Reconciling & Generating Receipt...</span>
                                         </>
                                     ) : (
@@ -13619,7 +13624,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div>Prepared By</div>
                                         </div>
                                         <div className="space-y-4">
-                                            <div className="border-b border-slate-300 dark:border-slate-700 pb-1 text-slate-850 dark:text-slate-200 font-black">—</div>
+                                            <div className="border-b border-slate-300 dark:border-slate-700 pb-1 text-slate-850 dark:text-slate-200 font-black">â€”</div>
                                             <div>Checked By</div>
                                         </div>
                                         <div className="space-y-4">
@@ -14063,7 +14068,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     disabled={expAmount <= 0 || !expDescription}
                                     className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1 shadow-sm"
                                 >
-                                    👁️ Preview Voucher
+                                    ðŸ‘ï¸ Preview Voucher
                                 </button>
                                 <button
                                     type="button"
@@ -14090,24 +14095,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
                     const reportSubTabs = [
-                        { id: 'collection', label: 'Fee Collection', icon: '📥' },
-                        { id: 'outstanding', label: 'Outstanding Balances', icon: '⚠️' },
-                        { id: 'household_balances', label: 'Household Fee Balances', icon: '🏡' },
-                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📝' },
-                        { id: 'revenue_warroom', label: 'Revenue Realization', icon: '🎯' },
-                        { id: 'exam_permits', label: 'Digital Exam Permits', icon: '🎟️' },
-                        { id: 'annual_wizard', label: 'FY2025-26 Annual Template', icon: '📑' },
-                        { id: 'ledger', label: 'Receipts Ledger', icon: '🧾' },
-                        { id: 'expenses', label: 'Expense Summary', icon: '💸' },
-                        { id: 'payroll_summary', label: 'Payroll Summary', icon: '👔' },
-                        { id: 'annual', label: 'Annual Financial Overview', icon: '📊' },
-                        { id: 'student_statement', label: 'Student Statement', icon: '🎓' },
-                        { id: 'activity_logs', label: 'Activity Logs', icon: '📋' },
+                        { id: 'collection', label: 'Fee Collection', icon: 'ðŸ“¥' },
+                        { id: 'outstanding', label: 'Outstanding Balances', icon: 'âš ï¸' },
+                        { id: 'household_balances', label: 'Household Fee Balances', icon: 'ðŸ¡' },
+                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: 'ðŸ“' },
+                        { id: 'revenue_warroom', label: 'Revenue Realization', icon: 'ðŸŽ¯' },
+                        { id: 'exam_permits', label: 'Digital Exam Permits', icon: 'ðŸŽŸï¸' },
+                        { id: 'annual_wizard', label: 'FY2025-26 Annual Template', icon: 'ðŸ“‘' },
+                        { id: 'ledger', label: 'Receipts Ledger', icon: 'ðŸ§¾' },
+                        { id: 'expenses', label: 'Expense Summary', icon: 'ðŸ’¸' },
+                        { id: 'payroll_summary', label: 'Payroll Summary', icon: 'ðŸ‘”' },
+                        { id: 'annual', label: 'Annual Financial Overview', icon: 'ðŸ“Š' },
+                        { id: 'student_statement', label: 'Student Statement', icon: 'ðŸŽ“' },
+                        { id: 'activity_logs', label: 'Activity Logs', icon: 'ðŸ“‹' },
                     ];
 
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
-                            {/* Horizontal menu — switches to sub-menus when on outstanding or ledger tabs */}
+                            {/* Horizontal menu â€” switches to sub-menus when on outstanding or ledger tabs */}
                             {reportsSubTab === 'outstanding' ? (
                                 /* Outstanding Balances sub-menu */
                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
@@ -14115,19 +14120,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         onClick={() => setReportsSubTab('collection')}
                                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all mr-1 border border-indigo-200 dark:border-indigo-800"
                                     >
-                                        ← Back
+                                        â† Back
                                     </button>
                                     <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
                                     {[
-                                        { id: 'balance_slip', label: 'Fee Balance Slip', icon: '🪪' },
-                                        { id: 'all_balances', label: 'All Balances', icon: '📋' },
-                                        { id: 'household_balances', label: 'Household Balances', icon: '🏡' },
-                                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📝' },
-                                        { id: 'student_summary', label: 'Student Summary', icon: '👤' },
-                                        { id: 'class_summary', label: 'Class Summary', icon: '🏫' },
-                                        { id: 'term_summary', label: 'Term Summary', icon: '📅' },
-                                        { id: 'voteheads_summary', label: 'Voteheads Summary', icon: '🗳️' },
-                                        { id: 'votehead_distribution', label: 'Votehead Distribution', icon: '📊' },
+                                        { id: 'balance_slip', label: 'Fee Balance Slip', icon: 'ðŸªª' },
+                                        { id: 'all_balances', label: 'All Balances', icon: 'ðŸ“‹' },
+                                        { id: 'household_balances', label: 'Household Balances', icon: 'ðŸ¡' },
+                                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: 'ðŸ“' },
+                                        { id: 'student_summary', label: 'Student Summary', icon: 'ðŸ‘¤' },
+                                        { id: 'class_summary', label: 'Class Summary', icon: 'ðŸ«' },
+                                        { id: 'term_summary', label: 'Term Summary', icon: 'ðŸ“…' },
+                                        { id: 'voteheads_summary', label: 'Voteheads Summary', icon: 'ðŸ—³ï¸' },
+                                        { id: 'votehead_distribution', label: 'Votehead Distribution', icon: 'ðŸ“Š' },
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -14156,15 +14161,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         onClick={() => setReportsSubTab('collection')}
                                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all mr-1 border border-emerald-200 dark:border-emerald-800"
                                     >
-                                        ← Back
+                                        â† Back
                                     </button>
                                     <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
                                     {[
-                                        { id: 'collection_summary', label: 'Collection Summary', icon: '📥' },
-                                        { id: 'cash_book', label: 'Cash Book', icon: '📖' },
-                                        { id: 'fee_register', label: 'Fee Register', icon: '📓' },
-                                        { id: 'cash_flow', label: 'Cash Flow', icon: '🌊' },
-                                        { id: 'fee_installment', label: 'Fee Installment', icon: '💰' },
+                                        { id: 'collection_summary', label: 'Collection Summary', icon: 'ðŸ“¥' },
+                                        { id: 'cash_book', label: 'Cash Book', icon: 'ðŸ“–' },
+                                        { id: 'fee_register', label: 'Fee Register', icon: 'ðŸ““' },
+                                        { id: 'cash_flow', label: 'Cash Flow', icon: 'ðŸŒŠ' },
+                                        { id: 'fee_installment', label: 'Fee Installment', icon: 'ðŸ’°' },
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -14216,21 +14221,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         const student = props.students.find((s: any) => s.id === inv.studentId);
                                                         const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
                                                         const bal = (inv.totalAmount || 0) - paid;
-                                                        const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
-                                                        return [student?.name || '—', cls, inv.invoiceNumber || inv.id?.slice(-8), inv.totalAmount || 0, paid, bal, bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'];
+                                                        const cls = student ? ((student as any).className || studentClassGroup(student)) : 'â€”';
+                                                        return [student?.name || 'â€”', cls, inv.invoiceNumber || inv.id?.slice(-8), inv.totalAmount || 0, paid, bal, bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'];
                                                     });
                                                     exportCSV('fee_collection_report', ['Student', 'Class', 'Invoice #', 'Amount', 'Paid', 'Balance', 'Status'], rows);
                                                 }}
                                                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                             >
-                                                📥 Export CSV
+                                                ðŸ“¥ Export CSV
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => window.print()}
                                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                             >
-                                                🖨️ Print Report
+                                                ðŸ–¨ï¸ Print Report
                                             </button>
                                             <span className="text-2xl font-black text-emerald-600 ml-2">{collectionRate.toFixed(1)}%</span>
                                         </div>
@@ -14251,12 +14256,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <tbody>
                                                 {mappedInvoices.slice(0,100).map((inv: any, i: number) => {
                                                     const student = props.students.find((s: any) => s.id === inv.studentId);
-                                                    const cls = student ? ((student as any).className || studentClassGroup(student)) : '—';
+                                                    const cls = student ? ((student as any).className || studentClassGroup(student)) : 'â€”';
                                                     const paid = mappedReceipts.filter((r: any) => r.invoiceId === inv.id).reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
                                                     const bal = (inv.totalAmount || 0) - paid;
                                                     return (
                                                         <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                            <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{student?.name || inv.studentId || '—'}</td>
+                                                            <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{student?.name || inv.studentId || 'â€”'}</td>
                                                             <td className="py-3 px-4 font-bold text-slate-600 dark:text-slate-400">{cls}</td>
                                                             <td className="py-3 px-4 text-slate-500">{inv.invoiceNumber || inv.id?.slice(-8)}</td>
                                                             <td className="py-3 px-4 font-black text-slate-700">KSh {(inv.totalAmount||0).toLocaleString()}</td>
@@ -14272,7 +14277,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             )}
 
-                            {/* Outstanding Balances — 7 Sub-Tabs */}
+                            {/* Outstanding Balances â€” 7 Sub-Tabs */}
                             {reportsSubTab === 'outstanding' && (() => {
                                 const getInvoiceItems = (inv: any): any[] => {
                                     let items = inv.voteHeads || inv.items;
@@ -14356,8 +14361,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div className="flex flex-col md:flex-row gap-4">
                                                         <input type="text" placeholder="Search student name or admission number..." value={slipSearch} onChange={e => setSlipSearch(e.target.value)} className="flex-1 pl-4 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-500" />
                                                         <select value={slipStudentId} onChange={e => setSlipStudentId(e.target.value)} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-xs font-bold text-slate-900 dark:text-white">
-                                                            <option value="">— Select Student —</option>
-                                                            {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
+                                                            <option value="">â€” Select Student â€”</option>
+                                                            {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` Â· ${s.className || studentClassGroup(s)}`}</option>))}
                                                         </select>
                                                         {slipStudentId && (
                                                             <button 
@@ -14365,15 +14370,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     title: `OFFICIAL FEE BALANCE STATEMENT`,
                                                                     subtitle: props.institution.name,
                                                                     studentName: slipStudent?.name || 'Student',
-                                                                    admNo: (slipStudent as any)?.admissionNumber || '—',
-                                                                    className: (slipStudent as any)?.className || (slipStudent ? studentClassGroup(slipStudent) : '—'),
+                                                                    admNo: (slipStudent as any)?.admissionNumber || 'â€”',
+                                                                    className: (slipStudent as any)?.className || (slipStudent ? studentClassGroup(slipStudent) : 'â€”'),
                                                                     invoiced: (slipData as any)?.totals?.invoiced || 0,
                                                                     paid: (slipData as any)?.totals?.paid || 0,
                                                                     balance: (slipData as any)?.totals?.balance || 0
                                                                 })} 
                                                                 className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-rose-600/30 active:scale-95 flex items-center justify-center gap-2"
                                                             >
-                                                                👁️ On-Screen PDF Preview
+                                                                ðŸ‘ï¸ On-Screen PDF Preview
                                                             </button>
                                                         )}
                                                     </div>
@@ -14395,9 +14400,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <div className="p-6 border-b border-dashed border-slate-800 relative z-10 bg-slate-900/60">
                                                             <div className="grid grid-cols-2 gap-4 text-xs">
                                                                 <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-white text-sm mt-0.5">{slipStudent.name}</p></div>
-                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-mono font-bold text-cyan-400 text-sm mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-mono font-bold text-cyan-400 text-sm mt-0.5">{(slipStudent as any).admissionNumber || 'â€”'}</p></div>
                                                                 <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class & Stream</p><p className="font-black text-white text-sm mt-0.5">{(slipStudent as any).className || studentClassGroup(slipStudent)} {((slipStudent as any).stream) ? `(${ (slipStudent as any).stream })` : ''}</p></div>
-                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Status</p><p className="font-black text-amber-400 text-sm mt-0.5">{(slipData as any).totals.balance > 0 ? '⚠️ Outstanding Due' : '✅ Cleared'}</p></div>
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Status</p><p className="font-black text-amber-400 text-sm mt-0.5">{(slipData as any).totals.balance > 0 ? 'âš ï¸ Outstanding Due' : 'âœ… Cleared'}</p></div>
                                                             </div>
                                                         </div>
 
@@ -14409,7 +14414,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </div>
 
                                                         <div className="p-4 bg-slate-950 text-center border-t border-slate-800 relative z-10">
-                                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Official Computer Generated Fiscal Statement · EduAI Finance Platform</p>
+                                                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Official Computer Generated Fiscal Statement Â· EduAI Finance Platform</p>
                                                         </div>
                                                     </div>
                                                 )}
@@ -14482,12 +14487,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.invoiced, s.totals.paid, s.totals.balance]))}
                                                                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
-                                                                📥 CSV Export
+                                                                ðŸ“¥ CSV Export
                                                             </button>
                                                             <button
                                                                 onClick={() => setPdfPreviewModal({
                                                                     title: `ALL OUTSTANDING FEE BALANCES REPORT`,
-                                                                    subtitle: `${props.institution.name} — ${filteredList.length} Students`,
+                                                                    subtitle: `${props.institution.name} â€” ${filteredList.length} Students`,
                                                                     studentName: `Batch Summary (${balClass || 'All Classes'})`,
                                                                     admNo: `COUNT: ${filteredList.length}`,
                                                                     className: balClass || 'All Classes',
@@ -14496,7 +14501,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
                                                                     items: filteredList.map((s: any) => ({
                                                                         name: s.name,
-                                                                        adm: s.admissionNumber || '—',
+                                                                        adm: s.admissionNumber || 'â€”',
                                                                         cls: s.className || studentClassGroup(s),
                                                                         inv: s.totals.invoiced,
                                                                         pd: s.totals.paid,
@@ -14505,13 +14510,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 })}
                                                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
-                                                                👁️ On-Screen PDF Preview
+                                                                ðŸ‘ï¸ On-Screen PDF Preview
                                                             </button>
                                                             <button
                                                                 onClick={() => {
                                                                     setPdfPreviewModal({
                                                                         title: `ALL OUTSTANDING FEE BALANCES REPORT`,
-                                                                        subtitle: `${props.institution.name} — ${filteredList.length} Students`,
+                                                                        subtitle: `${props.institution.name} â€” ${filteredList.length} Students`,
                                                                         studentName: `Batch Summary (${balClass || 'All Classes'})`,
                                                                         admNo: `COUNT: ${filteredList.length}`,
                                                                         className: balClass || 'All Classes',
@@ -14520,7 +14525,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
                                                                         items: filteredList.map((s: any) => ({
                                                                             name: s.name,
-                                                                            adm: s.admissionNumber || '—',
+                                                                            adm: s.admissionNumber || 'â€”',
                                                                             cls: s.className || studentClassGroup(s),
                                                                             inv: s.totals.invoiced,
                                                                             pd: s.totals.paid,
@@ -14531,7 +14536,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 }}
                                                                 className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-slate-600/20 active:scale-95 flex items-center gap-1.5"
                                                             >
-                                                                🖨️ Print Report
+                                                                ðŸ–¨ï¸ Print Report
                                                             </button>
                                                         </div>
                                                     </div>
@@ -14577,7 +14582,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     onClick={() => setBalCurrentPage(p => Math.max(1, p - 1))}
                                                                     className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer disabled:cursor-not-allowed"
                                                                 >
-                                                                    ← Previous
+                                                                    â† Previous
                                                                 </button>
                                                                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                                                                     .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
@@ -14605,7 +14610,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     onClick={() => setBalCurrentPage(p => Math.min(totalPages, p + 1))}
                                                                     className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer disabled:cursor-not-allowed"
                                                                 >
-                                                                    Next →
+                                                                    Next â†’
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -14614,7 +14619,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             );
                                         })()}
 
-                                        {/* 3. Student Summary — invoiced/paid/balance per votehead */}
+                                        {/* 3. Student Summary â€” invoiced/paid/balance per votehead */}
                                         {outstandingSubTab === 'student_summary' && (() => {
                                             const filteredVoteData = studentVoteData.filter((s: any) => s.totals.balance > 0);
                                             return (
@@ -14641,13 +14646,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 }}
                                                                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
                                                             >
-                                                                📥 CSV
+                                                                ðŸ“¥ CSV
                                                             </button>
                                                             <button
                                                                 onClick={() => window.print()}
                                                                 className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
                                                             >
-                                                                🖨️ Print
+                                                                ðŸ–¨ï¸ Print
                                                             </button>
                                                         </div>
                                                     </div>
@@ -14676,7 +14681,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                         <div className="text-emerald-600">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
                                                                                         <div className="text-rose-500 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
                                                                                     </div>
-                                                                                ) : <span className="text-slate-300">—</span>}
+                                                                                ) : <span className="text-slate-300">â€”</span>}
                                                                             </TD>
                                                                         ))}
                                                                         <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
@@ -14714,10 +14719,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={() => exportCSV('class_summary_report', ['Class', 'Students Count', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection Rate %'], classSummary.map(r => [r.cls, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))}
                                                                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
                                                             >
-                                                                📥 CSV
+                                                                ðŸ“¥ CSV
                                                             </button>
                                                             <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">
-                                                                🖨️ Print
+                                                                ðŸ–¨ï¸ Print
                                                             </button>
                                                         </div>
                                                     </div>
@@ -14769,8 +14774,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
                                                         <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Term Summary Balances</h3>
                                                         <div className="flex items-center gap-2">
-                                                            <button onClick={() => exportCSV('term_summary_balances', ['Term', 'Invoices Count', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'], termSummary.map(r => [r.term, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">📥 CSV</button>
-                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">🖨️ Print</button>
+                                                            <button onClick={() => exportCSV('term_summary_balances', ['Term', 'Invoices Count', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'], termSummary.map(r => [r.term, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">ðŸ“¥ CSV</button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">ðŸ–¨ï¸ Print</button>
                                                         </div>
                                                     </div>
                                                     <div className="overflow-x-auto">
@@ -14818,8 +14823,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
                                                         <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Voteheads Summary</h3>
                                                         <div className="flex items-center gap-2">
-                                                            <button onClick={() => exportCSV('voteheads_summary', ['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection %'], vhSummary.map(r => [r.vh, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">📥 CSV</button>
-                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">🖨️ Print</button>
+                                                            <button onClick={() => exportCSV('voteheads_summary', ['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection %'], vhSummary.map(r => [r.vh, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">ðŸ“¥ CSV</button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">ðŸ–¨ï¸ Print</button>
                                                         </div>
                                                     </div>
                                                     <div className="overflow-x-auto">
@@ -14854,7 +14859,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             );
                                         })()}
 
-                                        {/* 7. Votehead Distribution — pivot table */}
+                                        {/* 7. Votehead Distribution â€” pivot table */}
                                         {outstandingSubTab === 'votehead_distribution' && (() => {
                                             const distStudents = studentVoteData
                                                 .filter((s: any) => s.totals.balance > 0)
@@ -14882,10 +14887,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 }}
                                                                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
                                                             >
-                                                                📥 CSV
+                                                                ðŸ“¥ CSV
                                                             </button>
                                                             <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">
-                                                                🖨️ Print
+                                                                ðŸ–¨ï¸ Print
                                                             </button>
                                                         </div>
                                                     </div>
@@ -14906,7 +14911,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         <TD cls="text-slate-600 font-bold whitespace-nowrap">{s.className || studentClassGroup(s)}</TD>
                                                                         {allVoteHeads.map(v => {
                                                                             const vb = s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0;
-                                                                            return <TD key={v} cls={`whitespace-nowrap font-bold ${vb > 0 ? 'text-rose-600' : vb < 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{vb !== 0 ? `KSh ${Math.abs(vb).toLocaleString()}` : '—'}</TD>;
+                                                                            return <TD key={v} cls={`whitespace-nowrap font-bold ${vb > 0 ? 'text-rose-600' : vb < 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{vb !== 0 ? `KSh ${Math.abs(vb).toLocaleString()}` : 'â€”'}</TD>;
                                                                         })}
                                                                         <TD cls="font-black text-rose-700">KSh {s.totals.balance.toLocaleString()}</TD>
                                                                     </tr>
@@ -14916,7 +14921,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <TD cls="" /><TD cls="text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</TD><TD cls="" />
                                                                     {allVoteHeads.map(v => {
                                                                         const total = distStudents.reduce((a: number, s: any) => a + (s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0), 0);
-                                                                        return <TD key={v} cls="text-rose-700 whitespace-nowrap">{total > 0 ? `KSh ${total.toLocaleString()}` : '—'}</TD>;
+                                                                        return <TD key={v} cls="text-rose-700 whitespace-nowrap">{total > 0 ? `KSh ${total.toLocaleString()}` : 'â€”'}</TD>;
                                                                     })}
                                                                     <TD cls="text-rose-700">KSh {distStudents.reduce((a: number, s: any) => a + s.totals.balance, 0).toLocaleString()}</TD>
                                                                 </tr>
@@ -14931,7 +14936,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             })()}
 
 
-                            {/* Receipts Ledger — 3 Sub-Tabs */}
+                            {/* Receipts Ledger â€” 3 Sub-Tabs */}
                             {reportsSubTab === 'ledger' && (() => {
                                 const getInvoiceItems = (inv: any): any[] => {
                                     let items = inv.voteHeads || inv.items;
@@ -14951,7 +14956,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 ));
 
                                 mappedReceipts.forEach((rcpt: any) => {
-                                    const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '—';
+                                    const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || 'â€”';
                                     if (!collectionsByDate[dateStr]) {
                                         collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0 };
                                     }
@@ -14995,7 +15000,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const allCashEntries = [
                                     ...mappedReceipts.map((r: any) => ({
                                         date: r.paymentDate || r.createdAt || '',
-                                        particulars: `Fee Collection — ${r.studentName || r.payerName || 'Student'}`,
+                                        particulars: `Fee Collection â€” ${r.studentName || r.payerName || 'Student'}`,
                                         ref: r.receiptNumber || r.id?.slice(-8),
                                         debit: r.amountPaid || 0,
                                         credit: 0,
@@ -15003,7 +15008,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     })),
                                     ...(props.expenses || []).map((e: any) => ({
                                         date: e.date || '',
-                                        particulars: `Expense — ${e.description || 'General Expenditure'} (${e.category || 'General'})`,
+                                        particulars: `Expense â€” ${e.description || 'General Expenditure'} (${e.category || 'General'})`,
                                         ref: e.id?.slice(-8) || 'EXP',
                                         debit: 0,
                                         credit: e.amount || 0,
@@ -15062,7 +15067,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const itemizedCashBook = filteredCashEntries.map(entry => {
                                     currentItemBal += entry.debit - entry.credit;
                                     return {
-                                        date: entry.date.split('T')[0] || '—',
+                                        date: entry.date.split('T')[0] || 'â€”',
                                         particulars: entry.particulars,
                                         ref: entry.ref,
                                         debit: entry.debit,
@@ -15075,7 +15080,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 // Group daily details for the Daily Cash Book
                                 const dailyGroups: Record<string, { date: string; debit: number; credit: number; receiptsList: any[]; expensesList: any[] }> = {};
                                 filteredCashEntries.forEach(entry => {
-                                    const dateStr = entry.date.split('T')[0] || '—';
+                                    const dateStr = entry.date.split('T')[0] || 'â€”';
                                     if (!dailyGroups[dateStr]) {
                                         dailyGroups[dateStr] = { date: dateStr, debit: 0, credit: 0, receiptsList: [], expensesList: [] };
                                     }
@@ -15096,8 +15101,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                     // Receipt numbers min/max range
                                     const rcptNums = day.receiptsList.map(r => r.ref).filter(Boolean);
-                                    const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : '—';
-                                    const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : '—';
+                                    const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : 'â€”';
+                                    const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : 'â€”';
 
                                     // Payment methods breakdown
                                     const methods: Record<string, number> = {};
@@ -15107,7 +15112,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     });
                                     const methodSummary = Object.entries(methods)
                                         .map(([m, val]) => `${m}: KSh ${val.toLocaleString()}`)
-                                        .join(' · ');
+                                        .join(' Â· ');
 
                                     return {
                                         ...day,
@@ -15230,15 +15235,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                                     <TD cls="font-bold text-slate-900 dark:text-white">{day.date}</TD>
                                                                     <TD cls="text-slate-500 font-bold">
-                                                                        {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} · ${day.maxRcpt}`}
+                                                                        {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} Â· ${day.maxRcpt}`}
                                                                     </TD>
                                                                     {allVoteHeads.map(vh => (
                                                                         <TD key={vh} cls="font-medium text-slate-700 dark:text-slate-300">
-                                                                            {day.voteMap[vh] > 0 ? `KSh ${Math.round(day.voteMap[vh]).toLocaleString()}` : '—'}
+                                                                            {day.voteMap[vh] > 0 ? `KSh ${Math.round(day.voteMap[vh]).toLocaleString()}` : 'â€”'}
                                                                         </TD>
                                                                     ))}
                                                                     <TD cls="font-medium text-slate-700 dark:text-slate-300">
-                                                                        {day.voteMap['General'] > 0 ? `KSh ${Math.round(day.voteMap['General']).toLocaleString()}` : '—'}
+                                                                        {day.voteMap['General'] > 0 ? `KSh ${Math.round(day.voteMap['General']).toLocaleString()}` : 'â€”'}
                                                                     </TD>
                                                                     <TD cls="font-black text-emerald-600">KSh {day.total.toLocaleString()}</TD>
                                                                 </tr>
@@ -15280,7 +15285,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
                                                     
                                                     {/* Print Button */}
-                                                    <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Cash Book</button>
+                                                    <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">ðŸ–¨ï¸ Print Cash Book</button>
                                                 </div>
 
                                                 {/* Filters block */}
@@ -15342,7 +15347,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
                                                                             >
                                                                                 <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? 'â–¼' : 'â–¶'}</span>
                                                                                     {day.date}
                                                                                 </TD>
                                                                                 <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
@@ -15352,10 +15357,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                             <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
                                                                                             <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
                                                                                         </div>
-                                                                                    ) : '—'}
+                                                                                    ) : 'â€”'}
                                                                                 </TD>
-                                                                                <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
-                                                                                <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
+                                                                                <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : 'â€”'}</TD>
+                                                                                <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : 'â€”'}</TD>
                                                                                 <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
                                                                             </tr>
                                                                             {isExpanded && (
@@ -15368,7 +15373,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
                                                                                                         {day.receiptsList.map((r: any, rIdx: number) => (
                                                                                                             <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                                <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
+                                                                                                                <span>{r.particulars} ({r.ref}) Â· <span className="font-bold text-slate-500">{r.method}</span></span>
                                                                                                                 <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
                                                                                                             </div>
                                                                                                         ))}
@@ -15429,14 +15434,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
                                                                             >
                                                                                 <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? 'â–¼' : 'â–¶'}</span>
                                                                                     {day.date}
                                                                                 </TD>
                                                                                 <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
                                                                                 <TD cls="font-bold text-indigo-600">
                                                                                     {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
                                                                                 </TD>
-                                                                                <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
+                                                                                <TD cls="text-[10px] text-slate-500">{day.methodSummary || 'â€”'}</TD>
                                                                                 <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
                                                                                 <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
                                                                             </tr>
@@ -15448,7 +15453,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
                                                                                                 {day.receiptsList.map((r: any, rIdx: number) => (
                                                                                                     <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                        <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
+                                                                                                        <span>{r.particulars} ({r.ref}) Â· <span className="font-bold text-slate-500">{r.method}</span></span>
                                                                                                         <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
                                                                                                     </div>
                                                                                                 ))}
@@ -15493,7 +15498,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
                                                                             >
                                                                                 <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? 'â–¼' : 'â–¶'}</span>
                                                                                     {day.date}
                                                                                 </TD>
                                                                                 <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
@@ -15568,7 +15573,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     ))}
                                                                 </select>
                                                             </div>
-                                                            <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
+                                                            <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">ðŸ–¨ï¸ Print</button>
                                                         </div>
                                                     </div>
 
@@ -15604,19 +15609,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             {s.bf > 0 ? `KSh ${s.bf.toLocaleString()}` : '0.00'}
                                                                         </td>
                                                                         <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-800/40 text-center font-bold">
-                                                                            {s.t1Count > 0 ? s.t1Count : '—'}
+                                                                            {s.t1Count > 0 ? s.t1Count : 'â€”'}
                                                                         </td>
                                                                         <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
                                                                             {s.t1Amount > 0 ? `KSh ${s.t1Amount.toLocaleString()}` : '0.00'}
                                                                         </td>
                                                                         <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-800/40 text-center font-bold">
-                                                                            {s.t2Count > 0 ? s.t2Count : '—'}
+                                                                            {s.t2Count > 0 ? s.t2Count : 'â€”'}
                                                                         </td>
                                                                         <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
                                                                             {s.t2Amount > 0 ? `KSh ${s.t2Amount.toLocaleString()}` : '0.00'}
                                                                         </td>
                                                                         <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 border border-slate-50 dark:border-slate-800/40 text-center font-bold">
-                                                                            {s.t3Count > 0 ? s.t3Count : '—'}
+                                                                            {s.t3Count > 0 ? s.t3Count : 'â€”'}
                                                                         </td>
                                                                         <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
                                                                             {s.t3Amount > 0 ? `KSh ${s.t3Amount.toLocaleString()}` : '0.00'}
@@ -15675,7 +15680,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 const category = (e.category || '').toLowerCase();
                                                 const desc = (e.description || '').toLowerCase();
                                                 const amount = e.amount || 0;
-                                                const date = e.date?.split('T')[0] || '—';
+                                                const date = e.date?.split('T')[0] || 'â€”';
 
                                                 const isInvesting = category.includes('asset') || category.includes('equipment') || category.includes('computer') || category.includes('construction') || category.includes('building') || category.includes('land') || category.includes('furniture') || desc.includes('asset') || desc.includes('equipment') || desc.includes('purchase');
                                                 const isFinancing = category.includes('loan') || category.includes('bank') || category.includes('capital') || category.includes('interest') || category.includes('dividend');
@@ -15717,7 +15722,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Statement of Cash Flows</h3>
                                                             <p className="text-[10px] text-slate-400 font-medium">Summarized cash inflows and outflows categorized by Operating, Investing, and Financing activities</p>
                                                         </div>
-                                                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Statement</button>
+                                                        <button onClick={() => window.print()} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">ðŸ–¨ï¸ Print Statement</button>
                                                     </div>
 
                                                     <div className="max-w-2xl mx-auto space-y-8 bg-slate-50/50 dark:bg-slate-950/40 p-8 rounded-[2rem] border border-slate-100/80 dark:border-slate-800/30">
@@ -15740,7 +15745,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                                                                             {mappedReceipts.map((r: any, idx: number) => (
                                                                                 <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                    <span>{r.createdAt?.split('T')[0] || r.paymentDate?.split('T')[0] || '—'} · {r.studentName || 'Student'} ({r.receiptNumber || r.id?.slice(-8)})</span>
+                                                                                    <span>{r.createdAt?.split('T')[0] || r.paymentDate?.split('T')[0] || 'â€”'} Â· {r.studentName || 'Student'} ({r.receiptNumber || r.id?.slice(-8)})</span>
                                                                                     <span className="font-bold text-emerald-600">KSh {r.amountPaid.toLocaleString()}</span>
                                                                                 </div>
                                                                             ))}
@@ -15752,7 +15757,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                                                                             {operatingDetails.map((o, idx) => (
                                                                                 <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                    <span>{o.date} · {o.desc}</span>
+                                                                                    <span>{o.date} Â· {o.desc}</span>
                                                                                     <span className="font-bold text-rose-600">KSh {o.amount.toLocaleString()}</span>
                                                                                 </div>
                                                                             ))}
@@ -15780,7 +15785,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                                                                         {investingDetails.map((inv, idx) => (
                                                                             <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                <span>{inv.date} · {inv.desc}</span>
+                                                                                <span>{inv.date} Â· {inv.desc}</span>
                                                                                 <span className="font-bold text-rose-600">KSh {inv.amount.toLocaleString()}</span>
                                                                             </div>
                                                                         ))}
@@ -15807,7 +15812,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                                                                         {financingDetails.map((fin, idx) => (
                                                                             <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                <span>{fin.date} · {fin.desc}</span>
+                                                                                <span>{fin.date} Â· {fin.desc}</span>
                                                                                 <span className="font-bold text-rose-600">KSh {fin.amount.toLocaleString()}</span>
                                                                             </div>
                                                                         ))}
@@ -15928,7 +15933,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     s.admissionNumber,
                                                     s.name,
                                                     s.expectedFees.toLocaleString(),
-                                                    ...s.installments.map(val => val > 0 ? val.toLocaleString() : '—'),
+                                                    ...s.installments.map(val => val > 0 ? val.toLocaleString() : 'â€”'),
                                                     s.totals.toLocaleString(),
                                                     s.balance.toLocaleString(),
                                                     `${s.pctPaid}%`
@@ -15997,8 +16002,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 py-0.5 px-2.5 rounded-full text-xs font-black">{classEnrollment}</span>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                <button onClick={() => window.print()} className="print:hidden px-4 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
-                                                                <button onClick={handleDownloadPDF} className="print:hidden px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">📥 Download PDF</button>
+                                                                <button onClick={() => window.print()} className="print:hidden px-4 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">ðŸ–¨ï¸ Print</button>
+                                                                <button onClick={handleDownloadPDF} className="print:hidden px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">ðŸ“¥ Download PDF</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -16032,7 +16037,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             >
                                                                                 <td className="py-2 px-3 text-slate-500 border border-slate-50 dark:border-slate-800/40">{s.admissionNumber}</td>
                                                                                 <td className="py-2 px-3 font-bold text-slate-800 dark:text-white border border-slate-50 dark:border-slate-800/40 whitespace-nowrap flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? 'â–¼' : 'â–¶'}</span>
                                                                                     {s.name}
                                                                                 </td>
                                                                                 <td className="py-2 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
@@ -16040,7 +16045,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 </td>
                                                                                 {s.installments.map((val, colIdx) => (
                                                                                     <td key={colIdx} className="py-2 px-1.5 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right">
-                                                                                        {val > 0 ? `KSh ${val.toLocaleString()}` : '—'}
+                                                                                        {val > 0 ? `KSh ${val.toLocaleString()}` : 'â€”'}
                                                                                     </td>
                                                                                 ))}
                                                                                 <td className="py-2 px-3 font-bold text-slate-900 dark:text-white border border-slate-50 dark:border-slate-800/40 text-right">
@@ -16062,7 +16067,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
                                                                                                     {s.receipts.map((r: any, rIdx: number) => (
                                                                                                         <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                            <span>Installment {rIdx + 1}: Receipt {r.receiptNumber || r.id?.slice(-8)} · Paid on {r.paymentDate?.split('T')[0] || '—'} via <span className="font-bold text-slate-500">{r.paymentMethod || 'Cash'}</span></span>
+                                                                                                            <span>Installment {rIdx + 1}: Receipt {r.receiptNumber || r.id?.slice(-8)} Â· Paid on {r.paymentDate?.split('T')[0] || 'â€”'} via <span className="font-bold text-slate-500">{r.paymentMethod || 'Cash'}</span></span>
                                                                                                             <span className="font-bold text-emerald-600">KSh {r.amountPaid?.toLocaleString()}</span>
                                                                                                         </div>
                                                                                                     ))}
@@ -16122,11 +16127,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <tbody>
                                                 {[...(props.expenses||[])].sort((a,b)=>new Date(b.date||0).getTime()-new Date(a.date||0).getTime()).map((e,i)=>(
                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{e.description||'—'}</td>
+                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{e.description||'â€”'}</td>
                                                         <td className="py-3 px-4"><span className="text-[10px] font-black px-2 py-1 bg-amber-50 text-amber-700 rounded-full">{e.category||'General'}</span></td>
-                                                        <td className="py-3 px-4 text-slate-500">{e.date?.split('T')[0]||'—'}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{e.date?.split('T')[0]||'â€”'}</td>
                                                         <td className="py-3 px-4 font-black text-amber-700">KSh {(e.amount||0).toLocaleString()}</td>
-                                                        <td className="py-3 px-4 text-slate-500">{(e as any).recordedBy||(e as any).createdBy||'—'}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{(e as any).recordedBy||(e as any).createdBy||'â€”'}</td>
                                                     </tr>
                                                 ))}
                                                 {(props.expenses||[]).length===0&&(<tr><td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded</td></tr>)}
@@ -16154,7 +16159,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             }}
                                             className="px-5 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-650 transition-all shadow-md flex items-center gap-1.5"
                                         >
-                                            🏦 Export Bank Advice PDF
+                                            ðŸ¦ Export Bank Advice PDF
                                         </button>
                                     </div>
                                     <div className="overflow-x-auto">
@@ -16165,8 +16170,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <tbody>
                                                 {(props.payrollRecords||[]).map((p:any,i:number)=>(
                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{p.employeeName||p.staffName||'—'}</td>
-                                                        <td className="py-3 px-4 text-slate-500">{p.period||p.payPeriod||'—'}</td>
+                                                        <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{p.employeeName||p.staffName||'â€”'}</td>
+                                                        <td className="py-3 px-4 text-slate-500">{p.period||p.payPeriod||'â€”'}</td>
                                                         <td className="py-3 px-4 font-black text-slate-700">KSh {(p.grossPay||p.gross||0).toLocaleString()}</td>
                                                         <td className="py-3 px-4 text-rose-600">KSh {(p.paye||p.tax||0).toLocaleString()}</td>
                                                         <td className="py-3 px-4 text-amber-700">KSh {(p.nssf||0).toLocaleString()}</td>
@@ -16232,7 +16237,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     if (!q) return true;
                                     const adm = studentAdmissionNumber(s);
                                     return (s.name || '').toLowerCase().includes(q) ||
-                                           (adm && adm !== '—' && adm.toLowerCase().includes(q)) ||
+                                           (adm && adm !== 'â€”' && adm.toLowerCase().includes(q)) ||
                                            ((s.admissionNumber || (s as any).admission_number || '')).toLowerCase().includes(q);
                                 }).slice(0, 30);
 
@@ -16251,14 +16256,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     (i as any).student_id === stmtStudentId ||
                                     String(i.studentId) === String(stmtStudentId) ||
                                     String((i as any).student_id) === String(stmtStudentId) ||
-                                    (resolvedAdmNo && resolvedAdmNo !== '—' && (i.admissionNumber === resolvedAdmNo || (i as any).admission_number === resolvedAdmNo))
+                                    (resolvedAdmNo && resolvedAdmNo !== 'â€”' && (i.admissionNumber === resolvedAdmNo || (i as any).admission_number === resolvedAdmNo))
                                 );
                                 const studentReceipts = mappedReceipts.filter((r: any) =>
                                     r.studentId === stmtStudentId ||
                                     (r as any).student_id === stmtStudentId ||
                                     String(r.studentId) === String(stmtStudentId) ||
                                     String((r as any).student_id) === String(stmtStudentId) ||
-                                    (resolvedAdmNo && resolvedAdmNo !== '—' && (r.admissionNumber === resolvedAdmNo || (r as any).admission_number === resolvedAdmNo)) ||
+                                    (resolvedAdmNo && resolvedAdmNo !== 'â€”' && (r.admissionNumber === resolvedAdmNo || (r as any).admission_number === resolvedAdmNo)) ||
                                     studentInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
                                 );
 
@@ -16312,12 +16317,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     } else if (entry.eType === 'invoice') {
                                         const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
                                         running += invAmt;
-                                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} — ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: running, eType: 'invoice' as const };
+                                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} â€” ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: running, eType: 'invoice' as const };
                                     } else {
                                         const paidAmt = parseMoneyAmount(entry.data.amountPaid || (entry.data as any).amount_paid || (entry.data as any).amount || 0);
                                         running -= paidAmt;
                                         const mode = entry.data.excelPaymentMode || entry.data.paymentMethod || (entry.data as any).payment_method || entry.data.method || 'Payment';
-                                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: running, eType: 'payment' as const };
+                                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} Â· ${mode}`, debit: 0, credit: paidAmt, balance: running, eType: 'payment' as const };
                                     }
                                 });
 
@@ -16382,14 +16387,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <p className="text-[10px] text-slate-400 font-medium mb-6">Search and select a student to generate their full financial statement and preview official PDF</p>
                                             <div className="flex flex-col md:flex-row gap-4">
                                                 <div className="relative flex-1">
-                                                    <span className="absolute left-4 top-3 text-slate-400">🔍</span>
+                                                    <span className="absolute left-4 top-3 text-slate-400">ðŸ”</span>
                                                     <input type="text" placeholder="Filter by name or admission number..." value={stmtSearch} onChange={e => setStmtSearch(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white" />
                                                 </div>
                                                 <select value={stmtStudentId} onChange={e => { setStmtStudentId(e.target.value); setStmtPdfDataUri(null); }} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white">
-                                                    <option value="">— Select Student —</option>
+                                                    <option value="">â€” Select Student â€”</option>
                                                     {filteredStudents.map((s: any) => {
                                                          const adm = studentAdmissionNumber(s);
-                                                         return <option key={s.id} value={s.id}>{s.name}{adm && adm !== '—' ? ` (${adm})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>;
+                                                         return <option key={s.id} value={s.id}>{s.name}{adm && adm !== 'â€”' ? ` (${adm})` : ''}{` Â· ${s.className || studentClassGroup(s)}`}</option>;
                                                      })}
                                                 </select>
                                             </div>
@@ -16407,14 +16412,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={() => setStmtViewMode('table')}
                                                                 className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${stmtViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                                                             >
-                                                                📊 Table View
+                                                                ðŸ“Š Table View
                                                             </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setStmtViewMode('preview')}
                                                                 className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${stmtViewMode === 'preview' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                                                             >
-                                                                📄 PDF Document Preview
+                                                                ðŸ“„ PDF Document Preview
                                                             </button>
                                                         </div>
                                                     </div>
@@ -16426,7 +16431,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             onClick={handleOpenPdfModal}
                                                             className="px-4 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                                                         >
-                                                            👁️ PDF Viewer Modal
+                                                            ðŸ‘ï¸ PDF Viewer Modal
                                                         </button>
                                                         <button
                                                             type="button"
@@ -16434,7 +16439,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             onClick={handleDownloadPdf}
                                                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
                                                         >
-                                                            {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
+                                                            {isGeneratingStmtPdf ? 'â³ Generating...' : 'ðŸ“„ Download PDF'}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -16445,9 +16450,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             }}
                                                             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                                                         >
-                                                            📥 CSV
+                                                            ðŸ“¥ CSV
                                                         </button>
-                                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">🖨️ Print</button>
+                                                        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">ðŸ–¨ï¸ Print</button>
                                                     </div>
                                                 </div>
 
@@ -16466,7 +16471,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{studentAdmissionNumber(selectedStudent)}</p></div>
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p></div>
-                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : 'âœ“ FULLY PAID'}</p></div>
                                                             </div>
                                                         </div>
 
@@ -16496,8 +16501,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
                                                                                     <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
                                                                                     <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
-                                                                                    <td className="py-3 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
-                                                                                    <td className="py-3 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
+                                                                                    <td className="py-3 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : 'â€”'}</td>
+                                                                                    <td className="py-3 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : 'â€”'}</td>
                                                                                     <td className={`py-3 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
                                                                                 </tr>
                                                                             ))}
@@ -16513,7 +16518,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             )}
                                                             <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
                                                                 <p className="text-[10px] text-slate-400 font-medium">This is a computer-generated statement and does not require a signature.</p>
-                                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toISOString().split('T')[0]}</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium mt-0.5">{props.institution.name} Â· {new Date().toISOString().split('T')[0]}</p>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -16563,7 +16568,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                  )}
                                                                                  <div>
                                                                                      <h2 className="text-xl font-black tracking-tight text-indigo-950">{props.institution.name}</h2>
-                                                                                     <p className="text-[11px] text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} · {props.institution.phoneNumber || '+254 700 000000'}</p>
+                                                                                     <p className="text-[11px] text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} Â· {props.institution.phoneNumber || '+254 700 000000'}</p>
                                                                                  </div>
                                                                              </div>
                                                                          </div>
@@ -16593,7 +16598,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <div className="text-right">
                                                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Account Status</p>
                                                                     <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${balance > 0 ? 'bg-rose-100 text-rose-700' : balance < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                                        {balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}
+                                                                        {balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : 'âœ“ FULLY PAID'}
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -16632,8 +16637,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
                                                                                 <td className="py-2 px-3 text-slate-500 font-semibold text-[10px]">{entry.date}</td>
                                                                                 <td className="py-2 px-3 font-semibold text-slate-800 text-[11px]">{entry.description}</td>
-                                                                                <td className="py-2 px-3 text-right font-bold text-slate-900 text-[11px]">{entry.debit > 0 ? entry.debit.toLocaleString() : '—'}</td>
-                                                                                <td className="py-2 px-3 text-right font-bold text-emerald-600 text-[11px]">{entry.credit > 0 ? entry.credit.toLocaleString() : '—'}</td>
+                                                                                <td className="py-2 px-3 text-right font-bold text-slate-900 text-[11px]">{entry.debit > 0 ? entry.debit.toLocaleString() : 'â€”'}</td>
+                                                                                <td className="py-2 px-3 text-right font-bold text-emerald-600 text-[11px]">{entry.credit > 0 ? entry.credit.toLocaleString() : 'â€”'}</td>
                                                                                 <td className={`py-2 px-3 text-right font-black text-[11px] ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{Math.abs(entry.balance).toLocaleString()} <span className="text-[9px] font-bold text-slate-400">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
                                                                             </tr>
                                                                         ))}
@@ -16661,7 +16666,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </div>
 
                                                                 <div className="text-center p-3 rounded-xl border-2 border-indigo-200 bg-indigo-50/50 w-36">
-                                                                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black mx-auto mb-1 text-[10px]">✓</div>
+                                                                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black mx-auto mb-1 text-[10px]">âœ“</div>
                                                                     <p className="text-[9px] font-black uppercase tracking-widest text-indigo-900">OFFICIAL STAMP</p>
                                                                     <p className="text-[7px] font-bold text-indigo-600 uppercase tracking-wider mt-0.5">Finance Department</p>
                                                                 </div>
@@ -16680,10 +16685,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col h-[96vh] max-h-[97vh]">
                                                     <div className="p-4 sm:p-5 px-6 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800 shrink-0">
                                                         <div className="flex items-center gap-3">
-                                                            <span className="text-xl">📄</span>
+                                                            <span className="text-xl">ðŸ“„</span>
                                                             <div>
                                                                 <h4 className="text-base font-black">Official PDF Document Viewer</h4>
-                                                                <p className="text-[10px] text-slate-400 font-semibold">{selectedStudent?.name} · Statement of Account</p>
+                                                                <p className="text-[10px] text-slate-400 font-semibold">{selectedStudent?.name} Â· Statement of Account</p>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3">
@@ -16693,7 +16698,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     download={`Statement_${selectedStudent?.name.replace(/\s+/g, '_')}.pdf`}
                                                                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
                                                                 >
-                                                                    📥 Download PDF
+                                                                    ðŸ“¥ Download PDF
                                                                 </a>
                                                             )}
                                                             <button
@@ -16701,7 +16706,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={() => setShowStmtPdfModal(false)}
                                                                 className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black transition-all"
                                                             >
-                                                                ✕ Close
+                                                                âœ• Close
                                                             </button>
                                                         </div>
                                                     </div>
@@ -16733,7 +16738,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         onClick={() => window.print()}
                                                         className="print:hidden flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md cursor-pointer"
                                                     >
-                                                        🖨️ Print Activity Logs
+                                                        ðŸ–¨ï¸ Print Activity Logs
                                                     </button>
                                                 </div>
 
@@ -16750,13 +16755,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             {(props.activityLog || []).map((log: any, idx: number) => (
                                                                 <tr key={log.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
                                                                     <td className="px-6 py-4 font-bold text-slate-500 whitespace-nowrap">
-                                                                        {log.timestamp || log.created_at ? new Date(log.timestamp || log.created_at).toLocaleString() : '—'}
+                                                                        {log.timestamp || log.created_at ? new Date(log.timestamp || log.created_at).toLocaleString() : 'â€”'}
                                                                     </td>
                                                                     <td className="px-6 py-4 font-black text-slate-900 dark:text-white">
                                                                         {log.user || log.userName || log.recordedBy || 'System User'}
                                                                     </td>
                                                                     <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">
-                                                                        {log.action || log.message || log.details || '—'}
+                                                                        {log.action || log.message || log.details || 'â€”'}
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -16793,9 +16798,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             onChange={e => setSelectedBranchId(e.target.value)}
                                             className="bg-slate-950/80 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-indigo-400/40 focus:outline-none"
                                         >
-                                            <option value="ALL">🌐 All Branches ({props.users?.length || 0} Users)</option>
+                                            <option value="ALL">ðŸŒ All Branches ({props.users?.length || 0} Users)</option>
                                             {displayBranches.map((b: any) => (
-                                                <option key={b.id} value={b.id}>🏢 {b.name}</option>
+                                                <option key={b.id} value={b.id}>ðŸ¢ {b.name}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -16901,7 +16906,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                         <div>
                                             <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Select or Drop Excel Payment Statement</h4>
-                                            <p className="text-xs font-medium text-slate-500 max-w-md mx-auto mt-1">Supports your school Excel format with columns: <span className="font-black text-slate-700 dark:text-slate-300">ADM · Name · Amount · Reference · Payment Mode · Deposit Bank · Receipt # · Paid On</span></p>
+                                            <p className="text-xs font-medium text-slate-500 max-w-md mx-auto mt-1">Supports your school Excel format with columns: <span className="font-black text-slate-700 dark:text-slate-300">ADM Â· Name Â· Amount Â· Reference Â· Payment Mode Â· Deposit Bank Â· Receipt # Â· Paid On</span></p>
                                         </div>
                                         <label className={`inline-flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer`}>
                                             <ArrowUpTrayIcon className="w-4 h-4" />
@@ -17020,7 +17025,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
                                                             <th className="px-4 py-3 text-left">ADM</th>
                                                             <th className="px-4 py-3 text-left">Name / Payer</th>
-                                                            <th className="px-4 py-3 text-left">Reference · Date</th>
+                                                            <th className="px-4 py-3 text-left">Reference Â· Date</th>
                                                             <th className="px-4 py-3 text-left">Receipt #</th>
                                                             <th className="px-4 py-3 text-right">Amount</th>
                                                             <th className="px-4 py-3 text-left">Mode</th>
@@ -17032,7 +17037,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         {paged.map(item => {
                                                             const matchedSt = studentFinanceData.find(s => s.id === item.matchedStudentId);
                                                             const studentAdm = matchedSt ? (matchedSt.admissionNumber || (matchedSt as any).admission_number || '') : '';
-                                                            const displayAdm = item.admDisplay || studentAdm || '—';
+                                                            const displayAdm = item.admDisplay || studentAdm || 'â€”';
                                                             return (
                                                                 <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                                                                     <td className="px-4 py-3 text-left">
@@ -17048,7 +17053,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <td className="px-4 py-3 text-left">
                                                                         {item.receiptNumber ? (
                                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                                                🧾 {item.receiptNumber}
+                                                                                ðŸ§¾ {item.receiptNumber}
                                                                             </span>
                                                                         ) : (
                                                                             <span className="text-[10px] text-slate-400 italic">auto-generate</span>
@@ -17060,7 +17065,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <td className="px-4 py-3 text-left min-w-[140px]">
                                                                         {item.excelPaymentMode && (
                                                                             <span className="block text-[9px] text-slate-400 mb-1 font-mono truncate" title={item.excelPaymentMode}>
-                                                                                📋 {item.excelPaymentMode}
+                                                                                ðŸ“‹ {item.excelPaymentMode}
                                                                             </span>
                                                                         )}
                                                                         <select
@@ -17079,10 +17084,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     : 'bg-slate-100 text-slate-700 border-slate-300'
                                                                             }`}
                                                                         >
-                                                                            <option value="M-Pesa">📱 M-Pesa</option>
-                                                                            <option value="Bank Transfer">🏦 Bank Transfer</option>
-                                                                            <option value="Cash">💵 Cash</option>
-                                                                            <option value="Cheque">📝 Cheque</option>
+                                                                            <option value="M-Pesa">ðŸ“± M-Pesa</option>
+                                                                            <option value="Bank Transfer">ðŸ¦ Bank Transfer</option>
+                                                                            <option value="Cash">ðŸ’µ Cash</option>
+                                                                            <option value="Cheque">ðŸ“ Cheque</option>
                                                                         </select>
                                                                     </td>
 
@@ -17111,13 +17116,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <option value="">-- Unmatched / Select Student --</option>
                                                                             {studentFinanceData.map(st => (
                                                                                 <option key={st.id} value={st.id}>
-                                                                                    {st.admissionNumber || (st as any).admission_number || '?'} · {st.name} · {st.className}
+                                                                                    {st.admissionNumber || (st as any).admission_number || '?'} Â· {st.name} Â· {st.className}
                                                                                 </option>
                                                                             ))}
                                                                         </select>
                                                                         {matchedSt && (
                                                                             <span className="text-[10px] text-emerald-600 font-bold mt-0.5 block">
-                                                                                ✓ {matchedSt.admissionNumber || ''} {matchedSt.name} ({item.matchConfidence})
+                                                                                âœ“ {matchedSt.admissionNumber || ''} {matchedSt.name} ({item.matchConfidence})
                                                                             </span>
                                                                         )}
                                                                     </td>
@@ -17127,7 +17132,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                                                                 : 'bg-amber-100 text-amber-800 border-amber-300'
                                                                         }`}>
-                                                                            {item.matchStatus === 'matched' ? '✓ matched' : '⚠ Unmatched'}
+                                                                            {item.matchStatus === 'matched' ? 'âœ“ matched' : 'âš  Unmatched'}
                                                                         </span>
                                                                     </td>
                                                                 </tr>
@@ -17149,7 +17154,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         onClick={() => setExcelPage(p => Math.max(1, p - 1))}
                                                         className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-lg font-bold transition-all cursor-pointer"
                                                     >
-                                                        ← Prev
+                                                        â† Prev
                                                     </button>
                                                     <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
                                                         Page {currentPage} of {totalPages}
@@ -17160,7 +17165,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         onClick={() => setExcelPage(p => Math.min(totalPages, p + 1))}
                                                         className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-lg font-bold transition-all cursor-pointer"
                                                     >
-                                                        Next →
+                                                        Next â†’
                                                     </button>
                                                 </div>
                                             </div>
@@ -17169,7 +17174,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 })()}
 
 
-                                {/* ── Progress bar — shown while posting ── */}
+                                {/* â”€â”€ Progress bar â€” shown while posting â”€â”€ */}
                                 {isProcessingBulkReceipts && bulkProgress.total > 0 && (
                                     <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 space-y-3">
                                         {/* Header row */}
@@ -17177,7 +17182,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div className="flex items-center gap-2">
                                                 <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                                                 <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
-                                                    Posting Receipts…
+                                                    Posting Receiptsâ€¦
                                                 </span>
                                             </div>
                                             <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 tabular-nums">
@@ -17200,47 +17205,66 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 style={{ left: `calc(${(bulkProgress.current / bulkProgress.total) * 100}% - 3rem)` }}
                                             />
                                         </div>
+                                        {/* Notification opt-in toggles â€” OFF by default during bulk Excel import */}
+                                        <div className="flex flex-col gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300 tracking-wider">ðŸ“¢ Notify parents?</span>
+                                                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">Off by default during bulk import</span>
+                                                </div>
+                                                <label className="flex items-center gap-2 cursor-pointer" onClick={() => setExcelImportSendSms(v => !v)}>
+                                                    <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportSendSms ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportSendSms ? 'translate-x-4' : ''}`} />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">SMS</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer" onClick={() => setExcelImportSendEmail(v => !v)}>
+                                                    <div className={`relative w-9 h-5 rounded-full transition-colors ${excelImportSendEmail ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${excelImportSendEmail ? 'translate-x-4' : ''}`} />
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Email</span>
+                                                </label>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExcelImportStep(1)}
+                                                    disabled={isProcessingBulkReceipts}
+                                                    className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                                >
+                                                    Back to Upload
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleConfirmBulkReceiptsPost}
+                                                    disabled={isProcessingBulkReceipts || reconciledItems.filter(i => i.matchStatus === 'matched').length === 0}
+                                                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
+                                                >
+                                                    {isProcessingBulkReceipts ? (
+                                                        <>
+                                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                            <span>{bulkProgress.current} / {bulkProgress.total} receipts savedâ€¦</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <CheckBadgeIcon className="w-4 h-4" />
+                                                            <span>Confirm &amp; Post {reconciledItems.filter(i => i.matchStatus === 'matched').length} Receipts</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
                                         {/* Current receipt being saved */}
                                         {bulkProgress.current < bulkProgress.total && (() => {
                                             const cur = reconciledItems.filter(i => i.matchStatus === 'matched')[bulkProgress.current];
                                             return cur ? (
                                                 <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono truncate">
-                                                    ↳ Saving: {cur.receiptNumber || cur.ref} · {cur.payer} · KSh {cur.amount.toLocaleString()}
+                                                    â†³ Saving: {cur.receiptNumber || cur.ref} Â· {cur.payer} Â· KSh {cur.amount.toLocaleString()}
                                                 </p>
                                             ) : null;
                                         })()}
                                     </div>
                                 )}
-
-                                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
-                                    <button
-                                        type="button"
-                                        onClick={() => setExcelImportStep(1)}
-                                        disabled={isProcessingBulkReceipts}
-                                        className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                                    >
-                                        Back to Upload
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleConfirmBulkReceiptsPost}
-                                        disabled={isProcessingBulkReceipts || reconciledItems.filter(i => i.matchStatus === 'matched').length === 0}
-                                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer"
-                                    >
-                                        {isProcessingBulkReceipts ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                <span>{bulkProgress.current} / {bulkProgress.total} receipts saved…</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <CheckBadgeIcon className="w-4 h-4" />
-                                                <span>Confirm & Post {reconciledItems.filter(i => i.matchStatus === 'matched').length} Receipts</span>
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
                         )}
 
                         {/* Step 3: Complete Summary */}
@@ -17310,8 +17334,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-xs text-purple-900 dark:text-purple-200 space-y-1">
                                 <p className="font-bold">Summary of Selection:</p>
-                                <p>• Class: <span className="font-black">{reprintSelectedClass}</span></p>
-                                <p>• Total Matching Receipts: <span className="font-black">
+                                <p>â€¢ Class: <span className="font-black">{reprintSelectedClass}</span></p>
+                                <p>â€¢ Total Matching Receipts: <span className="font-black">
                                     {mappedReceipts.filter(rec => {
                                         if (!rec.studentId) return false;
                                         const s = props.students.find(st => st.id === rec.studentId);
@@ -17539,13 +17563,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Modal Actions Footer */}
                         <div className="bg-slate-950 p-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4 no-print">
-                            <p className="text-[10px] font-bold text-slate-400">Interactive Document Viewer — High Resolution Vector Print</p>
+                            <p className="text-[10px] font-bold text-slate-400">Interactive Document Viewer â€” High Resolution Vector Print</p>
                             <div className="flex items-center gap-3">
                                 <button
                                     onClick={() => window.print()}
                                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95 flex items-center gap-2"
                                 >
-                                    🖨️ Print PDF
+                                    ðŸ–¨ï¸ Print PDF
                                 </button>
                                 <button
                                     onClick={() => setPdfPreviewModal(null)}
@@ -17614,7 +17638,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }}
                                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
                             >
-                                📥 Save EPOS PDF
+                                ðŸ“¥ Save EPOS PDF
                             </button>
                             <div className="flex items-center gap-3">
                                 <button
@@ -17654,7 +17678,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div>
                                     <h3 className="text-sm font-black uppercase tracking-tight text-white">Official Receipt On-Screen Document Preview</h3>
                                     <p className="text-[10px] font-bold text-indigo-400">
-                                        Receipt #{onScreenReceiptModal.receipt.receiptNumber || onScreenReceiptModal.receipt.id} — {onScreenReceiptModal.studentName} ({onScreenReceiptModal.admNo})
+                                        Receipt #{onScreenReceiptModal.receipt.receiptNumber || onScreenReceiptModal.receipt.id} â€” {onScreenReceiptModal.studentName} ({onScreenReceiptModal.admNo})
                                     </p>
                                 </div>
                             </div>
@@ -17680,7 +17704,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     onClick={() => handleDownloadReceipt(onScreenReceiptModal.receipt)}
                                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-indigo-600/30"
                                 >
-                                    <span>📥 Download A4 PDF</span>
+                                    <span>ðŸ“¥ Download A4 PDF</span>
                                 </button>
                                 <button
                                     onClick={() => {
@@ -17690,7 +17714,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     className="px-4 py-2.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border border-emerald-500/30 flex items-center gap-2"
                                 >
                                     <PrinterIcon className="w-4 h-4" />
-                                    <span>🖨️ EPOS (80mm)</span>
+                                    <span>ðŸ–¨ï¸ EPOS (80mm)</span>
                                 </button>
                             </div>
                             <div className="flex items-center gap-3">
