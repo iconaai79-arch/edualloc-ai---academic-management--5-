@@ -9,20 +9,20 @@ import {
     BalanceSheetReport
 } from '../../services/generalLedgerService';
 import {
-    DocumentChartBarIcon,
+    ChartBarIcon as DocumentChartBarIcon,
     ScaleIcon,
-    CurrencyDollarIcon,
-    ArrowDownTrayIcon,
+    BanknotesIcon as CurrencyDollarIcon,
+    DownloadIcon as ArrowDownTrayIcon,
     PrinterIcon,
     MagnifyingGlassIcon,
     CheckBadgeIcon,
     ExclamationTriangleIcon,
     BookOpenIcon,
-    ClipboardDocumentListIcon,
+    ClipboardListIcon as ClipboardDocumentListIcon,
     ArrowTrendingUpIcon,
-    BuildingOffice2Icon,
-    XMarkIcon
-} from '@heroicons/react/24/outline';
+    BuildingOfficeIcon as BuildingOffice2Icon,
+    XIcon as XMarkIcon
+} from '../icons';
 
 interface CpaReportingDashboardProps {
     institution: any;

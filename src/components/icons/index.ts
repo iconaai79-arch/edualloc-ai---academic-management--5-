@@ -126,3 +126,6 @@ export * from './VideoCameraIcon';
 export * from './DevicePhoneMobileIcon';
 export * from './KcbIcon';
 export * from './CoopIcon';
+export * from './SignalIcon';
+export * from './LightBulbIcon';
+export * from './BuildingLibraryIcon';

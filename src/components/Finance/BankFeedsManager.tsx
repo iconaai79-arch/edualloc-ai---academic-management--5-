@@ -15,11 +15,10 @@ import {
     PlusIcon,
     SignalIcon,
     SparklesIcon,
-    XMarkIcon,
+    XIcon as XMarkIcon,
     FunnelIcon,
-    DocumentCheckIcon,
     ArrowTrendingUpIcon
-} from '@heroicons/react/24/outline';
+} from '../icons';
 
 interface BankFeedsManagerProps {
     institution: any;

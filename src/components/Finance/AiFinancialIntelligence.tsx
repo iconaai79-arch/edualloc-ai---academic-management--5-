@@ -11,7 +11,7 @@ import {
     ArrowPathIcon,
     LightBulbIcon,
     ShieldCheckIcon
-} from '@heroicons/react/24/outline';
+} from '../icons';
 
 interface AiFinancialIntelligenceProps {
     institution: any;

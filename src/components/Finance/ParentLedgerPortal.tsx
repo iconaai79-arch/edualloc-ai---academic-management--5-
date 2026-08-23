@@ -3,7 +3,7 @@ import {
     DevicePhoneMobileIcon,
     DocumentTextIcon,
     QrCodeIcon,
-    ArrowDownTrayIcon,
+    DownloadIcon as ArrowDownTrayIcon,
     PrinterIcon,
     CheckBadgeIcon,
     ClockIcon,
@@ -15,8 +15,9 @@ import {
     AcademicCapIcon,
     BanknotesIcon,
     ChevronRightIcon,
-    ShieldCheckIcon
-} from '@heroicons/react/24/outline';
+    ShieldCheckIcon,
+    BuildingLibraryIcon
+} from '../icons';
 
 interface ParentLedgerPortalProps {
     institution: any;
