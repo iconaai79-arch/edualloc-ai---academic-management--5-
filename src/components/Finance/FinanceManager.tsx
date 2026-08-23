@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
@@ -3897,7 +3897,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setIsSavingEdit(true);
         try {
             const iso = new Date(receiptEditForm.paymentDate).toISOString();
-            const payload = {
+            const existingMetadata = typeof receiptEditTarget.metadata === 'object' && receiptEditTarget.metadata ? receiptEditTarget.metadata : {};
+            const updatedMetadata = {
+                ...existingMetadata,
+                editReason: receiptEditForm.reason.trim(),
+                editedAt: iso,
+                editedBy: props.userName || props.currentUser?.name || 'Finance Officer',
+            };
+
+            const payload: any = {
                 ...receiptEditTarget,
                 amountPaid: parseFloat(receiptEditForm.amountPaid) || 0,
                 amount_paid: parseFloat(receiptEditForm.amountPaid) || 0,
@@ -3907,12 +3915,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 payment_date: receiptEditForm.paymentDate,
                 date: receiptEditForm.paymentDate,
                 relatedTransactionId: receiptEditForm.relatedTransactionId,
+                related_transaction_id: receiptEditForm.relatedTransactionId,
                 paidFor: receiptEditForm.paidFor,
-                editReason: receiptEditForm.reason,
-                editedAt: iso,
-                editedBy: props.userName || props.currentUser?.name || 'Finance Officer',
+                paid_for: receiptEditForm.paidFor,
+                metadata: updatedMetadata
             };
+
+            // Remove non-table columns from root payload to prevent schema cache warnings
+            delete payload.editReason;
+            delete payload.edit_reason;
+            delete payload.editedAt;
+            delete payload.edited_at;
+            delete payload.editedBy;
+            delete payload.edited_by;
+
             await apiService.updateModuleRecord('receipts', receiptEditTarget.id, payload);
+            if (props.onLogAction) {
+                props.onLogAction(`Edited receipt ${receiptEditTarget.receiptNumber || receiptEditTarget.receipt_number || receiptEditTarget.id}: ${receiptEditForm.reason.trim()}`);
+            }
             setReceiptEditTarget(null);
             if (props.onRefreshData) await props.onRefreshData();
         } catch (err) {
@@ -3935,16 +3955,38 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setIsSavingTransfer(true);
         try {
             const iso = new Date().toISOString();
-            const payload = {
-                ...receiptTransferTarget,
-                studentId: transferTargetStudent.id,
-                student_id: transferTargetStudent.id,
-                transferReason: transferReason,
+            const existingMetadata = typeof receiptTransferTarget.metadata === 'object' && receiptTransferTarget.metadata ? receiptTransferTarget.metadata : {};
+            const updatedMetadata = {
+                ...existingMetadata,
+                transferReason: transferReason.trim(),
                 transferredAt: iso,
                 transferredBy: props.userName || props.currentUser?.name || 'Finance Officer',
                 previousStudentId: receiptTransferTarget.studentId || receiptTransferTarget.student_id,
             };
+
+            const payload: any = {
+                ...receiptTransferTarget,
+                studentId: transferTargetStudent.id,
+                student_id: transferTargetStudent.id,
+                studentName: transferTargetStudent.name,
+                student_name: transferTargetStudent.name,
+                metadata: updatedMetadata
+            };
+
+            // Remove non-table columns from root payload to prevent schema cache warnings
+            delete payload.transferReason;
+            delete payload.transfer_reason;
+            delete payload.transferredAt;
+            delete payload.transferred_at;
+            delete payload.transferredBy;
+            delete payload.transferred_by;
+            delete payload.previousStudentId;
+            delete payload.previous_student_id;
+
             await apiService.updateModuleRecord('receipts', receiptTransferTarget.id, payload);
+            if (props.onLogAction) {
+                props.onLogAction(`Transferred receipt ${receiptTransferTarget.receiptNumber || receiptTransferTarget.receipt_number || receiptTransferTarget.id} to student ${transferTargetStudent.name}: ${transferReason.trim()}`);
+            }
             setReceiptTransferTarget(null);
             if (props.onRefreshData) await props.onRefreshData();
         } catch (err) {

@@ -1330,11 +1330,25 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return;
             }
 
-            const updatedPayment = {
+            const existingMetadata = typeof oldPayment.metadata === 'object' && oldPayment.metadata ? oldPayment.metadata : {};
+            const updatedMetadata = {
+                ...existingMetadata,
+                ...(data.metadata || {}),
+                ...(data.editReason ? { editReason: data.editReason, editedAt: new Date().toISOString() } : {})
+            };
+
+            const updatedPayment: any = {
                 ...data,
                 institutionId,
+                metadata: updatedMetadata,
                 updatedAt: new Date().toISOString()
             };
+            if (data.editReason && !updatedPayment.notes) {
+                updatedPayment.notes = `Edit: ${data.editReason}`;
+            }
+            delete updatedPayment.editReason;
+            delete updatedPayment.edit_reason;
+
             await apiService.saveModuleRecord('ds_payments', updatedPayment);
 
             const affectedInvoiceIds = new Set<string>();
