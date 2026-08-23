@@ -4362,16 +4362,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [mappedReceipts, searchReceiptQuery, receiptSourceFilter, mergedStudents, receiptsMainTab]);
 
     const [receiptCurrentPage, setReceiptCurrentPage] = useState(1);
+    const [receiptsPerPage, setReceiptsPerPage] = useState<number>(10);
     const [selectedReceiptIds, setSelectedReceiptIds] = useState<Set<string>>(new Set());
     const [isDeletingReceipts, setIsDeletingReceipts] = useState(false);
     const [receiptDeleteConfirm, setReceiptDeleteConfirm] = useState<{ ids: string[]; label: string } | null>(null);
 
-    const paginatedReceipts = useMemo(() => {
-        const startIndex = (receiptCurrentPage - 1) * 10;
-        return filteredReceipts.slice(startIndex, startIndex + 10);
-    }, [filteredReceipts, receiptCurrentPage]);
+    const isReceiptsAll = receiptsPerPage === 0;
+    const totalReceiptPages = isReceiptsAll ? 1 : Math.max(1, Math.ceil(filteredReceipts.length / receiptsPerPage));
 
-    const totalReceiptPages = Math.ceil(filteredReceipts.length / 10) || 1;
+    const paginatedReceipts = useMemo(() => {
+        if (isReceiptsAll) return filteredReceipts;
+        const startIndex = (receiptCurrentPage - 1) * receiptsPerPage;
+        return filteredReceipts.slice(startIndex, startIndex + receiptsPerPage);
+    }, [filteredReceipts, receiptCurrentPage, receiptsPerPage, isReceiptsAll]);
 
     useEffect(() => {
         setReceiptCurrentPage(1);
@@ -8266,40 +8269,115 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
 
                             {/* Pagination Controls */}
-                            {totalReceiptPages > 1 && (
-                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/60">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                        Showing {Math.min(filteredReceipts.length, (receiptCurrentPage - 1) * 10 + 1)} to {Math.min(filteredReceipts.length, receiptCurrentPage * 10)} of {filteredReceipts.length} Receipts
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <button
-                                            disabled={receiptCurrentPage === 1}
-                                            onClick={() => setReceiptCurrentPage(p => Math.max(1, p - 1))}
-                                            className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
-                                        >
-                                            Previous
-                                        </button>
-                                        {Array.from({ length: totalReceiptPages }, (_, i) => i + 1).map(p => (
-                                            <button
-                                                key={p}
-                                                onClick={() => setReceiptCurrentPage(p)}
-                                                className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all ${
-                                                    receiptCurrentPage === p 
-                                                    ? 'bg-indigo-600 text-white shadow-md' 
-                                                    : 'border border-slate-205 text-slate-550 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850'
-                                                }`}
-                                            >
-                                                {p}
-                                            </button>
-                                        ))}
-                                        <button
-                                            disabled={receiptCurrentPage === totalReceiptPages}
-                                            onClick={() => setReceiptCurrentPage(p => Math.min(totalReceiptPages, p + 1))}
-                                            className="px-4 py-2 border border-slate-205 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-850"
-                                        >
-                                            Next
-                                        </button>
+                            {filteredReceipts.length > 0 && (
+                                <div className="flex flex-col lg:flex-row justify-between items-center gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/60">
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            Showing <span className="text-slate-900 dark:text-white font-black">{filteredReceipts.length === 0 ? 0 : isReceiptsAll ? 1 : (receiptCurrentPage - 1) * receiptsPerPage + 1}</span> to <span className="text-slate-900 dark:text-white font-black">{isReceiptsAll ? filteredReceipts.length : Math.min(filteredReceipts.length, receiptCurrentPage * receiptsPerPage)}</span> of <span className="text-slate-900 dark:text-white font-black">{filteredReceipts.length}</span> Receipts
+                                        </p>
+
+                                        {/* Rows per page selector */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Rows:</span>
+                                            {[10, 25, 50, 100, 250, 0].map(size => (
+                                                <button
+                                                    key={size}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setReceiptsPerPage(size);
+                                                        setReceiptCurrentPage(1);
+                                                    }}
+                                                    className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                        receiptsPerPage === size
+                                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                    }`}
+                                                >
+                                                    {size === 0 ? 'All' : size}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
+
+                                    {!isReceiptsAll && totalReceiptPages > 1 && (
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                disabled={receiptCurrentPage === 1}
+                                                onClick={() => setReceiptCurrentPage(1)}
+                                                className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-30 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+                                                title="First Page"
+                                            >
+                                                «
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={receiptCurrentPage === 1}
+                                                onClick={() => setReceiptCurrentPage(p => Math.max(1, p - 1))}
+                                                className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-30 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+                                            >
+                                                Previous
+                                            </button>
+
+                                            {(() => {
+                                                const total = totalReceiptPages;
+                                                const current = receiptCurrentPage;
+                                                let pages: (number | string)[] = [];
+                                                if (total <= 7) {
+                                                    pages = Array.from({ length: total }, (_, i) => i + 1);
+                                                } else if (current <= 4) {
+                                                    pages = [1, 2, 3, 4, 5, '...', total];
+                                                } else if (current >= total - 3) {
+                                                    pages = [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+                                                } else {
+                                                    pages = [1, '...', current - 1, current, current + 1, '...', total];
+                                                }
+
+                                                return pages.map((p, idx) => {
+                                                    if (p === '...') {
+                                                        return (
+                                                            <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-xs font-black text-slate-400 select-none">
+                                                                …
+                                                            </span>
+                                                        );
+                                                    }
+                                                    const pageNum = Number(p);
+                                                    return (
+                                                        <button
+                                                            key={pageNum}
+                                                            type="button"
+                                                            onClick={() => setReceiptCurrentPage(pageNum)}
+                                                            className={`w-8 h-8 rounded-xl text-[10px] font-black transition-all cursor-pointer ${
+                                                                receiptCurrentPage === pageNum
+                                                                    ? 'bg-indigo-600 text-white shadow-md'
+                                                                    : 'border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                            }`}
+                                                        >
+                                                            {pageNum}
+                                                        </button>
+                                                    );
+                                                });
+                                            })()}
+
+                                            <button
+                                                type="button"
+                                                disabled={receiptCurrentPage === totalReceiptPages}
+                                                onClick={() => setReceiptCurrentPage(p => Math.min(totalReceiptPages, p + 1))}
+                                                className="px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-30 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+                                            >
+                                                Next
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={receiptCurrentPage === totalReceiptPages}
+                                                onClick={() => setReceiptCurrentPage(totalReceiptPages)}
+                                                className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-30 transition-opacity hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer disabled:cursor-not-allowed"
+                                                title="Last Page"
+                                            >
+                                                »
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
