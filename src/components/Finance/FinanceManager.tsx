@@ -754,6 +754,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (bId && (bId === currentInstId || cleanBId === cleanCurrentInstId)) return true;
         if (instId && (instId === currentInstId || cleanInstId === cleanCurrentInstId)) return true;
 
+        // If item belongs to a student in this institution, include it
+        const studentId = item.studentId || item.student_id || item.userId || item.user_id;
+        if (studentId && mergedStudentsMap.has(studentId)) return true;
+
         if (branches && branches.length > 0) {
             const isGroupBranchRecord = branches.some((b: any) => {
                 const bIdVal = b.id;
@@ -1998,26 +2002,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const openingBal = parseMoneyAmount(openingBalancesMap[s.id] ?? s.metadata?.openingBalance ?? 0);
 
             const studentInvoices = mappedInvoices.filter(inv => 
-                (inv.studentId === s.id || (inv as any).student_id === s.id) && 
+                (inv.studentId === s.id || (inv as any).student_id === s.id || String(inv.studentId) === String(s.id) || String((inv as any).student_id) === String(s.id) || (adm && adm !== '—' && (inv.admissionNumber === adm || inv.admission_number === adm))) && 
                 inv.status !== 'cancelled' && 
                 inv.status !== 'quote'
             );
             const invoicedWithoutOpening = studentInvoices.reduce((sum, inv) => {
-                const amt = inv.totalAmount || (inv as any).total_amount || 0;
+                const amt = inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
-            const totalInvoiced = openingBal + invoicedWithoutOpening;
+            const totalInvoiced = (openingBal > 0 ? openingBal : 0) + invoicedWithoutOpening;
 
             const studentReceipts = mappedReceipts.filter(rec => 
-                rec.studentId === s.id || (rec as any).student_id === s.id
+                rec.studentId === s.id || 
+                (rec as any).student_id === s.id || 
+                String(rec.studentId) === String(s.id) || 
+                String((rec as any).student_id) === String(s.id) ||
+                (adm && adm !== '—' && (rec.admissionNumber === adm || rec.admission_number === adm)) ||
+                studentInvoices.some(i => i.id === rec.invoiceId || i.id === (rec as any).invoice_id)
             );
             const paid = studentReceipts.reduce((sum, rec) => {
-                const amt = rec.amountPaid || (rec as any).amount_paid || 0;
+                const amt = rec.amountPaid || (rec as any).amount_paid || (rec as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
-            const netBalance = totalInvoiced - paid;
+            const totalPaid = (openingBal < 0 ? Math.abs(openingBal) : 0) + paid;
+            const netBalance = totalInvoiced - totalPaid;
             const balance = Math.max(0, netBalance);
             const prepayment = Math.max(0, -netBalance);
 
@@ -2719,20 +2729,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const receiptNum = item.receiptNumber?.trim()
                     ? item.receiptNumber.trim()
                     : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
-                const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod;
+                const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod || 'Excel Bulk Import';
+                const adm = student ? studentAdmissionNumber(student) : undefined;
                 const receipt = {
                     id: `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                     institutionId: props.institution.id,
+                    institution_id: props.institution.id,
+                    branchId: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
+                    branch_id: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
                     receiptNumber: receiptNum,
+                    receipt_number: receiptNum,
                     studentId: item.matchedStudentId,
+                    student_id: item.matchedStudentId,
+                    admissionNumber: adm !== '—' ? adm : undefined,
+                    admission_number: adm !== '—' ? adm : undefined,
                     studentName: student?.name || item.payer,
-                    amountPaid: item.amount,
-                    paymentMethod: item.paymentMethod,
-                    excelPaymentMode: item.excelPaymentMode,
-                    paymentDate: item.date,
-                    relatedTransactionId: item.ref,
+                    student_name: student?.name || item.payer,
+                    amountPaid: parseMoneyAmount(item.amount),
+                    amount_paid: parseMoneyAmount(item.amount),
+                    amount: parseMoneyAmount(item.amount),
+                    paymentMethod: item.paymentMethod || 'Bank Transfer',
+                    payment_method: item.paymentMethod || 'Bank Transfer',
+                    excelPaymentMode: item.excelPaymentMode || modeLabel,
+                    paymentDate: item.date || new Date().toISOString().split('T')[0],
+                    payment_date: item.date || new Date().toISOString().split('T')[0],
+                    date: item.date || new Date().toISOString().split('T')[0],
+                    relatedTransactionId: item.ref || '',
+                    related_transaction_id: item.ref || '',
                     paidFor: `Fee Payment via ${modeLabel}`,
-                    createdAt: new Date().toISOString()
+                    paid_for: `Fee Payment via ${modeLabel}`,
+                    createdAt: new Date().toISOString(),
+                    created_at: new Date().toISOString()
                 };
 
                 // Save this receipt individually so progress is real
@@ -2747,8 +2774,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 await new Promise(r => setTimeout(r, 0));
             }
 
+            // Immediately sync newly created receipts into local state so all statements reflect instantly
+            if (newReceipts.length > 0) {
+                setAllBranchReceipts(prev => [...newReceipts, ...prev]);
+            }
+
             if (props.onLogAction) {
-                props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + r.amountPaid, 0).toLocaleString()}`);
+                props.onLogAction(`Auto-reconciled and posted ${newReceipts.length} official receipts from Excel import totalling KSh ${newReceipts.reduce((sum, r) => sum + (r.amountPaid || 0), 0).toLocaleString()}`);
             }
 
             // --- Bulk Receipt Notifications (fire-and-forget) ---
@@ -5442,14 +5474,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     admissionNumber: balPrevResolvedAdmNo,
                     className: (balPrevFinanceRecord as any)?.className || (balPrevStudentRaw as any).className || studentClassGroup(balPrevStudentRaw)
                 } : null;
-                const balPrevInvoices = mappedInvoices.filter((i: any) => i.studentId === balPreviewStudentId);
+                const balPrevInvoices = mappedInvoices.filter((i: any) => 
+                    i.studentId === balPreviewStudentId || 
+                    (i as any).student_id === balPreviewStudentId ||
+                    String(i.studentId) === String(balPreviewStudentId) ||
+                    String((i as any).student_id) === String(balPreviewStudentId) ||
+                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (i.admissionNumber === balPrevResolvedAdmNo || (i as any).admission_number === balPrevResolvedAdmNo))
+                );
                 const balPrevReceipts = mappedReceipts.filter((r: any) =>
                     r.studentId === balPreviewStudentId ||
-                    balPrevInvoices.some((i: any) => i.id === r.invoiceId)
+                    (r as any).student_id === balPreviewStudentId ||
+                    String(r.studentId) === String(balPreviewStudentId) ||
+                    String((r as any).student_id) === String(balPreviewStudentId) ||
+                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
+                    balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
                 );
-                const balPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? 0;
-                const balPrevInvoicesTotal = balPrevInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
-                const balPrevReceiptsTotal = balPrevReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                const balPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[balPreviewStudentId] ?? balPrevStudentRaw?.metadata?.openingBalance ?? 0);
+                const balPrevInvoicesTotal = balPrevInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
+                const balPrevReceiptsTotal = balPrevReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
                 const balPrevTotalInvoiced = (balPrevOpeningBal > 0 ? balPrevOpeningBal : 0) + balPrevInvoicesTotal;
                 const balPrevTotalPaid = (balPrevOpeningBal < 0 ? Math.abs(balPrevOpeningBal) : 0) + balPrevReceiptsTotal;
                 const balPrevBalance = balPrevTotalInvoiced - balPrevTotalPaid;
@@ -5458,13 +5500,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     ...(Math.abs(balPrevOpeningBal) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: balPrevOpeningBal } }] : []),
                     ...balPrevInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                     ...balPrevReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
-                ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+                ].sort((a, b) => {
+                    if (a.eType === 'opening') return -1;
+                    if (b.eType === 'opening') return 1;
+                    return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+                });
 
                 let balPrevRunning = 0;
                 const balPrevLedger = balPrevAllEntries.map(entry => {
                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                     if (entry.eType === 'opening') {
-                        const amt = entry.data.amount || 0;
+                        const amt = parseMoneyAmount(entry.data.amount || 0);
                         if (amt > 0) {
                             balPrevRunning += amt;
                             return {
@@ -5488,11 +5534,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             };
                         }
                     } else if (entry.eType === 'invoice') {
-                        balPrevRunning += entry.data.totalAmount || 0;
-                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
+                        const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
+                        balPrevRunning += invAmt;
+                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} — ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
                     } else {
-                        balPrevRunning -= entry.data.amountPaid || 0;
-                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: balPrevRunning, eType: 'payment' as const };
+                        const paidAmt = parseMoneyAmount(entry.data.amountPaid || (entry.data as any).amount_paid || (entry.data as any).amount || 0);
+                        balPrevRunning -= paidAmt;
+                        const mode = entry.data.excelPaymentMode || entry.data.paymentMethod || (entry.data as any).payment_method || entry.data.method || 'Payment';
+                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: balPrevRunning, eType: 'payment' as const };
                     }
                 });
 
@@ -15619,18 +15668,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     admissionNumber: resolvedAdmNo,
                                     className: (studentFinanceRecord as any)?.className || (selectedStudentRaw as any).className || studentClassGroup(selectedStudentRaw)
                                 } : null;
-                                const studentInvoices = mappedInvoices.filter((i: any) => i.studentId === stmtStudentId);
+                                const studentInvoices = mappedInvoices.filter((i: any) => 
+                                    i.studentId === stmtStudentId || 
+                                    (i as any).student_id === stmtStudentId ||
+                                    String(i.studentId) === String(stmtStudentId) ||
+                                    String((i as any).student_id) === String(stmtStudentId) ||
+                                    (resolvedAdmNo && resolvedAdmNo !== '—' && (i.admissionNumber === resolvedAdmNo || (i as any).admission_number === resolvedAdmNo))
+                                );
                                 const studentReceipts = mappedReceipts.filter((r: any) =>
                                     r.studentId === stmtStudentId ||
-                                    studentInvoices.some((i: any) => i.id === r.invoiceId)
+                                    (r as any).student_id === stmtStudentId ||
+                                    String(r.studentId) === String(stmtStudentId) ||
+                                    String((r as any).student_id) === String(stmtStudentId) ||
+                                    (resolvedAdmNo && resolvedAdmNo !== '—' && (r.admissionNumber === resolvedAdmNo || (r as any).admission_number === resolvedAdmNo)) ||
+                                    studentInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
                                 );
 
                                 const openingBalForStmt = (() => {
                                     const sd = studentFinanceData.find(s => s.id === stmtStudentId);
-                                    return sd?.totals?.openingBalance ?? 0;
+                                    return sd?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[stmtStudentId] ?? selectedStudentRaw?.metadata?.openingBalance ?? 0);
                                 })();
-                                const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
-                                const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
+                                const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
+                                const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
                                 const totalInvoiced = (openingBalForStmt > 0 ? openingBalForStmt : 0) + invoicesTotal;
                                 const totalPaid = (openingBalForStmt < 0 ? Math.abs(openingBalForStmt) : 0) + receiptsTotal;
                                 const balance = totalInvoiced - totalPaid;
@@ -15639,13 +15698,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     ...(Math.abs(openingBalForStmt) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt } }] : []),
                                     ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                                     ...studentReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
-                                ].sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+                                ].sort((a, b) => {
+                                    if (a.eType === 'opening') return -1;
+                                    if (b.eType === 'opening') return 1;
+                                    return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+                                });
 
                                 let running = 0;
                                 const ledger = allEntries.map(entry => {
                                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                                     if (entry.eType === 'opening') {
-                                        const amt = entry.data.amount || 0;
+                                        const amt = parseMoneyAmount(entry.data.amount || 0);
                                         if (amt > 0) {
                                             running += amt;
                                             return {
@@ -15669,11 +15732,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             };
                                         }
                                     } else if (entry.eType === 'invoice') {
-                                        running += entry.data.totalAmount || 0;
-                                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || entry.data.id?.slice(-8)} — School Fees`, debit: entry.data.totalAmount || 0, credit: 0, balance: running, eType: 'invoice' as const };
+                                        const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
+                                        running += invAmt;
+                                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} — ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: running, eType: 'invoice' as const };
                                     } else {
-                                        running -= entry.data.amountPaid || 0;
-                                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || entry.data.id?.slice(-8)} · ${entry.data.paymentMethod || entry.data.method || 'Cash'}`, debit: 0, credit: entry.data.amountPaid || 0, balance: running, eType: 'payment' as const };
+                                        const paidAmt = parseMoneyAmount(entry.data.amountPaid || (entry.data as any).amount_paid || (entry.data as any).amount || 0);
+                                        running -= paidAmt;
+                                        const mode = entry.data.excelPaymentMode || entry.data.paymentMethod || (entry.data as any).payment_method || entry.data.method || 'Payment';
+                                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: running, eType: 'payment' as const };
                                     }
                                 });
 
