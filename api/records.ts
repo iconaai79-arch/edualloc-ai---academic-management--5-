@@ -445,10 +445,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.receipt_date;
                 }
                 delete copy.admDisplay;
+                delete copy.adm_display;
                 delete copy.excelPaymentMode;
+                delete copy.excel_payment_mode;
                 delete copy.matchStatus;
+                delete copy.match_status;
                 delete copy.matchConfidence;
+                delete copy.match_confidence;
                 delete copy.matchedStudentId;
+                delete copy.matched_student_id;
                 delete copy.studentAdm;
                 delete copy.student_adm;
                 delete copy.admission_number;
@@ -754,7 +759,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'transferReason', 'transfer_reason', 'deletionReason', 'deletion_reason',
                         'deletionRequestedBy', 'deletion_requested_by', 'auditedBy', 'audited_by',
                         'auditedAt', 'audited_at', 'previousStudentId', 'previous_student_id',
-                        'offline_fallback', 'offlineFallback', 'offline', 'success', 'error'
+                        'offline_fallback', 'offlineFallback', 'offline', 'success', 'error',
+                        'excelPaymentMode', 'excel_payment_mode', 'matchStatus', 'match_status',
+                        'matchConfidence', 'match_confidence', 'matchedStudentId', 'matched_student_id',
+                        'admDisplay', 'adm_display', 'admissionNumber', 'admission_number'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {

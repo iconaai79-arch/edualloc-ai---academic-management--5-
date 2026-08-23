@@ -2900,34 +2900,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const receipt = {
                     id: receiptId,
                     institutionId: props.institution.id,
-                    institution_id: props.institution.id,
                     branchId: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
-                    branch_id: student?.branchId || (student as any)?.branch_id || (selectedBranchId !== 'ALL' ? selectedBranchId : undefined),
                     receiptNumber: receiptNum,
-                    receipt_number: receiptNum,
                     studentId: item.matchedStudentId,
-                    student_id: item.matchedStudentId,
-                    admissionNumber: adm !== '—' ? adm : undefined,
-                    admission_number: adm !== '—' ? adm : undefined,
-                    studentName: student?.name || item.payer,
-                    student_name: student?.name || item.payer,
                     amountPaid: parseMoneyAmount(item.amount),
-                    amount_paid: parseMoneyAmount(item.amount),
-                    amount: parseMoneyAmount(item.amount),
                     paymentMethod: item.paymentMethod || 'Bank Transfer',
-                    payment_method: item.paymentMethod || 'Bank Transfer',
-                    excelPaymentMode: item.excelPaymentMode || modeLabel,
                     paymentDate: item.date || new Date().toISOString().split('T')[0],
-                    payment_date: item.date || new Date().toISOString().split('T')[0],
-                    date: item.date || new Date().toISOString().split('T')[0],
                     relatedTransactionId: item.ref || '',
-                    related_transaction_id: item.ref || '',
                     paidFor: `Fee Payment via ${modeLabel}`,
-                    paid_for: `Fee Payment via ${modeLabel}`,
                     createdAt: originalCreatedAt,
-                    created_at: originalCreatedAt,
-                    updatedAt: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
+                    updatedAt: new Date().toISOString()
                 };
 
                 // Save or override this receipt individually so progress is real
