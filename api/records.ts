@@ -514,6 +514,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 delete copy.admissionNumber;
                 delete copy.updated_at;
                 delete copy.updatedAt;
+                delete copy.created_at;
+                delete copy.createdAt;
             }
             if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
                 if (copy.amount !== undefined && copy.total_amount === undefined) {
@@ -896,7 +898,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'excelPaymentMode', 'excel_payment_mode', 'matchStatus', 'match_status',
                         'matchConfidence', 'match_confidence', 'matchedStudentId', 'matched_student_id',
                         'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
-                        'updated_at', 'updatedAt'
+                        'updated_at', 'updatedAt', 'created_at', 'createdAt'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {

@@ -2907,8 +2907,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     paymentMethod: item.paymentMethod || 'Bank Transfer',
                     paymentDate: item.date || new Date().toISOString().split('T')[0],
                     relatedTransactionId: item.ref || '',
-                    paidFor: `Fee Payment via ${modeLabel}`,
-                    createdAt: originalCreatedAt
+                    paidFor: `Fee Payment via ${modeLabel}`
                 };
 
                 // Save or override this receipt individually so progress is real
@@ -2916,7 +2915,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     await apiService.saveModuleRecords('receipts', [receipt]);
                 });
 
-                newReceipts.push(receipt);
+                newReceipts.push({ ...receipt, createdAt: originalCreatedAt });
 
                 // Update progress counter and yield to React so the UI re-renders
                 setBulkProgress({ current: i + 1, total: matchedItems.length });
