@@ -7278,6 +7278,45 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </select>
                             </div>
 
+                            {/* ── Selection banner ── */}
+                            {selectedReceiptIds.size > 0 && (
+                                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-bold text-indigo-800 dark:text-indigo-200 animate-in slide-in-from-top duration-200">
+                                    <span>
+                                        {selectedReceiptIds.size === filteredReceipts.length
+                                            ? `All ${filteredReceipts.length} transactions selected`
+                                            : `${selectedReceiptIds.size} of ${filteredReceipts.length} transaction${selectedReceiptIds.size > 1 ? 's' : ''} selected`
+                                        }
+                                    </span>
+                                    <div className="flex items-center gap-3">
+                                        {selectedReceiptIds.size < filteredReceipts.length ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedReceiptIds(new Set(filteredReceipts.map((r: any) => r.id)))}
+                                                className="underline underline-offset-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors cursor-pointer whitespace-nowrap"
+                                            >
+                                                Select all {filteredReceipts.length} transactions
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedReceiptIds(new Set())}
+                                                className="underline underline-offset-2 text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-200 transition-colors cursor-pointer whitespace-nowrap"
+                                            >
+                                                Clear selection
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} transaction(s)` })}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm shadow-rose-500/20"
+                                        >
+                                            <Trash2Icon className="w-3 h-3" />
+                                            Delete {selectedReceiptIds.size === filteredReceipts.length ? 'All' : `(${selectedReceiptIds.size})`}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
                                 <table className="w-full border-collapse">
                                     <thead>
@@ -7285,16 +7324,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <th className="px-4 py-4 w-10">
                                                 <input
                                                     type="checkbox"
-                                                    checked={paginatedReceipts.length > 0 && paginatedReceipts.every(r => selectedReceiptIds.has(r.id))}
+                                                    checked={filteredReceipts.length > 0 && selectedReceiptIds.size === filteredReceipts.length}
+                                                    ref={el => { if (el) el.indeterminate = selectedReceiptIds.size > 0 && selectedReceiptIds.size < filteredReceipts.length; }}
                                                     onChange={e => {
                                                         if (e.target.checked) {
-                                                            setSelectedReceiptIds(prev => new Set([...prev, ...paginatedReceipts.map(r => r.id)]));
+                                                            setSelectedReceiptIds(new Set(filteredReceipts.map((r: any) => r.id)));
                                                         } else {
-                                                            setSelectedReceiptIds(prev => { const n = new Set(prev); paginatedReceipts.forEach(r => n.delete(r.id)); return n; });
+                                                            setSelectedReceiptIds(new Set());
                                                         }
                                                     }}
                                                     className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 dark:border-slate-700 cursor-pointer"
-                                                    title="Select all on this page"
+                                                    title={selectedReceiptIds.size === filteredReceipts.length ? 'Clear all' : 'Select all transactions'}
                                                 />
                                             </th>
                                             {receiptsMainTab === 'student_fees' ? (
