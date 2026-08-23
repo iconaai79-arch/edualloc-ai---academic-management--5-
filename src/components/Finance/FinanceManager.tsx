@@ -2090,11 +2090,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [studentFinanceData, openingBalanceSearch, openingBalanceClassFilter]);
 
     const filteredFinanceStudents = useMemo(() => {
+        const query = (searchBalances || '').trim().toLowerCase();
         const list = studentFinanceData.filter(s => {
-            const matchesSearch = !searchBalances || (
-                s.name?.toLowerCase().includes(searchBalances.toLowerCase()) ||
-                s.admissionNumber?.toLowerCase().includes(searchBalances.toLowerCase()) ||
-                s.admission_number?.toLowerCase().includes(searchBalances.toLowerCase())
+            const adm = studentAdmissionNumber(s);
+            const matchesSearch = !query || (
+                (s.name || '').toLowerCase().includes(query) ||
+                (s.admissionNumber || '').toLowerCase().includes(query) ||
+                ((s as any).admission_number || '').toLowerCase().includes(query) ||
+                (s.metadata?.admissionNumber || '').toLowerCase().includes(query) ||
+                (adm && adm !== '—' && adm.toLowerCase().includes(query))
             );
 
             const cls = s.className || studentClassGroup(s);
@@ -2498,17 +2502,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const phoneMap = new Map<string, any>();
             const nameMap = new Map<string, any>();
 
-            studentFinanceData.forEach(student => {
-                const rawAdm = (student.admissionNumber || (student as any).admission_number || '').trim().toLowerCase();
-                if (rawAdm) {
-                    admMap.set(rawAdm, student);
-                    const digits = rawAdm.replace(/\D/g, '');
-                    if (digits && digits !== rawAdm) admMap.set(digits, student);
-                }
+            // Build high-performance Maps for O(1) student reconciliation across ALL students (independent of branch filter)
+            mergedStudents.forEach(student => {
+                const ids = [
+                    student.id,
+                    student.admissionNumber,
+                    (student as any).admission_number,
+                    student.metadata?.admissionNumber,
+                    student.metadata?.admission_number,
+                    (student as any).admNo,
+                    (student as any).registrationNumber,
+                    (student as any).reg_no
+                ];
+                ids.forEach(idVal => {
+                    if (idVal !== undefined && idVal !== null) {
+                        const rawAdm = String(idVal).trim().toLowerCase();
+                        if (rawAdm) {
+                            admMap.set(rawAdm, student);
+                            const digits = rawAdm.replace(/\D/g, '');
+                            if (digits && digits !== rawAdm) admMap.set(digits, student);
+                            const rawInt = parseInt(rawAdm, 10);
+                            if (!isNaN(rawInt)) admMap.set(String(rawInt), student);
+                        }
+                    }
+                });
 
-                const phone = getStudentParentPhone(student);
+                const phone = getStudentParentPhone(student) || student.phoneNumber || (student as any).phone;
                 if (phone) {
-                    const cleanPhone = phone.replace(/\D/g, '');
+                    const cleanPhone = String(phone).replace(/\D/g, '');
                     if (cleanPhone.length >= 9) {
                         phoneMap.set(cleanPhone.slice(-9), student);
                     }
@@ -2517,7 +2538,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const name = (student.name || '').trim().toLowerCase();
                 if (name) {
                     nameMap.set(name, student);
-                    const parts = name.split(/\s+/);
+                    const cleanAlpha = name.replace(/[^a-z0-9]/g, '');
+                    if (cleanAlpha) nameMap.set(cleanAlpha, student);
+                    const parts = name.split(/\s+/).filter(Boolean);
                     if (parts.length > 1) {
                         nameMap.set(parts.slice().reverse().join(' '), student);
                     }
@@ -3634,32 +3657,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [showPostModal]);
 
     const filteredReceipts = useMemo(() => {
-        const query = searchReceiptQuery.toLowerCase();
+        const query = (searchReceiptQuery || '').trim().toLowerCase();
         return mappedReceipts.filter(rec => {
-            // Determine if the receipt belongs to the current tab
-            const isStudentFee = !!rec.studentId;
+            const sId = rec.studentId || (rec as any).student_id;
+            const isStudentFee = !!sId;
             if (receiptsMainTab === 'student_fees' && !isStudentFee) return false;
             if (receiptsMainTab === 'other_income' && isStudentFee) return false;
 
-            const student = rec.studentId ? mergedStudents.find(s => s.id === rec.studentId) : null;
+            const student = sId ? mergedStudents.find(s => s.id === sId || (s as any).student_id === sId || s.admissionNumber === sId) : null;
             
             // Standard matches
-            const matchesReceiptNumber = (rec.receiptNumber || '').toLowerCase().includes(query);
-            const matchesRef = (rec.relatedTransactionId || '').toLowerCase().includes(query);
+            const matchesReceiptNumber = (rec.receiptNumber || (rec as any).receipt_number || '').toLowerCase().includes(query);
+            const matchesRef = (rec.relatedTransactionId || (rec as any).related_transaction_id || '').toLowerCase().includes(query);
             
-            let matchesQuery = matchesReceiptNumber || matchesRef;
+            let matchesQuery = !query || matchesReceiptNumber || matchesRef;
 
             if (receiptsMainTab === 'student_fees') {
-                const matchesStudentName = (student?.name || '').toLowerCase().includes(query);
-                matchesQuery = matchesQuery || matchesStudentName;
+                const sName = (student?.name || rec.studentName || (rec as any).student_name || '').toLowerCase();
+                const sAdm = (student?.admissionNumber || (student as any)?.admission_number || rec.admissionNumber || (rec as any).admission_number || studentAdmissionNumber(student) || '').toLowerCase();
+                const sClass = (student?.className || (student as any)?.className || studentClassGroup(student) || '').toLowerCase();
+                matchesQuery = matchesQuery || sName.includes(query) || sAdm.includes(query) || sClass.includes(query);
             } else {
-                const matchesPaidFor = (rec.paidFor || '').toLowerCase().includes(query);
+                const matchesPaidFor = (rec.paidFor || (rec as any).paid_for || '').toLowerCase().includes(query);
                 matchesQuery = matchesQuery || matchesPaidFor;
             }
             
             const matchesSource = 
                 receiptSourceFilter === 'All' ||
-                rec.paymentMethod === receiptSourceFilter;
+                rec.paymentMethod === receiptSourceFilter ||
+                (rec as any).payment_method === receiptSourceFilter ||
+                rec.excelPaymentMode === receiptSourceFilter;
 
             return matchesQuery && matchesSource;
         }).sort((a: any, b: any) => {
@@ -15660,12 +15687,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* Student Statement */}
                             {reportsSubTab === 'student_statement' && (() => {
-                                const filteredStudents = studentFinanceData.filter((s: any) =>
-                                    s.name?.toLowerCase().includes(stmtSearch.toLowerCase()) ||
-                                    (studentAdmissionNumber(s) || '').toLowerCase().includes(stmtSearch.toLowerCase())
-                                ).slice(0, 30);
+                                const q = (stmtSearch || '').trim().toLowerCase();
+                                const filteredStudents = mergedStudents.filter((s: any) => {
+                                    if (!q) return true;
+                                    const adm = studentAdmissionNumber(s);
+                                    return (s.name || '').toLowerCase().includes(q) ||
+                                           (adm && adm !== '—' && adm.toLowerCase().includes(q)) ||
+                                           ((s.admissionNumber || (s as any).admission_number || '')).toLowerCase().includes(q);
+                                }).slice(0, 30);
 
-                                const selectedStudentRaw = props.students.find((s: any) => s.id === stmtStudentId);
+                                const selectedStudentRaw = mergedStudents.find((s: any) => s.id === stmtStudentId);
                                 const studentFinanceRecord = studentFinanceData.find(s => s.id === stmtStudentId);
 
                                 const resolvedAdmNo = studentAdmissionNumber(selectedStudentRaw || studentFinanceRecord);
@@ -16422,11 +16453,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         if (excelFilterStatus === 'matched' && item.matchStatus !== 'matched') return false;
                                         if (excelFilterStatus === 'unmatched' && item.matchStatus !== 'unmatched') return false;
                                         if (excelFilterQuery) {
-                                            const q = excelFilterQuery.toLowerCase();
-                                            return item.ref.toLowerCase().includes(q) ||
-                                                   item.payer.toLowerCase().includes(q) ||
-                                                   item.receiptNumber.toLowerCase().includes(q) ||
-                                                   (item.admDisplay && item.admDisplay.toLowerCase().includes(q));
+                                            const q = excelFilterQuery.toLowerCase().trim();
+                                            const matchedSt = mergedStudents.find(s => s.id === item.matchedStudentId);
+                                            const sName = (matchedSt?.name || '').toLowerCase();
+                                            const sAdm = (matchedSt?.admissionNumber || (matchedSt as any)?.admission_number || studentAdmissionNumber(matchedSt) || '').toLowerCase();
+                                            return (item.ref || '').toLowerCase().includes(q) ||
+                                                   (item.payer || '').toLowerCase().includes(q) ||
+                                                   (item.receiptNumber || '').toLowerCase().includes(q) ||
+                                                   (item.admDisplay && item.admDisplay.toLowerCase().includes(q)) ||
+                                                   sName.includes(q) ||
+                                                   sAdm.includes(q);
                                         }
                                         return true;
                                     });
