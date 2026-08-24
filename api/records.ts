@@ -441,7 +441,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'offline_fallback', 'offlineFallback', 'offline', 'success', 'error',
                 'notification_sent', 'notificationSent', 'is_opening_balance', 'isOpeningBalance'
             ];
-            if (!['broadcaster_messages', 'alumni_messages', 'feedback_submissions', 'activity_log', 'bulletin_items'].includes(moduleName)) {
+            const MODULES_WITH_MESSAGE_COLUMN = [
+                'sms_logs', 'sms_outbox', 'sms_gateway_logs', 'fuel_sms_logs',
+                'broadcaster_messages', 'alumni_messages', 'feedback_submissions',
+                'activity_log', 'bulletin_items', 'pm_inquiries', 'notifications',
+                'demo_requests', 'audit_issues', 'chat_messages', 'direct_messages'
+            ];
+            if (!MODULES_WITH_MESSAGE_COLUMN.includes(moduleName)) {
                 universalKeys.push('message');
             }
             if (moduleName === 'ds_students') {
@@ -773,6 +779,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanDsStudent) : cleanDsStudent(currentPayload);
+            }
+
+            if (moduleName === 'sms_logs') {
+                const cleanSmsLog = (log: any) => {
+                    if (!log || typeof log !== 'object') return log;
+                    const copy = { ...log };
+                    const rVal = copy.recipient || copy.recipients || copy.recipient_phone || copy.phone_number || copy.phone || copy.phoneNumber;
+                    if (rVal) {
+                        copy.recipient = Array.isArray(rVal) ? rVal.filter(Boolean).join(', ') : String(rVal).trim();
+                    } else if (!copy.recipient) {
+                        copy.recipient = 'N/A';
+                    }
+                    const mVal = copy.message || copy.msg || copy.smsMessage || copy.sms_message || copy.text || copy.content || copy.body;
+                    if (mVal !== undefined && mVal !== null && String(mVal).trim() !== '') {
+                        copy.message = String(mVal).trim();
+                    } else if (!copy.message) {
+                        copy.message = 'SMS notification';
+                    }
+                    if (copy.senderId && !copy.sender_id) copy.sender_id = copy.senderId;
+                    if (copy.gatewayResponse && !copy.gateway_response) copy.gateway_response = copy.gatewayResponse;
+                    delete copy.recipients;
+                    delete copy.recipient_phone;
+                    delete copy.phone_number;
+                    delete copy.smsMessage;
+                    delete copy.sms_message;
+                    delete copy.sent_at;
+                    delete copy.sentAt;
+                    delete copy.logs;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSmsLog) : cleanSmsLog(currentPayload);
             }
 
             if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments'].includes(moduleName)) {
