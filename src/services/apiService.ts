@@ -183,6 +183,53 @@ function toCamelCase(obj: any): any {
     return newObj;
 }
 
+// Safe Local Storage Helper with automatic quota eviction and LRU cache capping
+export const safeLocalStorage = {
+    freeSpace: () => {
+        try {
+            const evictableKeys = Object.keys(localStorage).filter(k => 
+                !k.includes('active_session') && 
+                !k.includes('current_user') && 
+                !k.includes('credentials') &&
+                !k.includes('token') &&
+                !k.includes('auth') &&
+                (k.startsWith('eduai_') || k.startsWith('ds_') || k.includes('_cache') || k.includes('_backup') || k.includes('_history'))
+            );
+            // Evict the largest 8 keys to free up plenty of headroom
+            const keySizes = evictableKeys.map(k => ({ key: k, size: (localStorage.getItem(k) || '').length }));
+            keySizes.sort((a, b) => b.size - a.size);
+            for (const item of keySizes.slice(0, 8)) {
+                localStorage.removeItem(item.key);
+            }
+        } catch (e) {}
+    },
+    setItem: (key: string, value: string) => {
+        try {
+            localStorage.setItem(key, value);
+        } catch (e) {
+            safeLocalStorage.freeSpace();
+            try {
+                localStorage.removeItem(key);
+                localStorage.setItem(key, value);
+            } catch (_) {
+                // Graceful best-effort fallback
+            }
+        }
+    },
+    getItem: (key: string): string | null => {
+        try {
+            return localStorage.getItem(key);
+        } catch (e) {
+            return null;
+        }
+    },
+    removeItem: (key: string) => {
+        try {
+            localStorage.removeItem(key);
+        } catch (e) {}
+    }
+};
+
 // Local Storage Helper with automatic QuotaExceeded recovery and LRU cache capping
 const ls = {
     get: (table: string): any[] => {
@@ -199,35 +246,15 @@ const ls = {
     set: (table: string, data: any[]) => {
         try {
             const safeData = Array.isArray(data) ? data : [];
-            // Cap oversized local caches to the most recent 200 items to prevent local storage quota saturation
-            const trimmedData = safeData.length > 200 ? safeData.slice(-200) : safeData;
-            localStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
+            // Cap oversized local caches to the most recent 150 items to prevent local storage quota saturation
+            const trimmedData = safeData.length > 150 ? safeData.slice(-150) : safeData;
+            safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
         } catch (e: any) {
-            // QuotaExceededError recovery: purge transient/old cache keys
-            if (e && (e.name === 'QuotaExceededError' || e.code === 22 || String(e).includes('quota') || String(e).includes('QuotaExceeded'))) {
-                try {
-                    // 1. Try removing non-critical large cache keys
-                    const purgeKeys = Object.keys(localStorage).filter(k => 
-                        k.startsWith('eduai_') && 
-                        !k.includes('active_session') && 
-                        !k.includes('current_user') &&
-                        !k.includes('credentials') &&
-                        k !== `eduai_${table}`
-                    );
-                    for (const key of purgeKeys.slice(0, 5)) {
-                        localStorage.removeItem(key);
-                    }
-                    // 2. Retry with aggressively capped data (max 50 rows)
-                    const safeData = Array.isArray(data) ? data : [];
-                    const minimalData = safeData.slice(-50);
-                    localStorage.setItem(`eduai_${table}`, JSON.stringify(minimalData));
-                } catch (retryErr) {
-                    // Gracefully suppress storage quota error so it never crashes runtime execution
-                }
-            }
+            // Suppress storage error
         }
     },
     upsert: (table: string, record: any) => {
+
         try {
             const records = ls.get(table);
             const index = records.findIndex((r: any) => r && r.id === record.id);
@@ -2670,18 +2697,9 @@ export const apiService = {
             }
 
             const data = await response.json();
-            // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures (best-effort, ignore quota errors)
-            try {
-                localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
-            } catch (storageErr) {
-                // QuotaExceededError or similar — clear stale cache entry and retry once
-                try {
-                    localStorage.removeItem('eduai_system_settings_cache');
-                    localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
-                } catch (_) {
-                    console.warn('[apiService] localStorage quota exceeded — system settings will not be cached this session.');
-                }
-            }
+            // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures (safe with auto key eviction)
+            safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
+
             const rawSettings = toCamelCase(data) || null;
             if (rawSettings) {
                 const ps = rawSettings.portalSettings || (rawSettings as any).portal_settings || {};
