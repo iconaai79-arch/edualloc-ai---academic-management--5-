@@ -16434,9 +16434,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 2. All Balances */}
                                         {outstandingSubTab === 'all_balances' && (() => {
-                                            // Derive streams
-                                            const getStudentStream = (s: any): string => (s.stream || s.metadata?.stream || s.streamName || '');
-                                            const streams: string[] = Array.from(new Set(studentFinanceData.filter((s: any) => s.totals.balance > 0).map((s: any) => getStudentStream(s)).filter(Boolean))).sort() as string[];
+                                            const streams = availableStreamsForBalances;
                                             
                                             const filteredList = studentFinanceData
                                                 .filter((s: any) => s.totals.balance > 0)
