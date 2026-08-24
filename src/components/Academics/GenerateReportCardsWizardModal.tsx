@@ -499,6 +499,13 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                 termEndDate,
                 nextTermStartDate
             }));
+
+            const existingListStr = localStorage.getItem(`eduai_generated_report_cards_${instId}`);
+            const existingList: Array<{ year: string; term: string; generatedAt: string }> = existingListStr ? JSON.parse(existingListStr) : [];
+            if (!existingList.some(e => e.year === academicYear && e.term === selectedTerm)) {
+                existingList.unshift({ year: academicYear, term: selectedTerm, generatedAt: new Date().toISOString() });
+                localStorage.setItem(`eduai_generated_report_cards_${instId}`, JSON.stringify(existingList));
+            }
         } catch (e) {}
 
         setTimeout(() => {

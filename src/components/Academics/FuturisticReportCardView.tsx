@@ -56,149 +56,92 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
     // Wizard Modal State
     const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
 
-    // Term Selector Accordion
-    const [expandedYear, setExpandedYear] = useState<string>('2026');
-    const [selectedTerm, setSelectedTerm] = useState<string>('Term 2');
-    const [selectedYear, setSelectedYear] = useState<string>('2026');
-
-    // Student Fee Balances Record State
-    const [feeBalances, setFeeBalances] = useState<Record<string, { balance: number; nextTermFees: number; totalDue: number }>>(() => {
+    // Generated Report Cards Registry State
+    const [generatedReportCardsList, setGeneratedReportCardsList] = useState<Array<{ year: string; term: string; generatedAt?: string }>>(() => {
         try {
-            const saved = localStorage.getItem(`eduai_report_card_fee_balances_${currentInstitution?.id || 'default'}`);
-            if (saved) return JSON.parse(saved) || {};
+            const instKey = currentInstitution?.id || 'default';
+            const saved = localStorage.getItem(`eduai_generated_report_cards_${instKey}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+            const lastConfig = localStorage.getItem(`eduai_report_card_last_config_${instKey}`);
+            if (lastConfig) {
+                const cfg = JSON.parse(lastConfig);
+                if (cfg.academicYear && cfg.academicTerm) {
+                    return [{ year: cfg.academicYear, term: cfg.academicTerm }];
+                }
+            }
         } catch (e) {}
-        return {
-            st_1: { balance: 0, nextTermFees: 18500, totalDue: 18500 },
-            '1368': { balance: 0, nextTermFees: 18500, totalDue: 18500 }
-        };
+        return [{ year: '2026', term: 'Term 2' }];
     });
 
-    // Main Preview Sub-Tab
-    const [previewTab, setPreviewTab] = useState<'pdf' | 'subject_comments' | 'overall_comments'>('pdf');
+    // Dynamic Year-Terms Tree: ONLY for years and terms with generated report cards or evaluated assessments
+    const yearTermsTree = useMemo(() => {
+        const pairs: { year: string; term: string }[] = [];
+        const seen = new Set<string>();
 
-    // Search Student State
-    const [searchStudentQuery, setSearchStudentQuery] = useState<string>('');
-    const [selectedStudentId, setSelectedStudentId] = useState<string>(activeStudents[0]?.id || 'st_1');
-
-    // Filtered Students list by search
-    const filteredStudents = useMemo(() => {
-        if (!searchStudentQuery.trim()) return activeStudents;
-        const q = searchStudentQuery.toLowerCase();
-        return activeStudents.filter(s =>
-            s.name.toLowerCase().includes(q) ||
-            (s.admissionNo && s.admissionNo.toLowerCase().includes(q)) ||
-            (s as any).studentClass?.toLowerCase().includes(q)
-        );
-    }, [activeStudents, searchStudentQuery]);
-
-    // Active selected student object
-    const currentStudent = useMemo(() => {
-        return activeStudents.find(s => s.id === selectedStudentId) || activeStudents[0] || {
-            id: 'st_1',
-            name: 'Magdaline Jepkoech',
-            admissionNo: '1368',
-            gender: 'Female',
-            studentClass: 'Form 3 East'
-        };
-    }, [activeStudents, selectedStudentId]);
-
-    // Subjects list
-    const activeSubjects = useMemo(() => {
-        return subjects.length > 0 ? subjects : [
-            { id: '1', name: 'English', code: 'ENG' },
-            { id: '2', name: 'Kiswahili', code: 'KISW' },
-            { id: '3', name: 'Mathematics', code: 'MATH' },
-            { id: '4', name: 'Biology', code: 'BIO' },
-            { id: '5', name: 'Physics', code: 'PHYS' },
-            { id: '6', name: 'Chemistry', code: 'CHEM' },
-            { id: '7', name: 'Geography', code: 'GEO' },
-            { id: '8', name: 'CRE', code: 'CRE' }
-        ];
-    }, [subjects]);
-
-    // Calculate Grade and Points
-    const calculateGrade = (score: number) => {
-        if (isPrimarySchool) {
-            if (score >= 80) return { grade: 'EE', pts: 4, remark: 'Exceeding Expectations' };
-            if (score >= 65) return { grade: 'ME', pts: 3, remark: 'Meeting Expectations' };
-            if (score >= 50) return { grade: 'AE', pts: 2, remark: 'Approaching Expectations' };
-            return { grade: 'BE', pts: 1, remark: 'Below Expectations' };
-        } else {
-            if (score >= 80) return { grade: 'A', pts: 12, remark: 'EXCELLENT' };
-            if (score >= 75) return { grade: 'A-', pts: 11, remark: 'EXCELLENT' };
-            if (score >= 70) return { grade: 'B+', pts: 10, remark: 'VERY GOOD' };
-            if (score >= 65) return { grade: 'B', pts: 9, remark: 'VERY GOOD' };
-            if (score >= 60) return { grade: 'B-', pts: 8, remark: 'GOOD' };
-            if (score >= 55) return { grade: 'C+', pts: 7, remark: 'AVERAGE' };
-            if (score >= 50) return { grade: 'C', pts: 6, remark: 'AVERAGE' };
-            if (score >= 45) return { grade: 'C-', pts: 5, remark: 'AVERAGE' };
-            if (score >= 40) return { grade: 'D+', pts: 4, remark: 'PUT MORE EFFORT' };
-            if (score >= 35) return { grade: 'D', pts: 3, remark: 'POOR' };
-            if (score >= 30) return { grade: 'D-', pts: 2, remark: 'POOR' };
-            return { grade: 'E', pts: 1, remark: 'VERY POOR' };
-        }
-    };
-
-    // Subject Performance Records
-    const subjectPerformance = useMemo(() => {
-        return activeSubjects.map((sub, idx) => {
-            const mid = 30 + ((currentStudent.id.charCodeAt(0) + idx * 7) % 45);
-            const end = 35 + ((currentStudent.id.charCodeAt(0) + idx * 9) % 45);
-            const total = Math.round((mid + end) / 2);
-            const { grade, pts, remark } = calculateGrade(total);
-            const pos = (idx % 4) + 1;
-            return {
-                subject: sub,
-                midTerm: mid,
-                endTerm: end,
-                total,
-                grade,
-                pts,
-                pos,
-                remark,
-                teacherSig: sub.code.charAt(0) + '.' + sub.code.charAt(sub.code.length - 1)
-            };
+        // 1. From generated report card registry
+        generatedReportCardsList.forEach(entry => {
+            if (entry.year && entry.term) {
+                const key = `${entry.year}__${entry.term}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    pairs.push({ year: entry.year, term: entry.term });
+                }
+            }
         });
-    }, [activeSubjects, currentStudent, isPrimarySchool]);
 
-    // Student Overall Summary Stats
-    const studentSummary = useMemo(() => {
-        const totalScore = subjectPerformance.reduce((a, b) => a + b.total, 0);
-        const meanScore = parseFloat((totalScore / subjectPerformance.length).toFixed(2));
-        const totalPts = subjectPerformance.reduce((a, b) => a + b.pts, 0);
-        const meanPts = parseFloat((totalPts / subjectPerformance.length).toFixed(2));
-        const { grade: meanGrade } = calculateGrade(meanScore);
+        // 2. From actual assessments that have marks
+        if (assessments && assessments.length > 0) {
+            assessments.forEach(a => {
+                const y = String((a as any).academicYear || (a as any).year || (a as any).academic_year || '').trim();
+                const t = String((a as any).academicTerm || (a as any).term || (a as any).academic_term || '').trim();
+                const hasMarks = marks.some(m => m.assessmentId === a.id);
+                if (y && t && hasMarks) {
+                    const cleanYear = y.length >= 4 ? y.substring(0, 4) : y;
+                    const cleanTerm = t.toLowerCase().includes('1') ? 'Term 1' : t.toLowerCase().includes('2') ? 'Term 2' : t.toLowerCase().includes('3') ? 'Term 3' : t;
+                    const key = `${cleanYear}__${cleanTerm}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        pairs.push({ year: cleanYear, term: cleanTerm });
+                    }
+                }
+            });
+        }
 
-        return {
-            totalScore,
-            meanScore,
-            meanPts,
-            meanGrade,
-            overallPos: 37,
-            totalStudents: 205,
-            streamPos: 12,
-            streamStudents: 68,
-            kcpeScore: '280 C+',
-            vap: '+5.7143'
-        };
-    }, [subjectPerformance, isPrimarySchool]);
+        // Default fallback if brand new
+        if (pairs.length === 0) {
+            pairs.push({ year: '2026', term: 'Term 2' });
+        }
 
-    // Historical Performance Progress
-    const progressHistory = [
-        { period: 'Form 3 Term 2', rank: 37, pts: 1.2857, grade: 'E' },
-        { period: 'Form 3 Term 1', rank: 103, pts: 1.5714, grade: 'D-' },
-        { period: 'Form 2 Term 3', rank: 46, pts: 2.0909, grade: 'D-' },
-        { period: 'Form 2 Term 2', rank: 47, pts: 2.0909, grade: 'D-' },
-    ];
+        // Group terms per year
+        const yearMap: Record<string, Set<string>> = {};
+        pairs.forEach(p => {
+            if (!yearMap[p.year]) yearMap[p.year] = new Set();
+            yearMap[p.year].add(p.term);
+        });
 
-    // Accordion Terms Tree
-    const yearTermsTree = [
-        { year: '2026', terms: ['Term 3', 'Term 2', 'Term 1'] },
-        { year: '2025', terms: ['Term 3', 'Term 2', 'Term 1'] },
-        { year: '2024', terms: ['Term 3', 'Term 2', 'Term 1'] },
-        { year: '2023', terms: ['Term 3', 'Term 2', 'Term 1'] },
-        { year: '2022', terms: ['Term 3', 'Term 2', 'Term 1'] },
-    ];
+        const termOrder = ['Term 1', 'Term 2', 'Term 3'];
+        return Object.keys(yearMap)
+            .sort((a, b) => b.localeCompare(a)) // Sort latest years first
+            .map(year => ({
+                year,
+                terms: Array.from(yearMap[year]).sort((t1, t2) => {
+                    const idx1 = termOrder.indexOf(t1);
+                    const idx2 = termOrder.indexOf(t2);
+                    if (idx1 !== -1 && idx2 !== -1) return idx1 - idx2;
+                    return t1.localeCompare(t2);
+                })
+            }));
+    }, [generatedReportCardsList, assessments, marks]);
+
+    // Accordion Active Year & Term (auto-synced to first available if not matching)
+    const initialYear = yearTermsTree[0]?.year || '2026';
+    const initialTerm = yearTermsTree[0]?.terms[0] || 'Term 2';
+    const [expandedYear, setExpandedYear] = useState<string>(initialYear);
+    const [selectedTerm, setSelectedTerm] = useState<string>(initialTerm);
+    const [selectedYear, setSelectedYear] = useState<string>(initialYear);
 
     // Left Navigation Items
     const navItems = [
@@ -438,89 +381,82 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     </div>
                 </div>
 
-                {/* THE FUTURISTIC CYBER REPORT CARD DOCUMENT */}
-                <div className="bg-slate-950 text-white p-8 md:p-12 rounded-[3rem] shadow-2xl border border-indigo-500/30 relative overflow-hidden space-y-10 no-print-bg">
-                    {/* Background Ambient Glow Effects */}
-                    <div className="absolute -top-32 -left-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-                    <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none" />
+                {/* THE OFFICIAL ACADEMIC REPORT CARD DOCUMENT (LIGHT THEME) */}
+                <div className="bg-white text-slate-900 p-8 md:p-12 rounded-[2.5rem] shadow-xl border border-slate-200/90 relative overflow-hidden space-y-8 print:p-0 print:shadow-none print:border-none print:rounded-none">
 
-                    {/* FUTURISTIC SCHOOL BANNER */}
-                    <div className="relative flex flex-col md:flex-row justify-between items-center gap-6 p-8 bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-indigo-500/20 shadow-2xl">
+                    {/* OFFICIAL SCHOOL BANNER */}
+                    <div className="relative flex flex-col md:flex-row justify-between items-center gap-6 p-6 md:p-8 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-3xl border border-slate-200/90 shadow-xs">
                         <div className="flex items-center gap-5">
-                            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-600 to-emerald-500 rounded-2xl p-0.5 shadow-lg shadow-indigo-500/30">
-                                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-3xl font-black text-white">
-                                    {(currentInstitution?.name || 'S').charAt(0)}
-                                </div>
+                            <div className="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center text-3xl font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
+                                {(currentInstitution?.name || 'S').charAt(0)}
                             </div>
                             <div>
-                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-400 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-500/30">
-                                    VERIFIED CYBER ACADEMIC RECORD
+                                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-indigo-700 bg-indigo-100/80 px-3 py-1 rounded-full border border-indigo-200">
+                                    OFFICIAL ACADEMIC REPORT CARD
                                 </span>
-                                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white mt-1">
+                                <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mt-1.5">
                                     {currentInstitution?.name || 'SONGOLIET SECONDARY SCHOOL'}
                                 </h1>
-                                <p className="text-xs text-indigo-300 font-mono mt-0.5">
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">
                                     P.O. BOX 2864, ELDORET &bull; TEL: 0723 706 550 &bull; INSTITUTION CODE: KNE-84092
                                 </p>
                             </div>
                         </div>
 
-                        <div className="text-right flex flex-col items-end border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 md:pl-6">
+                        <div className="text-right flex flex-col items-end border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-6 shrink-0">
                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">ACADEMIC PERIOD</span>
-                            <span className="text-lg font-black text-indigo-400 uppercase tracking-tight mt-0.5">
+                            <span className="text-lg font-black text-indigo-600 uppercase tracking-tight mt-0.5">
                                 {selectedYear} &bull; {selectedTerm.toUpperCase()}
                             </span>
-                            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/50 px-2.5 py-0.5 rounded-md mt-1 border border-emerald-500/30">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md mt-1 border border-emerald-200">
                                 OFFICIAL END-OF-TERM CARD
                             </span>
                         </div>
                     </div>
 
-                    {/* STUDENT BIOMETRIC HUD CARD */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800">
+                    {/* STUDENT PROFILE & PERFORMANCE HUD */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90">
                         {/* Student Avatar & Basic Info */}
-                        <div className="lg:col-span-4 flex items-center gap-4 border-b lg:border-b-0 lg:border-r border-slate-800 pb-4 lg:pb-0 lg:pr-6">
-                            <div className="relative">
-                                <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-indigo-500 to-emerald-400 p-0.5">
-                                    <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-3xl font-black">
-                                        👤
-                                    </div>
+                        <div className="lg:col-span-4 flex items-center gap-4 border-b lg:border-b-0 lg:border-r border-slate-200 pb-4 lg:pb-0 lg:pr-6">
+                            <div className="relative shrink-0">
+                                <div className="w-18 h-18 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-3xl text-indigo-600 shadow-xs">
+                                    👤
                                 </div>
-                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" />
                             </div>
 
-                            <div>
-                                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">STUDENT NAME</span>
-                                <h3 className="text-lg font-black text-white uppercase leading-tight">{currentStudent.name}</h3>
-                                <p className="text-xs font-mono text-slate-400 mt-0.5">ADM NO: <span className="text-emerald-400 font-bold">{currentStudent.admissionNo || currentStudent.id}</span></p>
-                                <p className="text-xs text-slate-300 font-bold mt-0.5">CLASS: <span className="text-indigo-300 font-black">Form 3 East</span></p>
+                            <div className="min-w-0">
+                                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
+                                <h3 className="text-lg font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
+                                <p className="text-xs font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{currentStudent.admissionNo || currentStudent.id}</span></p>
+                                <p className="text-xs text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{(currentStudent as any).studentClass || 'Form 3 East'}</span></p>
                             </div>
                         </div>
 
                         {/* Mean Performance Metrics HUD */}
                         <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+                            <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">MEAN POINTS</span>
-                                <div className="text-2xl font-black text-indigo-400 mt-1">{studentSummary.meanPts}</div>
+                                <div className="text-2xl font-black text-indigo-600 mt-1">{studentSummary.meanPts}</div>
                                 <span className="text-[9px] font-bold text-slate-500 uppercase">Points Avg</span>
                             </div>
 
-                            <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+                            <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">MEAN SCORE (%)</span>
-                                <div className="text-2xl font-black text-emerald-400 mt-1">{studentSummary.meanScore}%</div>
-                                <span className="text-[9px] font-bold text-emerald-500 uppercase">Grade: {studentSummary.meanGrade}</span>
+                                <div className="text-2xl font-black text-emerald-600 mt-1">{studentSummary.meanScore}%</div>
+                                <span className="text-[9px] font-bold text-emerald-600 uppercase">Grade: {studentSummary.meanGrade}</span>
                             </div>
 
-                            <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+                            <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">OVERALL RANK</span>
-                                <div className="text-2xl font-black text-amber-400 mt-1">{studentSummary.overallPos} <span className="text-xs text-slate-500 font-normal">/ {studentSummary.totalStudents}</span></div>
+                                <div className="text-2xl font-black text-slate-900 mt-1">{studentSummary.overallPos} <span className="text-xs text-slate-400 font-normal">/ {studentSummary.totalStudents}</span></div>
                                 <span className="text-[9px] font-bold text-slate-500 uppercase">School Position</span>
                             </div>
 
-                            <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+                            <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
                                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">STREAM RANK</span>
-                                <div className="text-2xl font-black text-purple-400 mt-1">{studentSummary.streamPos} <span className="text-xs text-slate-500 font-normal">/ {studentSummary.streamStudents}</span></div>
-                                <span className="text-[9px] font-bold text-purple-400 uppercase">V.A.P: {studentSummary.vap}</span>
+                                <div className="text-2xl font-black text-purple-600 mt-1">{studentSummary.streamPos} <span className="text-xs text-slate-400 font-normal">/ {studentSummary.streamStudents}</span></div>
+                                <span className="text-[9px] font-bold text-purple-600 uppercase">V.A.P: {studentSummary.vap}</span>
                             </div>
                         </div>
                     </div>
@@ -528,49 +464,49 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     {/* SUBJECT MARKS PERFORMANCE MATRIX */}
                     <div className="space-y-3">
                         <div className="flex justify-between items-center px-1">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                                 📊 SUBJECT PERFORMANCE MATRIX
                             </h4>
-                            <span className="text-[10px] font-mono text-slate-400">8 SUBJECTS RECORDED</span>
+                            <span className="text-[10px] font-mono text-slate-400">{activeSubjects.length} SUBJECTS RECORDED</span>
                         </div>
 
-                        <div className="bg-slate-900/80 rounded-3xl border border-slate-800 overflow-hidden shadow-xl">
+                        <div className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-xs">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-slate-950 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                    <thead className="bg-slate-100/80 text-[10px] font-black uppercase text-slate-600 tracking-widest">
                                         <tr>
-                                            <th className="p-4 border-b border-slate-800">SUBJECT</th>
-                                            <th className="p-4 border-b border-slate-800 text-center">MID TERM</th>
-                                            <th className="p-4 border-b border-slate-800 text-center">END TERM</th>
-                                            <th className="p-4 border-b border-slate-800 text-center">TOTAL</th>
-                                            <th className="p-4 border-b border-slate-800 text-center">GRADE</th>
-                                            <th className="p-4 border-b border-slate-800 text-center">PTS</th>
-                                            <th className="p-4 border-b border-slate-800 text-center">POS</th>
-                                            <th className="p-4 border-b border-slate-800">REMARKS</th>
-                                            <th className="p-4 border-b border-slate-800 text-right">TEACHER</th>
+                                            <th className="p-4 border-b border-slate-200">SUBJECT</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">MID TERM</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">END TERM</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">TOTAL</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">GRADE</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">PTS</th>
+                                            <th className="p-4 border-b border-slate-200 text-center">POS</th>
+                                            <th className="p-4 border-b border-slate-200">REMARKS</th>
+                                            <th className="p-4 border-b border-slate-200 text-right">TEACHER</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-800/60 text-xs font-semibold">
+                                    <tbody className="divide-y divide-slate-100 text-xs font-semibold">
                                         {subjectPerformance.map(row => (
-                                            <tr key={row.subject.id} className="hover:bg-slate-800/40 transition-colors">
-                                                <td className="p-4 font-black uppercase text-white">{row.subject.name}</td>
-                                                <td className="p-4 text-center font-mono text-slate-400">{row.midTerm}</td>
-                                                <td className="p-4 text-center font-mono text-slate-300">{row.endTerm}</td>
-                                                <td className="p-4 text-center font-black text-indigo-400 text-sm">{row.total}</td>
+                                            <tr key={row.subject.id} className="hover:bg-indigo-50/20 transition-colors">
+                                                <td className="p-4 font-bold uppercase text-slate-900">{row.subject.name}</td>
+                                                <td className="p-4 text-center font-mono text-slate-600">{row.midTerm}</td>
+                                                <td className="p-4 text-center font-mono text-slate-700">{row.endTerm}</td>
+                                                <td className="p-4 text-center font-black text-indigo-600 text-sm">{row.total}</td>
                                                 <td className="p-4 text-center">
                                                     <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
-                                                        ['A', 'A-', 'EE'].includes(row.grade) ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' :
-                                                        ['B+', 'B', 'B-', 'ME'].includes(row.grade) ? 'bg-indigo-950 text-indigo-300 border border-indigo-500/30' :
-                                                        ['C+', 'C', 'C-', 'AE'].includes(row.grade) ? 'bg-amber-950 text-amber-300 border border-amber-500/30' :
-                                                        'bg-rose-950 text-rose-300 border border-rose-500/30'
+                                                        ['A', 'A-', 'EE'].includes(row.grade) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                        ['B+', 'B', 'B-', 'ME'].includes(row.grade) ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                                        ['C+', 'C', 'C-', 'AE'].includes(row.grade) ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                        'bg-rose-50 text-rose-700 border border-rose-200'
                                                     }`}>
                                                         {row.grade}
                                                     </span>
                                                 </td>
-                                                <td className="p-4 text-center font-bold text-slate-300">{row.pts}</td>
-                                                <td className="p-4 text-center font-mono text-slate-400">{row.pos}</td>
-                                                <td className="p-4 text-slate-300 text-[11px] uppercase font-bold">{row.remark}</td>
-                                                <td className="p-4 text-right font-mono text-indigo-400 text-[10px]">{row.teacherSig}</td>
+                                                <td className="p-4 text-center font-bold text-slate-700">{row.pts}</td>
+                                                <td className="p-4 text-center font-mono text-slate-500">{row.pos}</td>
+                                                <td className="p-4 text-slate-600 text-[11px] uppercase font-bold">{row.remark}</td>
+                                                <td className="p-4 text-right font-mono text-indigo-600 text-[10px]">{row.teacherSig}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -582,13 +518,13 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     {/* PROGRESS HISTORY & ATTENDANCE / FEES GRID */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                         {/* Progress History Table */}
-                        <div className="lg:col-span-7 bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800 space-y-3">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+                        <div className="lg:col-span-7 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90 space-y-3">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
                                 📈 STUDENT PROGRESS HISTORY
                             </h4>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 overflow-hidden">
                                 <table className="w-full text-left text-xs">
-                                    <thead className="bg-slate-950 text-[9px] font-black uppercase text-slate-400">
+                                    <thead className="bg-slate-100/80 text-[9px] font-black uppercase text-slate-600">
                                         <tr>
                                             <th className="p-2.5">PERIOD</th>
                                             <th className="p-2.5 text-center">RANK</th>
@@ -596,13 +532,13 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                             <th className="p-2.5 text-right">GRADE</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-800">
+                                    <tbody className="divide-y divide-slate-100">
                                         {progressHistory.map((ph, idx) => (
                                             <tr key={idx}>
-                                                <td className="p-2.5 font-bold text-slate-300">{ph.period}</td>
-                                                <td className="p-2.5 text-center font-mono text-amber-400 font-bold">#{ph.rank}</td>
-                                                <td className="p-2.5 text-center font-mono text-indigo-400 font-bold">{ph.pts}</td>
-                                                <td className="p-2.5 text-right font-black text-slate-200">{ph.grade}</td>
+                                                <td className="p-2.5 font-bold text-slate-700">{ph.period}</td>
+                                                <td className="p-2.5 text-center font-mono text-amber-600 font-bold">#{ph.rank}</td>
+                                                <td className="p-2.5 text-center font-mono text-indigo-600 font-bold">{ph.pts}</td>
+                                                <td className="p-2.5 text-right font-black text-slate-800">{ph.grade}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -611,23 +547,23 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                         </div>
 
                         {/* Attendance & Fee Balance Widget */}
-                        <div className="lg:col-span-5 bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-800 space-y-4 text-xs">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                        <div className="lg:col-span-5 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90 space-y-4 text-xs">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
                                 🛡️ ATTENDANCE & DISCIPLINE
                             </h4>
-                            <div className="grid grid-cols-2 gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                            <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
                                 <div>
                                     <span className="text-[9px] font-black text-slate-400 block">DAYS PRESENT</span>
-                                    <span className="font-black text-emerald-400 text-sm">64 / 65</span>
+                                    <span className="font-black text-emerald-600 text-sm">64 / 65</span>
                                 </div>
                                 <div>
                                     <span className="text-[9px] font-black text-slate-400 block">DISCIPLINE CASES</span>
-                                    <span className="font-black text-slate-200 text-sm">0 (CLEAN)</span>
+                                    <span className="font-black text-slate-700 text-sm">0 (CLEAN)</span>
                                 </div>
                             </div>
 
-                            <div className="pt-2 border-t border-slate-800 space-y-2">
-                                <h4 className="text-xs font-black uppercase tracking-widest text-amber-400">💰 FEE STATUS SUMMARY</h4>
+                            <div className="pt-2 border-t border-slate-200 space-y-2">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-amber-700">💰 FEE STATUS SUMMARY</h4>
                                 {(() => {
                                     const studentFinance = feeBalances[currentStudent.id] ||
                                         feeBalances[currentStudent.admissionNo || ''] || {
@@ -636,22 +572,22 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                             totalDue: 18500
                                         };
                                     return (
-                                        <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
+                                        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Fees Balance:</span>
-                                                <span className={`font-mono font-bold ${studentFinance.balance > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                <span className="text-slate-500 font-medium">Fees Balance:</span>
+                                                <span className={`font-mono font-bold ${studentFinance.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                                     KES {studentFinance.balance.toLocaleString()}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Next Term Fees:</span>
-                                                <span className="font-mono text-slate-200">
+                                                <span className="text-slate-500 font-medium">Next Term Fees:</span>
+                                                <span className="font-mono text-slate-800 font-semibold">
                                                     KES {studentFinance.nextTermFees.toLocaleString()}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between border-t border-slate-800 pt-1 font-black">
-                                                <span className="text-amber-400">TOTAL DUE ON REOPENING:</span>
-                                                <span className="font-mono text-amber-400">
+                                            <div className="flex justify-between border-t border-slate-100 pt-1.5 font-black">
+                                                <span className="text-indigo-900">TOTAL DUE ON REOPENING:</span>
+                                                <span className="font-mono text-indigo-600">
                                                     KES {studentFinance.totalDue.toLocaleString()}
                                                 </span>
                                             </div>
@@ -663,38 +599,36 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     </div>
 
                     {/* TEACHER COMMENTS & PRINCIPAL SEAL */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-900/80 backdrop-blur-md p-6 rounded-3xl border border-slate-800">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90">
                         <div className="lg:col-span-8 space-y-3">
                             <div>
-                                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">CLASS TEACHER'S REMARKS [ Lionel Japkoech ]</span>
-                                <p className="text-xs font-bold text-slate-200 mt-1 italic bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">CLASS TEACHER'S REMARKS [ Lionel Japkoech ]</span>
+                                <p className="text-xs font-medium text-slate-700 mt-1 italic bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs leading-relaxed">
                                     "Work rate has shown steady positive trajectory. Recommended for academic merit."
                                 </p>
                             </div>
                             <div>
-                                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">PRINCIPAL / HEADTEACHER REMARKS [ Paul Martin ]</span>
-                                <p className="text-xs font-bold text-slate-200 mt-1 italic bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">PRINCIPAL / HEADTEACHER REMARKS [ Paul Martin ]</span>
+                                <p className="text-xs font-medium text-slate-700 mt-1 italic bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs leading-relaxed">
                                     "Commendable discipline and consistency. Focus on Mathematics to reach target grade A."
                                 </p>
                             </div>
                         </div>
 
                         {/* Encrypted QR Seal */}
-                        <div className="lg:col-span-4 flex flex-col items-center justify-center p-4 bg-slate-950 rounded-2xl border border-indigo-500/20 text-center space-y-2">
-                            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-emerald-400 rounded-xl p-0.5">
-                                <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center text-xs font-black text-indigo-300">
-                                    <FingerPrintIcon className="w-8 h-8 text-emerald-400 animate-pulse" />
-                                </div>
+                        <div className="lg:col-span-4 flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-indigo-100 shadow-xs text-center space-y-2">
+                            <div className="w-16 h-16 bg-indigo-50 border border-indigo-200 rounded-xl p-0.5 flex items-center justify-center">
+                                <FingerPrintIcon className="w-8 h-8 text-indigo-600" />
                             </div>
-                            <span className="text-[9px] font-mono text-slate-400 block">DIGITAL VERIFICATION SEAL</span>
-                            <span className="text-[8px] font-mono text-emerald-400 block">HASH: 8F92-A39B-4091-E271</span>
+                            <span className="text-[9px] font-bold text-slate-500 block">DIGITAL VERIFICATION SEAL</span>
+                            <span className="text-[8px] font-mono text-slate-400 block">HASH: 8F92-A39B-4091-E271</span>
                         </div>
                     </div>
 
                     {/* FOOTER BAR */}
-                    <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <span>SCHOOL CLOSED ON: <strong className="text-white">25/08/2026</strong></span>
-                        <span>NEXT TERM BEGINS ON: <strong className="text-emerald-400">20/09/2026</strong></span>
+                    <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        <span>SCHOOL CLOSED ON: <strong className="text-slate-800">25/08/2026</strong></span>
+                        <span>NEXT TERM BEGINS ON: <strong className="text-emerald-600">20/09/2026</strong></span>
                     </div>
                 </div>
             </div>
@@ -709,9 +643,19 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 onApplyReportConfig={(config) => {
                     setSelectedYear(config.academicYear);
                     setSelectedTerm(config.academicTerm);
+                    setExpandedYear(config.academicYear);
                     if (config.feeBalances) {
                         setFeeBalances(config.feeBalances);
                     }
+                    const newEntry = { year: config.academicYear, term: config.academicTerm, generatedAt: new Date().toISOString() };
+                    setGeneratedReportCardsList(prev => {
+                        const exists = prev.some(e => e.year === newEntry.year && e.term === newEntry.term);
+                        const updated = exists ? prev : [newEntry, ...prev];
+                        try {
+                            localStorage.setItem(`eduai_generated_report_cards_${currentInstitution?.id || 'default'}`, JSON.stringify(updated));
+                        } catch (e) {}
+                        return updated;
+                    });
                 }}
             />
         </div>
