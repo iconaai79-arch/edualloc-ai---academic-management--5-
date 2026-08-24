@@ -17201,7 +17201,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </div>
                                                     )}
                                                 </div>
-                                            </div>
+                                            );
+                                        })()}
                                         </div>
                                     </div>
                                 );
