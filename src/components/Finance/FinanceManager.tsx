@@ -1085,12 +1085,101 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const invoicePaidAmountMap = useMemo(() => {
         const directPaidMap = new Map<string, number>();
         const studentReceiptsMap = new Map<string, any[]>();
-        const admReceiptsMap = new Map<string, any[]>();
+        const studentInvoicesMap = new Map<string, any[]>();
+        const unassignedInvoices: any[] = [];
 
+        const studentList = mergedStudents && mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+
+        // Build a helper map to resolve any student alias/admNo/userId to canonical student object
+        const identifierToStudentMap = new Map<string, any>();
+        studentList.forEach(s => {
+            const studentIds = new Set<string>();
+            if (s.id) {
+                studentIds.add(String(s.id).trim().toLowerCase());
+                studentIds.add(cleanId(String(s.id)).toLowerCase());
+            }
+            if ((s as any).userId) {
+                studentIds.add(String((s as any).userId).trim().toLowerCase());
+                studentIds.add(cleanId(String((s as any).userId)).toLowerCase());
+            }
+            if ((s as any).user_id) {
+                studentIds.add(String((s as any).user_id).trim().toLowerCase());
+                studentIds.add(cleanId(String((s as any).user_id)).toLowerCase());
+            }
+            const adm = getStudentAdmNumber(s) || studentAdmissionNumber(s);
+            if (adm && adm !== '—') {
+                const admClean = String(adm).trim().toLowerCase();
+                studentIds.add(admClean);
+                const noZeros = admClean.replace(/^0+/, '');
+                if (noZeros) studentIds.add(noZeros);
+            }
+            [
+                s.admissionNumber,
+                (s as any).admission_number,
+                (s as any).admissionNo,
+                (s as any).admNo,
+                (s as any).adm_no,
+                (s as any).staffId,
+                (s as any).staff_id,
+                (s as any).customStudentId,
+                (s as any).custom_student_id,
+                (s as any).regNo,
+                (s as any).reg_no,
+                (s as any).registrationNumber,
+                (s as any).registration_number,
+                s.metadata?.admissionNumber,
+                s.metadata?.admission_number,
+                s.metadata?.admNo
+            ].forEach(val => {
+                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== '—' && String(val).trim() !== 'undefined') {
+                    const str = String(val).trim().toLowerCase();
+                    studentIds.add(str);
+                    const stripped = str.replace(/^0+/, '');
+                    if (stripped) studentIds.add(stripped);
+                }
+            });
+            if (s.name) {
+                studentIds.add(String(s.name).trim().toLowerCase());
+            }
+
+            studentIds.forEach(idKey => {
+                if (idKey && !identifierToStudentMap.has(idKey)) {
+                    identifierToStudentMap.set(idKey, s);
+                }
+            });
+        });
+
+        const resolveStudent = (record: any) => {
+            if (!record) return null;
+            const possibleKeys = [
+                record.studentId,
+                record.student_id,
+                record.userId,
+                record.user_id,
+                record.admissionNumber,
+                record.admission_number,
+                record.studentAdmissionNumber,
+                record.admNo,
+                record.adm_no,
+                record.metadata?.admissionNumber,
+                record.metadata?.admNo,
+                record.studentName,
+                record.student_name,
+                record.name
+            ];
+            for (const key of possibleKeys) {
+                if (key !== undefined && key !== null && String(key).trim() !== '' && String(key).trim() !== '—') {
+                    const str = String(key).trim().toLowerCase();
+                    const found = identifierToStudentMap.get(str) || identifierToStudentMap.get(str.replace(/^0+/, ''));
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+
+        // 1. Process all receipts
         (mappedReceipts || []).forEach((r: any) => {
             const invId = r.invoiceId || r.invoice_id;
-            const sId = r.studentId || r.student_id;
-            const adm = String(r.admissionNumber || r.admission_number || '').trim().toLowerCase();
             const amt = Number(r.amountPaid || r.amount_paid || r.amount || 0);
             if (amt <= 0) return;
 
@@ -1099,43 +1188,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 directPaidMap.set(invId, (directPaidMap.get(invId) || 0) + amt);
             }
 
-            if (sId) {
-                if (!studentReceiptsMap.has(sId)) studentReceiptsMap.set(sId, []);
-                studentReceiptsMap.get(sId)!.push(r);
-            }
-            if (adm) {
-                if (!admReceiptsMap.has(adm)) admReceiptsMap.set(adm, []);
-                admReceiptsMap.get(adm)!.push(r);
-            }
+            const student = resolveStudent(r);
+            const sKey = student ? student.id : (r.studentId || r.student_id || r.admissionNumber || r.admission_number || r.studentName || 'unassigned');
+            if (!studentReceiptsMap.has(sKey)) studentReceiptsMap.set(sKey, []);
+            studentReceiptsMap.get(sKey)!.push(r);
         });
 
-        // Group invoices by student
-        const studentInvoicesMap = new Map<string, any[]>();
+        // 2. Group invoices by student
         (mappedInvoices || []).forEach((inv: any) => {
-            const sId = inv.studentId || inv.student_id;
-            if (sId) {
-                if (!studentInvoicesMap.has(sId)) studentInvoicesMap.set(sId, []);
-                studentInvoicesMap.get(sId)!.push(inv);
+            const student = resolveStudent(inv);
+            const sKey = student ? student.id : (inv.studentId || inv.student_id || inv.admissionNumber || inv.admission_number || inv.studentName || null);
+            if (sKey) {
+                if (!studentInvoicesMap.has(sKey)) studentInvoicesMap.set(sKey, []);
+                studentInvoicesMap.get(sKey)!.push(inv);
+            } else {
+                unassignedInvoices.push(inv);
             }
         });
 
         const resultMap = new Map<string, number>();
 
-        // Process each student's invoices
-        studentInvoicesMap.forEach((invoices, sId) => {
-            const student = (props.students || []).find((s: any) => s.id === sId);
-            const sAdm = String(student?.admissionNumber || (student as any)?.admission_number || '').trim().toLowerCase();
+        // 3. Process each student's invoices using FIFO allocation
+        studentInvoicesMap.forEach((invoices, sKey) => {
+            const matchedReceipts = studentReceiptsMap.get(sKey) || [];
+            const totalStudentPaid = matchedReceipts.reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount_paid || r.amount || 0), 0);
 
-            // Collect all receipts belonging to this student
-            const matchedReceipts = new Set<any>();
-            (studentReceiptsMap.get(sId) || []).forEach(r => matchedReceipts.add(r));
-            if (sAdm && admReceiptsMap.has(sAdm)) {
-                (admReceiptsMap.get(sAdm) || []).forEach(r => matchedReceipts.add(r));
-            }
-
-            const totalStudentPaid = Array.from(matchedReceipts).reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount_paid || r.amount || 0), 0);
-
-            // Sort invoices chronologically (FIFO allocation)
+            // Sort invoices chronologically
             const sortedInvoices = [...invoices].sort((a: any, b: any) => {
                 const dateA = new Date(a.issueDate || a.issue_date || a.createdAt || a.created_at || 0).getTime();
                 const dateB = new Date(b.issueDate || b.issue_date || b.createdAt || b.created_at || 0).getTime();
@@ -1144,9 +1222,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             let remainingPaidPool = totalStudentPaid;
 
-            // Pass 1: Explicit direct links first
+            // Pass 1: Explicit direct links or invoice-stored paidAmount first
             sortedInvoices.forEach(inv => {
-                const directAmt = directPaidMap.get(inv.id) || 0;
+                const directAmt = directPaidMap.get(inv.id) || Number(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
                 if (directAmt > 0) {
                     resultMap.set(inv.id, directAmt);
                     remainingPaidPool = Math.max(0, remainingPaidPool - directAmt);
@@ -1156,7 +1234,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             // Pass 2: Allocate unassigned student payment pool across remaining invoices
             sortedInvoices.forEach(inv => {
                 if (resultMap.has(inv.id)) return; // Already directly assigned
-                const invTotal = Number(inv.totalAmount || inv.total_amount || 0);
+                const invTotal = Number(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                 if (remainingPaidPool > 0) {
                     const allocated = Math.min(invTotal, remainingPaidPool);
                     resultMap.set(inv.id, allocated);
@@ -1167,16 +1245,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             });
         });
 
-        // Fallback for any invoices not in studentInvoicesMap (e.g. general invoices)
+        // 4. Process unassigned invoices
+        unassignedInvoices.forEach((inv: any) => {
+            const directAmt = directPaidMap.get(inv.id) || Number(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
+            resultMap.set(inv.id, directAmt);
+        });
+
+        // Fallback safety for any remaining mappedInvoices
         (mappedInvoices || []).forEach((inv: any) => {
             if (!resultMap.has(inv.id)) {
-                const directAmt = directPaidMap.get(inv.id) || 0;
+                const directAmt = directPaidMap.get(inv.id) || Number(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
                 resultMap.set(inv.id, directAmt);
             }
         });
 
         return resultMap;
-    }, [mappedInvoices, mappedReceipts, props.students]);
+    }, [mappedInvoices, mappedReceipts, mergedStudents, props.students, cleanId, getStudentAdmNumber, studentAdmissionNumber]);
 
     const mappedExpenses = useMemo(() => {
         return (props.expenses || []).filter((exp: any) => matchesSelectedBranch(exp));
@@ -1230,6 +1314,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [dailyColSearch, setDailyColSearch] = useState('');
     const [dailyColCurrentPage, setDailyColCurrentPage] = useState(1);
     const [dailyColPerPage, setDailyColPerPage] = useState<number>(15);
+
+    // Cash Book Pagination & Filter States
+    const [cbCurrentPage, setCbCurrentPage] = useState(1);
+    const [cbPerPage, setCbPerPage] = useState<number>(15);
+    const [cbSearch, setCbSearch] = useState('');
+
+    // Fee Register Pagination & Filter States
+    const [feeRegCurrentPage, setFeeRegCurrentPage] = useState(1);
+    const [feeRegPerPage, setFeeRegPerPage] = useState<number>(25);
+    const [feeRegSearch, setFeeRegSearch] = useState('');
+
+    // Fee Installment Pagination & Filter States
+    const [installmentCurrentPage, setInstallmentCurrentPage] = useState(1);
+    const [installmentPerPage, setInstallmentPerPage] = useState<number>(25);
+    const [installmentSearch, setInstallmentSearch] = useState('');
 
     // State for settings sub-tabs
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'grades_streams' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding' | 'numbering'>('opening_balance');
@@ -1297,9 +1396,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
         const initialMap: Record<string, number> = {};
-        props.students.forEach(s => {
-            const ob = s.metadata?.openingBalance ?? s.metadata?.opening_balance ?? s.openingBalance ?? s.opening_balance ?? s.metadata?.balanceBf ?? s.metadata?.balance_bf ?? s.balanceBf ?? s.balance_bf ?? s.metadata?.balance ?? 0;
-            initialMap[s.id] = parseMoneyAmount(ob);
+        props.students.forEach((s: any) => {
+            initialMap[s.id] = extractStudentOpeningBalance(s);
         });
         return initialMap;
     });
@@ -1308,13 +1406,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (!mergedStudents || mergedStudents.length === 0) return;
         setOpeningBalancesMap(prev => {
             const newMap: Record<string, number> = {};
-            mergedStudents.forEach(s => {
-                const rawOb = s.metadata?.openingBalance ?? s.metadata?.opening_balance ?? s.openingBalance ?? s.opening_balance ?? s.metadata?.balanceBf ?? s.metadata?.balance_bf ?? s.balanceBf ?? s.balance_bf ?? s.metadata?.balance;
-                newMap[s.id] = parseMoneyAmount(rawOb !== undefined ? rawOb : (prev[s.id] ?? 0));
+            mergedStudents.forEach((s: any) => {
+                const rawOb = extractStudentOpeningBalance(s);
+                newMap[s.id] = rawOb !== undefined ? rawOb : (prev[s.id] ?? 0);
             });
             return newMap;
         });
-    }, [mergedStudents]);
+    }, [mergedStudents, extractStudentOpeningBalance]);
 
     // Importer State
     const [showImporter, setShowImporter] = useState(false);
@@ -4611,10 +4709,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const filteredStudentInvoices = useMemo(() => {
         return mappedInvoices.filter((inv: any) => {
             const studentId = inv.studentId || inv.student_id;
-            const student = studentId ? studentFinanceData.find(s => s.id === studentId) : null;
-            const adm = student?.admissionNumber || student?.admission_number || '—';
-            const sName = student?.name || 'Unknown Student';
-            const sClass = student ? studentClassGroup(student) : '—';
+            const student = studentId 
+                ? (studentFinanceData.find(s => s.id === studentId) || (mergedStudents || []).find((s: any) => s.id === studentId))
+                : ((mergedStudents || []).find((s: any) => {
+                    const adm = getStudentAdmNumber(s);
+                    const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).metadata?.admissionNumber;
+                    if (invAdm && adm && String(adm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
+                    if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
+                    return false;
+                }) || null);
+
+            const adm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).admNo || '—';
+            const sName = student?.name || (inv as any).studentName || (inv as any).student_name || 'Unknown Student';
+            const sClass = student ? studentClassGroup(student) : ((inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || '—');
             const invNo = inv.invoiceNumber || inv.invoice_number || '—';
 
             let matchesQuery = true;
@@ -4628,7 +4735,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             let matchesStatus = true;
             if (invoiceStatusFilter !== 'All') {
-                matchesStatus = String(inv.status).toLowerCase() === invoiceStatusFilter.toLowerCase();
+                const paid = invoicePaidAmountMap.get(inv.id) || 0;
+                const totalAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || 0);
+                const effectiveStatus = (paid >= totalAmt && totalAmt > 0) 
+                    ? 'paid' 
+                    : (paid > 0 ? 'partial' : (inv.status || 'pending'));
+                matchesStatus = effectiveStatus.toLowerCase() === invoiceStatusFilter.toLowerCase();
             }
 
             let matchesClass = true;
@@ -4638,7 +4750,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             return matchesQuery && matchesStatus && matchesClass;
         });
-    }, [mappedInvoices, studentFinanceData, searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
+    }, [mappedInvoices, studentFinanceData, mergedStudents, searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter, invoicePaidAmountMap, getStudentAdmNumber]);
 
     const [invoiceCurrentPage, setInvoiceCurrentPage] = useState(1);
 
@@ -9338,11 +9450,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-450 tracking-wider">Collected / Paid</span>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {filteredStudentInvoices.reduce((sum, inv) => {
-                                        const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
-                                        const paid = allocations.reduce((s, r) => {
-                                            const amt = r.amountPaid || (r as any).amount_paid || 0;
-                                            return s + parseMoneyAmount(amt);
-                                        }, 0);
+                                        const paid = invoicePaidAmountMap.get(inv.id) || 0;
                                         return sum + paid;
                                     }, 0).toLocaleString()}
                                 </h3>
@@ -9352,13 +9460,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <span className="text-[10px] font-black uppercase text-rose-650 tracking-wider">Outstanding Balance</span>
                                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
                                     KES {Math.max(0, filteredStudentInvoices.reduce((sum, inv) => {
-                                        const allocations = props.receipts.filter(r => (r.invoiceId || (r as any).invoice_id) === inv.id);
-                                        const paid = allocations.reduce((s, r) => {
-                                            const amt = r.amountPaid || (r as any).amount_paid || 0;
-                                            return s + parseMoneyAmount(amt);
-                                        }, 0);
-                                        const totalAmt = inv.totalAmount || (inv as any).total_amount || 0;
-                                        return sum + Math.max(0, parseMoneyAmount(totalAmt) - paid);
+                                        const paid = invoicePaidAmountMap.get(inv.id) || 0;
+                                        const totalAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || 0);
+                                        return sum + Math.max(0, totalAmt - paid);
                                     }, 0)).toLocaleString()}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-semibold mt-1">Unpaid billing totals</p>
@@ -9506,6 +9610,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const gradeName = (student ? studentClassGroup(student) : null) || (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || '—';
                                             const paidAmount = invoicePaidAmountMap.get(inv.id) || 0;
                                             const totalAmount = Number(inv.totalAmount || (inv as any).total_amount || 0);
+                                            const effectiveStatus = (paidAmount >= totalAmount && totalAmount > 0)
+                                                ? 'paid'
+                                                : (paidAmount > 0 ? 'partial' : (inv.status || 'pending'));
 
                                             return (
                                                 <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
@@ -9535,15 +9642,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <td className="px-6 py-4 text-right text-xs font-bold text-emerald-600">KES {paidAmount.toLocaleString()}</td>
                                                     <td className="px-6 py-4 text-center">
                                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                                            inv.status === 'paid'
+                                                            effectiveStatus === 'paid'
                                                                 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-455 border-emerald-200 dark:border-emerald-500/20'
-                                                                : inv.status === 'partial'
+                                                                : effectiveStatus === 'partial'
                                                                 ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-455 border-blue-200 dark:border-blue-500/20'
-                                                                : inv.status === 'cancelled'
+                                                                : effectiveStatus === 'cancelled'
                                                                 ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-450 border-rose-200 dark:border-rose-500/20'
                                                                 : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-450 border-amber-200 dark:border-amber-500/20'
                                                         }`}>
-                                                            {inv.status || 'pending'}
+                                                            {effectiveStatus}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
@@ -17222,281 +17329,497 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         )}
 
                                         {/* 2. Cash Book */}
-                                        {ledgerSubTab === 'cash_book' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
-                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                                    <div>
-                                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Cash Book Ledger</h3>
-                                                        <p className="text-[10px] text-slate-400 font-medium">Double entry journal grouped by day with live Balance Brought Forward (bf)</p>
-                                                    </div>
-                                                    
-                                                    {/* Print Button */}
-                                                    <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">🖨️ Print Cash Book</button>
-                                                </div>
+                                        {ledgerSubTab === 'cash_book' && (() => {
+                                            const searchedDailyCashBook = dailyCashBook.filter(day => {
+                                                if (!cbSearch.trim()) return true;
+                                                const q = cbSearch.toLowerCase().trim();
+                                                if (day.date.toLowerCase().includes(q)) return true;
+                                                if (day.minRcpt.toLowerCase().includes(q) || day.maxRcpt.toLowerCase().includes(q)) return true;
+                                                if (day.methodSummary && day.methodSummary.toLowerCase().includes(q)) return true;
+                                                if (day.receiptsList.some((r: any) => (r.particulars && r.particulars.toLowerCase().includes(q)) || (r.ref && r.ref.toLowerCase().includes(q)) || (r.method && r.method.toLowerCase().includes(q)))) return true;
+                                                if (day.expensesList.some((e: any) => (e.particulars && e.particulars.toLowerCase().includes(q)) || (e.ref && e.ref.toLowerCase().includes(q)))) return true;
+                                                return false;
+                                            });
 
-                                                {/* Filters block */}
-                                                <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 flex flex-col md:flex-row gap-4 items-end">
-                                                    <div className="flex-1 space-y-2">
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reporting Period</label>
-                                                        <select value={cbPeriod} onChange={e => setCbPeriod(e.target.value as any)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
-                                                            <option value="all">All Time</option>
-                                                            <option value="this_month">This Month</option>
-                                                            <option value="last_month">Last Month</option>
-                                                            <option value="custom">Custom Date Range</option>
-                                                        </select>
+                                            const activeCbList = cbViewType === 'unified'
+                                                ? searchedDailyCashBook
+                                                : cbViewType === 'receipts'
+                                                    ? searchedDailyCashBook.filter(d => d.debit > 0)
+                                                    : searchedDailyCashBook.filter(d => d.credit > 0);
+
+                                            const isCbAll = cbPerPage === 0;
+                                            const totalCbRecords = activeCbList.length;
+                                            const totalCbPages = isCbAll ? 1 : Math.ceil(totalCbRecords / cbPerPage) || 1;
+                                            const paginatedCbList = isCbAll ? activeCbList : activeCbList.slice((cbCurrentPage - 1) * cbPerPage, cbCurrentPage * cbPerPage);
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Cash Book Ledger</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium">Double entry journal grouped by day with live Balance Brought Forward (bf)</p>
+                                                        </div>
+                                                        
+                                                        {/* Actions */}
+                                                        <div className="flex flex-wrap items-center gap-2.5 print:hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (cbViewType === 'unified') {
+                                                                        const headers = ['Date', 'Balance B/F', 'Receipt Range', 'Payment Modes', 'Inflow (Dr)', 'Outflow (Cr)', 'Balance C/F'];
+                                                                        const rows = activeCbList.map(d => [
+                                                                            d.date,
+                                                                            d.bf,
+                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.methodSummary || '—',
+                                                                            d.debit,
+                                                                            d.credit,
+                                                                            d.cf
+                                                                        ]);
+                                                                        exportCSV(`cash_book_unified_${cbPeriod}`, headers, rows);
+                                                                    } else if (cbViewType === 'receipts') {
+                                                                        const headers = ['Date', 'Balance B/F', 'Receipt Range', 'Payment Modes Summary', 'Total Inflow (Dr)', 'Balance C/F'];
+                                                                        const rows = activeCbList.map(d => [
+                                                                            d.date,
+                                                                            d.bf,
+                                                                            d.minRcpt === d.maxRcpt ? d.minRcpt : `${d.minRcpt} - ${d.maxRcpt}`,
+                                                                            d.methodSummary || '—',
+                                                                            d.debit,
+                                                                            d.cf
+                                                                        ]);
+                                                                        exportCSV(`cash_book_receipts_debit_${cbPeriod}`, headers, rows);
+                                                                    } else {
+                                                                        const headers = ['Date', 'Balance B/F', 'Expenses Count', 'Total Outflow (Cr)', 'Balance C/F'];
+                                                                        const rows = activeCbList.map(d => [
+                                                                            d.date,
+                                                                            d.bf,
+                                                                            `${d.expensesList.length} expenses`,
+                                                                            d.credit,
+                                                                            d.cf
+                                                                        ]);
+                                                                        exportCSV(`cash_book_payments_credit_${cbPeriod}`, headers, rows);
+                                                                    }
+                                                                }}
+                                                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                📥 Export CSV
+                                                            </button>
+                                                            <button onClick={() => window.print()} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">🖨️ Print Cash Book</button>
+                                                        </div>
                                                     </div>
 
-                                                    {cbPeriod === 'custom' && (
-                                                        <>
-                                                            <div className="w-full md:w-44 space-y-2">
-                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Start Date</label>
-                                                                <input type="date" value={cbStartDate} onChange={e => setCbStartDate(e.target.value)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                    {/* Filters block */}
+                                                    <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 space-y-4">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Reporting Period</label>
+                                                                <select value={cbPeriod} onChange={e => { setCbPeriod(e.target.value as any); setCbCurrentPage(1); }} className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer">
+                                                                    <option value="all">All Time</option>
+                                                                    <option value="this_month">This Month</option>
+                                                                    <option value="last_month">Last Month</option>
+                                                                    <option value="custom">Custom Date Range</option>
+                                                                </select>
                                                             </div>
-                                                            <div className="w-full md:w-44 space-y-2">
-                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">End Date</label>
-                                                                <input type="date" value={cbEndDate} onChange={e => setCbEndDate(e.target.value)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ledger View</label>
+                                                                <select value={cbViewType} onChange={e => { setCbViewType(e.target.value as any); setCbCurrentPage(1); }} className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer">
+                                                                    <option value="unified">Unified Daily Summary</option>
+                                                                    <option value="receipts">Receipts Cash Book (Debit Journal)</option>
+                                                                    <option value="payments">Payments Cash Book (Credit Journal)</option>
+                                                                </select>
                                                             </div>
-                                                        </>
+
+                                                            {/* Search Input */}
+                                                            <div className="space-y-1.5 sm:col-span-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Cash Book</label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Search date (YYYY-MM-DD), receipt #, particular, mode..."
+                                                                        value={cbSearch}
+                                                                        onChange={e => {
+                                                                            setCbSearch(e.target.value);
+                                                                            setCbCurrentPage(1);
+                                                                        }}
+                                                                        className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400"
+                                                                    />
+                                                                    {(cbPeriod !== 'all' || cbSearch || cbStartDate || cbEndDate) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setCbPeriod('all');
+                                                                                setCbStartDate('');
+                                                                                setCbEndDate('');
+                                                                                setCbSearch('');
+                                                                                setCbCurrentPage(1);
+                                                                            }}
+                                                                            className="px-3 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer"
+                                                                        >
+                                                                            Reset
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {cbPeriod === 'custom' && (
+                                                            <div className="flex flex-wrap gap-4 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                                                                <div className="w-full sm:w-48 space-y-1.5">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Start Date</label>
+                                                                    <input type="date" value={cbStartDate} onChange={e => { setCbStartDate(e.target.value); setCbCurrentPage(1); }} className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                                </div>
+                                                                <div className="w-full sm:w-48 space-y-1.5">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">End Date</label>
+                                                                    <input type="date" value={cbEndDate} onChange={e => { setCbEndDate(e.target.value); setCbCurrentPage(1); }} className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white" />
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Rows per page selector bar */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500">
+                                                            <p className="font-bold">
+                                                                Showing <span className="text-slate-900 dark:text-white font-black">{totalCbRecords === 0 ? 0 : (isCbAll ? 1 : (cbCurrentPage - 1) * cbPerPage + 1)}</span> to <span className="text-slate-900 dark:text-white font-black">{isCbAll ? totalCbRecords : Math.min(cbCurrentPage * cbPerPage, totalCbRecords)}</span> of <span className="text-slate-900 dark:text-white font-black">{totalCbRecords}</span> days
+                                                            </p>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rows per page:</span>
+                                                                {[10, 15, 25, 50, 100, 0].map(size => (
+                                                                    <button
+                                                                        key={size}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setCbPerPage(size);
+                                                                            setCbCurrentPage(1);
+                                                                        }}
+                                                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                                            cbPerPage === size
+                                                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                                                                        }`}
+                                                                    >
+                                                                        {size === 0 ? 'All' : size}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Unified view */}
+                                                    {cbViewType === 'unified' && (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left">
+                                                                <thead>
+                                                                    <tr>
+                                                                        {TH('Date')}
+                                                                        {TH('Balance B/F')}
+                                                                        {TH('Receipts Range & Modes')}
+                                                                        {TH('Inflow (Dr)')}
+                                                                        {TH('Outflow (Cr)')}
+                                                                        {TH('Balance C/F')}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {paginatedCbList.map((day, idx) => {
+                                                                        const isExpanded = expandedCbDates.includes(day.date);
+                                                                        return (
+                                                                            <React.Fragment key={idx}>
+                                                                                <tr 
+                                                                                    onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
+                                                                                    className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                                                                >
+                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                        <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                        {day.date}
+                                                                                    </TD>
+                                                                                    <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                                    <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
+                                                                                        {day.debit > 0 ? (
+                                                                                            <div>
+                                                                                                <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
+                                                                                                <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
+                                                                                            </div>
+                                                                                        ) : '—'}
+                                                                                    </TD>
+                                                                                    <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
+                                                                                    <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
+                                                                                    <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                                </tr>
+                                                                                {isExpanded && (
+                                                                                    <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
+                                                                                        <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
+                                                                                                {day.debit > 0 && (
+                                                                                                    <div>
+                                                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
+                                                                                                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                            {day.receiptsList.map((r: any, rIdx: number) => (
+                                                                                                                <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                                    <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
+                                                                                                                    <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
+                                                                                                                </div>
+                                                                                                            ))}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                                {day.credit > 0 && (
+                                                                                                    <div>
+                                                                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Outflows (Expenses)</p>
+                                                                                                        <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                            {day.expensesList.map((e: any, eIdx: number) => (
+                                                                                                                <div key={eIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                                    <span>{e.particulars} ({e.ref})</span>
+                                                                                                                    <span className="font-bold text-rose-600">KSh {e.credit.toLocaleString()}</span>
+                                                                                                                </div>
+                                                                                                            ))}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                )}
+                                                                            </React.Fragment>
+                                                                        );
+                                                                    })}
+                                                                    {paginatedCbList.length === 0 && (
+                                                                        <tr>
+                                                                            <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
                                                     )}
 
-                                                    <div className="flex-1 space-y-2">
-                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ledger View</label>
-                                                        <select value={cbViewType} onChange={e => setCbViewType(e.target.value as any)} className="w-full py-2.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white">
-                                                            <option value="unified">Unified Daily Summary</option>
-                                                            <option value="receipts">Receipts Cash Book (Debit Journal)</option>
-                                                            <option value="payments">Payments Cash Book (Credit Journal)</option>
-                                                        </select>
-                                                    </div>
+                                                    {/* Receipts Debit Journal View */}
+                                                    {cbViewType === 'receipts' && (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left">
+                                                                <thead>
+                                                                    <tr>
+                                                                        {TH('Date')}
+                                                                        {TH('Balance B/F')}
+                                                                        {TH('Receipts Range')}
+                                                                        {TH('Payment Modes Summary')}
+                                                                        {TH('Total Inflow (Dr)')}
+                                                                        {TH('Balance C/F')}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {paginatedCbList.map((day, idx) => {
+                                                                        const isExpanded = expandedCbDates.includes(day.date);
+                                                                        return (
+                                                                            <React.Fragment key={idx}>
+                                                                                <tr 
+                                                                                    onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
+                                                                                    className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                                                                >
+                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                        <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                        {day.date}
+                                                                                    </TD>
+                                                                                    <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                                    <TD cls="font-bold text-indigo-600">
+                                                                                        {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
+                                                                                    </TD>
+                                                                                    <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
+                                                                                    <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
+                                                                                    <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                                </tr>
+                                                                                {isExpanded && (
+                                                                                    <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
+                                                                                        <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
+                                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
+                                                                                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                    {day.receiptsList.map((r: any, rIdx: number) => (
+                                                                                                        <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                            <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
+                                                                                                            <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                )}
+                                                                            </React.Fragment>
+                                                                        );
+                                                                    })}
+                                                                    {paginatedCbList.length === 0 && (
+                                                                        <tr>
+                                                                            <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No receipts recorded for this period.</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Payments Credit Journal View */}
+                                                    {cbViewType === 'payments' && (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left">
+                                                                <thead>
+                                                                    <tr>
+                                                                        {TH('Date')}
+                                                                        {TH('Balance B/F')}
+                                                                        {TH('Payments / Expense Breakdown')}
+                                                                        {TH('Total Outflow (Cr)')}
+                                                                        {TH('Balance C/F')}
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {paginatedCbList.map((day, idx) => {
+                                                                        const isExpanded = expandedCbDates.includes(day.date);
+                                                                        return (
+                                                                            <React.Fragment key={idx}>
+                                                                                <tr 
+                                                                                    onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
+                                                                                    className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
+                                                                                >
+                                                                                    <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                                        <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
+                                                                                        {day.date}
+                                                                                    </TD>
+                                                                                    <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
+                                                                                    <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
+                                                                                        <span className="font-semibold text-rose-600">{day.expensesList.length} expenses recorded</span>
+                                                                                    </TD>
+                                                                                    <TD cls="font-black text-rose-600">KSh {day.credit.toLocaleString()}</TD>
+                                                                                    <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
+                                                                                </tr>
+                                                                                {isExpanded && (
+                                                                                    <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
+                                                                                        <td colSpan={5} className="p-4 border-b border-slate-100 dark:border-slate-800">
+                                                                                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
+                                                                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Outflows (Expenses)</p>
+                                                                                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                                                                                    {day.expensesList.map((e: any, eIdx: number) => (
+                                                                                                        <div key={eIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
+                                                                                                            <span>{e.particulars} ({e.ref})</span>
+                                                                                                            <span className="font-bold text-rose-600">KSh {e.credit.toLocaleString()}</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                )}
+                                                                            </React.Fragment>
+                                                                        );
+                                                                    })}
+                                                                    {paginatedCbList.length === 0 && (
+                                                                        <tr>
+                                                                            <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded for this period.</td>
+                                                                        </tr>
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Cash Book Pagination Bar */}
+                                                    {!isCbAll && totalCbPages > 1 && (
+                                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/80">
+                                                            <p className="text-xs text-slate-400 font-bold">
+                                                                Page <span className="text-slate-900 dark:text-white font-black">{cbCurrentPage}</span> of <span className="text-slate-900 dark:text-white font-black">{totalCbPages}</span>
+                                                            </p>
+
+                                                            <div className="flex items-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setCbCurrentPage(1)}
+                                                                    disabled={cbCurrentPage === 1}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    « First
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setCbCurrentPage(prev => Math.max(1, prev - 1))}
+                                                                    disabled={cbCurrentPage === 1}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    ‹ Prev
+                                                                </button>
+
+                                                                {Array.from({ length: totalCbPages }, (_, i) => i + 1)
+                                                                    .filter(p => p === 1 || p === totalCbPages || Math.abs(p - cbCurrentPage) <= 2)
+                                                                    .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                                                                        if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) {
+                                                                            acc.push('...');
+                                                                        }
+                                                                        acc.push(page);
+                                                                        return acc;
+                                                                    }, [])
+                                                                    .map((item, idx) => (
+                                                                        item === '...' ? (
+                                                                            <span key={`cb-ellipsis-${idx}`} className="px-2 text-xs font-black text-slate-300">...</span>
+                                                                        ) : (
+                                                                            <button
+                                                                                key={item}
+                                                                                type="button"
+                                                                                onClick={() => setCbCurrentPage(item as number)}
+                                                                                className={`w-8 h-8 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                                                                    cbCurrentPage === item
+                                                                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                                                }`}
+                                                                            >
+                                                                                {item}
+                                                                            </button>
+                                                                        )
+                                                                    ))}
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setCbCurrentPage(prev => Math.min(totalCbPages, prev + 1))}
+                                                                    disabled={cbCurrentPage === totalCbPages}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Next ›
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setCbCurrentPage(totalCbPages)}
+                                                                    disabled={cbCurrentPage === totalCbPages}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Last »
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-
-                                                {/* Unified view */}
-                                                {cbViewType === 'unified' && (
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-left">
-                                                            <thead>
-                                                                <tr>
-                                                                    {TH('Date')}
-                                                                    {TH('Balance B/F')}
-                                                                    {TH('Receipts Range & Modes')}
-                                                                    {TH('Inflow (Dr)')}
-                                                                    {TH('Outflow (Cr)')}
-                                                                    {TH('Balance C/F')}
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {dailyCashBook.map((day, idx) => {
-                                                                    const isExpanded = expandedCbDates.includes(day.date);
-                                                                    return (
-                                                                        <React.Fragment key={idx}>
-                                                                            <tr 
-                                                                                onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
-                                                                                className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
-                                                                            >
-                                                                                <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
-                                                                                    {day.date}
-                                                                                </TD>
-                                                                                <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                                <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
-                                                                                    {day.debit > 0 ? (
-                                                                                        <div>
-                                                                                            <span className="font-bold text-indigo-600">Range: {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}</span>
-                                                                                            <p className="text-[9px] text-slate-400 mt-0.5">{day.methodSummary}</p>
-                                                                                        </div>
-                                                                                    ) : '—'}
-                                                                                </TD>
-                                                                                <TD cls="font-black text-emerald-600">{day.debit > 0 ? `KSh ${day.debit.toLocaleString()}` : '—'}</TD>
-                                                                                <TD cls="font-black text-rose-600">{day.credit > 0 ? `KSh ${day.credit.toLocaleString()}` : '—'}</TD>
-                                                                                <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
-                                                                            </tr>
-                                                                            {isExpanded && (
-                                                                                <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
-                                                                                    <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
-                                                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
-                                                                                            {day.debit > 0 && (
-                                                                                                <div>
-                                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
-                                                                                                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
-                                                                                                        {day.receiptsList.map((r: any, rIdx: number) => (
-                                                                                                            <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                                <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
-                                                                                                                <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
-                                                                                                            </div>
-                                                                                                        ))}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            )}
-                                                                                            {day.credit > 0 && (
-                                                                                                <div>
-                                                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Outflows (Expenses)</p>
-                                                                                                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
-                                                                                                        {day.expensesList.map((e: any, eIdx: number) => (
-                                                                                                            <div key={eIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                                <span>{e.particulars} ({e.ref})</span>
-                                                                                                                <span className="font-bold text-rose-600">KSh {e.credit.toLocaleString()}</span>
-                                                                                                            </div>
-                                                                                                        ))}
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            )}
-                                                                        </React.Fragment>
-                                                                    );
-                                                                })}
-                                                                {dailyCashBook.length === 0 && (
-                                                                    <tr>
-                                                                        <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No transactions recorded for this period.</td>
-                                                                    </tr>
-                                                                )}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                )}
-
-                                                {/* Receipts Debit Journal View */}
-                                                {cbViewType === 'receipts' && (
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-left">
-                                                            <thead>
-                                                                <tr>
-                                                                    {TH('Date')}
-                                                                    {TH('Balance B/F')}
-                                                                    {TH('Receipts Range')}
-                                                                    {TH('Payment Modes Summary')}
-                                                                    {TH('Total Inflow (Dr)')}
-                                                                    {TH('Balance C/F')}
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {dailyCashBook.filter(d => d.debit > 0).map((day, idx) => {
-                                                                    const isExpanded = expandedCbDates.includes(day.date);
-                                                                    return (
-                                                                        <React.Fragment key={idx}>
-                                                                            <tr 
-                                                                                onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
-                                                                                className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
-                                                                            >
-                                                                                <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
-                                                                                    {day.date}
-                                                                                </TD>
-                                                                                <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                                <TD cls="font-bold text-indigo-600">
-                                                                                    {day.minRcpt === day.maxRcpt ? day.minRcpt : `${day.minRcpt} - ${day.maxRcpt}`}
-                                                                                </TD>
-                                                                                <TD cls="text-[10px] text-slate-500">{day.methodSummary || '—'}</TD>
-                                                                                <TD cls="font-black text-emerald-600">KSh {day.debit.toLocaleString()}</TD>
-                                                                                <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
-                                                                            </tr>
-                                                                            {isExpanded && (
-                                                                                <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
-                                                                                    <td colSpan={6} className="p-4 border-b border-slate-100 dark:border-slate-800">
-                                                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
-                                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Inflows (Receipts)</p>
-                                                                                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
-                                                                                                {day.receiptsList.map((r: any, rIdx: number) => (
-                                                                                                    <div key={rIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                        <span>{r.particulars} ({r.ref}) · <span className="font-bold text-slate-500">{r.method}</span></span>
-                                                                                                        <span className="font-bold text-emerald-600">KSh {r.debit.toLocaleString()}</span>
-                                                                                                    </div>
-                                                                                                ))}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            )}
-                                                                        </React.Fragment>
-                                                                    );
-                                                                })}
-                                                                {dailyCashBook.filter(d => d.debit > 0).length === 0 && (
-                                                                    <tr>
-                                                                        <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">No receipts recorded for this period.</td>
-                                                                    </tr>
-                                                                )}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                )}
-
-                                                {/* Payments Credit Journal View */}
-                                                {cbViewType === 'payments' && (
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-left">
-                                                            <thead>
-                                                                <tr>
-                                                                    {TH('Date')}
-                                                                    {TH('Balance B/F')}
-                                                                    {TH('Payments / Expense Breakdown')}
-                                                                    {TH('Total Outflow (Cr)')}
-                                                                    {TH('Balance C/F')}
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {dailyCashBook.filter(d => d.credit > 0).map((day, idx) => {
-                                                                    const isExpanded = expandedCbDates.includes(day.date);
-                                                                    return (
-                                                                        <React.Fragment key={idx}>
-                                                                            <tr 
-                                                                                onClick={() => setExpandedCbDates(prev => prev.includes(day.date) ? prev.filter(d => d !== day.date) : [...prev, day.date])}
-                                                                                className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors"
-                                                                            >
-                                                                                <TD cls="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                                    <span className="print:hidden text-[9px] text-slate-400">{isExpanded ? '▼' : '▶'}</span>
-                                                                                    {day.date}
-                                                                                </TD>
-                                                                                <TD cls="text-slate-500 font-bold">KSh {day.bf.toLocaleString()}</TD>
-                                                                                <TD cls="text-[10px] text-slate-600 dark:text-slate-400">
-                                                                                    <span className="font-semibold text-rose-600">{day.expensesList.length} expenses recorded</span>
-                                                                                </TD>
-                                                                                <TD cls="font-black text-rose-600">KSh {day.credit.toLocaleString()}</TD>
-                                                                                <TD cls="font-black text-slate-900 dark:text-white">KSh {day.cf.toLocaleString()}</TD>
-                                                                            </tr>
-                                                                            {isExpanded && (
-                                                                                <tr className="print:hidden bg-slate-50/50 dark:bg-slate-950/20">
-                                                                                    <td colSpan={5} className="p-4 border-b border-slate-100 dark:border-slate-800">
-                                                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-4 space-y-4 shadow-sm text-left">
-                                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Itemized Outflows (Expenses)</p>
-                                                                                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
-                                                                                                {day.expensesList.map((e: any, eIdx: number) => (
-                                                                                                    <div key={eIdx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400 border-b border-slate-50 dark:border-slate-800/40 pb-1">
-                                                                                                        <span>{e.particulars} ({e.ref})</span>
-                                                                                                        <span className="font-bold text-rose-600">KSh {e.credit.toLocaleString()}</span>
-                                                                                                    </div>
-                                                                                                ))}
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            )}
-                                                                        </React.Fragment>
-                                                                    );
-                                                                })}
-                                                                {dailyCashBook.filter(d => d.credit > 0).length === 0 && (
-                                                                    <tr>
-                                                                        <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">No expenses recorded for this period.</td>
-                                                                    </tr>
-                                                                )}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* 3. Fee Register */}
                                         {ledgerSubTab === 'fee_register' && (() => {
                                             const feeRegClasses = getAllDistinctClasses();
+
+                                            const searchedFeeRegister = feeRegister.filter(s => {
+                                                if (!feeRegSearch.trim()) return true;
+                                                const q = feeRegSearch.toLowerCase().trim();
+                                                return (s.name && s.name.toLowerCase().includes(q)) || 
+                                                       (s.admissionNumber && s.admissionNumber.toLowerCase().includes(q)) || 
+                                                       (s.class && s.class.toLowerCase().includes(q));
+                                            });
+
+                                            const isFeeRegAll = feeRegPerPage === 0;
+                                            const totalFeeRegRecords = searchedFeeRegister.length;
+                                            const totalFeeRegPages = isFeeRegAll ? 1 : Math.ceil(totalFeeRegRecords / feeRegPerPage) || 1;
+                                            const paginatedFeeRegister = isFeeRegAll ? searchedFeeRegister : searchedFeeRegister.slice((feeRegCurrentPage - 1) * feeRegPerPage, feeRegCurrentPage * feeRegPerPage);
                                             
-                                            const totalBfSum = feeRegister.reduce((s, it) => s + it.bf, 0);
-                                            const totalT1Sum = feeRegister.reduce((s, it) => s + it.t1Amount, 0);
-                                            const totalT2Sum = feeRegister.reduce((s, it) => s + it.t2Amount, 0);
-                                            const totalT3Sum = feeRegister.reduce((s, it) => s + it.t3Amount, 0);
-                                            const totalPaidSum = feeRegister.reduce((s, it) => s + it.totalPaid, 0);
-                                            const totalPrepaidSum = feeRegister.reduce((s, it) => s + it.prepaid, 0);
-                                            const totalArrearsSum = feeRegister.reduce((s, it) => s + it.arrears, 0);
+                                            const totalBfSum = searchedFeeRegister.reduce((s, it) => s + it.bf, 0);
+                                            const totalT1Sum = searchedFeeRegister.reduce((s, it) => s + it.t1Amount, 0);
+                                            const totalT2Sum = searchedFeeRegister.reduce((s, it) => s + it.t2Amount, 0);
+                                            const totalT3Sum = searchedFeeRegister.reduce((s, it) => s + it.t3Amount, 0);
+                                            const totalPaidSum = searchedFeeRegister.reduce((s, it) => s + it.totalPaid, 0);
+                                            const totalPrepaidSum = searchedFeeRegister.reduce((s, it) => s + it.prepaid, 0);
+                                            const totalArrearsSum = searchedFeeRegister.reduce((s, it) => s + it.arrears, 0);
 
                                             return (
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
@@ -17505,13 +17828,48 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fee Register Summary</h3>
                                                             <p className="text-[10px] text-slate-400 font-medium">Term-by-term installment details, pre-payments, and outstanding arrears</p>
                                                         </div>
-                                                        <div className="flex items-center gap-4 w-full md:w-auto">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">FORM:</span>
+                                                        <div className="flex flex-wrap items-center gap-2.5 print:hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const headers = ['Name', 'Adm.No', 'Amount Bf.', 'T1 Inst Count', 'T1 Amount', 'T2 Inst Count', 'T2 Amount', 'T3 Inst Count', 'T3 Amount', 'Total Paid', 'Prepaid', 'Arrears'];
+                                                                    const rows = searchedFeeRegister.map(s => [
+                                                                        s.name,
+                                                                        s.admissionNumber,
+                                                                        s.bf,
+                                                                        s.t1Count,
+                                                                        s.t1Amount,
+                                                                        s.t2Count,
+                                                                        s.t2Amount,
+                                                                        s.t3Count,
+                                                                        s.t3Amount,
+                                                                        s.totalPaid,
+                                                                        s.prepaid,
+                                                                        s.arrears
+                                                                    ]);
+                                                                    exportCSV(`fee_register_summary_${feeRegClass || 'all'}`, headers, rows);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                📥 Export CSV
+                                                            </button>
+                                                            <button onClick={() => window.print()} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">🖨️ Print Report</button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Filters block */}
+                                                    <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 space-y-4">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                                            {/* Form / Class Filter */}
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class / Grade</label>
                                                                 <select 
                                                                     value={feeRegClass} 
-                                                                    onChange={e => setFeeRegClass(e.target.value)} 
-                                                                    className="py-1.5 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                    onChange={e => {
+                                                                        setFeeRegClass(e.target.value);
+                                                                        setFeeRegCurrentPage(1);
+                                                                    }} 
+                                                                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
                                                                 >
                                                                     <option value="All">All Classes</option>
                                                                     {feeRegClasses.map(cls => (
@@ -17519,7 +17877,64 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     ))}
                                                                 </select>
                                                             </div>
-                                                            <button onClick={() => window.print()} className="print:hidden flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
+
+                                                            {/* Search Filter */}
+                                                            <div className="space-y-1.5 lg:col-span-3">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Register</label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Search by student name or admission number..."
+                                                                        value={feeRegSearch}
+                                                                        onChange={e => {
+                                                                            setFeeRegSearch(e.target.value);
+                                                                            setFeeRegCurrentPage(1);
+                                                                        }}
+                                                                        className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400"
+                                                                    />
+                                                                    {(feeRegClass !== '' && feeRegClass !== 'All' || feeRegSearch) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setFeeRegClass('All');
+                                                                                setFeeRegSearch('');
+                                                                                setFeeRegCurrentPage(1);
+                                                                            }}
+                                                                            className="px-3 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer"
+                                                                        >
+                                                                            Reset
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Rows per page selector bar */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500">
+                                                            <p className="font-bold">
+                                                                Showing <span className="text-slate-900 dark:text-white font-black">{totalFeeRegRecords === 0 ? 0 : (isFeeRegAll ? 1 : (feeRegCurrentPage - 1) * feeRegPerPage + 1)}</span> to <span className="text-slate-900 dark:text-white font-black">{isFeeRegAll ? totalFeeRegRecords : Math.min(feeRegCurrentPage * feeRegPerPage, totalFeeRegRecords)}</span> of <span className="text-slate-900 dark:text-white font-black">{totalFeeRegRecords}</span> students
+                                                            </p>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rows per page:</span>
+                                                                {[15, 25, 50, 100, 0].map(size => (
+                                                                    <button
+                                                                        key={size}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setFeeRegPerPage(size);
+                                                                            setFeeRegCurrentPage(1);
+                                                                        }}
+                                                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                                            feeRegPerPage === size
+                                                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                                                                        }`}
+                                                                    >
+                                                                        {size === 0 ? 'All' : size}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -17547,7 +17962,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {feeRegister.map((s, i) => (
+                                                                {paginatedFeeRegister.map((s, i) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-[11px]">
                                                                         <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-white border border-slate-50 dark:border-slate-800/40 whitespace-nowrap">{s.name}</td>
                                                                         <td className="py-2.5 px-3 text-slate-500 border border-slate-50 dark:border-slate-800/40">{s.admissionNumber}</td>
@@ -17584,7 +17999,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     </tr>
                                                                 ))}
 
-                                                                {feeRegister.length > 0 && (
+                                                                {searchedFeeRegister.length > 0 && (
                                                                     <tr className="bg-slate-50 dark:bg-slate-950 font-black text-[11px] text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
                                                                         <td colSpan={2} className="py-3 px-3 text-right uppercase tracking-wider">TOTAL SUMMARY:</td>
                                                                         <td className="py-3 px-3 text-right">KSh {totalBfSum.toLocaleString()}</td>
@@ -17597,14 +18012,87 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     </tr>
                                                                 )}
 
-                                                                {feeRegister.length === 0 && (
+                                                                {searchedFeeRegister.length === 0 && (
                                                                     <tr>
-                                                                        <td colSpan={12} className="py-8 text-center text-slate-400 font-medium border border-slate-50 dark:border-slate-800/40">No fee payments registered.</td>
+                                                                        <td colSpan={12} className="py-8 text-center text-slate-400 font-medium border border-slate-50 dark:border-slate-800/40">No fee payments registered matching criteria.</td>
                                                                     </tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    {/* Fee Register Pagination Bar */}
+                                                    {!isFeeRegAll && totalFeeRegPages > 1 && (
+                                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/80">
+                                                            <p className="text-xs text-slate-400 font-bold">
+                                                                Page <span className="text-slate-900 dark:text-white font-black">{feeRegCurrentPage}</span> of <span className="text-slate-900 dark:text-white font-black">{totalFeeRegPages}</span>
+                                                            </p>
+
+                                                            <div className="flex items-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFeeRegCurrentPage(1)}
+                                                                    disabled={feeRegCurrentPage === 1}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    « First
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFeeRegCurrentPage(prev => Math.max(1, prev - 1))}
+                                                                    disabled={feeRegCurrentPage === 1}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    ‹ Prev
+                                                                </button>
+
+                                                                {Array.from({ length: totalFeeRegPages }, (_, i) => i + 1)
+                                                                    .filter(p => p === 1 || p === totalFeeRegPages || Math.abs(p - feeRegCurrentPage) <= 2)
+                                                                    .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                                                                        if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) {
+                                                                            acc.push('...');
+                                                                        }
+                                                                        acc.push(page);
+                                                                        return acc;
+                                                                    }, [])
+                                                                    .map((item, idx) => (
+                                                                        item === '...' ? (
+                                                                            <span key={`fee-reg-ellipsis-${idx}`} className="px-2 text-xs font-black text-slate-300">...</span>
+                                                                        ) : (
+                                                                            <button
+                                                                                key={item}
+                                                                                type="button"
+                                                                                onClick={() => setFeeRegCurrentPage(item as number)}
+                                                                                className={`w-8 h-8 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                                                                    feeRegCurrentPage === item
+                                                                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                                                }`}
+                                                                            >
+                                                                                {item}
+                                                                            </button>
+                                                                        )
+                                                                    ))}
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFeeRegCurrentPage(prev => Math.min(totalFeeRegPages, prev + 1))}
+                                                                    disabled={feeRegCurrentPage === totalFeeRegPages}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Next ›
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFeeRegCurrentPage(totalFeeRegPages)}
+                                                                    disabled={feeRegCurrentPage === totalFeeRegPages}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Last »
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
@@ -17797,8 +18285,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 return sClass.toLowerCase() === installmentClass.toLowerCase();
                                             });
 
-                                            const classEnrollment = filteredStudents.length;
-
                                             // Map students to their installments
                                             const studentInstallments = filteredStudents.map((s: any) => {
                                                 const sRcpts = mappedReceipts
@@ -17842,14 +18328,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 };
                                             });
 
+                                            // Search filter
+                                            const searchedStudentInstallments = studentInstallments.filter(s => {
+                                                if (!installmentSearch.trim()) return true;
+                                                const q = installmentSearch.toLowerCase().trim();
+                                                return (s.name && s.name.toLowerCase().includes(q)) || 
+                                                       (s.admissionNumber && s.admissionNumber.toLowerCase().includes(q));
+                                            });
+
+                                            const isInstallmentAll = installmentPerPage === 0;
+                                            const totalInstallmentRecords = searchedStudentInstallments.length;
+                                            const totalInstallmentPages = isInstallmentAll ? 1 : Math.ceil(totalInstallmentRecords / installmentPerPage) || 1;
+                                            const paginatedStudentInstallments = isInstallmentAll ? searchedStudentInstallments : searchedStudentInstallments.slice((installmentCurrentPage - 1) * installmentPerPage, installmentCurrentPage * installmentPerPage);
+
                                             // Aggregated sums
-                                            const totalExpectedSum = studentInstallments.reduce((sum, item) => sum + item.expectedFees, 0);
+                                            const totalExpectedSum = searchedStudentInstallments.reduce((sum, item) => sum + item.expectedFees, 0);
                                             const totalInstSums = Array(12).fill(0);
                                             for (let col = 0; col < 12; col++) {
-                                                totalInstSums[col] = studentInstallments.reduce((sum, item) => sum + item.installments[col], 0);
+                                                totalInstSums[col] = searchedStudentInstallments.reduce((sum, item) => sum + item.installments[col], 0);
                                             }
-                                            const totalPaidSum = studentInstallments.reduce((sum, item) => sum + item.totals, 0);
-                                            const totalBalSum = studentInstallments.reduce((sum, item) => sum + item.balance, 0);
+                                            const totalPaidSum = searchedStudentInstallments.reduce((sum, item) => sum + item.totals, 0);
+                                            const totalBalSum = searchedStudentInstallments.reduce((sum, item) => sum + item.balance, 0);
                                             const avgPctPaid = totalExpectedSum !== 0 ? Math.round((totalPaidSum / totalExpectedSum) * 100) : 0;
 
                                             const handleDownloadPDF = async () => {
@@ -17869,13 +18368,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                 doc.setFontSize(9);
                                                 doc.setTextColor(100, 116, 139);
-                                                doc.text(`Class: ${installmentClass}  |  Class Enrollment: ${classEnrollment}`, 14, 21);
+                                                doc.text(`Class: ${installmentClass}  |  Class Enrollment: ${filteredStudents.length}  |  Filtered: ${totalInstallmentRecords}`, 14, 21);
 
                                                 const headers = [
                                                     ['Adm. No', 'Names', 'Expected Fees', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Totals', 'Balance', '% Paid']
                                                 ];
 
-                                                const rows = studentInstallments.map(s => [
+                                                const rows = searchedStudentInstallments.map(s => [
                                                     s.admissionNumber,
                                                     s.name,
                                                     s.expectedFees.toLocaleString(),
@@ -17888,7 +18387,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 // Push bottom summary
                                                 rows.push([
                                                     'TOTALS',
-                                                    'CLASS SUMMARY',
+                                                    'SUMMARY',
                                                     totalExpectedSum.toLocaleString(),
                                                     ...totalInstSums.map(val => val > 0 ? val.toLocaleString() : '0'),
                                                     totalPaidSum.toLocaleString(),
@@ -17927,15 +18426,49 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                             return (
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
-                                                    <div className="flex flex-col items-center text-center space-y-2">
-                                                        <h2 className="text-xl font-black text-blue-600 dark:text-blue-500 uppercase tracking-wide">Fees Installments</h2>
-                                                        <div className="flex flex-col sm:flex-row items-center gap-6 text-sm font-bold text-slate-800 dark:text-slate-200">
-                                                            <div className="flex items-center gap-2">
-                                                                <span>Class:</span>
+                                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                                        <div>
+                                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Fees Installments</h3>
+                                                            <p className="text-[10px] text-slate-400 font-medium">Detailed 12-installment payment tracking per student</p>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-2.5 print:hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const headers = ['Adm. No', 'Names', 'Expected Fees', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 'Totals', 'Balance', '% Paid'];
+                                                                    const rows = searchedStudentInstallments.map(s => [
+                                                                        s.admissionNumber,
+                                                                        s.name,
+                                                                        s.expectedFees,
+                                                                        ...s.installments,
+                                                                        s.totals,
+                                                                        s.balance,
+                                                                        `${s.pctPaid}%`
+                                                                    ]);
+                                                                    exportCSV(`fees_installments_${installmentClass || 'all'}`, headers, rows);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                📥 Export CSV
+                                                            </button>
+                                                            <button onClick={handleDownloadPDF} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">📥 Download PDF</button>
+                                                            <button onClick={() => window.print()} className="px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">🖨️ Print</button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Filters block */}
+                                                    <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 space-y-4">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                                            {/* Class Filter */}
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class / Grade</label>
                                                                 <select 
                                                                     value={installmentClass} 
-                                                                    onChange={e => setInstallmentClass(e.target.value)} 
-                                                                    className="py-1 px-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                    onChange={e => {
+                                                                        setInstallmentClass(e.target.value);
+                                                                        setInstallmentCurrentPage(1);
+                                                                    }} 
+                                                                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
                                                                 >
                                                                     <option value="All">All Classes</option>
                                                                     {installmentClasses.map(cls => (
@@ -17943,13 +18476,63 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     ))}
                                                                 </select>
                                                             </div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span>Class Enrollment:</span>
-                                                                <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 py-0.5 px-2.5 rounded-full text-xs font-black">{classEnrollment}</span>
+
+                                                            {/* Search Filter */}
+                                                            <div className="space-y-1.5 lg:col-span-3">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Students</label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Search by student name or admission number..."
+                                                                        value={installmentSearch}
+                                                                        onChange={e => {
+                                                                            setInstallmentSearch(e.target.value);
+                                                                            setInstallmentCurrentPage(1);
+                                                                        }}
+                                                                        className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400"
+                                                                    />
+                                                                    {(installmentClass !== '' && installmentClass !== 'All' || installmentSearch) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setInstallmentClass('All');
+                                                                                setInstallmentSearch('');
+                                                                                setInstallmentCurrentPage(1);
+                                                                            }}
+                                                                            className="px-3 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer"
+                                                                        >
+                                                                            Reset
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </div>
+                                                        </div>
+
+                                                        {/* Rows per page selector bar */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-xs text-slate-500">
+                                                            <p className="font-bold">
+                                                                Showing <span className="text-slate-900 dark:text-white font-black">{totalInstallmentRecords === 0 ? 0 : (isInstallmentAll ? 1 : (installmentCurrentPage - 1) * installmentPerPage + 1)}</span> to <span className="text-slate-900 dark:text-white font-black">{isInstallmentAll ? totalInstallmentRecords : Math.min(installmentCurrentPage * installmentPerPage, totalInstallmentRecords)}</span> of <span className="text-slate-900 dark:text-white font-black">{totalInstallmentRecords}</span> students
+                                                            </p>
+
                                                             <div className="flex items-center gap-2">
-                                                                <button onClick={() => window.print()} className="print:hidden px-4 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">🖨️ Print</button>
-                                                                <button onClick={handleDownloadPDF} className="print:hidden px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">📥 Download PDF</button>
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rows per page:</span>
+                                                                {[15, 25, 50, 100, 0].map(size => (
+                                                                    <button
+                                                                        key={size}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setInstallmentPerPage(size);
+                                                                            setInstallmentCurrentPage(1);
+                                                                        }}
+                                                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                                                            installmentPerPage === size
+                                                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
+                                                                        }`}
+                                                                    >
+                                                                        {size === 0 ? 'All' : size}
+                                                                    </button>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -17973,7 +18556,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {studentInstallments.map((s, i) => {
+                                                                {paginatedStudentInstallments.map((s, i) => {
                                                                     const isExpanded = expandedInstallmentStudentIds.includes(s.id);
                                                                     return (
                                                                         <React.Fragment key={i}>
@@ -18029,7 +18612,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     );
                                                                 })}
 
-                                                                {studentInstallments.length > 0 && (
+                                                                {searchedStudentInstallments.length > 0 && (
                                                                     <tr className="bg-slate-50 dark:bg-slate-950 font-black text-[11px] text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
                                                                         <td colSpan={2} className="py-2.5 px-3 text-right uppercase tracking-wider">TOTAL SUMMARY:</td>
                                                                         <td className="py-2.5 px-3 text-right">KSh {totalExpectedSum.toLocaleString()}</td>
@@ -18044,14 +18627,87 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     </tr>
                                                                 )}
 
-                                                                {studentInstallments.length === 0 && (
+                                                                {searchedStudentInstallments.length === 0 && (
                                                                     <tr>
-                                                                        <td colSpan={18} className="py-8 text-center text-slate-400 font-medium border border-slate-50 dark:border-slate-800/40">No records found.</td>
+                                                                        <td colSpan={18} className="py-8 text-center text-slate-400 font-medium border border-slate-50 dark:border-slate-800/40">No records found matching criteria.</td>
                                                                     </tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    {/* Fees Installments Pagination Bar */}
+                                                    {!isInstallmentAll && totalInstallmentPages > 1 && (
+                                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100 dark:border-slate-800/80">
+                                                            <p className="text-xs text-slate-400 font-bold">
+                                                                Page <span className="text-slate-900 dark:text-white font-black">{installmentCurrentPage}</span> of <span className="text-slate-900 dark:text-white font-black">{totalInstallmentPages}</span>
+                                                            </p>
+
+                                                            <div className="flex items-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setInstallmentCurrentPage(1)}
+                                                                    disabled={installmentCurrentPage === 1}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    « First
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setInstallmentCurrentPage(prev => Math.max(1, prev - 1))}
+                                                                    disabled={installmentCurrentPage === 1}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    ‹ Prev
+                                                                </button>
+
+                                                                {Array.from({ length: totalInstallmentPages }, (_, i) => i + 1)
+                                                                    .filter(p => p === 1 || p === totalInstallmentPages || Math.abs(p - installmentCurrentPage) <= 2)
+                                                                    .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                                                                        if (idx > 0 && (page as number) - (arr[idx - 1] as number) > 1) {
+                                                                            acc.push('...');
+                                                                        }
+                                                                        acc.push(page);
+                                                                        return acc;
+                                                                    }, [])
+                                                                    .map((item, idx) => (
+                                                                        item === '...' ? (
+                                                                            <span key={`inst-ellipsis-${idx}`} className="px-2 text-xs font-black text-slate-300">...</span>
+                                                                        ) : (
+                                                                            <button
+                                                                                key={item}
+                                                                                type="button"
+                                                                                onClick={() => setInstallmentCurrentPage(item as number)}
+                                                                                className={`w-8 h-8 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                                                                    installmentCurrentPage === item
+                                                                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                                                }`}
+                                                                            >
+                                                                                {item}
+                                                                            </button>
+                                                                        )
+                                                                    ))}
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setInstallmentCurrentPage(prev => Math.min(totalInstallmentPages, prev + 1))}
+                                                                    disabled={installmentCurrentPage === totalInstallmentPages}
+                                                                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Next ›
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setInstallmentCurrentPage(totalInstallmentPages)}
+                                                                    disabled={installmentCurrentPage === totalInstallmentPages}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Last »
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
