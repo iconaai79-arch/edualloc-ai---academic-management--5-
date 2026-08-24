@@ -344,6 +344,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!primaryProvider) {
             if (requestedModel?.startsWith('gpt-') || requestedModel?.includes('openai') || requestedModel?.includes('o3') || requestedModel?.includes('o1')) {
                 primaryProvider = 'openai';
+            } else if (req.headers?.['x-openai-api-key'] && !req.headers?.['x-gemini-api-key']) {
+                primaryProvider = 'openai';
             } else if (requestedModel?.startsWith('gemini')) {
                 primaryProvider = 'gemini';
             } else if (openAiApiKey && !geminiApiKey) {

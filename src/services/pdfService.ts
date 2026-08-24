@@ -1605,15 +1605,17 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
         studentName?: string;
         accountantName?: string;
         servedBy?: string;
+        parentPortalUrl?: string;
+        portalUrl?: string;
     }
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
 
     // Standard 80mm EPOS Thermal Spool format
-    const baseHeight = 165;
+    const baseHeight = 205;
     const itemsCount = ((receipt as any).items || []).length || 1;
-    const estimatedHeight = Math.max(145, baseHeight + (itemsCount * 8));
+    const estimatedHeight = Math.max(185, baseHeight + (itemsCount * 8));
 
     const doc = new lib.jsPDF({
         orientation: 'portrait',
@@ -1832,7 +1834,50 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         centerText(`Issued by: ${resolvedAccountant}`, yPos);
-        yPos += 3.8;
+        yPos += 4.2;
+    }
+
+    // QR Code for Parents Portal Access
+    const portalOrigin = typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost') && !window.location.origin.includes('127.0.0.1')
+        ? window.location.origin
+        : (institution?.portalUrl || institution?.website || 'https://portal.eduai.co.ke');
+
+    const parentPortalUrl = extraMeta?.parentPortalUrl || 
+                            extraMeta?.portalUrl || 
+                            `${portalOrigin}/?view=parent-ledger&adm=${encodeURIComponent(resolvedAdm !== 'N/A' ? resolvedAdm : '')}&inst=${encodeURIComponent(institution?.id || '')}`;
+
+    try {
+        if (typeof window !== 'undefined' && (window as any).QRCode) {
+            const QRCodeLib = (window as any).QRCode;
+            const qrDataUri: string = await new Promise((resolve, reject) => {
+                QRCodeLib.toDataURL(parentPortalUrl, { margin: 1, width: 140, errorCorrectionLevel: 'M' }, (err: any, url: string) => {
+                    if (err) reject(err);
+                    else resolve(url);
+                });
+            });
+
+            if (qrDataUri) {
+                const qrImg = await loadImage(qrDataUri);
+                if (qrImg) {
+                    doc.setFontSize(7);
+                    doc.setFont('helvetica', 'bold');
+                    centerText("PARENTS PORTAL ACCESS", yPos);
+                    yPos += 3.5;
+
+                    doc.setFontSize(5.8);
+                    doc.setFont('helvetica', 'normal');
+                    centerText("Scan to view fee statements & live balance", yPos);
+                    yPos += 2.5;
+
+                    const qrSize = 22;
+                    const qrX = (pageWidth - qrSize) / 2;
+                    doc.addImage(qrImg, 'PNG', qrX, yPos, qrSize, qrSize);
+                    yPos += qrSize + 3;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn("Could not render QR code for parent portal:", err);
     }
 
     doc.setFontSize(7);
@@ -1867,6 +1912,8 @@ export const downloadFinanceEposThermalReceiptPdf = async (
         studentName?: string;
         accountantName?: string;
         servedBy?: string;
+        parentPortalUrl?: string;
+        portalUrl?: string;
     }
 ) => {
     const dataUri = await generateFinanceEposThermalReceiptPdfDataUri(receipt, student, institution, companyDetails, logoUrl, extraMeta);

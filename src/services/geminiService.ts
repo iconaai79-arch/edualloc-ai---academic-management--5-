@@ -26,12 +26,12 @@ const sanitizeAiError = (error: any): Error => {
 
     // Mask specific technical status codes if they look like branding leaks
     if (msg.includes('suspended') || msg.includes('CONSUMER_SUSPENDED') || msg.includes('Permission denied: Consumer')) {
-        msg = "Gemini AI Service Alert: Your Google Gemini API Key has been suspended or is inactive in Google Cloud. Please provide an active GEMINI_API_KEY in your server environment or Settings.";
+        msg = "AI Service Alert: Google Gemini API Key has been suspended or is inactive. You can switch to OpenAI (GPT-4o) in Settings / Chat Assistant or provide an active GEMINI_API_KEY.";
     } else if (msg.includes('404') || msg.includes('not found') || msg.includes('400') || msg.includes('401') || msg.includes('403')) {
         if (msg.toLowerCase().includes('api key') || msg.toLowerCase().includes('key not valid') || msg.toLowerCase().includes('permission denied')) {
-            msg = "Gemini AI Authentication: Please verify your Gemini API key in server environment / Settings.";
+            msg = "AI Authentication: Please verify your OpenAI or Gemini API key in Settings / Chat Assistant.";
         } else {
-            msg = "Gemini AI Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
+            msg = "AI Logic Matrix is currently optimizing your request. Please wait a few seconds and try again.";
         }
     }
 
@@ -42,13 +42,18 @@ const sanitizeAiError = (error: any): Error => {
 
 const safeGenerateContent = async (prompt: string, config: any = {}, preferredModel?: 'pro' | 'flash') => {
     const contents = [{ role: 'user', parts: [{ text: prompt }] }];
-    // Normalize model selection: use flash for most tasks as it is 10x faster and reduces Vercel timeouts
-    const model = preferredModel === 'pro' ? PRO_LOGICAL_CORE : STANDARD_LOGICAL_CORE;
+    const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+    const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+    const preferredProvider = localStorage.getItem('eduai_ai_provider') || (customOpenAiKey && !customGeminiKey ? 'openai' : 'auto');
+
+    // Normalize model selection
+    let model = preferredModel === 'pro' ? PRO_LOGICAL_CORE : STANDARD_LOGICAL_CORE;
+    if (preferredProvider === 'openai') {
+        model = preferredModel === 'pro' ? 'gpt-4o' : 'gpt-4o-mini';
+    }
 
     try {
         const token = await apiService.getAuthToken();
-        const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
-        const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || '';
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
@@ -61,6 +66,7 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
             headers,
             body: JSON.stringify({
                 model,
+                provider: preferredProvider !== 'auto' ? preferredProvider : undefined,
                 contents,
                 config
             })
@@ -99,7 +105,7 @@ const safeGenerateContent = async (prompt: string, config: any = {}, preferredMo
         }
 
         // Direct Client-side OpenAI Fallback
-        const clientOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+        const clientOpenAiKey = customOpenAiKey || localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
         if (clientOpenAiKey) {
             try {
                 console.log("[AI Service] Gateway failed, attempting direct client OpenAI fallback...");
@@ -564,21 +570,28 @@ const sanitizeChatHistory = (
 };
 
 export const getChatResponse = async (history: { role: string, parts: { text: string }[] }[], message: string, aiModelTier?: string): Promise<string> => {
+    const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+    const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+    const preferredProvider = localStorage.getItem('eduai_ai_provider') || (customOpenAiKey && !customGeminiKey ? 'openai' : 'auto');
+
     try {
         const token = await apiService.getAuthToken();
         const cleanHistory = sanitizeChatHistory(history);
-        const customApiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
         const headers: Record<string, string> = { 
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
         };
-        if (customApiKey) headers['x-gemini-api-key'] = customApiKey;
+        if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
+        if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
+
+        const targetModel = preferredProvider === 'openai' ? 'gpt-4o-mini' : PRO_LOGICAL_CORE;
 
         const response = await fetch('/api/ai', {
             method: 'POST',
             headers,
             body: JSON.stringify({
-                model: PRO_LOGICAL_CORE, // Default to Pro for chat
+                model: targetModel,
+                provider: preferredProvider !== 'auto' ? preferredProvider : undefined,
                 history: cleanHistory,
                 message
             })
@@ -609,6 +622,42 @@ export const getChatResponse = async (history: { role: string, parts: { text: st
 
     } catch (error: any) {
         console.error("AI chat error:", error);
+
+        // Direct Client-side OpenAI Fallback
+        if (customOpenAiKey) {
+            try {
+                console.log("[geminiService] Attempting direct client OpenAI chat completion fallback...");
+                const cleanHistory = sanitizeChatHistory(history);
+                const openAiMsgs: Array<{ role: string; content: string }> = [];
+                cleanHistory.forEach((h: any) => {
+                    const role = h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user';
+                    const textContent = Array.isArray(h.parts) ? h.parts.map((p: any) => p.text || '').join('\n') : (h.text || h.content || '');
+                    if (textContent) openAiMsgs.push({ role, content: textContent });
+                });
+                openAiMsgs.push({ role: 'user', content: message });
+
+                const oaRes = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${customOpenAiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: openAiMsgs,
+                        temperature: 0.7
+                    })
+                });
+                if (oaRes.ok) {
+                    const oaData = await oaRes.json();
+                    const reply = oaData.choices?.[0]?.message?.content;
+                    if (reply) return reply;
+                }
+            } catch (oaClientErr) {
+                console.warn("[geminiService] Direct client OpenAI fallback failed:", oaClientErr);
+            }
+        }
+
         const sanitized = sanitizeAiError(error);
         return sanitized.message;
     }
@@ -623,15 +672,19 @@ export const getInstitutionAwareChatResponse = async (
     history: { role: string, parts: { text: string }[] }[],
     message: string
 ): Promise<string> => {
+    const customGeminiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
+    const customOpenAiKey = localStorage.getItem('eduai_openai_key') || localStorage.getItem('custom_openai_api_key') || localStorage.getItem('openai_api_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+    const preferredProvider = localStorage.getItem('eduai_ai_provider') || (customOpenAiKey && !customGeminiKey ? 'openai' : 'auto');
+
     try {
         const token = await apiService.getAuthToken();
         const cleanHistory = sanitizeChatHistory(history);
-        const customApiKey = localStorage.getItem('eduai_gemini_key') || localStorage.getItem('custom_gemini_api_key') || '';
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'Authorization': token ? `Bearer ${token}` : ''
         };
-        if (customApiKey) headers['x-gemini-api-key'] = customApiKey;
+        if (customGeminiKey) headers['x-gemini-api-key'] = customGeminiKey;
+        if (customOpenAiKey) headers['x-openai-api-key'] = customOpenAiKey;
 
         // Inject context as the first model turn so it acts as a system prompt
         const enrichedHistory = [
@@ -640,11 +693,14 @@ export const getInstitutionAwareChatResponse = async (
             ...cleanHistory
         ];
 
+        const targetModel = preferredProvider === 'openai' ? 'gpt-4o-mini' : PRO_LOGICAL_CORE;
+
         const response = await fetch('/api/ai', {
             method: 'POST',
             headers,
             body: JSON.stringify({
-                model: PRO_LOGICAL_CORE,
+                model: targetModel,
+                provider: preferredProvider !== 'auto' ? preferredProvider : undefined,
                 history: enrichedHistory,
                 message
             })
@@ -674,6 +730,43 @@ export const getInstitutionAwareChatResponse = async (
         return data.text || "I'm sorry, I couldn't process that.";
     } catch (error: any) {
         console.error("Institution AI chat error:", error);
+
+        // Direct Client-side OpenAI Fallback
+        if (customOpenAiKey) {
+            try {
+                const cleanHistory = sanitizeChatHistory(history);
+                const openAiMsgs: Array<{ role: string; content: string }> = [
+                    { role: 'system', content: `Live Institutional Context Snapshot:\n${contextSnapshot}` }
+                ];
+                cleanHistory.forEach((h: any) => {
+                    const role = h.role === 'model' || h.role === 'assistant' ? 'assistant' : 'user';
+                    const textContent = Array.isArray(h.parts) ? h.parts.map((p: any) => p.text || '').join('\n') : (h.text || h.content || '');
+                    if (textContent) openAiMsgs.push({ role, content: textContent });
+                });
+                openAiMsgs.push({ role: 'user', content: message });
+
+                const oaRes = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${customOpenAiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: openAiMsgs,
+                        temperature: 0.7
+                    })
+                });
+                if (oaRes.ok) {
+                    const oaData = await oaRes.json();
+                    const reply = oaData.choices?.[0]?.message?.content;
+                    if (reply) return reply;
+                }
+            } catch (oaClientErr) {
+                console.warn("[geminiService] Direct client OpenAI fallback failed for institution chat:", oaClientErr);
+            }
+        }
+
         const sanitized = sanitizeAiError(error);
         return sanitized.message;
     }
