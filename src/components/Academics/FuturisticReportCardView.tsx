@@ -191,11 +191,22 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         };
     }, [isPrimarySchool]);
 
-    // Available Classes derived dynamically ONLY from actual active students in the current institution
+    // Available Classes derived dynamically from registered courses, active students, and institution configuration
     const availableClasses = useMemo(() => {
         const classSet = new Set<string>();
 
-        // 1. Extract from actual enrolled active students
+        // 1. Registered Courses from Institution
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
+                if (name && typeof name === 'string' && name.trim()) {
+                    const clean = name.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    if (clean) classSet.add(clean);
+                }
+            });
+        }
+
+        // 2. Classes from Active Enrolled Students
         activeStudents.forEach(s => {
             const raw = String(
                 s.studentClass ||
@@ -218,53 +229,113 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
             }
         });
 
-        // 2. Filter classes by institution type (Primary/CBC vs Secondary)
-        const rawList = Array.from(classSet);
-        let filteredList = rawList;
-
-        if (isPrimarySchool) {
-            filteredList = rawList.filter(c => {
-                const lc = c.toLowerCase();
-                return !lc.startsWith('form') && !lc.includes('secondary') && !lc.includes('high');
-            });
-        } else {
-            const secList = rawList.filter(c => {
-                const lc = c.toLowerCase();
-                return lc.startsWith('form') || lc.includes('secondary') || lc.includes('high');
-            });
-            if (secList.length > 0) filteredList = secList;
-        }
-
-        // 3. Fallback only if no valid classes were found
-        if (filteredList.length === 0) {
-            if (isPrimarySchool) {
-                filteredList = ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
-            } else {
-                filteredList = ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        // 3. Registered Classes in Institution or Local Storage
+        if (currentInstitution) {
+            if ((currentInstitution as any).classes && Array.isArray((currentInstitution as any).classes)) {
+                (currentInstitution as any).classes.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : c.name;
+                    if (name) {
+                        const clean = name.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                        if (clean) classSet.add(clean);
+                    }
+                });
             }
         }
 
-        return filteredList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [activeStudents, isPrimarySchool]);
+        try {
+            const instId = currentInstitution?.id || 'default_inst';
+            const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
+            if (savedClasses) {
+                const parsed = JSON.parse(savedClasses);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(c => {
+                        const clean = String(c).replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                        if (clean) classSet.add(clean);
+                    });
+                }
+            }
+        } catch(e) {}
 
-    // Available Streams derived dynamically for the selected class
+        const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
+        const rawList = Array.from(classSet).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
+
+        if (rawList.length === 0) {
+            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9'];
+        }
+
+        // Educational Grade Sorting (Play Group, PP1, PP2, Grade 1..12, Form 1..4)
+        const rankClass = (c: string) => {
+            const lc = c.toLowerCase();
+            if (lc.includes('day') || lc.includes('play') || lc === 'pg') return 1;
+            if (lc.includes('pp1') || lc.includes('pre-primary 1') || lc.includes('pre primary 1')) return 2;
+            if (lc.includes('pp2') || lc.includes('pre-primary 2') || lc.includes('pre primary 2')) return 3;
+            const gradeMatch = lc.match(/grade\s*(\d+)/);
+            if (gradeMatch) return 10 + parseInt(gradeMatch[1], 10);
+            const stdMatch = lc.match(/(?:std|standard|class)\s*(\d+)/);
+            if (stdMatch) return 10 + parseInt(stdMatch[1], 10);
+            const formMatch = lc.match(/form\s*(\d+)/);
+            if (formMatch) return 30 + parseInt(formMatch[1], 10);
+            const yearMatch = lc.match(/year\s*(\d+)/);
+            if (yearMatch) return 40 + parseInt(yearMatch[1], 10);
+            return 100;
+        };
+
+        return rawList.sort((a, b) => {
+            const rA = rankClass(a);
+            const rB = rankClass(b);
+            if (rA !== rB) return rA - rB;
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }, [courses, activeStudents, currentInstitution]);
+
+    // Available Streams derived dynamically for the selected class (from courses, activeStudents, and standard streams)
     const availableStreams = useMemo(() => {
         const streamSet = new Set<string>();
+
+        // 1. Check Course levels/streams for the selected class
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const cName = typeof c === 'string' ? c : (c.name || (c as any).title || c.code || '');
+                const cleanCName = String(cName).replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                
+                const matchesSel = selectedClass === 'all' || 
+                    cleanCName.toLowerCase() === selectedClass.toLowerCase() ||
+                    cName.toLowerCase().includes(selectedClass.toLowerCase()) ||
+                    selectedClass.toLowerCase().includes(cleanCName.toLowerCase());
+
+                if (matchesSel && c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach(l => {
+                        const lName = String(l.name || l.title || l.code || '').trim();
+                        if (lName && lName.toLowerCase() !== 'all' && lName !== '—') {
+                            const streamPart = lName.replace(cleanCName, '').trim() || lName;
+                            if (streamPart && !streamPart.toLowerCase().startsWith('grade') && !streamPart.toLowerCase().startsWith('form')) {
+                                streamSet.add(streamPart);
+                            } else {
+                                streamSet.add(lName);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        // 2. Check Streams from enrolled students matching selected class
         activeStudents.forEach(s => {
             const { cleanClass, stream } = getStudentClassInfo(s);
-            if (selectedClass === 'all' || cleanClass.toLowerCase() === selectedClass.toLowerCase()) {
+            if (selectedClass === 'all' || cleanClass.toLowerCase() === selectedClass.toLowerCase() || cleanClass.toLowerCase().includes(selectedClass.toLowerCase())) {
                 if (stream && stream !== '—' && stream.toLowerCase() !== 'all' && stream.toLowerCase() !== 'main') {
                     streamSet.add(stream);
                 }
             }
         });
 
+        // 3. Fallback standard Kenyan school streams
         if (streamSet.size === 0) {
             ['East', 'West', 'North', 'South', 'Central'].forEach(s => streamSet.add(s));
         }
 
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    }, [activeStudents, selectedClass, getStudentClassInfo]);
+    }, [courses, activeStudents, selectedClass, getStudentClassInfo]);
 
     // Student Fee Balances Record State
     const [feeBalances, setFeeBalances] = useState<Record<string, { balance: number; nextTermFees: number; totalDue: number }>>(() => {
@@ -295,16 +366,34 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
     // Filtered Students list by search, selected class, and selected stream
     const filteredStudents = useMemo(() => {
         return activeStudents.filter(s => {
-            const { cleanClass, stream } = getStudentClassInfo(s);
+            const { cleanClass, rawClass, stream } = getStudentClassInfo(s);
 
             // Class match
-            if (selectedClass !== 'all' && cleanClass.toLowerCase() !== selectedClass.toLowerCase()) {
-                return false;
+            if (selectedClass !== 'all') {
+                const sel = selectedClass.toLowerCase().trim();
+                const cleanL = cleanClass.toLowerCase().trim();
+                const rawL = rawClass.toLowerCase().trim();
+
+                const matchesCls = cleanL === sel || 
+                    rawL.includes(sel) || 
+                    cleanL.includes(sel) || 
+                    sel.includes(cleanL) ||
+                    (s.courseId && courses.find(c => c.id === s.courseId)?.name.toLowerCase().includes(sel));
+
+                if (!matchesCls) return false;
             }
 
             // Stream match
-            if (selectedStream !== 'all' && stream.toLowerCase() !== selectedStream.toLowerCase()) {
-                return false;
+            if (selectedStream !== 'all') {
+                const selStr = selectedStream.toLowerCase().trim();
+                const stStr = stream.toLowerCase().trim();
+                const rawL = rawClass.toLowerCase().trim();
+
+                const matchesSt = stStr === selStr || 
+                    rawL.includes(selStr) ||
+                    (s.levelId && courses.some(c => (c.levels || []).some(l => l.id === s.levelId && l.name.toLowerCase().includes(selStr))));
+
+                if (!matchesSt) return false;
             }
 
             // Search query match
@@ -318,7 +407,8 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
             return true;
         });
-    }, [activeStudents, selectedClass, selectedStream, searchStudentQuery, getStudentClassInfo]);
+    }, [activeStudents, courses, selectedClass, selectedStream, searchStudentQuery, getStudentClassInfo]);
+
 
     // Ensure selectedStudentId points to a valid student in filtered list
     useEffect(() => {
