@@ -5304,6 +5304,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
             };
 
+            const accountantName = props.currentUser?.name || (receipt as any).issuedBy || (receipt as any).accountantName || (receipt as any).accountant || 'Chief Accountant';
+
             const dataUri = await pdfService.generateFinanceEposThermalReceiptPdfDataUri(
                 enrichedReceipt,
                 student,
@@ -5315,7 +5317,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     admNo,
                     studentAdmNo: admNo,
                     previousBalance,
-                    remainingBalance
+                    remainingBalance,
+                    accountantName,
+                    servedBy: accountantName
                 }
             );
             setEposModalReceipt({ receipt: enrichedReceipt, dataUri });
@@ -20881,6 +20885,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
                                     const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(eposModalReceipt.receipt.amountPaid) || 0)) : undefined;
 
+                                    const accountantName = props.currentUser?.name || (eposModalReceipt.receipt as any).issuedBy || (eposModalReceipt.receipt as any).accountantName || (eposModalReceipt.receipt as any).accountant || 'Chief Accountant';
+
                                     pdfService.downloadFinanceEposThermalReceiptPdf(
                                         eposModalReceipt.receipt,
                                         student,
@@ -20892,7 +20898,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             admNo,
                                             studentAdmNo: admNo,
                                             previousBalance,
-                                            remainingBalance
+                                            remainingBalance,
+                                            accountantName,
+                                            servedBy: accountantName
                                         }
                                     );
                                 }}

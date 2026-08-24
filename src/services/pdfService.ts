@@ -1603,15 +1603,17 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
         studentAdmNo?: string;
         admissionNumber?: string;
         studentName?: string;
+        accountantName?: string;
+        servedBy?: string;
     }
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
 
     // Standard 80mm EPOS Thermal Spool format
-    const baseHeight = 160;
+    const baseHeight = 165;
     const itemsCount = ((receipt as any).items || []).length || 1;
-    const estimatedHeight = Math.max(140, baseHeight + (itemsCount * 8));
+    const estimatedHeight = Math.max(145, baseHeight + (itemsCount * 8));
 
     const doc = new lib.jsPDF({
         orientation: 'portrait',
@@ -1737,6 +1739,24 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
         yPos += 3.8;
     }
 
+    const resolvedAccountant = extraMeta?.accountantName || 
+                               extraMeta?.servedBy || 
+                               (receipt as any).accountantName || 
+                               (receipt as any).accountant || 
+                               (receipt as any).issuedBy || 
+                               (receipt as any).servedBy || 
+                               (receipt as any).cashier || 
+                               (receipt as any).cashierName || 
+                               (receipt as any).createdByName || 
+                               (receipt as any).metadata?.issuedBy || 
+                               (receipt as any).metadata?.accountantName || 
+                               (receipt as any).metadata?.servedBy || 
+                               '';
+    if (resolvedAccountant) {
+        doc.text(`Accountant: ${resolvedAccountant}`, margin, yPos);
+        yPos += 3.8;
+    }
+
     // Line divider
     yPos += 1;
     doc.setLineDashPattern([1, 1], 0);
@@ -1808,6 +1828,13 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     doc.setLineDashPattern([], 0);
     yPos += 5;
 
+    if (resolvedAccountant) {
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        centerText(`Issued by: ${resolvedAccountant}`, yPos);
+        yPos += 3.8;
+    }
+
     doc.setFontSize(7);
     doc.setFont('helvetica', 'italic');
     centerText("Thank you for your payment!", yPos);
@@ -1838,6 +1865,8 @@ export const downloadFinanceEposThermalReceiptPdf = async (
         studentAdmNo?: string;
         admissionNumber?: string;
         studentName?: string;
+        accountantName?: string;
+        servedBy?: string;
     }
 ) => {
     const dataUri = await generateFinanceEposThermalReceiptPdfDataUri(receipt, student, institution, companyDetails, logoUrl, extraMeta);
