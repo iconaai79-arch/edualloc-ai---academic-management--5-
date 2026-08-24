@@ -445,7 +445,12 @@ export const generateReceiptPdfDataUri = async (
     companyDetails: CompanyDetails,
     logoUrl: string | null,
     invoiceBalance?: number,
-    accountantName?: string
+    accountantName?: string,
+    studentInfo?: {
+        name?: string;
+        admNo?: string;
+        studentClass?: string;
+    }
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -512,20 +517,30 @@ export const generateReceiptPdfDataUri = async (
     doc.setTextColor(13, 148, 136); // Teal-600
     doc.text('PAID / SECURED', badgeX + 2, tableStartY + 19.5);
 
-    // Column 2 Content: Payer / Transaction details
+    // Column 2 Content: Student / Payer / Transaction details
+    const resolvedStudentName = studentInfo?.name || (receipt as any)?.studentName || (receipt as any)?.student_name || (receipt as any)?.payerName;
+    const resolvedAdmNo = studentInfo?.admNo || (receipt as any)?.admissionNumber || (receipt as any)?.admission_number || (receipt as any)?.admNo || (receipt as any)?.studentAdmissionNumber;
+    const resolvedClass = studentInfo?.studentClass || (receipt as any)?.studentClass || (receipt as any)?.grade;
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105);
-    doc.text('BILL TO / TRANSACTION INFO', pageWidth / 2 + 6, tableStartY + 1);
+    doc.text(resolvedStudentName || resolvedAdmNo ? 'STUDENT & PAYMENT DETAILS' : 'BILL TO / TRANSACTION INFO', pageWidth / 2 + 6, tableStartY + 1);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Payer / Organization :  ${institution?.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
-    doc.text(`Client Representative :  ${transaction?.payerName || 'Platform Representative'}`, pageWidth / 2 + 6, tableStartY + 13);
-    
-    const paymentMethodText = `${receipt?.paymentMethod || 'M-PESA'} (${transaction?.transactionId || receipt?.relatedTransactionId || 'N/A'})`;
-    doc.text(`Method / Channel     :  ${paymentMethodText}`, pageWidth / 2 + 6, tableStartY + 19);
+
+    if (resolvedStudentName || resolvedAdmNo) {
+        doc.text(`Student Name      :  ${resolvedStudentName || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
+        doc.text(`Adm / Reg No      :  ${resolvedAdmNo || 'N/A'}${resolvedClass ? `  (${resolvedClass})` : ''}`, pageWidth / 2 + 6, tableStartY + 13);
+        const paymentMethodText = `${receipt?.paymentMethod || 'M-PESA'} (${transaction?.transactionId || receipt?.relatedTransactionId || 'N/A'})`;
+        doc.text(`Method / Ref       :  ${paymentMethodText}`, pageWidth / 2 + 6, tableStartY + 19);
+    } else {
+        doc.text(`Payer / Client    :  ${transaction?.payerName || institution?.name || 'Walk-in / Client'}`, pageWidth / 2 + 6, tableStartY + 7);
+        const paymentMethodText = `${receipt?.paymentMethod || 'M-PESA'} (${transaction?.transactionId || receipt?.relatedTransactionId || 'N/A'})`;
+        doc.text(`Method / Channel     :  ${paymentMethodText}`, pageWidth / 2 + 6, tableStartY + 13);
+    }
 
     // Extract itemized votehead breakdown if available
     let rawItems: any[] = [];
@@ -1298,14 +1313,6 @@ export const downloadQuotePdf = async (
     link.click();
 };
 
-export const downloadReceiptPdf = async (receipt: Receipt, transaction: MpesaTransaction, institution: Institution, companyDetails: CompanyDetails, logoUrl: string | null, invoiceBalance?: number, accountantName?: string) => {
-    const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl, invoiceBalance, accountantName);
-    const link = document.createElement('a');
-    link.href = dataUri;
-    link.download = `Receipt-${receipt.receiptNumber}.pdf`;
-    link.click();
-};
-
 export const generateDSQuotationPdfDataUri = async (
     lead: any,
     targetCategory: any,
@@ -1553,12 +1560,31 @@ export const generateRetailReceiptPdf = async (
     // 6. Footer
     doc.setFont('helvetica', 'italic');
     centerText(isEducation ? "Issued for Academic Use Only" : "Thank you for your business!", yPos);
-    yPos += 4;
-
-    doc.setFontSize(6);
+doc.setFontSize(6);
     centerText("Powered by Eduai Automation", yPos);
 
     return doc.output('bloburl');
+};
+
+export const downloadReceiptPdf = async (
+    receipt: Receipt,
+    transaction: MpesaTransaction,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    invoiceBalance?: number,
+    accountantName?: string,
+    studentInfo?: {
+        name?: string;
+        admNo?: string;
+        studentClass?: string;
+    }
+) => {
+    const dataUri = await generateReceiptPdfDataUri(receipt, transaction, institution, companyDetails, logoUrl, invoiceBalance, accountantName, studentInfo);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `Receipt-${receipt.receiptNumber || 'Official'}.pdf`;
+    link.click();
 };
 
 export const generateFinanceEposThermalReceiptPdfDataUri = async (
@@ -1567,7 +1593,17 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     institution: Institution,
     companyDetails: CompanyDetails,
     logoUrl: string | null,
-    extraMeta?: { studentClass?: string; invoiceDetails?: any; isReprint?: boolean; previousBalance?: number; remainingBalance?: number }
+    extraMeta?: { 
+        studentClass?: string; 
+        invoiceDetails?: any; 
+        isReprint?: boolean; 
+        previousBalance?: number; 
+        remainingBalance?: number;
+        admNo?: string;
+        studentAdmNo?: string;
+        admissionNumber?: string;
+        studentName?: string;
+    }
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -1653,16 +1689,39 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     yPos += 3.8;
 
     const payerName = (receipt as any).payerName || (receipt as any).studentName;
-    if (student) {
-        doc.text(`Student: ${student.name || 'N/A'}`, margin, yPos);
+    const resolvedStudentName = extraMeta?.studentName || student?.name || (receipt as any).studentName || (receipt as any).student_name || payerName;
+    const resolvedAdm = extraMeta?.studentAdmNo || 
+                        extraMeta?.admNo || 
+                        extraMeta?.admissionNumber || 
+                        student?.admissionNumber || 
+                        (student as any)?.admission_number || 
+                        (student as any)?.admNo || 
+                        (student as any)?.adm_no || 
+                        (student as any)?.staffId || 
+                        (student as any)?.staff_id || 
+                        (student as any)?.customStudentId || 
+                        (student as any)?.registrationNumber || 
+                        (student as any)?.metadata?.admissionNumber || 
+                        (student as any)?.metadata?.admission_number || 
+                        (student as any)?.metadata?.admNo || 
+                        (student as any)?.metadata?.staffId || 
+                        (receipt as any)?.admissionNumber || 
+                        (receipt as any)?.admission_number || 
+                        (receipt as any)?.admNo || 
+                        (receipt as any)?.studentAdmissionNumber || 
+                        (receipt as any)?.metadata?.admissionNumber || 
+                        'N/A';
+
+    if (student || resolvedStudentName) {
+        doc.text(`Student: ${resolvedStudentName || 'N/A'}`, margin, yPos);
         yPos += 3.8;
 
-        const admNo = student.admissionNumber || (student as any).admission_number || (student as any).admNo || 'N/A';
-        doc.text(`Adm No: ${admNo}`, margin, yPos);
+        doc.text(`Adm No: ${resolvedAdm}`, margin, yPos);
         yPos += 3.8;
 
-        if (extraMeta?.studentClass) {
-            doc.text(`Class: ${extraMeta.studentClass}`, margin, yPos);
+        const resolvedClass = extraMeta?.studentClass || (student ? (student as any).studentClass || (student as any).grade : '') || (receipt as any).studentClass || (receipt as any).grade;
+        if (resolvedClass) {
+            doc.text(`Class: ${resolvedClass}`, margin, yPos);
             yPos += 3.8;
         }
     } else if (payerName || receipt.paidFor) {
@@ -1769,7 +1828,17 @@ export const downloadFinanceEposThermalReceiptPdf = async (
     institution: Institution,
     companyDetails: CompanyDetails,
     logoUrl: string | null,
-    extraMeta?: { studentClass?: string; invoiceDetails?: any; isReprint?: boolean; previousBalance?: number; remainingBalance?: number }
+    extraMeta?: { 
+        studentClass?: string; 
+        invoiceDetails?: any; 
+        isReprint?: boolean; 
+        previousBalance?: number; 
+        remainingBalance?: number;
+        admNo?: string;
+        studentAdmNo?: string;
+        admissionNumber?: string;
+        studentName?: string;
+    }
 ) => {
     const dataUri = await generateFinanceEposThermalReceiptPdfDataUri(receipt, student, institution, companyDetails, logoUrl, extraMeta);
     const link = document.createElement('a');

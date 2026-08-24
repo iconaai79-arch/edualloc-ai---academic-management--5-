@@ -2352,6 +2352,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances'>('registry');
     const [searchBalances, setSearchBalances] = useState('');
     const [balanceClassFilter, setBalanceClassFilter] = useState('All');
+    const [balanceStreamFilter, setBalanceStreamFilter] = useState('All');
     const [balanceStatusFilter, setBalanceStatusFilter] = useState('All');
     const [balanceSortOption, setBalanceSortOption] = useState<'latest' | 'highest_balance' | 'lowest_balance' | 'name'>('latest');
     const [balancesCurrentPage, setBalancesCurrentPage] = useState(1);
@@ -2485,7 +2486,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Reset pagination to page 1 whenever search, filters, or items per page change
     useEffect(() => {
         setBalancesCurrentPage(1);
-    }, [searchBalances, balanceClassFilter, balanceStatusFilter, balanceSortOption, balancesPerPage]);
+    }, [searchBalances, balanceClassFilter, balanceStreamFilter, balanceStatusFilter, balanceSortOption, balancesPerPage]);
 
     // Fee Collection Report States
     const [collectionClassFilter, setCollectionClassFilter] = useState<string>('All');
@@ -2642,6 +2643,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
     }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch, getStudentAdmNumber, cleanId]);
 
+    function getStudentStream(student: any): string {
+        if (!student) return '';
+        const enrollment = enrollments.find(e => 
+            e.userId === student.id || 
+            (e as any).user_id === student.id || 
+            e.studentId === student.id || 
+            (e as any).student_id === student.id ||
+            (e.metadata && (e.metadata.userId === student.id || e.metadata.studentId === student.id))
+        );
+        const raw = enrollment?.metadata?.stream || 
+                    enrollment?.metadata?.streamName || 
+                    (enrollment as any)?.stream || 
+                    (enrollment as any)?.streamName || 
+                    student.metadata?.stream || 
+                    student.metadata?.streamName || 
+                    (student as any)?.stream || 
+                    (student as any)?.streamName || 
+                    (student as any)?.stream_name || 
+                    '';
+        return String(raw || '').trim();
+    }
+
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
         studentFinanceData.forEach(s => {
@@ -2650,6 +2673,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         return Array.from(classesSet).sort();
     }, [studentFinanceData]);
+
+    const availableStreamsForBalances = useMemo(() => {
+        const streamSet = new Set<string>();
+        studentFinanceData.forEach(s => {
+            const stream = getStudentStream(s);
+            if (stream && stream !== '—' && stream.toLowerCase() !== 'all' && stream.toLowerCase() !== 'unassigned') {
+                streamSet.add(stream);
+            }
+        });
+        return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [studentFinanceData, enrollments]);
 
     const filteredOpeningBalanceStudents = useMemo(() => {
         return studentFinanceData.filter(student => {
@@ -2678,6 +2712,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const cls = s.className || studentClassGroup(s);
             const matchesClass = balanceClassFilter === 'All' || cls === balanceClassFilter;
 
+            const stStream = getStudentStream(s);
+            const matchesStream = balanceStreamFilter === 'All' || (
+                (stStream && stStream.toLowerCase() === balanceStreamFilter.toLowerCase()) ||
+                (cls && cls.toLowerCase().includes(balanceStreamFilter.toLowerCase())) ||
+                (s.metadata?.stream && String(s.metadata.stream).toLowerCase() === balanceStreamFilter.toLowerCase())
+            );
+
             let matchesStatus = true;
             if (balanceStatusFilter === 'has_balance') {
                 matchesStatus = s.totals.balance > 0;
@@ -2689,7 +2730,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 matchesStatus = s.totals.paid <= 0 && s.totals.invoiced > 0;
             }
 
-            return matchesSearch && matchesClass && matchesStatus;
+            return matchesSearch && matchesClass && matchesStream && matchesStatus;
         });
 
         return list.sort((a, b) => {
@@ -2704,7 +2745,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             return (b.lastUpdatedTime || 0) - (a.lastUpdatedTime || 0);
         });
-    }, [studentFinanceData, searchBalances, balanceClassFilter, balanceStatusFilter, balanceSortOption]);
+    }, [studentFinanceData, searchBalances, balanceClassFilter, balanceStreamFilter, balanceStatusFilter, balanceSortOption]);
 
     const paginatedFinanceStudents = useMemo(() => {
         if (balancesPerPage === 'All') return filteredFinanceStudents;
@@ -5159,6 +5200,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 } as any;
             }
             const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
+            const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
+            const admNo = (student ? studentAdmissionNumber(student) : '') || (receipt as any).admissionNumber || (receipt as any).studentAdmissionNumber || (receipt as any).admNo || '—';
+            const studentClass = student ? studentClassGroup(student) : ((receipt as any).studentClass || (receipt as any).grade || undefined);
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
@@ -5178,7 +5222,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
                 invoiceBalance,
-                props.currentUser?.name || 'Chief Accountant'
+                props.currentUser?.name || 'Chief Accountant',
+                {
+                    name: studentName,
+                    admNo,
+                    studentClass
+                }
             );
         } catch (err: any) {
             alert("Failed to generate PDF: " + (err.message || err));
@@ -5200,7 +5249,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
             const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
-            const admNo = student?.admissionNumber || (student as any)?.admission_number || '—';
+            const admNo = (student ? studentAdmissionNumber(student) : '') || (receipt as any).admissionNumber || (receipt as any).studentAdmissionNumber || (receipt as any).admNo || '—';
+            const studentClass = student ? studentClassGroup(student) : ((receipt as any).studentClass || (receipt as any).grade || undefined);
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
@@ -5220,7 +5270,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
                 invoiceBalance,
-                props.currentUser?.name || 'Chief Accountant'
+                props.currentUser?.name || 'Chief Accountant',
+                {
+                    name: studentName,
+                    admNo,
+                    studentClass
+                }
             );
             setOnScreenReceiptModal({ receipt: enrichedReceipt, dataUri, studentName, admNo });
         } catch (err: any) {
@@ -5234,7 +5289,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handlePrintEposThermalReceipt = async (receipt: Receipt) => {
         try {
             const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
-            const studentClass = student ? studentClassGroup(student) : undefined;
+            const admNo = (student ? studentAdmissionNumber(student) : '') || (receipt as any).admissionNumber || (receipt as any).studentAdmissionNumber || (receipt as any).admNo || '—';
+            const studentClass = student ? studentClassGroup(student) : ((receipt as any).studentClass || (receipt as any).grade || undefined);
             const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
             const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
             const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(receipt.amountPaid) || 0)) : undefined;
@@ -5256,6 +5312,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.institution.logoUrl || null,
                 { 
                     studentClass,
+                    admNo,
+                    studentAdmNo: admNo,
                     previousBalance,
                     remainingBalance
                 }
@@ -6114,16 +6172,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <button
                             type="button"
                             onClick={() => {
-                                const exportData = studentFinanceData.map(s => [
-                                    s.admissionNumber || '—',
+                                const exportData = filteredFinanceStudents.map(s => [
+                                    s.admissionNumber || studentAdmissionNumber(s) || '—',
                                     s.name,
                                     s.className || studentClassGroup(s),
+                                    getStudentStream(s) || '—',
                                     s.totals.invoiced,
                                     s.totals.paid,
                                     s.totals.balance,
                                     s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
                                 ]);
-                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Stream', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
                             }}
                             className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
                         >
@@ -6184,16 +6243,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <button
                             type="button"
                             onClick={() => {
-                                const exportData = studentFinanceData.map(s => [
-                                    s.admissionNumber || '—',
+                                const exportData = filteredFinanceStudents.map(s => [
+                                    s.admissionNumber || studentAdmissionNumber(s) || '—',
                                     s.name,
                                     s.className || studentClassGroup(s),
+                                    getStudentStream(s) || '—',
                                     s.totals.invoiced,
                                     s.totals.paid,
                                     s.totals.balance,
                                     s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
                                 ]);
-                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Stream', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
                             }}
                             className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
                         >
@@ -6222,7 +6282,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             )}
 
             {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
                 {/* Search Bar */}
                 <div className="lg:col-span-2 relative">
                     <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
@@ -6245,6 +6305,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <option value="All">All Classes</option>
                         {availableClassesForBalances.map(cls => (
                             <option key={cls} value={cls}>{cls}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Stream Filter */}
+                <div>
+                    <select
+                        value={balanceStreamFilter}
+                        onChange={(e) => setBalanceStreamFilter(e.target.value)}
+                        className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
+                    >
+                        <option value="All">All Streams</option>
+                        {availableStreamsForBalances.map(strm => (
+                            <option key={strm} value={strm}>{strm}</option>
                         ))}
                     </select>
                 </div>
@@ -6338,8 +6412,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </td>
                                                     <td className="px-6 py-4 text-left">
                                                         <div className="flex flex-col gap-1">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
                                                                 <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                                {getStudentStream(student) && (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0">
+                                                                        Stream: {getStudentStream(student)}
+                                                                    </span>
+                                                                )}
                                                                 {(() => {
                                                                     const pPhone = getStudentParentPhone(student);
                                                                     const siblings = pPhone ? phoneSiblingMap[pPhone] : null;
@@ -20795,8 +20874,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <div className="p-6 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3">
                             <button
                                 onClick={() => {
-                                    const student = eposModalReceipt.receipt.studentId ? props.students.find(s => s.id === eposModalReceipt.receipt.studentId) : null;
-                                    const studentClass = student ? studentClassGroup(student) : undefined;
+                                    const student = eposModalReceipt.receipt.studentId ? mergedStudents.find(s => s.id === eposModalReceipt.receipt.studentId) : null;
+                                    const admNo = (student ? studentAdmissionNumber(student) : '') || (eposModalReceipt.receipt as any).admissionNumber || (eposModalReceipt.receipt as any).studentAdmissionNumber || (eposModalReceipt.receipt as any).admNo || '—';
+                                    const studentClass = student ? studentClassGroup(student) : ((eposModalReceipt.receipt as any).studentClass || (eposModalReceipt.receipt as any).grade || undefined);
                                     const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
                                     const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
                                     const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(eposModalReceipt.receipt.amountPaid) || 0)) : undefined;
@@ -20809,6 +20889,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         props.institution.logoUrl || null,
                                         {
                                             studentClass,
+                                            admNo,
+                                            studentAdmNo: admNo,
                                             previousBalance,
                                             remainingBalance
                                         }
