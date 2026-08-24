@@ -2670,8 +2670,18 @@ export const apiService = {
             }
 
             const data = await response.json();
-            // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures
-            localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
+            // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures (best-effort, ignore quota errors)
+            try {
+                localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
+            } catch (storageErr) {
+                // QuotaExceededError or similar — clear stale cache entry and retry once
+                try {
+                    localStorage.removeItem('eduai_system_settings_cache');
+                    localStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
+                } catch (_) {
+                    console.warn('[apiService] localStorage quota exceeded — system settings will not be cached this session.');
+                }
+            }
             const rawSettings = toCamelCase(data) || null;
             if (rawSettings) {
                 const ps = rawSettings.portalSettings || (rawSettings as any).portal_settings || {};
