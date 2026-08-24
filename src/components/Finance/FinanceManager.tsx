@@ -15481,49 +15481,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
-                            {/* Horizontal menu — switches to sub-menus when on outstanding or ledger tabs */}
-                            {reportsSubTab === 'outstanding' ? (
-                                /* Outstanding Balances sub-menu */
-                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
-                                    <button
-                                        onClick={() => setReportsSubTab('collection')}
-                                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all mr-1 border border-indigo-200 dark:border-indigo-800"
-                                    >
-                                        ← Back
-                                    </button>
-                                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />
-                                    {[
-                                        { id: 'balance_slip', label: 'Fee Balance Slip', icon: '📄' },
-                                        { id: 'all_balances', label: 'All Balances', icon: '📋' },
-                                        { id: 'household_balances', label: 'Household Balances', icon: '🏡' },
-                                        { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📊' },
-                                        { id: 'student_summary', label: 'Student Summary', icon: '👤' },
-                                        { id: 'class_summary', label: 'Class Summary', icon: '🏫' },
-                                        { id: 'term_summary', label: 'Term Summary', icon: '📅' },
-                                        { id: 'voteheads_summary', label: 'Voteheads Summary', icon: '🏦' },
-                                        { id: 'votehead_distribution', label: 'Votehead Distribution', icon: '📊' },
-                                    ].map(tab => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => {
-                                                if (tab.id === 'household_balances' || tab.id === 'promissory_commitments') {
-                                                    setReportsSubTab(tab.id as any);
-                                                } else {
-                                                    setOutstandingSubTab(tab.id as any);
-                                                }
-                                            }}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
-                                                (outstandingSubTab === tab.id || (reportsSubTab as string) === tab.id)
-                                                    ? 'bg-rose-600 text-white shadow-md'
-                                                    : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                            }`}
-                                        >
-                                            <span>{tab.icon}</span>
-                                            {tab.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : reportsSubTab === 'ledger' ? (
+                            {/* Horizontal menu — switches to sub-menus when on ledger tab */}
+                            {reportsSubTab === 'outstanding' ? null : reportsSubTab === 'ledger' ? (
                                 /* Receipts Ledger sub-menu */
                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
                                     <button
@@ -16349,10 +16308,69 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
 
                                 return (
-                                    <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="flex flex-col lg:flex-row gap-6 items-start animate-in fade-in duration-200">
+                                        {/* Vertical Menu Sidebar */}
+                                        <div className="w-full lg:w-72 shrink-0 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800/80 p-4 shadow-xl space-y-3 sticky top-6">
+                                            <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                <button
+                                                    onClick={() => setReportsSubTab('collection')}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all border border-indigo-200 dark:border-indigo-800/60 cursor-pointer"
+                                                >
+                                                    ← Back
+                                                </button>
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-rose-500 bg-rose-50 dark:bg-rose-950/50 px-2.5 py-1 rounded-full border border-rose-200 dark:border-rose-800/50">
+                                                    Outstanding
+                                                </span>
+                                            </div>
 
-                                        {/* 1. Fee Balance Slip */}
-                                        {outstandingSubTab === 'balance_slip' && (
+                                            <div className="space-y-1">
+                                                {[
+                                                    { id: 'all_balances', label: 'All Balances', icon: '📋', desc: 'Master fee arrears register' },
+                                                    { id: 'balance_slip', label: 'Fee Balance Slip', icon: '📄', desc: 'Single student statement' },
+                                                    { id: 'household_balances', label: 'Household Balances', icon: '🏡', desc: 'Family aggregated debt' },
+                                                    { id: 'promissory_commitments', label: 'Promissory Commitments', icon: '📊', desc: 'Pledged fee agreements' },
+                                                    { id: 'student_summary', label: 'Student Summary', icon: '👤', desc: 'Individual balance list' },
+                                                    { id: 'class_summary', label: 'Class Summary', icon: '🏫', desc: 'Arrears per class group' },
+                                                    { id: 'term_summary', label: 'Term Summary', icon: '📅', desc: 'Arrears by school term' },
+                                                    { id: 'voteheads_summary', label: 'Voteheads Summary', icon: '🏦', desc: 'Unpaid votehead items' },
+                                                    { id: 'votehead_distribution', label: 'Votehead Distribution', icon: '📊', desc: 'Matrix allocation chart' },
+                                                ].map(tab => {
+                                                    const isActive = outstandingSubTab === tab.id || (reportsSubTab as string) === tab.id;
+                                                    return (
+                                                        <button
+                                                            key={tab.id}
+                                                            onClick={() => {
+                                                                if (tab.id === 'household_balances' || tab.id === 'promissory_commitments') {
+                                                                    setReportsSubTab(tab.id as any);
+                                                                } else {
+                                                                    setOutstandingSubTab(tab.id as any);
+                                                                }
+                                                            }}
+                                                            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-left transition-all duration-200 cursor-pointer group ${
+                                                                isActive
+                                                                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/25 font-black'
+                                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                            }`}
+                                                        >
+                                                            <span className="text-base shrink-0">{tab.icon}</span>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className={`text-xs tracking-tight truncate ${isActive ? 'font-black text-white' : 'font-bold'}`}>
+                                                                    {tab.label}
+                                                                </p>
+                                                                <p className={`text-[10px] truncate ${isActive ? 'text-rose-100' : 'text-slate-400 dark:text-slate-500'}`}>
+                                                                    {tab.desc}
+                                                                </p>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Right Main Content Area */}
+                                        <div className="flex-1 min-w-0 w-full space-y-4">
+                                            {/* 1. Fee Balance Slip */}
+                                            {outstandingSubTab === 'balance_slip' && (
                                             <div className="space-y-6">
                                                 <div className={`p-6 rounded-[2.5rem] border shadow-md ${
                                                     themeMode === 'futuristic'
@@ -17183,8 +17201,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </div>
                                                     )}
                                                 </div>
-                                            );
-                                        })()}
+                                            </div>
+                                        </div>
                                     </div>
                                 );
                             })()}
