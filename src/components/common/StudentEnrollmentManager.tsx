@@ -4563,6 +4563,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    // Helper: normalize bare numbers like "1", "2" → "Grade 1", "Grade 2" (or "Form 1" for secondary)
+    const normalizeGradeLabel = useCallback((raw: string, prefix = 'Grade'): string => {
+        const trimmed = (raw || '').trim();
+        if (!trimmed) return trimmed;
+        // Already a full grade name → keep
+        if (/^(grade|form|pp|std|year|class|standard|pre-primary|playgroup)/i.test(trimmed)) return trimmed;
+        // Bare number "1" → "Grade 1"
+        if (/^\d{1,2}$/.test(trimmed)) return `${prefix} ${trimmed}`;
+        // Number + stream "1 East" → "Grade 1 East"
+        const ns = trimmed.match(/^(\d{1,2})\s+(.+)$/);
+        if (ns) return `${prefix} ${ns[1]} ${ns[2]}`;
+        return trimmed;
+    }, []);
+
     // Available Cohorts / Grade Levels — Only load registered grades
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
@@ -4624,14 +4638,45 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             // If we have registered grades, normalize & deduplicate case-insensitively
             if (rawGrades.length > 0) {
+                // Determine default grade prefix from existing full-name grades in courses/academicLevels
+                const hasGradePrefix = rawGrades.some(g => /^grade\s*\d+/i.test(g));
+                const hasFormPrefix = rawGrades.some(g => /^form\s*\d+/i.test(g));
+                const defaultPrefix = hasFormPrefix && !hasGradePrefix ? 'Form' : 'Grade';
+
+                // Normalize bare numbers to full grade names
+                const normalized = rawGrades.map(g => normalizeGradeLabel(g, defaultPrefix));
+
                 const seenMap = new Map<string, string>();
-                rawGrades.forEach(g => {
+                normalized.forEach(g => {
                     const lower = g.toLowerCase();
                     if (!seenMap.has(lower)) {
                         seenMap.set(lower, g);
                     }
                 });
-                return Array.from(seenMap.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+                // Educational grade sort
+                const rankGrade = (g: string) => {
+                    const lc = g.toLowerCase();
+                    if (lc.includes('play') || lc === 'pg') return 0;
+                    if (/pp1|pre-primary\s*1/.test(lc)) return 1;
+                    if (/pp2|pre-primary\s*2/.test(lc)) return 2;
+                    const grm = lc.match(/grade\s*(\d+)/);
+                    if (grm) return 10 + parseInt(grm[1]);
+                    const stm = lc.match(/(?:std|class|standard)\s*(\d+)/);
+                    if (stm) return 10 + parseInt(stm[1]);
+                    const frm = lc.match(/form\s*(\d+)/);
+                    if (frm) return 30 + parseInt(frm[1]);
+                    const yrm = lc.match(/year\s*(\d+)/);
+                    if (yrm) return 40 + parseInt(yrm[1]);
+                    return 100;
+                };
+
+                return Array.from(seenMap.values()).sort((a, b) => {
+                    const rA = rankGrade(a);
+                    const rB = rankGrade(b);
+                    if (rA !== rB) return rA - rB;
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                });
             }
 
             // Fallback list ONLY when NO grades exist anywhere
@@ -4641,7 +4686,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
             ];
         }
-    }, [context, courses, academicLevels, enrollments, users, currentInstitution]);
+    }, [context, courses, academicLevels, enrollments, users, currentInstitution, normalizeGradeLabel]);
 
     // Available Streams fallback
     const streamsList = useMemo(() => {
@@ -5603,7 +5648,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     ) : (
                                                         <div className="flex flex-col gap-1">
                                                             <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full whitespace-nowrap">
-                                                                {enr.metadata?.gradeLevel || 'No Grade'}
+                                                                {normalizeGradeLabel(enr.metadata?.gradeLevel || '') || 'No Grade'}
                                                             </span>
                                                             {enr.metadata?.stream && (
                                                                 <span className="text-[9px] font-black uppercase tracking-widest bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-400 px-2.5 py-0.5 rounded-full text-center whitespace-nowrap">
