@@ -129,3 +129,4 @@ export * from './CoopIcon';
 export * from './SignalIcon';
 export * from './LightBulbIcon';
 export * from './BuildingLibraryIcon';
+export * from './KeyIcon';
