@@ -190,7 +190,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'history' | 'wizard'>('ledger');
-    const [homeSubTab, setHomeSubTab] = useState<'registry' | 'communication' | 'reports' | 'dashboard'>('registry');
+    const [homeSubTab, setHomeSubTab] = useState<'dashboard' | 'registry' | 'communication' | 'reports'>('dashboard');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
@@ -7654,6 +7654,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const netCashFlow = totalCollected - totalExpenses;
                     const pendingInvoices = mappedInvoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length;
                     const recentReceipts = [...mappedReceipts].sort((a: any, b: any) => new Date(b.createdAt || b.date || 0).getTime() - new Date(a.createdAt || a.date || 0).getTime()).slice(0, 6);
+                    const totalDebtors = studentFinanceData.filter((s: any) => s.totals.balance > 0).length;
+                    const clearedCount = studentFinanceData.filter((s: any) => s.totals.balance <= 0 && s.totals.invoiced > 0).length;
 
                     // Monthly collected breakdown (last 6 months)
                     const monthlyData = Array.from({ length: 6 }, (_, i) => {
@@ -7674,11 +7676,59 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         balance: data.reduce((s, st) => s + st.totals.balance, 0),
                     })).sort((a, b) => b.balance - a.balance);
 
+                    // Votehead Distribution Breakdown across all invoices
+                    const voteheadMap: Record<string, { billed: number; collected: number }> = {};
+                    studentFinanceData.forEach((s: any) => {
+                        if (s.voteMap) {
+                            Object.entries(s.voteMap).forEach(([k, v]: [string, any]) => {
+                                if (!voteheadMap[k]) voteheadMap[k] = { billed: 0, collected: 0 };
+                                voteheadMap[k].billed += v.invoiced || 0;
+                                voteheadMap[k].collected += v.paid || 0;
+                            });
+                        }
+                    });
+                    const voteheadAnalysis = Object.entries(voteheadMap).map(([name, data]) => ({
+                        name,
+                        billed: data.billed,
+                        collected: data.collected,
+                        balance: data.billed - data.collected,
+                        rate: data.billed > 0 ? (data.collected / data.billed) * 100 : 0
+                    })).sort((a, b) => b.billed - a.billed);
+
+                    // Payment Channels & Inflow Breakdown
+                    const channelDefs = [
+                        { name: 'M-Pesa / Mobile', keywords: ['mpesa', 'm-pesa', 'mobile', 'safaricom', 'till', 'paybill'], color: 'emerald' },
+                        { name: 'Bank Deposits', keywords: ['bank', 'kcb', 'equity', 'coop', 'ncba', 'absa', 'dtb', 'stanbic', 'family'], color: 'indigo' },
+                        { name: 'Cash Receipts', keywords: ['cash', 'over_the_counter'], color: 'amber' },
+                        { name: 'Bursaries & CDF', keywords: ['bursary', 'grant', 'cdf', 'county', 'ministry', 'sponsorship'], color: 'purple' },
+                        { name: 'Cheque & Transfers', keywords: ['cheque', 'check', 'wire', 'eft', 'rtgs'], color: 'teal' },
+                    ];
+                    const channelBreakdown = channelDefs.map(ch => {
+                        const matches = mappedReceipts.filter((r: any) => {
+                            const raw = String(r.paymentMethod || r.payment_method || r.channel || r.mode || r.description || '').toLowerCase();
+                            return ch.keywords.some(k => raw.includes(k));
+                        });
+                        const total = matches.reduce((acc: number, r: any) => acc + (r.amountPaid || 0), 0);
+                        return { name: ch.name, count: matches.length, total, color: ch.color };
+                    }).filter(c => c.total > 0 || c.count > 0);
+
+                    // Expense Category Breakdown
+                    const expenseMap: Record<string, number> = {};
+                    (props.expenses || []).forEach((e: any) => {
+                        const cat = String(e.category || e.expense_category || 'Operating Expenses').trim();
+                        expenseMap[cat] = (expenseMap[cat] || 0) + (e.amount || 0);
+                    });
+                    const expenseCategories = Object.entries(expenseMap).map(([category, amount]) => ({
+                        category,
+                        amount,
+                        pct: totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0
+                    })).sort((a, b) => b.amount - a.amount);
+
                     const homeSubTabs = [
+                        { id: 'dashboard', label: 'Financial Analytics & Insights', icon: ChartPieIcon },
                         { id: 'registry', label: 'Students Registry', icon: UserGroupIcon },
                         { id: 'communication', label: 'Communication Hub', icon: PaperAirplaneIcon },
                         { id: 'reports', label: 'Financial Reports', icon: FileTextIcon },
-                        { id: 'dashboard', label: 'Financial Dashboard', icon: ChartPieIcon },
                     ] as const;
 
                     return (
@@ -7692,7 +7742,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             key={tab.id}
                                             type="button"
                                             onClick={() => setHomeSubTab(tab.id as any)}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 ${
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 cursor-pointer ${
                                                 homeSubTab === tab.id
                                                     ? 'bg-indigo-600 text-white shadow-md'
                                                     : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -7700,6 +7750,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         >
                                             <Icon className="w-4 h-4" />
                                             <span>{tab.label}</span>
+                                            {tab.id === 'registry' && (
+                                                <span className="ml-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                                                    {studentFinanceData.length}
+                                                </span>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -7707,7 +7762,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* View contents based on active sub-tab */}
                             {homeSubTab === 'registry' && (
-                                <div className="animate-in fade-in duration-300">
+                                <div className="animate-in fade-in duration-300 space-y-4">
+                                    <div className="p-4 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-800/60 rounded-2xl flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-xl">🎓</span>
+                                            <div>
+                                                <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tight">Active Student Registry & Admission Profiles</h4>
+                                                <p className="text-[10px] text-slate-500 font-medium">Manage student records, guardian contacts, enrollments, and academic biodata.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHomeSubTab('dashboard')}
+                                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                                        >
+                                            ← Back to Financial Analytics
+                                        </button>
+                                    </div>
                                     <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-medium">Loading Student Registry...</div>}>
                                         <StudentEnrollmentManager
                                             context="academic"
@@ -7783,6 +7854,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {homeSubTab === 'dashboard' && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    {/* Student Registry Quick Banner */}
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-800/50 rounded-2xl">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm">
+                                                <UserGroupIcon className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-800 dark:text-white">Individual Student Roster & Registry Profiles</p>
+                                                <p className="text-[10px] text-slate-500 font-medium">Student names and registry profiles are accessible in the dedicated student registry tab.</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHomeSubTab('registry')}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            <span>Open Students Registry</span>
+                                            <span>→</span>
+                                        </button>
+                                    </div>
+
                                     {/* Welcome Banner */}
                                     <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-purple-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-500/30">
                                         <div className="absolute -top-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
@@ -7791,16 +7883,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <div>
                                                 <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Finance Command Centre</p>
                                                 <h2 className="text-3xl font-black tracking-tight">{props.institution.name}</h2>
-                                                <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence — {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                                <p className="text-indigo-200 text-sm font-medium mt-1">Live financial intelligence & analytics — {new Date().toLocaleDateString('en-KE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                                             </div>
                                             <div className="flex flex-col items-end gap-2">
                                                 <div className="text-right">
-                                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest">Collection Rate</p>
+                                                    <p className="text-indigo-200 text-[10px] font-black uppercase tracking-widest">Collection Realization Rate</p>
                                                     <p className="text-5xl font-black">{collectionRate.toFixed(1)}<span className="text-2xl text-indigo-200">%</span></p>
                                                 </div>
-                                                <div className="w-40 bg-white/20 rounded-full h-2">
-                                                    <div className="h-2 rounded-full bg-emerald-400 transition-all duration-1000" style={{ width: `${Math.min(collectionRate, 100)}%` }} />
+                                                <div className="w-44 bg-white/20 rounded-full h-2.5 overflow-hidden">
+                                                    <div className="h-2.5 rounded-full bg-emerald-400 transition-all duration-1000" style={{ width: `${Math.min(collectionRate, 100)}%` }} />
                                                 </div>
+                                                <p className="text-[10px] text-indigo-200 font-semibold">{clearedCount} cleared · {totalDebtors} with arrears</p>
                                             </div>
                                         </div>
                                     </div>
@@ -7808,10 +7901,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     {/* KPI Cards Row */}
                                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
                                         {[
-                                            { label: 'Total Billed', value: totalBilled, color: 'indigo', icon: '📋', sub: `${mappedInvoices.length} invoices` },
-                                            { label: 'Collected', value: totalCollected, color: 'emerald', icon: '✓', sub: `${mappedReceipts.length} receipts` },
-                                            { label: 'Outstanding', value: outstanding, color: 'rose', icon: '⚠️', sub: `${pendingInvoices} pending` },
-                                            { label: 'Net Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? '📈' : '📉', sub: `After KSh ${totalExpenses.toLocaleString()} expenses` },
+                                            { label: 'Total Invoiced / Billed', value: totalBilled, color: 'indigo', icon: '📋', sub: `${mappedInvoices.length} invoices generated` },
+                                            { label: 'Total Collections Received', value: totalCollected, color: 'emerald', icon: '✓', sub: `${mappedReceipts.length} receipts processed` },
+                                            { label: 'Total Outstanding Arrears', value: outstanding, color: 'rose', icon: '⚠️', sub: `${totalDebtors} students owe balances` },
+                                            { label: 'Net Operating Cash Flow', value: netCashFlow, color: netCashFlow >= 0 ? 'teal' : 'orange', icon: netCashFlow >= 0 ? '📈' : '📉', sub: `After KSh ${totalExpenses.toLocaleString()} total expenses` },
                                         ].map((kpi, i) => (
                                             <div key={i} className={`bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}>
                                                 <div className="flex justify-between items-start mb-4">
@@ -7825,7 +7918,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ))}
                                     </div>
 
-                                    {/* Futuristic Chart + AI Audit Radar + Class Breakdown Row */}
+                                    {/* Row 1: 6-Month Revenue Velocity + Class Arrears Radar */}
                                     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                                         {/* Futuristic Revenue Trend Line Graph & Area Fill */}
                                         <div className={`lg:col-span-3 p-8 rounded-[2.5rem] border shadow-xl relative overflow-hidden ${
@@ -7954,29 +8047,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
                                             : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
                                         }`}>
-                                            <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white mb-1">
-                                                {themeMode === 'futuristic' ? '⚡ AI Audit & Class Arrears' : 'Outstanding by Class'}
-                                            </h4>
-                                            <p className="text-[10px] text-slate-400 font-medium mb-6">Class balance ranking & risk analysis</p>
-                                            <div className="space-y-4">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                    {themeMode === 'futuristic' ? '⚡ Class Realization & Risk' : 'Outstanding by Class'}
+                                                </h4>
+                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-rose-500/20 text-rose-400 rounded-full">
+                                                    {classBreakdown.length} Classes
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 font-medium mb-4">Class balance ranking & collection rate</p>
+                                            <div className="space-y-3.5 max-h-56 overflow-y-auto pr-1">
                                                 {classBreakdown.length === 0 ? (
                                                     <p className="text-xs text-slate-400 font-medium text-center py-6">No class data available</p>
-                                                ) : classBreakdown.slice(0, 5).map((c, i) => {
+                                                ) : classBreakdown.slice(0, 6).map((c, i) => {
                                                     const pct = c.invoiced > 0 ? (c.paid / c.invoiced) * 100 : 0;
                                                     return (
-                                                        <div key={i} className="space-y-1">
+                                                        <div key={i} className="space-y-1 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800/50">
                                                             <div className="flex justify-between items-center">
                                                                 <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{c.cls}</span>
-                                                                <span className="text-[10px] font-black text-rose-500 dark:text-rose-400">KSh {c.balance.toLocaleString()}</span>
+                                                                <span className="text-[10px] font-black text-rose-500 dark:text-rose-400">KSh {c.balance.toLocaleString()} owed</span>
                                                             </div>
-                                                            <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-800">
-                                                                <div className={`h-2 rounded-full transition-all duration-700 ${
+                                                            <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                                <div className={`h-1.5 rounded-full transition-all duration-700 ${
                                                                     themeMode === 'futuristic'
                                                                     ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/50'
                                                                     : 'bg-emerald-500'
-                                                                }`} style={{ width: `${pct}%` }} />
+                                                                }`} style={{ width: `${Math.min(pct, 100)}%` }} />
                                                             </div>
-                                                            <p className="text-[9px] text-slate-400 font-medium">{pct.toFixed(0)}% collected · {c.count} students</p>
+                                                            <div className="flex justify-between text-[9px] text-slate-400 font-medium">
+                                                                <span>{pct.toFixed(0)}% collected</span>
+                                                                <span>{c.count} students</span>
+                                                            </div>
                                                         </div>
                                                     );
                                                 })}
@@ -7984,13 +8085,107 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    {/* Recent Receipts + Quick Links */}
+                                    {/* Row 2: Votehead Distribution Analytics + Payment Channel Gateways */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        {/* Votehead Distribution Graph & Allocation */}
+                                        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Votehead Revenue Breakdown</h4>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Itemized revenue realization across fee voteheads</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setOutstandingSubTab('votehead_distribution');
+                                                        setReportsSubTab('outstanding');
+                                                        setActiveTab('reports');
+                                                    }}
+                                                    className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline cursor-pointer"
+                                                >
+                                                    Full Pivot Report →
+                                                </button>
+                                            </div>
+                                            <div className="space-y-3 pt-2 max-h-72 overflow-y-auto pr-1">
+                                                {voteheadAnalysis.length === 0 ? (
+                                                    <p className="text-xs text-slate-400 font-medium text-center py-6">No votehead data recorded yet</p>
+                                                ) : voteheadAnalysis.map((vh, i) => (
+                                                    <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800/50 space-y-1.5">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="font-black text-slate-800 dark:text-white">{vh.name}</span>
+                                                            <div className="text-right">
+                                                                <span className="font-black text-emerald-600">KSh {Math.round(vh.collected).toLocaleString()}</span>
+                                                                <span className="text-slate-400 text-[10px]"> / KSh {vh.billed.toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                                                            <div
+                                                                className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
+                                                                style={{ width: `${Math.min(vh.rate, 100)}%` }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-[9px] font-bold text-slate-400">
+                                                            <span>Realization: {vh.rate.toFixed(1)}%</span>
+                                                            <span className="text-rose-500">Owed: KSh {Math.round(vh.balance).toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Payment Channels & Expense Dynamics */}
+                                        <div className="space-y-6">
+                                            {/* Payment Channels & Gateways */}
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment Inflow Channels</h4>
+                                                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">{mappedReceipts.length} Total Receipts</span>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {channelBreakdown.map((ch, i) => (
+                                                        <div key={i} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">{ch.name}</p>
+                                                            <p className="text-base font-black text-slate-900 dark:text-white">KSh {ch.total.toLocaleString()}</p>
+                                                            <p className="text-[9px] font-semibold text-slate-500 mt-1">{ch.count} transactions processed</p>
+                                                        </div>
+                                                    ))}
+                                                    {channelBreakdown.length === 0 && (
+                                                        <p className="col-span-2 text-xs text-slate-400 text-center py-4">No receipts recorded yet</p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Expense Categories Breakdown */}
+                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Expense Outflows Breakdown</h4>
+                                                    <span className="text-[10px] font-black text-rose-600 uppercase tracking-wider">KSh {totalExpenses.toLocaleString()} Total</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {expenseCategories.slice(0, 4).map((exp, i) => (
+                                                        <div key={i} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-xs">
+                                                            <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[180px]">{exp.category}</span>
+                                                            <span className="font-black text-rose-600">KSh {exp.amount.toLocaleString()} ({exp.pct.toFixed(0)}%)</span>
+                                                        </div>
+                                                    ))}
+                                                    {expenseCategories.length === 0 && (
+                                                        <p className="text-xs text-slate-400 text-center py-2">No expenses logged yet</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3: Recent Receipts + Quick Links */}
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        {/* Recent Receipts */}
+                                        {/* Recent Receipts Stream */}
                                         <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
                                             <div className="flex justify-between items-center mb-6">
-                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Receipts</h4>
-                                                <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline">View All →</button>
+                                                <div>
+                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Financial Inflows</h4>
+                                                    <p className="text-[10px] text-slate-400 font-medium">Real-time payment receipt telemetry</p>
+                                                </div>
+                                                <button onClick={() => setActiveTab('receipts')} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline cursor-pointer">View All Receipts →</button>
                                             </div>
                                             <div className="space-y-3">
                                                 {recentReceipts.length === 0 ? (
@@ -8002,8 +8197,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <span className="text-xs">✓</span>
                                                             </div>
                                                             <div>
-                                                                <p className="text-[11px] font-black text-slate-800 dark:text-white">{r.studentName || r.payerName || 'Student'}</p>
-                                                                <p className="text-[10px] text-slate-400 font-medium">{r.receiptNumber || r.id?.slice(-8)}</p>
+                                                                <p className="text-[11px] font-black text-slate-800 dark:text-white">{r.studentName || r.payerName || 'Payer'}</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium">{r.receiptNumber || r.id?.slice(-8)} · {r.paymentMethod || 'Direct'}</p>
                                                             </div>
                                                         </div>
                                                         <span className="text-sm font-black text-emerald-600">KSh {(r.amountPaid || 0).toLocaleString()}</span>
@@ -8012,19 +8207,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </div>
                                         </div>
 
-                                        {/* Quick Navigation */}
+                                        {/* Quick Navigation Hub */}
                                         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Quick Access</h4>
+                                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Finance Quick Access</h4>
                                             <div className="space-y-3">
                                                 {[
-                                                    { label: 'Students & Invoices', tab: 'billing', emoji: '🎓', color: 'bg-indigo-50 text-indigo-700' },
-                                                    { label: 'Fee Balances', tab: 'balances', emoji: '⚖️', color: 'bg-rose-50 text-rose-700' },
-                                                    { label: 'Receipts', tab: 'receipts', emoji: '🧾', color: 'bg-emerald-50 text-emerald-700' },
-                                                    { label: 'Billing Wizard', tab: 'wizard', emoji: '⚡', color: 'bg-amber-50 text-amber-700' },
-                                                    { label: 'Expense Governance', tab: 'expenses', emoji: '💸', color: 'bg-orange-50 text-orange-700' },
-                                                    { label: 'HR & Payroll', tab: 'payroll', emoji: '👥', color: 'bg-teal-50 text-teal-700' },
+                                                    { label: 'Students Registry', action: () => setHomeSubTab('registry'), emoji: '👥', color: 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300' },
+                                                    { label: 'Fee Balances & Defaulters', action: () => setActiveTab('balances'), emoji: '⚖️', color: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' },
+                                                    { label: 'Receipts & Income', action: () => setActiveTab('receipts'), emoji: '🧾', color: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' },
+                                                    { label: 'Student Invoices Ledger', action: () => setActiveTab('student_invoices'), emoji: '📋', color: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' },
+                                                    { label: 'Expense Governance', action: () => setActiveTab('expenses'), emoji: '💸', color: 'bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300' },
+                                                    { label: 'Fiscal Reports & Ledgers', action: () => setActiveTab('reports'), emoji: '📊', color: 'bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300' },
                                                 ].map((link, i) => (
-                                                    <button key={i} onClick={() => setActiveTab(link.tab as any)} className={`w-full flex items-center gap-3 p-3 rounded-2xl ${link.color} hover:scale-[1.02] transition-all duration-200 text-left`}>
+                                                    <button key={i} onClick={link.action} className={`w-full flex items-center gap-3 p-3 rounded-2xl ${link.color} hover:scale-[1.02] transition-all duration-200 text-left cursor-pointer`}>
                                                         <span className="text-lg">{link.emoji}</span>
                                                         <span className="text-[11px] font-black uppercase tracking-tight">{link.label}</span>
                                                         <span className="ml-auto text-xs opacity-50">→</span>
@@ -8036,19 +8231,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                     {/* Financial Health Scoreboard */}
                                     <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8">
-                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Financial Health Indicators</h4>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Financial Health & Liquidity Indicators</h4>
                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                                             {[
-                                                { label: 'Collection Rate', value: collectionRate, suffix: '%', good: collectionRate >= 80, bar: true },
-                                                { label: 'Avg. per Student', value: studentFinanceData.length > 0 ? Math.round(totalCollected / studentFinanceData.length) : 0, suffix: ' KSh', good: true, bar: false },
-                                                { label: 'Total Students', value: studentFinanceData.length, suffix: '', good: true, bar: false },
-                                                { label: 'Expense Ratio', value: totalCollected > 0 ? Math.round((totalExpenses / totalCollected) * 100) : 0, suffix: '%', good: totalCollected > 0 && (totalExpenses / totalCollected) < 0.5, bar: true },
+                                                { label: 'Collection Efficiency', value: collectionRate, suffix: '%', good: collectionRate >= 80, bar: true },
+                                                { label: 'Avg Inflow per Student', value: studentFinanceData.length > 0 ? Math.round(totalCollected / studentFinanceData.length) : 0, suffix: ' KSh', good: true, bar: false },
+                                                { label: 'Total Enrolled Learners', value: studentFinanceData.length, suffix: ' students', good: true, bar: false },
+                                                { label: 'Expense to Income Ratio', value: totalCollected > 0 ? Math.round((totalExpenses / totalCollected) * 100) : 0, suffix: '%', good: totalCollected > 0 && (totalExpenses / totalCollected) < 0.5, bar: true },
                                             ].map((metric, i) => (
                                                 <div key={i} className="space-y-3">
                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{metric.label}</p>
                                                     <p className={`text-2xl font-black ${metric.good ? 'text-emerald-600' : 'text-rose-600'}`}>{metric.value.toLocaleString()}{metric.suffix}</p>
                                                     {metric.bar && (
-                                                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                                                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
                                                             <div className={`h-2 rounded-full transition-all duration-700 ${metric.good ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${Math.min(metric.value as number, 100)}%` }} />
                                                         </div>
                                                     )}
