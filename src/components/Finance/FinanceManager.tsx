@@ -194,6 +194,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
+    const [voteheadDistSearch, setVoteheadDistSearch] = useState('');
+    const [voteheadDistClassFilter, setVoteheadDistClassFilter] = useState('All');
+    const [voteheadDistPage, setVoteheadDistPage] = useState(1);
+    const [voteheadDistRowsPerPage, setVoteheadDistRowsPerPage] = useState<number | 'All'>(25);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
     const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
@@ -16477,75 +16481,303 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             );
                                         })()}
 
-                                        {/* 7. Votehead Distribution — pivot table */}
+                                        {/* 7. Votehead Distribution — pivot table with pagination, search, and class filter */}
                                         {outstandingSubTab === 'votehead_distribution' && (() => {
-                                            const distStudents = studentVoteData
+                                            const baseDebtorStudents = studentVoteData
                                                 .filter((s: any) => s.totals.balance > 0)
                                                 .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
 
+                                            // Filter by search query (name, admission number) and class
+                                            const filteredDistStudents = baseDebtorStudents.filter((s: any) => {
+                                                const sClass = (s.className || studentClassGroup(s) || 'General').trim();
+                                                if (voteheadDistClassFilter !== 'All' && sClass !== voteheadDistClassFilter) {
+                                                    return false;
+                                                }
+                                                if (voteheadDistSearch.trim()) {
+                                                    const q = voteheadDistSearch.trim().toLowerCase();
+                                                    const sName = String(s.name || '').toLowerCase();
+                                                    const sAdm = String(s.admissionNumber || s.admNo || getStudentAdmNumber(s) || '').toLowerCase();
+                                                    if (!sName.includes(q) && !sAdm.includes(q)) {
+                                                        return false;
+                                                    }
+                                                }
+                                                return true;
+                                            });
+
+                                            // Extract unique available classes for filter dropdown
+                                            const availableDistClasses = Array.from(new Set(baseDebtorStudents.map((s: any) => (s.className || studentClassGroup(s) || 'General').trim()))).filter(Boolean).sort();
+
+                                            // Pagination calculations
+                                            const totalItems = filteredDistStudents.length;
+                                            const pageSize = voteheadDistRowsPerPage === 'All' ? (totalItems || 1) : Number(voteheadDistRowsPerPage);
+                                            const totalPages = Math.max(1, Math.ceil(totalItems / (pageSize || 1)));
+                                            const currentPage = Math.min(Math.max(1, voteheadDistPage), totalPages);
+                                            const startIndex = (currentPage - 1) * pageSize;
+                                            const paginatedDistStudents = voteheadDistRowsPerPage === 'All'
+                                                ? filteredDistStudents
+                                                : filteredDistStudents.slice(startIndex, startIndex + pageSize);
+
+                                            // Calculate totals on full filtered dataset
+                                            const filteredTotalBalance = filteredDistStudents.reduce((a: number, s: any) => a + s.totals.balance, 0);
+
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
-                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 space-y-4">
+                                                    {/* Header with Title & Global Action Buttons */}
+                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                                                         <div>
-                                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Votehead Distribution</h3>
-                                                            <p className="text-[10px] text-slate-400 font-medium">Outstanding balance per student per votehead with class breakdown (Dr = still owed)</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Votehead Distribution</h3>
+                                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+                                                                    {totalItems} {totalItems === 1 ? 'Debtor' : 'Debtors'}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Outstanding balance per student per votehead with class breakdown (Dr = still owed)</p>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <button
                                                                 onClick={() => {
-                                                                    const headers = ['#', 'Student Name', 'Class', ...allVoteHeads, 'Total Balance Owed'];
-                                                                    const rows = distStudents.map((s: any, i: number) => [
+                                                                    const headers = ['#', 'Student Name', 'Admission No', 'Class', ...allVoteHeads, 'Total Balance Owed'];
+                                                                    const rows = filteredDistStudents.map((s: any, i: number) => [
                                                                         i + 1,
                                                                         s.name,
+                                                                        s.admissionNumber || s.admNo || getStudentAdmNumber(s) || '—',
                                                                         s.className || studentClassGroup(s),
                                                                         ...allVoteHeads.map(v => s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0),
                                                                         s.totals.balance
                                                                     ]);
                                                                     exportCSV('votehead_distribution', headers, rows);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-sm"
                                                             >
-                                                                📥 CSV
+                                                                📥 Export CSV ({totalItems})
                                                             </button>
-                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">
+                                                            <button
+                                                                onClick={() => window.print()}
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-sm"
+                                                            >
                                                                 🖨️ Print
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-x-auto">
-                                                        <table className="w-full text-left">
-                                                            <thead><tr>
-                                                                {TH('#')}
-                                                                {TH('Student')}
-                                                                {TH('Class')}
-                                                                {allVoteHeads.map(v => TH(v))}
-                                                                {TH('Total Balance')}
-                                                            </tr></thead>
-                                                            <tbody>
-                                                                {distStudents.map((s: any, i: number) => (
-                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="text-slate-400 font-bold">{i + 1}</TD>
-                                                                        <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
-                                                                        <TD cls="text-slate-600 font-bold whitespace-nowrap">{s.className || studentClassGroup(s)}</TD>
-                                                                        {allVoteHeads.map(v => {
-                                                                            const vb = s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0;
-                                                                            return <TD key={v} cls={`whitespace-nowrap font-bold ${vb > 0 ? 'text-rose-600' : vb < 0 ? 'text-emerald-600' : 'text-slate-300'}`}>{vb !== 0 ? `KSh ${Math.abs(vb).toLocaleString()}` : '—'}</TD>;
-                                                                        })}
-                                                                        <TD cls="font-black text-rose-700">KSh {s.totals.balance.toLocaleString()}</TD>
-                                                                    </tr>
+
+                                                    {/* Filter & Controls Bar */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/60">
+                                                        {/* Search */}
+                                                        <div className="relative">
+                                                            <SearchIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Search student or adm no..."
+                                                                value={voteheadDistSearch}
+                                                                onChange={(e) => {
+                                                                    setVoteheadDistSearch(e.target.value);
+                                                                    setVoteheadDistPage(1);
+                                                                }}
+                                                                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                                            />
+                                                            {voteheadDistSearch && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setVoteheadDistSearch('');
+                                                                        setVoteheadDistPage(1);
+                                                                    }}
+                                                                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Class Filter */}
+                                                        <div>
+                                                            <select
+                                                                value={voteheadDistClassFilter}
+                                                                onChange={(e) => {
+                                                                    setVoteheadDistClassFilter(e.target.value);
+                                                                    setVoteheadDistPage(1);
+                                                                }}
+                                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                                            >
+                                                                <option value="All">All Classes ({availableDistClasses.length})</option>
+                                                                {availableDistClasses.map(cls => (
+                                                                    <option key={cls} value={cls}>{cls}</option>
                                                                 ))}
-                                                                {/* Column totals */}
-                                                                <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-rose-50 dark:bg-rose-900/10 font-black">
-                                                                    <TD cls="" /><TD cls="text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</TD><TD cls="" />
-                                                                    {allVoteHeads.map(v => {
-                                                                        const total = distStudents.reduce((a: number, s: any) => a + (s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0), 0);
-                                                                        return <TD key={v} cls="text-rose-700 whitespace-nowrap">{total > 0 ? `KSh ${total.toLocaleString()}` : '—'}</TD>;
-                                                                    })}
-                                                                    <TD cls="text-rose-700">KSh {distStudents.reduce((a: number, s: any) => a + s.totals.balance, 0).toLocaleString()}</TD>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Rows per page */}
+                                                        <div>
+                                                            <select
+                                                                value={voteheadDistRowsPerPage}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value === 'All' ? 'All' : Number(e.target.value);
+                                                                    setVoteheadDistRowsPerPage(val);
+                                                                    setVoteheadDistPage(1);
+                                                                }}
+                                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                                            >
+                                                                <option value={15}>15 rows per page</option>
+                                                                <option value={25}>25 rows per page</option>
+                                                                <option value={50}>50 rows per page</option>
+                                                                <option value={100}>100 rows per page</option>
+                                                                <option value="All">Show All ({totalItems})</option>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Reset filters / Quick stat */}
+                                                        <div className="flex items-center justify-between sm:justify-end gap-2">
+                                                            {(voteheadDistSearch || voteheadDistClassFilter !== 'All') && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setVoteheadDistSearch('');
+                                                                        setVoteheadDistClassFilter('All');
+                                                                        setVoteheadDistPage(1);
+                                                                    }}
+                                                                    className="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                                                >
+                                                                    Reset
+                                                                </button>
+                                                            )}
+                                                            <div className="text-[11px] font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                                                                Total Owed: KSh {filteredTotalBalance.toLocaleString()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Table */}
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                        <table className="w-full text-left">
+                                                            <thead>
+                                                                <tr className="bg-slate-50 dark:bg-slate-800/50">
+                                                                    {TH('#')}
+                                                                    {TH('Student')}
+                                                                    {TH('Class')}
+                                                                    {allVoteHeads.map(v => TH(v))}
+                                                                    {TH('Total Balance')}
                                                                 </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {paginatedDistStudents.length === 0 ? (
+                                                                    <tr>
+                                                                        <td colSpan={4 + allVoteHeads.length} className="py-12 text-center text-slate-400 text-xs font-semibold">
+                                                                            No debtor students match the current filters.
+                                                                        </td>
+                                                                    </tr>
+                                                                ) : (
+                                                                    paginatedDistStudents.map((s: any, idx: number) => {
+                                                                        const rowNum = voteheadDistRowsPerPage === 'All' ? idx + 1 : startIndex + idx + 1;
+                                                                        return (
+                                                                            <tr key={s.id || idx} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                                                <TD cls="text-slate-400 font-bold">{rowNum}</TD>
+                                                                                <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">
+                                                                                    <div>{s.name}</div>
+                                                                                    <div className="text-[9px] text-slate-400 font-semibold">{s.admissionNumber || s.admNo || getStudentAdmNumber(s) || ''}</div>
+                                                                                </TD>
+                                                                                <TD cls="text-slate-600 dark:text-slate-400 font-bold whitespace-nowrap">{s.className || studentClassGroup(s)}</TD>
+                                                                                {allVoteHeads.map(v => {
+                                                                                    const vb = s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0;
+                                                                                    return (
+                                                                                        <TD key={v} cls={`whitespace-nowrap font-bold ${vb > 0 ? 'text-rose-600 dark:text-rose-400' : vb < 0 ? 'text-emerald-600' : 'text-slate-300 dark:text-slate-600'}`}>
+                                                                                            {vb !== 0 ? `KSh ${Math.abs(vb).toLocaleString()}` : '—'}
+                                                                                        </TD>
+                                                                                    );
+                                                                                })}
+                                                                                <TD cls="font-black text-rose-700 dark:text-rose-400 whitespace-nowrap">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                            </tr>
+                                                                        );
+                                                                    })
+                                                                )}
+                                                                {/* Column totals */}
+                                                                {filteredDistStudents.length > 0 && (
+                                                                    <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-rose-50/70 dark:bg-rose-950/20 font-black">
+                                                                        <TD cls="" />
+                                                                        <TD cls="text-[10px] uppercase tracking-widest text-slate-800 dark:text-white">
+                                                                            TOTALS ({totalItems} students)
+                                                                        </TD>
+                                                                        <TD cls="" />
+                                                                        {allVoteHeads.map(v => {
+                                                                            const total = filteredDistStudents.reduce((a: number, s: any) => a + (s.voteMap[v] ? Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid) : 0), 0);
+                                                                            return (
+                                                                                <TD key={v} cls="text-rose-700 dark:text-rose-400 whitespace-nowrap">
+                                                                                    {total > 0 ? `KSh ${total.toLocaleString()}` : '—'}
+                                                                                </TD>
+                                                                            );
+                                                                        })}
+                                                                        <TD cls="text-rose-700 dark:text-rose-400 whitespace-nowrap">
+                                                                            KSh {filteredTotalBalance.toLocaleString()}
+                                                                        </TD>
+                                                                    </tr>
+                                                                )}
                                                             </tbody>
                                                         </table>
                                                     </div>
+
+                                                    {/* Pagination Navigation Footer */}
+                                                    {voteheadDistRowsPerPage !== 'All' && totalPages > 1 && (
+                                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                                                            <div className="text-xs font-bold text-slate-500">
+                                                                Showing <span className="text-slate-900 dark:text-white font-black">{Math.min(startIndex + 1, totalItems)}</span> to{' '}
+                                                                <span className="text-slate-900 dark:text-white font-black">{Math.min(startIndex + pageSize, totalItems)}</span> of{' '}
+                                                                <span className="text-slate-900 dark:text-white font-black">{totalItems}</span> students
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    disabled={currentPage <= 1}
+                                                                    onClick={() => setVoteheadDistPage(1)}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    « First
+                                                                </button>
+                                                                <button
+                                                                    disabled={currentPage <= 1}
+                                                                    onClick={() => setVoteheadDistPage(prev => Math.max(1, prev - 1))}
+                                                                    className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    ‹ Prev
+                                                                </button>
+
+                                                                {/* Page buttons */}
+                                                                {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+                                                                    .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                                                                    .map((pageNum, pIdx, arr) => {
+                                                                        const prevPage = arr[pIdx - 1];
+                                                                        const showEllipsis = prevPage && pageNum - prevPage > 1;
+
+                                                                        return (
+                                                                            <React.Fragment key={pageNum}>
+                                                                                {showEllipsis && <span className="px-1 text-slate-400 text-xs font-bold">…</span>}
+                                                                                <button
+                                                                                    onClick={() => setVoteheadDistPage(pageNum)}
+                                                                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                                                                        currentPage === pageNum
+                                                                                            ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                                                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                                                    }`}
+                                                                                >
+                                                                                    {pageNum}
+                                                                                </button>
+                                                                            </React.Fragment>
+                                                                        );
+                                                                    })}
+
+                                                                <button
+                                                                    disabled={currentPage >= totalPages}
+                                                                    onClick={() => setVoteheadDistPage(prev => Math.min(totalPages, prev + 1))}
+                                                                    className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Next ›
+                                                                </button>
+                                                                <button
+                                                                    disabled={currentPage >= totalPages}
+                                                                    onClick={() => setVoteheadDistPage(totalPages)}
+                                                                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                                                >
+                                                                    Last »
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })()}
