@@ -1295,6 +1295,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
+    const [balStream, setBalStream] = useState('');
     const [balCurrentPage, setBalCurrentPage] = useState(1);
     const [balItemsPerPage, setBalItemsPerPage] = useState(25);
     const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow' | 'fee_installment'>('collection_summary');
@@ -16433,10 +16434,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 2. All Balances */}
                                         {outstandingSubTab === 'all_balances' && (() => {
+                                            // Derive streams
+                                            const getStudentStream = (s: any): string => (s.stream || s.metadata?.stream || s.streamName || '');
+                                            const streams: string[] = Array.from(new Set(studentFinanceData.filter((s: any) => s.totals.balance > 0).map((s: any) => getStudentStream(s)).filter(Boolean))).sort() as string[];
+                                            
                                             const filteredList = studentFinanceData
                                                 .filter((s: any) => s.totals.balance > 0)
                                                 .filter((s: any) => !balFilter || s.name?.toLowerCase().includes(balFilter.toLowerCase()) || (s.admissionNumber || '').toLowerCase().includes(balFilter.toLowerCase()))
                                                 .filter((s: any) => !balClass || (s.className || studentClassGroup(s)) === balClass)
+                                                .filter((s: any) => !balStream || getStudentStream(s).toLowerCase() === balStream.toLowerCase())
                                                 .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
 
                                             const totalItems = filteredList.length;
@@ -16478,6 +16484,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             >
                                                                 <option value="">All Classes</option>
                                                                 {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
+                                                            </select>
+                                                            {/* Stream Filter */}
+                                                            <select
+                                                                value={balStream}
+                                                                onChange={e => {
+                                                                    setBalStream(e.target.value);
+                                                                    setBalCurrentPage(1);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                            >
+                                                                <option value="">All Streams</option>
+                                                                {streams.map((st: string) => <option key={st} value={st}>{st}</option>)}
                                                             </select>
                                                             <select
                                                                 value={balItemsPerPage}
