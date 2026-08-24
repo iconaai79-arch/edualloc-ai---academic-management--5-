@@ -210,11 +210,11 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         activeStudents.forEach(s => {
             const raw = String(
                 s.studentClass ||
-                s.className ||
-                s.gradeLevel ||
-                s.classLevel ||
-                s.class_name ||
-                s.class ||
+                (s as any).className ||
+                (s as any).gradeLevel ||
+                (s as any).classLevel ||
+                (s as any).class_name ||
+                (s as any).class ||
                 (s as any).grade ||
                 s.metadata?.gradeLevel ||
                 s.metadata?.class ||
@@ -305,7 +305,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
                 if (matchesSel && c.levels && Array.isArray(c.levels)) {
                     c.levels.forEach(l => {
-                        const lName = String(l.name || l.title || l.code || '').trim();
+                        const lName = String(l.name || (l as any).title || (l as any).code || '').trim();
                         if (lName && lName.toLowerCase() !== 'all' && lName !== '—') {
                             const streamPart = lName.replace(cleanCName, '').trim() || lName;
                             if (streamPart && !streamPart.toLowerCase().startsWith('grade') && !streamPart.toLowerCase().startsWith('form')) {
@@ -391,7 +391,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
                 const matchesSt = stStr === selStr || 
                     rawL.includes(selStr) ||
-                    (s.levelId && courses.some(c => (c.levels || []).some(l => l.id === s.levelId && l.name.toLowerCase().includes(selStr))));
+                    ((s as any).levelId && courses.some(c => (c.levels || []).some(l => l.id === (s as any).levelId && l.name.toLowerCase() === selStr)));
 
                 if (!matchesSt) return false;
             }
@@ -550,11 +550,11 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
             const subName = (sub.name || '').toLowerCase().trim();
 
             const matchedAssessmentMarks = studentMarks.filter(m => {
-                if (m.subjectId && m.subjectId === subId) return true;
+                if ((m as any).subjectId && (m as any).subjectId === subId) return true;
                 const asmt = assessments.find(a => a.id === m.assessmentId);
                 if (asmt) {
                     if (asmt.subjectId === subId) return true;
-                    const asmtTitle = (asmt.title || asmt.name || '').toLowerCase();
+                    const asmtTitle = (asmt.title || (asmt as any).name || '').toLowerCase();
                     if (subCode && asmtTitle.includes(subCode)) return true;
                     if (subName && asmtTitle.includes(subName)) return true;
                 }
@@ -584,12 +584,12 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
             if (matchedAssessmentMarks.length > 0) {
                 const midMark = matchedAssessmentMarks.find(m => {
                     const asmt = assessments.find(a => a.id === m.assessmentId);
-                    const title = (asmt?.title || asmt?.name || '').toLowerCase();
+                    const title = (asmt?.title || (asmt as any)?.name || '').toLowerCase();
                     return title.includes('mid') || title.includes('cat');
                 });
                 const endMark = matchedAssessmentMarks.find(m => {
                     const asmt = assessments.find(a => a.id === m.assessmentId);
-                    const title = (asmt?.title || asmt?.name || '').toLowerCase();
+                    const title = (asmt?.title || (asmt as any)?.name || '').toLowerCase();
                     return title.includes('end') || title.includes('terminal');
                 });
 
@@ -1009,7 +1009,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                     {currentInstitution?.name || 'ACADEMIC INSTITUTION'}
                                 </h1>
                                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                                    {currentInstitution?.address || currentInstitution?.location || 'P.O. BOX 100, NAIROBI'} &bull; TEL: {currentInstitution?.phone || currentInstitution?.contactPhone || '+254 700 000 000'} &bull; INSTITUTION CODE: {currentInstitution?.code || currentInstitution?.registrationNumber || `KNEC-${currentInstitution?.id ? String(currentInstitution.id).slice(-5).toUpperCase() : '84092'}`}
+                                    {currentInstitution?.address || (currentInstitution as any)?.location || 'P.O. BOX 100, NAIROBI'} &bull; TEL: {(currentInstitution as any)?.phone || (currentInstitution as any)?.contactPhone || '+254 700 000 000'} &bull; INSTITUTION CODE: {(currentInstitution as any)?.code || (currentInstitution as any)?.registrationNumber || `KNEC-${currentInstitution?.id ? String(currentInstitution.id).slice(-5).toUpperCase() : '84092'}`}
                                 </p>
                             </div>
                         </div>
