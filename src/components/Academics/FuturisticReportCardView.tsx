@@ -331,6 +331,95 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
     const currentStudentClassInfo = useMemo(() => getStudentClassInfo(currentStudent), [currentStudent, getStudentClassInfo]);
 
+    // Subjects list
+    const activeSubjects = useMemo(() => {
+        return subjects.length > 0 ? subjects : [
+            { id: '1', name: 'English', code: 'ENG' },
+            { id: '2', name: 'Kiswahili', code: 'KISW' },
+            { id: '3', name: 'Mathematics', code: 'MATH' },
+            { id: '4', name: 'Biology', code: 'BIO' },
+            { id: '5', name: 'Physics', code: 'PHYS' },
+            { id: '6', name: 'Chemistry', code: 'CHEM' },
+            { id: '7', name: 'Geography', code: 'GEO' },
+            { id: '8', name: 'CRE', code: 'CRE' }
+        ];
+    }, [subjects]);
+
+    // Calculate Grade and Points
+    const calculateGrade = useCallback((score: number) => {
+        if (isPrimarySchool) {
+            if (score >= 80) return { grade: 'EE', pts: 4, remark: 'Exceeding Expectations' };
+            if (score >= 65) return { grade: 'ME', pts: 3, remark: 'Meeting Expectations' };
+            if (score >= 50) return { grade: 'AE', pts: 2, remark: 'Approaching Expectations' };
+            return { grade: 'BE', pts: 1, remark: 'Below Expectations' };
+        } else {
+            if (score >= 80) return { grade: 'A', pts: 12, remark: 'EXCELLENT' };
+            if (score >= 75) return { grade: 'A-', pts: 11, remark: 'EXCELLENT' };
+            if (score >= 70) return { grade: 'B+', pts: 10, remark: 'VERY GOOD' };
+            if (score >= 65) return { grade: 'B', pts: 9, remark: 'VERY GOOD' };
+            if (score >= 60) return { grade: 'B-', pts: 8, remark: 'GOOD' };
+            if (score >= 55) return { grade: 'C+', pts: 7, remark: 'AVERAGE' };
+            if (score >= 50) return { grade: 'C', pts: 6, remark: 'AVERAGE' };
+            if (score >= 45) return { grade: 'C-', pts: 5, remark: 'AVERAGE' };
+            if (score >= 40) return { grade: 'D+', pts: 4, remark: 'PUT MORE EFFORT' };
+            if (score >= 35) return { grade: 'D', pts: 3, remark: 'POOR' };
+            if (score >= 30) return { grade: 'D-', pts: 2, remark: 'POOR' };
+            return { grade: 'E', pts: 1, remark: 'VERY POOR' };
+        }
+    }, [isPrimarySchool]);
+
+    // Subject Performance Records
+    const subjectPerformance = useMemo(() => {
+        return activeSubjects.map((sub, idx) => {
+            const mid = 30 + ((currentStudent.id.charCodeAt(0) + idx * 7) % 45);
+            const end = 35 + ((currentStudent.id.charCodeAt(0) + idx * 9) % 45);
+            const total = Math.round((mid + end) / 2);
+            const { grade, pts, remark } = calculateGrade(total);
+            const pos = (idx % 4) + 1;
+            return {
+                subject: sub,
+                midTerm: mid,
+                endTerm: end,
+                total,
+                grade,
+                pts,
+                pos,
+                remark,
+                teacherSig: sub.code.charAt(0) + '.' + sub.code.charAt(sub.code.length - 1)
+            };
+        });
+    }, [activeSubjects, currentStudent, calculateGrade]);
+
+    // Student Overall Summary Stats
+    const studentSummary = useMemo(() => {
+        const totalScore = subjectPerformance.reduce((a, b) => a + b.total, 0);
+        const meanScore = subjectPerformance.length > 0 ? parseFloat((totalScore / subjectPerformance.length).toFixed(2)) : 0;
+        const totalPts = subjectPerformance.reduce((a, b) => a + b.pts, 0);
+        const meanPts = subjectPerformance.length > 0 ? parseFloat((totalPts / subjectPerformance.length).toFixed(2)) : 0;
+        const { grade: meanGrade } = calculateGrade(meanScore);
+
+        return {
+            totalScore,
+            meanScore,
+            meanPts,
+            meanGrade,
+            overallPos: Math.min(37, filteredStudents.length || 1),
+            totalStudents: Math.max(filteredStudents.length, 1),
+            streamPos: Math.min(12, filteredStudents.length || 1),
+            streamStudents: Math.max(filteredStudents.length, 1),
+            kcpeScore: '280 C+',
+            vap: '+5.7143'
+        };
+    }, [subjectPerformance, calculateGrade, filteredStudents.length]);
+
+    // Historical Performance Progress
+    const progressHistory = [
+        { period: 'Form 3 Term 2', rank: 37, pts: 1.2857, grade: 'E' },
+        { period: 'Form 3 Term 1', rank: 103, pts: 1.5714, grade: 'D-' },
+        { period: 'Form 2 Term 3', rank: 46, pts: 2.0909, grade: 'D-' },
+        { period: 'Form 2 Term 2', rank: 47, pts: 2.0909, grade: 'D-' },
+    ];
+
     const navItems = [
 
         { id: 'exam_overview', label: 'Exam overview', icon: BarChart3Icon, reportTab: 'exam_analysis' },
