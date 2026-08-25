@@ -60,12 +60,13 @@ const ALL_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'email', 'phoneNumb
 interface ManageParentsModalProps {
     student: User;
     allUsers: User[];
+    isPrimaryOrSecondary?: boolean;
     onClose: () => void;
     onAddParent?: (studentId: string, parentData: { name: string, email: string, phone: string }) => Promise<{ success: boolean, message: string, credentials?: { email: string, password: string } }>;
     onDeleteParent?: (studentId: string, parentId: string) => void;
 }
 
-const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUsers = [], onClose, onAddParent, onDeleteParent }: ManageParentsModalProps) => {
+const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUsers = [], isPrimaryOrSecondary = false, onClose, onAddParent, onDeleteParent }: ManageParentsModalProps) => {
     const [parentName, setParentName] = useState('');
     const [parentEmail, setParentEmail] = useState('');
     const [parentPhone, setParentPhone] = useState('');
@@ -141,8 +142,17 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
                                     <input type="text" value={parentName} onChange={e => setParentName(e.target.value)} className="form-input w-full" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Parent's Email</label>
-                                    <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} className="form-input w-full" required />
+                                    <label className="block text-sm font-medium mb-1">
+                                        Parent's Email {isPrimaryOrSecondary && <span className="text-slate-400 font-normal text-xs">(optional)</span>}
+                                    </label>
+                                    <input 
+                                        type="email" 
+                                        value={parentEmail} 
+                                        onChange={e => setParentEmail(e.target.value)} 
+                                        className="form-input w-full" 
+                                        required={!isPrimaryOrSecondary} 
+                                        placeholder={isPrimaryOrSecondary ? "e.g. parent@example.com (optional)" : "e.g. parent@example.com"} 
+                                    />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium mb-1">Parent's Phone Number</label>
@@ -1952,6 +1962,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 <ManageParentsModal
                     student={managingParentsFor}
                     allUsers={users}
+                    isPrimaryOrSecondary={isPrimaryOrSecondary}
                     onClose={() => setManagingParentsFor(null)}
                     onAddParent={onAddParent || (async () => ({ success: false, message: 'Not implemented' }))}
                     onDeleteParent={onDeleteParent || (() => { })}

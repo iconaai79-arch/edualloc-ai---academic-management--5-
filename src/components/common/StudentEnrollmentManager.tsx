@@ -1225,6 +1225,73 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
     };
 
+    // Open form for adding new student with auto-generated admission number prefilled
+    const handleOpenNewEnrollment = async () => {
+        setEditingEnrollment(null);
+        let nextAdm = '';
+        try {
+            nextAdm = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
+        } catch (e) {
+            nextAdm = `ADM-${Date.now().toString().slice(-5)}`;
+        }
+        setFormData({
+            fullName: '',
+            email: '',
+            phoneNumber: '',
+            admissionNumber: nextAdm,
+            assessmentNo: '',
+            status: 'Enrolled',
+            enrollmentDate: new Date().toISOString().split('T')[0],
+            gender: '',
+            passportPhoto: '',
+            biometricCredentials: null,
+            biometricTemplate: '',
+            metadata: {
+                licenseCategory: '',
+                preferredInstructorId: '',
+                preferredLessonHours: 'Morning',
+                priorAttendedDays: 0,
+                gradeLevel: '',
+                stream: '',
+                boardingStatus: 'day_scholar',
+                subjects: [],
+                assessmentNo: '',
+                parentName: '',
+                parentPhone: '',
+                parentEmail: '',
+                parentRelation: 'Father',
+                parents: [{ name: '', phone: '', email: '', relation: 'Father' }]
+            }
+        });
+        setIsFormOpen(true);
+    };
+
+    // Safeguard: when form opens for a new student, automatically fetch and prefill the next admission number if empty
+    useEffect(() => {
+        if (isFormOpen && !editingEnrollment && !formData.admissionNumber) {
+            let active = true;
+            (async () => {
+                try {
+                    const nextAdm = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
+                    if (active && nextAdm) {
+                        setFormData(prev => ({
+                            ...prev,
+                            admissionNumber: prev.admissionNumber || nextAdm
+                        }));
+                    }
+                } catch (e) {
+                    if (active) {
+                        setFormData(prev => ({
+                            ...prev,
+                            admissionNumber: prev.admissionNumber || `ADM-${Date.now().toString().slice(-5)}`
+                        }));
+                    }
+                }
+            })();
+            return () => { active = false; };
+        }
+    }, [isFormOpen, editingEnrollment, currentInstitution?.id]);
+
     // Open form for editing
     const handleEdit = (enr: StudentEnrollment) => {
         const associatedUser = users.find(u => u.id === enr.userId);
@@ -5361,10 +5428,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             Update Contacts
                         </button>
                         <button
-                            onClick={() => {
-                                setEditingEnrollment(null);
-                                setIsFormOpen(true);
-                            }}
+                            onClick={handleOpenNewEnrollment}
                             className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-indigo-500/10"
                         >
                             <UserPlus className="w-4 h-4" />
@@ -7522,10 +7586,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 </div>
                                 )}
                                 <div>
-                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1">Admission Number</label>
+                                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-widest ml-1 flex items-center justify-between">
+                                        <span>Admission Number</span>
+                                        <span className="text-[9px] font-bold text-indigo-500 lowercase">(auto-generated / editable)</span>
+                                    </label>
                                     <input 
                                         type="text" 
-                                        placeholder="Leave blank to auto-generate"
+                                        placeholder="Auto-generated (e.g. ADM-1024)"
                                         value={formData.admissionNumber}
                                         onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
                                         className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
@@ -7812,10 +7879,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
+                                                        <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+                                                            Email Address {isPrimaryOrSecondary && <span className="text-slate-400 font-normal lowercase">(optional)</span>}
+                                                        </label>
                                                         <input 
                                                             type="email" 
-                                                            placeholder="parent@example.com"
+                                                            placeholder={isPrimaryOrSecondary ? "parent@example.com (optional)" : "parent@example.com"}
                                                             value={parent.email || ''}
                                                             onChange={e => {
                                                                 const updatedParents = [...(formData.metadata.parents || [])];

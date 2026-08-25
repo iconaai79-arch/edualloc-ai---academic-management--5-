@@ -418,8 +418,8 @@ const ManageParentsModal: React.FC<ManageParentsModalProps> = ({ student, allUse
                                     <input type="text" value={parentName} onChange={e => setParentName(e.target.value)} className="form-input w-full" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Parent's Email</label>
-                                    <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} className="form-input w-full" required />
+                                    <label className="block text-sm font-medium mb-1">Parent's Email <span className="text-slate-400 font-normal text-xs">(optional)</span></label>
+                                    <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} className="form-input w-full" placeholder="e.g. parent@example.com (optional)" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium mb-1">Parent's Phone Number</label>
