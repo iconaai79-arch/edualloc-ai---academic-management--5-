@@ -1285,12 +1285,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Reports sub-tab states
     const [stmtStudentId, setStmtStudentId] = useState('');
     const [stmtSearch, setStmtSearch] = useState('');
-    const [stmtViewMode, setStmtViewMode] = useState<'table' | 'preview'>('table');
+    const [stmtViewMode, setStmtViewMode] = useState<'table' | 'preview'>('preview');
     const [stmtPdfDataUri, setStmtPdfDataUri] = useState<string | null>(null);
     const [isGeneratingStmtPdf, setIsGeneratingStmtPdf] = useState(false);
     const [showStmtPdfModal, setShowStmtPdfModal] = useState(false);
     const [balPreviewStudentId, setBalPreviewStudentId] = useState('');
-    const [balPreviewViewMode, setBalPreviewViewMode] = useState<'table' | 'preview'>('table');
+    const [balPreviewViewMode, setBalPreviewViewMode] = useState<'table' | 'preview'>('preview');
     const [slipSearch, setSlipSearch] = useState('');
     const [slipStudentId, setSlipStudentId] = useState('');
     const [balFilter, setBalFilter] = useState('');
@@ -6520,7 +6520,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setBalPreviewStudentId(prev => prev === student.id ? '' : student.id);
-                                                                    setBalPreviewViewMode('table');
+                                                                    setBalPreviewViewMode('preview');
                                                                 }}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm"
                                                                 title="View Student Statement of Account"
