@@ -6522,11 +6522,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalPreviewStudentId(prev => prev === student.id ? '' : student.id);
                                                                     setBalPreviewViewMode('preview');
                                                                 }}
-                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm"
-                                                                title="View Student Statement of Account"
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm cursor-pointer"
+                                                                title="View & Print Student Statement of Account"
                                                             >
-                                                                <FileTextIcon className="w-3.5 h-3.5" />
-                                                                View Statement
+                                                                <PrinterIcon className="w-3.5 h-3.5" />
+                                                                Statement
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -6782,6 +6782,38 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <button type="button" onClick={() => setBalPreviewViewMode('table')} className={`px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${balPreviewViewMode === 'table' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>📊 Table</button>
                                         <button type="button" onClick={() => setBalPreviewViewMode('preview')} className={`px-3 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${balPreviewViewMode === 'preview' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>📄 PDF Preview</button>
                                     </div>
+                                    <button 
+                                        type="button" 
+                                        disabled={isGeneratingStmtPdf} 
+                                        onClick={async () => {
+                                            if (!balPrevStudent) return;
+                                            setIsGeneratingStmtPdf(true);
+                                            try {
+                                                const uri = await pdfService.generateStudentStatementPdfDataUri(
+                                                    balPrevStudent, balPrevLedger,
+                                                    { totalInvoiced: balPrevTotalInvoiced, totalPaid: balPrevTotalPaid, balance: balPrevBalance },
+                                                    props.institution, props.companyDetails,
+                                                    props.institution.logoUrl || (props.institution as any).logo_url,
+                                                    props.currentUser?.name
+                                                );
+                                                const printWindow = window.open('', '_blank');
+                                                if (printWindow) {
+                                                    printWindow.document.write(`<iframe src="${uri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                    printWindow.document.close();
+                                                    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 600);
+                                                }
+                                            } catch (err) {
+                                                window.print();
+                                            } finally {
+                                                setIsGeneratingStmtPdf(false);
+                                            }
+                                        }} 
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+                                        title="Print Official Statement"
+                                    >
+                                        <PrinterIcon className="w-3.5 h-3.5" />
+                                        Print
+                                    </button>
                                     <button type="button" disabled={isGeneratingStmtPdf} onClick={handleBalPrevOpenModal} className="px-3 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95 disabled:opacity-50">👥 PDF Viewer</button>
                                     <button type="button" disabled={isGeneratingStmtPdf} onClick={handleBalPrevDownloadPdf} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-md disabled:opacity-50">
                                         {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
@@ -19722,6 +19754,38 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
 
                                                     <div className="flex items-center gap-2 flex-wrap">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isGeneratingStmtPdf}
+                                                            onClick={async () => {
+                                                                if (!selectedStudent) return;
+                                                                setIsGeneratingStmtPdf(true);
+                                                                try {
+                                                                    const uri = await pdfService.generateStudentStatementPdfDataUri(
+                                                                        selectedStudent, ledger,
+                                                                        { totalInvoiced, totalPaid, balance },
+                                                                        props.institution, props.companyDetails,
+                                                                        props.institution.logoUrl || (props.institution as any).logo_url,
+                                                                        props.currentUser?.name
+                                                                    );
+                                                                    const printWindow = window.open('', '_blank');
+                                                                    if (printWindow) {
+                                                                        printWindow.document.write(`<iframe src="${uri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                                        printWindow.document.close();
+                                                                        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 600);
+                                                                    }
+                                                                } catch (err) {
+                                                                    window.print();
+                                                                } finally {
+                                                                    setIsGeneratingStmtPdf(false);
+                                                                }
+                                                            }}
+                                                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+                                                            title="Print Statement"
+                                                        >
+                                                            <PrinterIcon className="w-3.5 h-3.5" />
+                                                            Print
+                                                        </button>
                                                         <button
                                                             type="button"
                                                             disabled={isGeneratingStmtPdf}
