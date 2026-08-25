@@ -1875,6 +1875,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             };
 
             const strictAdmToStudent = new Map<string, any>();
+            const studentNameEntries: { name: string; words: string[]; student: any }[] = [];
+
             allStudentsPool.forEach(student => {
                 const adms = [
                     student.admissionNumber,
@@ -1887,6 +1889,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const c = cleanAdm(a);
                     if (c && c.length >= 2) strictAdmToStudent.set(c, student);
                 });
+
+                const rawName = String(student.name || student.fullName || student.metadata?.studentName || '').toLowerCase().trim();
+                const nameWords = rawName.split(/\s+/).filter(w => w.length >= 3);
+                if (nameWords.length >= 2) {
+                    studentNameEntries.push({
+                        name: rawName,
+                        words: nameWords,
+                        student
+                    });
+                }
             });
 
             // Find Victor Kipchumba student record if present
@@ -1905,67 +1917,106 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             allExistingReceipts.forEach(r => { if (r && r.id) uniqueReceiptsMap.set(r.id, r); });
             const allReceiptsList = Array.from(uniqueReceiptsMap.values());
 
+            // Helper to find true student from text by admission number or full name
+            const findStudentInText = (text: string, excludeAdm: string = ''): any | null => {
+                if (!text || typeof text !== 'string') return null;
+                const cleanText = text.toLowerCase();
+
+                // Pass 1: Match by admission number
+                for (const [admKey, st] of strictAdmToStudent.entries()) {
+                    if (excludeAdm && admKey === excludeAdm) continue;
+                    // Match admKey with flexible delimiters (start/end of string, non-alphanumeric, spaces, slashes)
+                    const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
+                    if (pattern.test(cleanText)) {
+                        return st;
+                    }
+                }
+
+                // Pass 2: Match by student full name (requires at least 2 matching significant words)
+                for (const entry of studentNameEntries) {
+                    if (excludeAdm && cleanAdm(entry.student.admissionNumber || (entry.student as any).admission_number || (entry.student as any).admNo) === excludeAdm) continue;
+                    const allWordsMatch = entry.words.every(word => cleanText.includes(word));
+                    if (allWordsMatch) {
+                        return entry.student;
+                    }
+                }
+
+                return null;
+            };
+
             let fixedCount = 0;
+            let reallocatedToStudentCount = 0;
+            let suspenseCount = 0;
             const updatedReceipts: any[] = [];
+            const reallocatedStudentNames: string[] = [];
 
             for (const r of allReceiptsList) {
                 const rNum = String(r.receiptNumber || (r as any).receipt_number || '').trim();
                 const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim();
                 const rPayer = String((r as any).payer || (r as any).payerName || (r as any).senderName || '').trim();
                 const rNotes = String(r.notes || (r as any).paidFor || '').trim();
-                const rRaw = String((r as any).rawDetails || '');
+                const rRaw = String((r as any).rawDetails || (r as any).raw_details || '');
+                const rStudentName = String((r as any).studentName || (r as any).student_name || (r as any).name || '');
                 const currentStudentId = r.studentId || (r as any).student_id || '';
+
+                const combinedText = `${rRef} ${rNotes} ${rRaw} ${rPayer} ${rNum} ${rStudentName}`.trim();
 
                 let targetStudentId = currentStudentId;
                 let isModified = false;
 
-                // Special handling for Victor Kipchumba (Adm 2364) misallocated receipts:
+                // Case 1: Victor Kipchumba (Adm 2364) misallocated receipts
                 if (victorId && (currentStudentId === victorId || cleanAdm(r.admissionNumber) === '2364')) {
                     const rNumClean = rNum.toLowerCase().replace(/[^a-z0-9]/g, '');
                     const rRefClean = rRef.toLowerCase().replace(/[^a-z0-9]/g, '');
                     const isVerified = Array.from(victorVerifiedReceipts).some(vr => rNumClean.includes(vr) || rRefClean.includes(vr));
 
                     if (!isVerified) {
-                        // This receipt was misallocated to Victor. Let's find its true student from reference, notes, or raw row!
-                        let trueStudent: any = null;
-                        for (const [admKey, st] of strictAdmToStudent.entries()) {
-                            if (admKey === '2364') continue;
-                            const admRegex = new RegExp(`\\b${admKey}\\b`, 'i');
-                            if (admRegex.test(rRef) || admRegex.test(rNotes) || admRegex.test(rRaw) || admRegex.test(rPayer) || admRegex.test(rNum)) {
-                                trueStudent = st;
-                                break;
-                            }
-                        }
+                        // Misallocated to Victor. Find true student from all available fields:
+                        const trueStudent = findStudentInText(combinedText, '2364');
 
                         if (trueStudent) {
                             targetStudentId = trueStudent.id;
                             r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
                             r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                            reallocatedToStudentCount++;
+                            reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${r.admissionNumber})`);
                         } else {
-                            // Detach from Victor Kipchumba and move to suspense so it does not corrupt his account
+                            // Move to suspense
                             targetStudentId = null as any;
                             r.admissionNumber = '';
                             r.notes = (r.notes ? r.notes + ' | ' : '') + 'Re-assigned to Suspense from Victor Kipchumba';
+                            suspenseCount++;
                         }
                         isModified = true;
                     }
-                } else if (currentStudentId) {
-                    // General scan across other students:
+                } 
+                // Case 2: Unallocated / Suspense receipts (attempt to link them to students)
+                else if (!currentStudentId || currentStudentId === '' || currentStudentId === 'null' || rNotes.includes('Suspense') || rNotes.includes('Victor Kipchumba')) {
+                    const trueStudent = findStudentInText(combinedText, '2364');
+                    if (trueStudent) {
+                        targetStudentId = trueStudent.id;
+                        r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
+                        r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                        reallocatedToStudentCount++;
+                        reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${r.admissionNumber})`);
+                        isModified = true;
+                    }
+                }
+                // Case 3: Other allocated receipts where reference explicitly matches another student
+                else if (currentStudentId) {
                     const currentStudent = allStudentsPool.find(s => s.id === currentStudentId);
                     const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
                     
-                    // Check if another student's admission number is explicitly stated in the reference or notes
-                    for (const [admKey, st] of strictAdmToStudent.entries()) {
-                        if (admKey === currentAdmClean) continue;
-                        const admRegex = new RegExp(`\\b${admKey}\\b`, 'i');
-                        if (admRegex.test(rRef) || admRegex.test(rNotes) || admRegex.test(rRaw)) {
-                            if (!currentAdmClean || (!rRef.includes(currentAdmClean) && !rNotes.includes(currentAdmClean) && !rRaw.includes(currentAdmClean))) {
-                                targetStudentId = st.id;
-                                r.admissionNumber = st.admissionNumber || st.admission_number || (st as any).admNo;
-                                r.branchId = st.branchId || (st as any).branch_id || r.branchId;
-                                isModified = true;
-                                break;
-                            }
+                    const trueStudent = findStudentInText(combinedText, currentAdmClean);
+                    if (trueStudent && trueStudent.id !== currentStudentId) {
+                        // Ensure the reference didn't also contain the current student's admission number
+                        if (!currentAdmClean || !combinedText.toLowerCase().includes(currentAdmClean)) {
+                            targetStudentId = trueStudent.id;
+                            r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
+                            r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                            reallocatedToStudentCount++;
+                            reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${r.admissionNumber})`);
+                            isModified = true;
                         }
                     }
                 }
@@ -1974,7 +2025,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const updated = {
                         ...r,
                         studentId: targetStudentId,
-                        student_id: targetStudentId
+                        student_id: targetStudentId,
+                        admissionNumber: r.admissionNumber,
+                        admission_number: r.admissionNumber
                     };
                     updatedReceipts.push(updated);
                     fixedCount++;
@@ -1999,7 +2052,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     await props.onRefreshData();
                 }
 
-                alert(`Audit complete! Successfully re-allocated and fixed ${fixedCount} misattributed receipt(s). Victor Kipchumba's statement and all affected student ledgers have been restored to their genuine transactions.`);
+                const uniqueNames = Array.from(new Set(reallocatedStudentNames));
+                const sampleList = uniqueNames.slice(0, 5).join(', ');
+                const moreCount = uniqueNames.length > 5 ? ` and ${uniqueNames.length - 5} more` : '';
+
+                alert(`Audit complete!\n\n• ${reallocatedToStudentCount} receipt(s) re-allocated directly to students${uniqueNames.length > 0 ? ` (${sampleList}${moreCount})` : ''}.\n• ${suspenseCount} unlinked receipt(s) safely moved to Suspense Account.\n\nAll student ledgers and fee balances have been refreshed.`);
             } else {
                 alert("Audit complete! All receipts are already correctly allocated to their rightful students.");
             }
