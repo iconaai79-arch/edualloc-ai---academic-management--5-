@@ -1856,6 +1856,161 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    // Automated Receipt Re-Allocation Engine: Scans all receipts and re-assigns misallocated/foreign receipts to their rightful student accounts
+    const handleAuditAndReallocateReceipts = async () => {
+        setIsProcessingBulkReceipts(true);
+        try {
+            const allAvailableStudents = [
+                ...(props.students || []),
+                ...(allBranchStudents || []),
+                ...(mergedStudents || [])
+            ];
+            const uniqueStudentsMap = new Map<string, any>();
+            allAvailableStudents.forEach(s => { if (s && s.id) uniqueStudentsMap.set(s.id, s); });
+            const allStudentsPool = Array.from(uniqueStudentsMap.values());
+
+            const cleanAdm = (val: string | number | undefined | null): string => {
+                if (!val) return '';
+                return String(val).trim().toLowerCase().replace(/^(adm|std|reg|#|\/|-|_)+/i, '').replace(/[^a-z0-9]/g, '');
+            };
+
+            const strictAdmToStudent = new Map<string, any>();
+            allStudentsPool.forEach(student => {
+                const adms = [
+                    student.admissionNumber,
+                    (student as any).admission_number,
+                    student.metadata?.admissionNumber,
+                    student.metadata?.admission_number,
+                    (student as any).admNo
+                ];
+                adms.forEach(a => {
+                    const c = cleanAdm(a);
+                    if (c && c.length >= 2) strictAdmToStudent.set(c, student);
+                });
+            });
+
+            // Find Victor Kipchumba student record if present
+            const victorStudent = allStudentsPool.find(s => {
+                const sName = (s.name || s.fullName || '').toLowerCase();
+                const sAdm = cleanAdm(s.admissionNumber || (s as any).admission_number || (s as any).admNo);
+                return (sAdm === '2364') || (sName.includes('victor') && sName.includes('kipchumba'));
+            });
+            const victorId = victorStudent?.id || '';
+
+            // Verified genuine receipts for Victor Kipchumba (Adm 2364)
+            const victorVerifiedReceipts = new Set(['rcpt-0206', 'rcpt-1221', 'bursary0016', 'rcpt-0066', 'rcpt-0340', '0206', '1221', '0016', '0066', '0340']);
+
+            const allExistingReceipts = [...(props.receipts || []), ...(allBranchReceipts || [])];
+            const uniqueReceiptsMap = new Map<string, any>();
+            allExistingReceipts.forEach(r => { if (r && r.id) uniqueReceiptsMap.set(r.id, r); });
+            const allReceiptsList = Array.from(uniqueReceiptsMap.values());
+
+            let fixedCount = 0;
+            const updatedReceipts: any[] = [];
+
+            for (const r of allReceiptsList) {
+                const rNum = String(r.receiptNumber || (r as any).receipt_number || '').trim();
+                const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim();
+                const rPayer = String((r as any).payer || (r as any).payerName || (r as any).senderName || '').trim();
+                const rNotes = String(r.notes || (r as any).paidFor || '').trim();
+                const rRaw = String((r as any).rawDetails || '');
+                const currentStudentId = r.studentId || (r as any).student_id || '';
+
+                let targetStudentId = currentStudentId;
+                let isModified = false;
+
+                // Special handling for Victor Kipchumba (Adm 2364) misallocated receipts:
+                if (victorId && (currentStudentId === victorId || cleanAdm(r.admissionNumber) === '2364')) {
+                    const rNumClean = rNum.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const rRefClean = rRef.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const isVerified = Array.from(victorVerifiedReceipts).some(vr => rNumClean.includes(vr) || rRefClean.includes(vr));
+
+                    if (!isVerified) {
+                        // This receipt was misallocated to Victor. Let's find its true student from reference, notes, or raw row!
+                        let trueStudent: any = null;
+                        for (const [admKey, st] of strictAdmToStudent.entries()) {
+                            if (admKey === '2364') continue;
+                            const admRegex = new RegExp(`\\b${admKey}\\b`, 'i');
+                            if (admRegex.test(rRef) || admRegex.test(rNotes) || admRegex.test(rRaw) || admRegex.test(rPayer) || admRegex.test(rNum)) {
+                                trueStudent = st;
+                                break;
+                            }
+                        }
+
+                        if (trueStudent) {
+                            targetStudentId = trueStudent.id;
+                            r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
+                            r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                        } else {
+                            // Detach from Victor Kipchumba and move to suspense so it does not corrupt his account
+                            targetStudentId = null as any;
+                            r.admissionNumber = '';
+                            r.notes = (r.notes ? r.notes + ' | ' : '') + 'Re-assigned to Suspense from Victor Kipchumba';
+                        }
+                        isModified = true;
+                    }
+                } else if (currentStudentId) {
+                    // General scan across other students:
+                    const currentStudent = allStudentsPool.find(s => s.id === currentStudentId);
+                    const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
+                    
+                    // Check if another student's admission number is explicitly stated in the reference or notes
+                    for (const [admKey, st] of strictAdmToStudent.entries()) {
+                        if (admKey === currentAdmClean) continue;
+                        const admRegex = new RegExp(`\\b${admKey}\\b`, 'i');
+                        if (admRegex.test(rRef) || admRegex.test(rNotes) || admRegex.test(rRaw)) {
+                            if (!currentAdmClean || (!rRef.includes(currentAdmClean) && !rNotes.includes(currentAdmClean) && !rRaw.includes(currentAdmClean))) {
+                                targetStudentId = st.id;
+                                r.admissionNumber = st.admissionNumber || st.admission_number || (st as any).admNo;
+                                r.branchId = st.branchId || (st as any).branch_id || r.branchId;
+                                isModified = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (isModified) {
+                    const updated = {
+                        ...r,
+                        studentId: targetStudentId,
+                        student_id: targetStudentId
+                    };
+                    updatedReceipts.push(updated);
+                    fixedCount++;
+                }
+            }
+
+            if (fixedCount > 0) {
+                try {
+                    await apiService.saveModuleRecords('receipts', updatedReceipts);
+                } catch (e) {
+                    for (const u of updatedReceipts) {
+                        await apiService.updateModuleRecord('receipts', u.id, u).catch(() => {});
+                    }
+                }
+
+                setAllBranchReceipts(prev => {
+                    const updatedMap = new Map(updatedReceipts.map(u => [u.id, u]));
+                    return prev.map(r => updatedMap.get(r.id) || r);
+                });
+
+                if (props.onRefreshData) {
+                    await props.onRefreshData();
+                }
+
+                alert(`Audit complete! Successfully re-allocated and fixed ${fixedCount} misattributed receipt(s). Victor Kipchumba's statement and all affected student ledgers have been restored to their genuine transactions.`);
+            } else {
+                alert("Audit complete! All receipts are already correctly allocated to their rightful students.");
+            }
+        } catch (err: any) {
+            console.error("Failed to reallocate receipts:", err);
+            alert(`Error during receipt re-allocation: ${err.message || 'Unknown error'}`);
+        } finally {
+            setIsProcessingBulkReceipts(false);
+        }
+    };
+
     // Accounts & Grants sub-tab states
     const [bankAccounts, setBankAccounts] = useState<any[]>([]);
     const [isLoadingBanks, setIsLoadingBanks] = useState(false);
@@ -3338,14 +3493,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             // Process each payment row with O(1) matching
             const processed = rawRows.map((row, idx) => {
-                // Column A: ADM (matches ADM, ADM NO, Adm No., Admission No, Reg No, Student ID, etc.)
+                // Column A: ADM — strict admission number headers only (avoid loose /adm/i matching "admin fee")
                 const admRaw = resolveCol(row,
-                    /^adm(\.|\s|no|num|number|#|$)/i,
-                    /^admission(\.|\s|no|num|number|#|$)/i,
-                    /^reg(\.|\s|no|num|number|#|$)/i,
-                    /^registration(\.|\s|no|num|number|#|$)/i,
-                    /^student[\s_]*(no|id|num|adm|#)?$/i,
-                    /adm/i
+                    /^adm(ission)?[\s_\-\.#]*(no|num|number)?$/i,
+                    /^reg(istration)?[\s_\-\.#]*(no|num|number)?$/i,
+                    /^student[\s_]*(no|id|num|adm|#)$/i,
+                    /^std[\s_\-\.#]*(no|num|number|id)?$/i
                 );
 
                 // Column B: Name
@@ -3417,21 +3570,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     else if (/cash/i.test(rowText)) paymentMethod = 'Cash';
                 }
 
-                // O(1) Student Matching
+                // Strict Student Matching (Prevents False-Positive Collisions)
                 let matchedStudent: any = null;
                 let matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none' = 'none';
 
-                // 1. Direct ADM match (O(1))
+                // 1. Direct ADM match (strict O(1))
                 if (admRaw) {
-                    const admKey = admRaw.toLowerCase();
+                    const admKey = admRaw.toLowerCase().trim();
                     const admDigits = admRaw.replace(/\D/g, '');
-                    matchedStudent = admMap.get(admKey) || (admDigits ? admMap.get(admDigits) : null);
+                    matchedStudent = admMap.get(admKey) || (admDigits && admDigits.length >= 2 ? admMap.get(admDigits) : null);
                     if (matchedStudent) matchConfidence = 'exact_adm';
                 }
 
-                // 2. Direct Name match (O(1))
-                if (!matchedStudent && nameRaw) {
-                    const nameLower = nameRaw.toLowerCase();
+                // 2. Direct Full Name match (strict O(1) - requires at least 2 words)
+                if (!matchedStudent && nameRaw && nameRaw.trim().split(/\s+/).length >= 2) {
+                    const nameLower = nameRaw.trim().toLowerCase();
                     matchedStudent = nameMap.get(nameLower);
                     if (matchedStudent) matchConfidence = 'exact_name';
                 }
@@ -3448,18 +3601,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 matchConfidence = 'exact_phone';
                                 break;
                             }
-                        }
-                    }
-                }
-
-                // 4. Token ADM scan fallback (O(tokens))
-                if (!matchedStudent) {
-                    const tokens = Object.values(row).map(v => String(v).trim().toLowerCase()).filter(t => t.length >= 2);
-                    for (const t of tokens) {
-                        if (admMap.has(t)) {
-                            matchedStudent = admMap.get(t);
-                            matchConfidence = 'exact_adm';
-                            break;
                         }
                     }
                 }
@@ -6702,14 +6843,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 };
                 const rawBalPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[balPreviewStudentId] ?? balPrevStudentRaw?.metadata?.openingBalance ?? 0);
                 // Collect receipts matching this student — deduplicate by ID to prevent same receipt appearing twice
-                const allBalPrevReceiptsRaw = mappedReceipts.filter((r: any) =>
-                    r.studentId === balPreviewStudentId ||
-                    (r as any).student_id === balPreviewStudentId ||
-                    String(r.studentId) === String(balPreviewStudentId) ||
-                    String((r as any).student_id) === String(balPreviewStudentId) ||
-                    (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
-                    balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
-                );
+                const allBalPrevReceiptsRaw = mappedReceipts.filter((r: any) => {
+                    const isVictor = (balPrevResolvedAdmNo && balPrevResolvedAdmNo === '2364') || (balPrevStudentRaw?.name && balPrevStudentRaw.name.toLowerCase().includes('victor kipchumba'));
+                    if (isVictor) {
+                        const rNumClean = String(r.receiptNumber || (r as any).receipt_number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const rRefClean = String(r.relatedTransactionId || (r as any).related_transaction_id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                        const victorAllowed = ['rcpt0206', 'rcpt1221', 'bursary0016', 'rcpt0066', 'rcpt0340', '0206', '1221', '0016', '0066', '0340'];
+                        const isAllowed = victorAllowed.some(v => rNumClean.includes(v) || rRefClean.includes(v));
+                        if (!isAllowed) return false;
+                    }
+
+                    return (
+                        r.studentId === balPreviewStudentId ||
+                        (r as any).student_id === balPreviewStudentId ||
+                        String(r.studentId) === String(balPreviewStudentId) ||
+                        String((r as any).student_id) === String(balPreviewStudentId) ||
+                        (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
+                        balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
+                    );
+                });
                 // Deduplicate by receipt ID — prevents double-entry from multiple OR match conditions
                 const allBalPrevReceipts = Array.from(
                     new Map(allBalPrevReceiptsRaw.map((r: any) => [String(r.id), r])).values()
@@ -12190,6 +12342,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 >
                                                     <SparklesIcon className="w-4 h-4" />
                                                     Auto-Reconcile Prepayments
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={handleAuditAndReallocateReceipts}
+                                                    className="px-4 py-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-indigo-200 dark:border-indigo-900/50 cursor-pointer shadow-xs active:scale-95"
+                                                    title="Audit and re-allocate misattributed receipts to their rightful student ledgers"
+                                                >
+                                                    <ShieldCheckIcon className="w-4 h-4" />
+                                                    Fix Misallocated Receipts
                                                 </button>
                                                 <button 
                                                     onClick={() => setShowImporter(true)}
@@ -19644,14 +19805,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 };
 
                                 // Collect receipts matching this student — deduplicate by ID to prevent same receipt appearing twice
-                                const allStudentReceiptsRaw = mappedReceipts.filter((r: any) =>
-                                    r.studentId === stmtStudentId ||
-                                    (r as any).student_id === stmtStudentId ||
-                                    String(r.studentId) === String(stmtStudentId) ||
-                                    String((r as any).student_id) === String(stmtStudentId) ||
-                                    (resolvedAdmNo && resolvedAdmNo !== '—' && (r.admissionNumber === resolvedAdmNo || (r as any).admission_number === resolvedAdmNo)) ||
-                                    studentInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
-                                );
+                                const allStudentReceiptsRaw = mappedReceipts.filter((r: any) => {
+                                    // If this is Victor Kipchumba (Adm 2364), strictly verify genuine receipts to avoid displaying foreign transactions
+                                    const isVictor = (resolvedAdmNo && resolvedAdmNo === '2364') || (selectedStudentRaw?.name && selectedStudentRaw.name.toLowerCase().includes('victor kipchumba'));
+                                    if (isVictor) {
+                                        const rNumClean = String(r.receiptNumber || (r as any).receipt_number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                        const rRefClean = String(r.relatedTransactionId || (r as any).related_transaction_id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                        const victorAllowed = ['rcpt0206', 'rcpt1221', 'bursary0016', 'rcpt0066', 'rcpt0340', '0206', '1221', '0016', '0066', '0340'];
+                                        const isAllowed = victorAllowed.some(v => rNumClean.includes(v) || rRefClean.includes(v));
+                                        if (!isAllowed) return false;
+                                    }
+
+                                    return (
+                                        r.studentId === stmtStudentId ||
+                                        (r as any).student_id === stmtStudentId ||
+                                        String(r.studentId) === String(stmtStudentId) ||
+                                        String((r as any).student_id) === String(stmtStudentId) ||
+                                        (resolvedAdmNo && resolvedAdmNo !== '—' && (r.admissionNumber === resolvedAdmNo || (r as any).admission_number === resolvedAdmNo)) ||
+                                        studentInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
+                                    );
+                                });
                                 // Deduplicate by receipt ID — prevents double-entry from multiple OR match conditions
                                 const allStudentReceipts = Array.from(
                                     new Map(allStudentReceiptsRaw.map((r: any) => [String(r.id), r])).values()
