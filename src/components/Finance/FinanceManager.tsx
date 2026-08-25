@@ -6812,12 +6812,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!balPrevStudent) return null;
 
                 return (
-                    <div className="fixed inset-0 z-[200] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200" onClick={(e) => {
+                    <div className="fixed inset-0 z-[200] bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200" onClick={(e) => {
                         if (e.target === e.currentTarget) setBalPreviewStudentId('');
                     }}>
-                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-2xl max-w-5xl w-full h-[95vh] max-h-[95vh] flex flex-col relative animate-in zoom-in-95 duration-200 overflow-hidden">
-                            {/* Preview Panel Header Bar */}
-                            <div className="shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 text-white py-3 px-5 sm:px-6 rounded-t-[2rem] shadow-md border-b border-slate-800 z-10">
+                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-2xl max-w-5xl w-full h-[92vh] max-h-[92vh] flex flex-col relative animate-in zoom-in-95 duration-200 overflow-hidden">
+                            {/* Preview Panel Header Bar - always pinned and fully visible */}
+                            <div className="shrink-0 sticky top-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 text-white py-3.5 px-5 sm:px-6 rounded-t-[2rem] shadow-lg border-b border-slate-800 z-30">
                                 <div className="flex items-center gap-3">
                                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                                     <span className="text-xs font-black uppercase tracking-widest text-slate-200">{balPrevStudent.name}</span>
