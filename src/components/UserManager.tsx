@@ -1472,10 +1472,12 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 <p className="text-[10px] text-slate-500 mt-1">If empty, an email will be generated automatically.</p>
                             </div>
                             )}
+                            {!isPrimaryOrSecondary && (
                             <div>
                                 <label className="block text-sm font-medium mb-1">Phone Number</label>
                                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="form-input w-full" />
                             </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium mb-1">
                                     {isHeritage ? (activeTab === 'staff' ? 'Family ID / Council ID' : 'Family Member ID') : (isRetailAgency ? (activeTab === 'staff' ? 'ID Number' : 'Client/Agent ID') : (isCoop ? (activeTab === 'staff' ? 'Employee ID' : 'Member Number') : (isChurch ? (activeTab === 'staff' ? 'Worker ID' : 'Member Number') : (activeTab === 'staff' ? 'Staff ID' : 'Student ID'))))}

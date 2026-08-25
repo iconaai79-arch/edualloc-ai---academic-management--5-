@@ -6363,6 +6363,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </button>
                         <button
                             type="button"
+                            onClick={handleAuditAndReallocateReceipts}
+                            disabled={isProcessingBulkReceipts}
+                            className="py-3 px-4 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-200 dark:border-indigo-800 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 disabled:opacity-50"
+                            title="Audit and re-allocate misattributed receipts to their rightful student ledgers or suspense account"
+                        >
+                            <ShieldCheckIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 group-hover:text-white" />
+                            <span>{isProcessingBulkReceipts ? 'Auditing Receipts...' : 'Fix Misallocated Receipts'}</span>
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => {
                                 setIsFeeReminderModalOpen(true);
                             }}
@@ -8771,6 +8781,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         >
                                             <PrinterIcon className="w-3.5 h-3.5" />
                                             Reprint by Class
+                                        </button>
+                                        <button
+                                            onClick={handleAuditAndReallocateReceipts}
+                                            disabled={isProcessingBulkReceipts}
+                                            className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-200 dark:border-indigo-800 rounded-xl font-black text-xs uppercase tracking-widest shadow-sm flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                                            title="Audit and re-allocate misattributed receipts to their rightful student ledgers or suspense"
+                                        >
+                                            <ShieldCheckIcon className="w-3.5 h-3.5" />
+                                            {isProcessingBulkReceipts ? 'Auditing...' : 'Fix Misallocated Receipts'}
                                         </button>
                                         {isSuperAdmin && detectedDuplicateReceipts.length > 0 && (
                                             <button

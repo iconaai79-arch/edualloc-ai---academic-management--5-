@@ -49,7 +49,7 @@ import { apiService } from '../../services/apiService';
 import { generateEventReportPdf, generateStudentIdCardPdf, generateLeaveOutSheetPdf, generateClassListPdf } from '../../services/pdfService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
-import { formatRoleDisplayName, getRolesForInstitution } from '../../utils/roleUtils';
+import { formatRoleDisplayName, getRolesForInstitution, isPrimaryInstitution, isSecondaryInstitution } from '../../utils/roleUtils';
 import { VALID_STAFF_ROLES } from '../../constants';
 import { formatPhoneNumber, phonesMatch } from '../../utils/stringUtils';
 import { PdfViewer } from '../PdfViewer';
@@ -313,9 +313,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     } | null>(null);
     const [pinReportFilter, setPinReportFilter] = useState<'all' | 'success' | 'failed'>('all');
     const isPrimaryOrSecondary = useMemo(() => {
-        const type = (currentInstitution?.institutionType || '').toLowerCase();
-        const cat = (currentInstitution?.category || '').toLowerCase();
-        return ['primary', 'secondary'].includes(type) || ['primary', 'secondary'].includes(cat);
+        return isPrimaryInstitution(currentInstitution) || isSecondaryInstitution(currentInstitution);
     }, [currentInstitution]);
 
     const isNameUnknown = (name: string | undefined | null): boolean => {

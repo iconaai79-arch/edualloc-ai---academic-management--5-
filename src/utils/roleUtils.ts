@@ -166,7 +166,9 @@ export function isPrimaryInstitution(institution: Partial<Institution> | null | 
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
-    return (type === 'education' && ['primary', 'kindergarten', 'ecd', 'pre-primary'].includes(category)) || type === 'primary' || type === 'kindergarten';
+    const name = (institution.name || '').toLowerCase();
+    const primaryTerms = ['primary', 'kindergarten', 'ecd', 'pre-primary', 'nursery', 'daycare', 'cbc'];
+    return primaryTerms.some(term => type.includes(term) || category.includes(term) || name.includes(term));
 }
 
 /**
@@ -176,7 +178,9 @@ export function isSecondaryInstitution(institution: Partial<Institution> | null 
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
-    return (type === 'education' && (category === 'secondary' || category === 'junior secondary')) || type === 'secondary';
+    const name = (institution.name || '').toLowerCase();
+    const secondaryTerms = ['secondary', 'junior secondary', 'high school', 'senior school', 'k12'];
+    return secondaryTerms.some(term => type.includes(term) || category.includes(term) || name.includes(term));
 }
 
 /**
