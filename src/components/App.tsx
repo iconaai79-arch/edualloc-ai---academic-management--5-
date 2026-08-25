@@ -1170,9 +1170,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
             // ── Module Onboarding: show wizard for edu admins with no active modules ──
             const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
-            const isEduAdmin = EDU_TYPES.includes(instTypeLower) && currentUser && currentUser.role !== 'super_admin' && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
-            if (isEduAdmin && activeInst) {
-                const activeModules = (imsPhase1 || []).filter((m: any) => m.institutionId === activeInst.id && (m.status === 'active' || m.status === 'trial'));
+            const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!localStorage.getItem('eduai_super_admin_session');
+            const isEduAdmin = EDU_TYPES.includes(instTypeLower) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
+            if (isEduAdmin && activeInst && activeInst.status !== 'active') {
+                const activeModules = (imsPhase1 || []).filter((m: any) => (m.institutionId === activeInst.id || m.institution_id === activeInst.id) && (m.status === 'active' || m.status === 'trial'));
                 const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
                 const alreadyDismissed = localStorage.getItem(dismissedKey) === 'true';
                 if (activeModules.length === 0 && !alreadyDismissed) {
@@ -6300,65 +6301,68 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated,
 
 
     if (currentUser && activeRole !== 'super_admin' && activeRole !== 'reseller') {
-        const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
-        const isReseller = inst?.institutionType === 'Reseller' || currentUser.role === 'reseller';
-        const now = new Date();
-        const subEndDate = inst?.subscriptionEndsAt ? new Date(inst.subscriptionEndsAt) : null;
-        const trialEndDate = inst?.trialEndsAt ? new Date(inst.trialEndsAt) : null;
+        const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!localStorage.getItem('eduai_super_admin_session');
+        if (!isSuperAdminImpersonating) {
+            const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
+            const isReseller = inst?.institutionType === 'Reseller' || currentUser.role === 'reseller';
+            const now = new Date();
+            const subEndDate = inst?.subscriptionEndsAt ? new Date(inst.subscriptionEndsAt) : null;
+            const trialEndDate = inst?.trialEndsAt ? new Date(inst.trialEndsAt) : null;
 
-        const isStatusExpired = (inst?.status as string) === 'expired' || inst?.status === 'suspended';
-        const isSubscriptionExpired = !isReseller && inst && (
-            isStatusExpired ||
-            (subEndDate !== null && subEndDate < now)
-        );
-        const hasOverdueBill = !isReseller && inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
-        const isSuspended = !isReseller && inst && inst.status === 'suspended';
-
-        if (inst && !isReseller && (isSuspended || isSubscriptionExpired || hasOverdueBill)) {
-            return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
-                await apiService.saveModuleRecord('institution_extension_requests', {
-                    id: `ext_${Date.now()}`,
-                    institutionId: inst.id,
-                    requesterId: currentUser.id,
-                    reason,
-                    status: 'pending',
-                    requestedAt: new Date().toISOString()
-                });
-                loadData();
-            }} />;
-        }
-
-        const trialEnded = !isReseller && inst && (inst.status === 'trial' || !subEndDate) && trialEndDate !== null && trialEndDate < now;
-        if (trialEnded) {
-            return (
-                <TrialExpiredView
-                    user={currentUser}
-                    institution={inst}
-                    companyDetails={companyDetails}
-                    onLogout={handleLogout}
-                    onPay={async (paymentData, items) => {
-                        const status = await apiService.onAddTransaction({
-                            ...paymentData,
-                            institutionId: inst.id,
-                            provider: 'mpesa',
-                            paymentMethod: 'stk'
-                        } as any, items);
-                        if (status === 'completed') loadData();
-                        return status;
-                    }}
-                    onRequestExtension={async (reason) => {
-                        await apiService.saveModuleRecord('institution_extension_requests', {
-                            id: `ext_${Date.now()}`,
-                            institutionId: inst.id,
-                            requesterId: currentUser.id,
-                            reason,
-                            status: 'pending',
-                            requestedAt: new Date().toISOString()
-                        });
-                        loadData();
-                    }}
-                />
+            const isStatusExpired = (inst?.status as string) === 'expired' || inst?.status === 'suspended';
+            const isSubscriptionExpired = !isReseller && inst && (
+                isStatusExpired ||
+                (inst.status !== 'active' && subEndDate !== null && subEndDate < now)
             );
+            const hasOverdueBill = !isReseller && inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
+            const isSuspended = !isReseller && inst && inst.status === 'suspended';
+
+            if (inst && !isReseller && (isSuspended || isSubscriptionExpired || hasOverdueBill)) {
+                return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
+                    await apiService.saveModuleRecord('institution_extension_requests', {
+                        id: `ext_${Date.now()}`,
+                        institutionId: inst.id,
+                        requesterId: currentUser.id,
+                        reason,
+                        status: 'pending',
+                        requestedAt: new Date().toISOString()
+                    });
+                    loadData();
+                }} />;
+            }
+
+            const trialEnded = !isReseller && inst && inst.status === 'trial' && trialEndDate !== null && trialEndDate < now;
+            if (trialEnded) {
+                return (
+                    <TrialExpiredView
+                        user={currentUser}
+                        institution={inst}
+                        companyDetails={companyDetails}
+                        onLogout={handleLogout}
+                        onPay={async (paymentData, items) => {
+                            const status = await apiService.onAddTransaction({
+                                ...paymentData,
+                                institutionId: inst.id,
+                                provider: 'mpesa',
+                                paymentMethod: 'stk'
+                            } as any, items);
+                            if (status === 'completed') loadData();
+                            return status;
+                        }}
+                        onRequestExtension={async (reason) => {
+                            await apiService.saveModuleRecord('institution_extension_requests', {
+                                id: `ext_${Date.now()}`,
+                                institutionId: inst.id,
+                                requesterId: currentUser.id,
+                                reason,
+                                status: 'pending',
+                                requestedAt: new Date().toISOString()
+                            });
+                            loadData();
+                        }}
+                    />
+                );
+            }
         }
         if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_') && currentUser.role !== 'super_admin' && !originalSuperAdminSession && !isSimulatorMode) {
             return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {

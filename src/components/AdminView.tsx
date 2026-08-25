@@ -804,6 +804,24 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (moduleId === 'beauty_college' && isBC) return true;
         if (moduleId === 'remedials' && (isEdu || isSchool)) return true;
 
+        // If Super Admin is viewing or impersonating a tenant, grant access to all modules
+        if (props.currentUser?.role === 'super_admin' || (props.currentUser as any)?.isImpersonated || !!localStorage.getItem('eduai_super_admin_session')) {
+            return true;
+        }
+
+        // If the institution is active, default core modules to active
+        if (props.currentInstitution?.status === 'active') {
+            const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
+            if (!state) return true;
+            if (state.status === 'active') return true;
+            if (state.status === 'trial') {
+                const expiry = state.trialEndsAt || (state as any).trial_ends_at;
+                return expiry ? new Date(expiry) > new Date() : true;
+            }
+            if (state.status === 'suspended' || state.status === 'expired') return false;
+            return true;
+        }
+
         const state = props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
         if (!state) return false;
         if (state.status === 'active') return true;
@@ -812,7 +830,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             return expiry ? new Date(expiry) > new Date() : false;
         }
         return false;
-    }, [props.currentInstitution?.moduleStates, props.currentInstitution?.institutionType, props.currentInstitution?.id]);
+    }, [props.currentInstitution?.moduleStates, props.currentInstitution?.institutionType, props.currentInstitution?.id, props.currentInstitution?.status, props.currentUser, isBC, isEdu, isSchool]);
 
     const isCoreAdmin = useMemo(() => {
         const role = props.currentUser?.role;

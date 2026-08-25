@@ -37,10 +37,13 @@ export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({
 
     const reportData = useMemo(() => {
         return filteredCourses.map(course => {
-            const courseLevels = (course.levels || []).filter(l => levelFilter === 'all' || l.id === levelFilter);
+            const rawLevels = (course.levels && course.levels.length > 0)
+                ? course.levels
+                : [{ id: course.id, name: course.name, subjectIds: (course as any).subjectIds || subjects.map(s => s.id) }];
+            const courseLevels = rawLevels.filter(l => levelFilter === 'all' || l.id === levelFilter);
             const levelStats = courseLevels.map(level => {
                 const levelSubjectIds = level.subjectIds || [];
-                const levelSubjects = subjects.filter(s => levelSubjectIds.includes(s.id));
+                const levelSubjects = subjects.filter(s => levelSubjectIds.includes(s.id) || levelSubjectIds.length === 0);
 
                 const subjectProgress = levelSubjects.map(subject => {
                     const meta = (level.subjectMetadata || []).find(m => m.subjectId === subject.id);
@@ -48,8 +51,7 @@ export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({
                     const required = calculateTotalPeriods(structure);
                     const scheduled = allTimetableEntries.filter(entry =>
                         entry.subjectId === subject.id &&
-                        entry.courseLevelId === level.id &&
-                        entry.courseId === course.id
+                        (entry.courseLevelId === level.id || entry.courseId === course.id)
                     ).length;
 
                     return {

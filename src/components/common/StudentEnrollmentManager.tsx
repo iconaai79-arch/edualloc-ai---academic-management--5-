@@ -4357,15 +4357,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 (associatedUser?.phoneNumber || '').includes(searchTerm);
             
             const matchesStatus = statusFilter === 'All' || enr.status === statusFilter;
-            const stGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || '').trim().toLowerCase();
-            const matchesGrade = !gradeFilter || stGrade === gradeFilter.trim().toLowerCase();
             
-            const stStream = (enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || (associatedUser as any)?.stream_name || '').trim().toLowerCase();
-            const matchesStream = !streamFilter || stStream === streamFilter.trim().toLowerCase();
+            const rawStGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || '').trim();
+            const normStGrade = getNormalizedGradeKey(rawStGrade);
+            const normFilterGrade = getNormalizedGradeKey(gradeFilter);
+            const matchesGrade = !gradeFilter || 
+                (normFilterGrade && normStGrade === normFilterGrade) || 
+                rawStGrade.toLowerCase() === gradeFilter.trim().toLowerCase() ||
+                (normFilterGrade && rawStGrade.toLowerCase().startsWith(normFilterGrade));
+            
+            const rawStStream = (enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || (associatedUser as any)?.stream_name || '').trim();
+            const matchesStream = !streamFilter || 
+                rawStStream.toLowerCase() === streamFilter.trim().toLowerCase() ||
+                rawStGrade.toLowerCase().endsWith(streamFilter.trim().toLowerCase());
             
             return matchesSearch && matchesStatus && matchesGrade && matchesStream;
         });
-    }, [enrollments, users, searchTerm, statusFilter, gradeFilter, streamFilter]);
+    }, [enrollments, users, searchTerm, statusFilter, gradeFilter, streamFilter, getNormalizedGradeKey]);
 
     const paginatedEnrollments = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -4563,19 +4571,49 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    // Helper: unify grade keys (e.g. "PG", "PLAY GROUP", "Playgroup" -> "playgroup"; "1", "Grade 1", "1 East" -> "grade 1")
+    const getNormalizedGradeKey = useCallback((raw: string): string => {
+        if (!raw) return '';
+        let s = String(raw).trim().toLowerCase();
+        // Remove stream suffixes (East, West, North, South, Central, Red, Blue, etc.)
+        s = s.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+
+        if (s === 'pg' || s.includes('playgroup') || s.includes('play group') || s.includes('daycare') || s.includes('day care')) return 'playgroup';
+        if (s === 'pp1' || s.includes('pre-primary 1') || s.includes('pre primary 1') || s.includes('preprimary 1') || s.includes('baby class')) return 'pp1';
+        if (s === 'pp2' || s.includes('pre-primary 2') || s.includes('pre primary 2') || s.includes('preprimary 2') || s.includes('top class') || s.includes('middle class')) return 'pp2';
+
+        const numMatch = s.match(/(?:grade|class|std|standard|form|year)?\s*(\d{1,2})/i);
+        if (numMatch) {
+            const num = numMatch[1];
+            if (s.includes('form')) return `form ${num}`;
+            if (s.includes('year')) return `year ${num}`;
+            return `grade ${num}`;
+        }
+        return s;
+    }, []);
+
     // Helper: normalize bare numbers like "1", "2" → "Grade 1", "Grade 2" (or "Form 1" for secondary)
     const normalizeGradeLabel = useCallback((raw: string, prefix = 'Grade'): string => {
         const trimmed = (raw || '').trim();
         if (!trimmed) return trimmed;
-        // Already a full grade name → keep
+        const key = getNormalizedGradeKey(trimmed);
+        if (key === 'playgroup') return 'Playgroup';
+        if (key === 'pp1') return 'PP1';
+        if (key === 'pp2') return 'PP2';
+        if (key.startsWith('grade ')) {
+            const num = key.replace('grade ', '');
+            return `Grade ${num}`;
+        }
+        if (key.startsWith('form ')) {
+            const num = key.replace('form ', '');
+            return `Form ${num}`;
+        }
         if (/^(grade|form|pp|std|year|class|standard|pre-primary|playgroup)/i.test(trimmed)) return trimmed;
-        // Bare number "1" → "Grade 1"
         if (/^\d{1,2}$/.test(trimmed)) return `${prefix} ${trimmed}`;
-        // Number + stream "1 East" → "Grade 1 East"
         const ns = trimmed.match(/^(\d{1,2})\s+(.+)$/);
         if (ns) return `${prefix} ${ns[1]} ${ns[2]}`;
         return trimmed;
-    }, []);
+    }, [getNormalizedGradeKey]);
 
     // Available Cohorts / Grade Levels — Only load registered grades
     const cohortsList = useMemo(() => {
@@ -4643,14 +4681,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const hasFormPrefix = rawGrades.some(g => /^form\s*\d+/i.test(g));
                 const defaultPrefix = hasFormPrefix && !hasGradePrefix ? 'Form' : 'Grade';
 
-                // Normalize bare numbers to full grade names
-                const normalized = rawGrades.map(g => normalizeGradeLabel(g, defaultPrefix));
-
                 const seenMap = new Map<string, string>();
-                normalized.forEach(g => {
-                    const lower = g.toLowerCase();
-                    if (!seenMap.has(lower)) {
-                        seenMap.set(lower, g);
+                rawGrades.forEach(g => {
+                    const key = getNormalizedGradeKey(g);
+                    if (key && !seenMap.has(key)) {
+                        const display = normalizeGradeLabel(g, defaultPrefix);
+                        seenMap.set(key, display);
                     }
                 });
 
@@ -4686,7 +4722,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
             ];
         }
-    }, [context, courses, academicLevels, enrollments, users, currentInstitution, normalizeGradeLabel]);
+    }, [context, courses, academicLevels, enrollments, users, currentInstitution, normalizeGradeLabel, getNormalizedGradeKey]);
 
     // Available Streams fallback
     const streamsList = useMemo(() => {
@@ -4700,7 +4736,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const formStreamsList = useMemo(() => {
         let list: string[] = [];
         if (formData.metadata.gradeLevel) {
-            const selectedCourse = courses.find(c => c.name === formData.metadata.gradeLevel);
+            const normGrade = getNormalizedGradeKey(formData.metadata.gradeLevel);
+            const selectedCourse = courses.find(c => getNormalizedGradeKey(c.name || (c as any).title || c.code || '') === normGrade);
             if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
                 list = selectedCourse.levels.map(lvl => lvl.name);
             }
@@ -4727,33 +4764,58 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
         }
         return list;
-    }, [formData.metadata.gradeLevel, formData.metadata.stream, courses, streamsList]);
+    }, [formData.metadata.gradeLevel, formData.metadata.stream, courses, streamsList, getNormalizedGradeKey]);
 
     // Available Streams for the registry filter
     const filterStreamsList = useMemo(() => {
         if (gradeFilter) {
-            const selectedCourse = courses.find(c => c.name === gradeFilter);
-            if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
-                return selectedCourse.levels.map(lvl => lvl.name);
-            }
+            const normGrade = getNormalizedGradeKey(gradeFilter);
+
+            // 1. Streams from courses matching selected grade
+            const matchedCourses = courses.filter(c => {
+                const cName = c.name || (c as any).title || c.code || '';
+                return getNormalizedGradeKey(cName) === normGrade;
+            });
+            const courseStreams = matchedCourses.flatMap(c => (c.levels || []).map(lvl => lvl.name)).filter(Boolean);
+
+            // 2. Streams from enrolled students in this grade
+            const studentStreams: string[] = [];
+            enrollments.forEach(enr => {
+                const u = users.find(usr => usr.id === enr.userId);
+                const stGrade = enr.metadata?.gradeLevel || u?.studentClass || (u as any)?.classLevel || (u as any)?.class || '';
+                if (getNormalizedGradeKey(stGrade) === normGrade) {
+                    const stStream = enr.metadata?.stream || (u as any)?.stream || (u as any)?.streamName || '';
+                    if (stStream && stStream.trim() && stStream !== '—' && stStream.toLowerCase() !== 'all') {
+                        studentStreams.push(stStream.trim());
+                    }
+                }
+            });
+
+            const combined = Array.from(new Set([...courseStreams, ...studentStreams]));
+            return combined;
         }
-        const allCourseStreams = courses.flatMap(c => (c.levels || []).map(lvl => lvl.name));
-        if (allCourseStreams.length > 0) {
-            return Array.from(new Set(allCourseStreams));
+
+        // When "All Grades" is selected:
+        const allCourseStreams = courses.flatMap(c => (c.levels || []).map(lvl => lvl.name)).filter(Boolean);
+        const allStudentStreams = enrollments.map(e => e.metadata?.stream).filter(Boolean) as string[];
+        const all = Array.from(new Set([...allCourseStreams, ...allStudentStreams]));
+        if (all.length > 0) {
+            return all;
         }
         return streamsList;
-    }, [gradeFilter, courses, streamsList]);
+    }, [gradeFilter, courses, enrollments, users, streamsList, getNormalizedGradeKey]);
 
     // Available Streams for the Import default settings
     const importStreamsList = useMemo(() => {
         if (importGradeLevel) {
-            const selectedCourse = courses.find(c => c.name === importGradeLevel);
+            const normGrade = getNormalizedGradeKey(importGradeLevel);
+            const selectedCourse = courses.find(c => getNormalizedGradeKey(c.name || (c as any).title || c.code || '') === normGrade);
             if (selectedCourse?.levels && selectedCourse.levels.length > 0) {
                 return selectedCourse.levels.map(lvl => lvl.name);
             }
         }
         return streamsList;
-    }, [importGradeLevel, courses, streamsList]);
+    }, [importGradeLevel, courses, streamsList, getNormalizedGradeKey]);
 
     const activeImportFields = useMemo(() => {
         if (activeTab === 'teachers') return teacherFields;
@@ -5469,9 +5531,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 <select
                                     value={streamFilter}
                                     onChange={e => setStreamFilter(e.target.value)}
-                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                                    disabled={gradeFilter !== '' && filterStreamsList.length === 0}
+                                    className="flex-1 min-w-[130px] py-2.5 px-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    <option value="">All Streams</option>
+                                    <option value="">{gradeFilter && filterStreamsList.length === 0 ? 'No Streams' : 'All Streams'}</option>
                                     {filterStreamsList.map(stream => (
                                         <option key={stream} value={stream}>{stream}</option>
                                     ))}

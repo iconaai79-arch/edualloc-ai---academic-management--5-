@@ -845,8 +845,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
             const isModuleActive = (moduleId: string) => {
                 if (currentInstitution?.institutionType === 'Reseller') return true;
                 if (currentInstitution?.id?.startsWith('demo_')) return true;
+                if (currentUser?.role === 'super_admin' || (currentUser as any)?.isImpersonated || !!localStorage.getItem('eduai_super_admin_session')) return true;
+                if (currentInstitution?.status === 'active') return true;
 
-                const state = currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
+                const state = currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId || (m as any).module_id === moduleId);
                 if (!state) return false;
                 if (state.status === 'active') return true;
                 if (state.status === 'trial') {
