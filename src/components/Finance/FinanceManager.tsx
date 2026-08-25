@@ -2586,7 +2586,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             
             const totalInvoiced = (openingBal > 0 ? openingBal : 0) + invoicedWithoutOpening;
 
-            const studentReceipts = mappedReceipts.filter(rec => {
+            const isPurePrepaymentRec = (r: any): boolean => {
+                let allocs: any[] = [];
+                try { allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : (r.allocations || []); } catch(e) {}
+                return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
+            };
+
+            const allStudentReceipts = mappedReceipts.filter(rec => {
                 const recStudentId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
                 if (recStudentId && studentIds.has(recStudentId)) return true;
                 const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
@@ -2596,6 +2602,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if ((rec as any).studentName && studentNameLower && String((rec as any).studentName).trim().toLowerCase() === studentNameLower) return true;
                 return false;
             });
+
+            // If an opening balance is negative (prepayment credit), exclude pure-prepayment receipts
+            // from the receipts sum so the payment amount isn't counted both as opening balance credit AND receipt payment
+            const studentReceipts = openingBal < 0
+                ? allStudentReceipts.filter(r => !isPurePrepaymentRec(r))
+                : allStudentReceipts;
+
             const paid = studentReceipts.reduce((sum, rec) => {
                 const amt = rec.amountPaid || (rec as any).amount_paid || (rec as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
@@ -6637,7 +6650,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     String((i as any).student_id) === String(balPreviewStudentId) ||
                     (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (i.admissionNumber === balPrevResolvedAdmNo || (i as any).admission_number === balPrevResolvedAdmNo))
                 );
-                const balPrevReceipts = mappedReceipts.filter((r: any) =>
+                // Helper: a receipt is a "pure prepayment" if ALL its allocations map to invoiceNumber 'Prepayment'
+                const isPurePrepaymentReceiptBP = (r: any): boolean => {
+                    let allocs: any[] = [];
+                    try { allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : (r.allocations || []); } catch(e) {}
+                    return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
+                };
+                const balPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[balPreviewStudentId] ?? balPrevStudentRaw?.metadata?.openingBalance ?? 0);
+                const balPrevHasCreditOpening = balPrevOpeningBal < 0;
+                const allBalPrevReceipts = mappedReceipts.filter((r: any) =>
                     r.studentId === balPreviewStudentId ||
                     (r as any).student_id === balPreviewStudentId ||
                     String(r.studentId) === String(balPreviewStudentId) ||
@@ -6645,7 +6666,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
                     balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
                 );
-                const balPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[balPreviewStudentId] ?? balPrevStudentRaw?.metadata?.openingBalance ?? 0);
+                // Exclude pure-prepayment receipts from ledger when a credit opening balance already represents them
+                const balPrevReceipts = balPrevHasCreditOpening
+                    ? allBalPrevReceipts.filter((r: any) => !isPurePrepaymentReceiptBP(r))
+                    : allBalPrevReceipts;
                 const balPrevInvoicesTotal = balPrevInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
                 const balPrevReceiptsTotal = balPrevReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
                 const balPrevTotalInvoiced = (balPrevOpeningBal > 0 ? balPrevOpeningBal : 0) + balPrevInvoicesTotal;
@@ -19515,7 +19539,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     String((i as any).student_id) === String(stmtStudentId) ||
                                     (resolvedAdmNo && resolvedAdmNo !== '—' && (i.admissionNumber === resolvedAdmNo || (i as any).admission_number === resolvedAdmNo))
                                 );
-                                const studentReceipts = mappedReceipts.filter((r: any) =>
+                                // Helper: a receipt is a "pure prepayment" if ALL its allocations map to invoiceNumber 'Prepayment'
+                                const isPurePrepaymentReceipt = (r: any): boolean => {
+                                    let allocs: any[] = [];
+                                    try { allocs = typeof r.allocations === 'string' ? JSON.parse(r.allocations) : (r.allocations || []); } catch(e) {}
+                                    return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
+                                };
+
+                                const allStudentReceipts = mappedReceipts.filter((r: any) =>
                                     r.studentId === stmtStudentId ||
                                     (r as any).student_id === stmtStudentId ||
                                     String(r.studentId) === String(stmtStudentId) ||
@@ -19528,6 +19559,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     const sd = studentFinanceData.find(s => s.id === stmtStudentId);
                                     return sd?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[stmtStudentId] ?? selectedStudentRaw?.metadata?.openingBalance ?? 0);
                                 })();
+
+                                // If there is a negative opening balance (prepayment credit b/f), exclude pure-prepayment-only
+                                // receipts from the ledger to prevent double-counting. The opening balance entry already
+                                // accounts for that credit.
+                                const hasCreditOpeningBalance = openingBalForStmt < 0;
+                                const studentReceipts = hasCreditOpeningBalance
+                                    ? allStudentReceipts.filter((r: any) => !isPurePrepaymentReceipt(r))
+                                    : allStudentReceipts;
+
                                 const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
                                 const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
                                 const totalInvoiced = (openingBalForStmt > 0 ? openingBalForStmt : 0) + invoicesTotal;
