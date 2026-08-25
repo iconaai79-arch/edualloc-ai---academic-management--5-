@@ -1877,7 +1877,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             };
 
             const strictAdmToStudent = new Map<string, any>();
-            const studentNameEntries: { name: string; words: string[]; student: any }[] = [];
 
             allStudentsPool.forEach(student => {
                 const adms = [
@@ -1891,16 +1890,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const c = cleanAdm(a);
                     if (c && c.length >= 2) strictAdmToStudent.set(c, student);
                 });
-
-                const rawName = String(student.name || student.fullName || student.metadata?.studentName || '').toLowerCase().trim();
-                const nameWords = rawName.split(/\s+/).filter(w => w.length >= 3);
-                if (nameWords.length >= 2) {
-                    studentNameEntries.push({
-                        name: rawName,
-                        words: nameWords,
-                        student
-                    });
-                }
             });
 
             // Find Victor Kipchumba student record if present
@@ -1919,27 +1908,42 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             allExistingReceipts.forEach(r => { if (r && r.id) uniqueReceiptsMap.set(r.id, r); });
             const allReceiptsList = Array.from(uniqueReceiptsMap.values());
 
-            // Helper to find true student from text by admission number or full name
-            const findStudentInText = (text: string, excludeAdm: string = ''): any | null => {
-                if (!text || typeof text !== 'string') return null;
-                const cleanText = text.toLowerCase();
+            // Helper to find true student strictly by Admission Number (Adm No ONLY - never name to prevent homonym collisions)
+            const findStudentByAdm = (r: any, combinedText: string, excludeAdm: string = ''): any | null => {
+                // 1. Check explicit admission number properties on the receipt object
+                const explicitAdmCandidates = [
+                    r.admissionNumber,
+                    (r as any).admission_number,
+                    (r as any).studentAdmissionNumber,
+                    (r as any).student_admission_number,
+                    (r as any).admNo,
+                    (r as any).adm_no,
+                    r.metadata?.admissionNumber,
+                    r.metadata?.admission_number,
+                    r.metadata?.admNo,
+                    r.metadata?.adm_no
+                ];
 
-                // Pass 1: Match by admission number
-                for (const [admKey, st] of strictAdmToStudent.entries()) {
-                    if (excludeAdm && admKey === excludeAdm) continue;
-                    // Match admKey with flexible delimiters (start/end of string, non-alphanumeric, spaces, slashes)
-                    const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
-                    if (pattern.test(cleanText)) {
-                        return st;
+                for (const cand of explicitAdmCandidates) {
+                    const c = cleanAdm(cand);
+                    if (c && c.length >= 2) {
+                        if (excludeAdm && c === excludeAdm) continue;
+                        if (strictAdmToStudent.has(c)) {
+                            return strictAdmToStudent.get(c);
+                        }
                     }
                 }
 
-                // Pass 2: Match by student full name (requires at least 2 matching significant words)
-                for (const entry of studentNameEntries) {
-                    if (excludeAdm && cleanAdm(entry.student.admissionNumber || (entry.student as any).admission_number || (entry.student as any).admNo) === excludeAdm) continue;
-                    const allWordsMatch = entry.words.every(word => cleanText.includes(word));
-                    if (allWordsMatch) {
-                        return entry.student;
+                // 2. Scan combined text strictly for known admission numbers
+                if (combinedText && typeof combinedText === 'string') {
+                    const cleanText = combinedText.toLowerCase();
+                    for (const [admKey, st] of strictAdmToStudent.entries()) {
+                        if (excludeAdm && admKey === excludeAdm) continue;
+                        // Match admKey with boundary delimiters (start/end, non-alphanumeric, spaces, slashes)
+                        const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
+                        if (pattern.test(cleanText)) {
+                            return st;
+                        }
                     }
                 }
 
@@ -1958,23 +1962,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const rPayer = String((r as any).payer || (r as any).payerName || (r as any).senderName || '').trim();
                 const rNotes = String(r.notes || (r as any).paidFor || '').trim();
                 const rRaw = String((r as any).rawDetails || (r as any).raw_details || '');
-                const rStudentName = String((r as any).studentName || (r as any).student_name || (r as any).name || '');
                 const currentStudentId = r.studentId || (r as any).student_id || '';
 
-                const combinedText = `${rRef} ${rNotes} ${rRaw} ${rPayer} ${rNum} ${rStudentName}`.trim();
+                const explicitAdm = cleanAdm(r.admissionNumber || (r as any).admission_number || (r as any).admNo || r.metadata?.admissionNumber);
+                const combinedText = `${rRef} ${rNotes} ${rRaw} ${rPayer} ${rNum}`.trim();
 
                 let targetStudentId = currentStudentId;
                 let isModified = false;
 
                 // Case 1: Victor Kipchumba (Adm 2364) misallocated receipts
-                if (victorId && (currentStudentId === victorId || cleanAdm(r.admissionNumber) === '2364')) {
+                if (victorId && (currentStudentId === victorId || explicitAdm === '2364')) {
                     const rNumClean = rNum.toLowerCase().replace(/[^a-z0-9]/g, '');
                     const rRefClean = rRef.toLowerCase().replace(/[^a-z0-9]/g, '');
                     const isVerified = Array.from(victorVerifiedReceipts).some(vr => rNumClean.includes(vr) || rRefClean.includes(vr));
 
                     if (!isVerified) {
-                        // Misallocated to Victor. Find true student from all available fields:
-                        const trueStudent = findStudentInText(combinedText, '2364');
+                        // Misallocated to Victor. Find true student strictly by admission number:
+                        const trueStudent = findStudentByAdm(r, combinedText, '2364');
 
                         if (trueStudent) {
                             targetStudentId = trueStudent.id;
@@ -1992,9 +1996,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         isModified = true;
                     }
                 } 
-                // Case 2: Unallocated / Suspense receipts (attempt to link them to students)
+                // Case 2: Unallocated / Suspense receipts (attempt to link them strictly by Adm No)
                 else if (!currentStudentId || currentStudentId === '' || currentStudentId === 'null' || rNotes.includes('Suspense') || rNotes.includes('Victor Kipchumba')) {
-                    const trueStudent = findStudentInText(combinedText, '2364');
+                    const trueStudent = findStudentByAdm(r, combinedText, '2364');
                     if (trueStudent) {
                         targetStudentId = trueStudent.id;
                         r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
@@ -2004,15 +2008,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         isModified = true;
                     }
                 }
-                // Case 3: Other allocated receipts where reference explicitly matches another student
+                // Case 3: Receipts assigned to a student whose Adm No does not match the receipt's Adm No
                 else if (currentStudentId) {
                     const currentStudent = allStudentsPool.find(s => s.id === currentStudentId);
                     const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
                     
-                    const trueStudent = findStudentInText(combinedText, currentAdmClean);
+                    // If receipt has an explicit Adm No or text containing another Adm No that differs from currentStudent's Adm No:
+                    const trueStudent = findStudentByAdm(r, combinedText, currentAdmClean);
                     if (trueStudent && trueStudent.id !== currentStudentId) {
-                        // Ensure the reference didn't also contain the current student's admission number
-                        if (!currentAdmClean || !combinedText.toLowerCase().includes(currentAdmClean)) {
+                        const trueAdm = cleanAdm(trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo);
+                        if (trueAdm && trueAdm !== currentAdmClean) {
                             targetStudentId = trueStudent.id;
                             r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
                             r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
