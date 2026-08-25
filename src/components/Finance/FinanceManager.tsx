@@ -2041,6 +2041,57 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             }
 
+            // ── Pass 4: Invoice Cross-Check ──────────────────────────────────────
+            // For receipts that passed Passes 1-3 (still allocated to a student)
+            // check: does the payment amount + date match an invoice belonging to
+            // a DIFFERENT student? If yes, the receipt is on the wrong account.
+            const allInvoices: any[] = [...(mappedInvoices || [])];
+            if (allInvoices.length > 0) {
+                for (const r of allReceiptsList) {
+                    if (updatedReceipts.find(u => u.id === r.id)) continue; // already fixed
+                    const currentStudentId = r.studentId || (r as any).student_id || '';
+                    if (!currentStudentId) continue;
+
+                    const rAmount = parseFloat(r.amountPaid || (r as any).amount_paid || r.amount || '0');
+                    const rDate = String(r.paymentDate || (r as any).payment_date || r.date || '').split('T')[0];
+                    if (!rAmount || !rDate) continue;
+
+                    // Find an invoice whose amount matches this receipt AND belongs to a different student
+                    const matchingInvoice = allInvoices.find((inv: any) => {
+                        const invStudentId = inv.studentId || inv.student_id || inv.userId || inv.user_id || '';
+                        if (!invStudentId || invStudentId === currentStudentId) return false;
+                        const invTotal = parseFloat(inv.totalAmount || inv.total_amount || inv.amount || '0');
+                        const invDue = String(inv.dueDate || inv.due_date || inv.date || '').split('T')[0];
+                        // Amount must match within KES 1, date must be same calendar month
+                        const amountMatch = Math.abs(invTotal - rAmount) <= 1;
+                        const monthMatch = rDate.slice(0, 7) === invDue.slice(0, 7);
+                        return amountMatch && monthMatch;
+                    });
+
+                    if (matchingInvoice) {
+                        const invStudentId = matchingInvoice.studentId || matchingInvoice.student_id || matchingInvoice.userId || matchingInvoice.user_id;
+                        const trueStudent = allStudentsPool.find(s => s.id === invStudentId);
+                        if (trueStudent && trueStudent.id !== currentStudentId) {
+                            const trueAdm = trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo || '';
+                            r.admissionNumber = trueAdm;
+                            r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                            const updated = {
+                                ...r,
+                                studentId: trueStudent.id,
+                                student_id: trueStudent.id,
+                                admissionNumber: trueAdm,
+                                admission_number: trueAdm
+                            };
+                            updatedReceipts.push(updated);
+                            fixedCount++;
+                            reallocatedToStudentCount++;
+                            reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${trueAdm}) [invoice match]`);
+                        }
+                    }
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────────
+
             if (fixedCount > 0) {
                 try {
                     await apiService.saveModuleRecords('receipts', updatedReceipts);
@@ -2065,7 +2116,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 alert(`Audit complete!\n\n• ${reallocatedToStudentCount} receipt(s) re-allocated directly to students${uniqueNames.length > 0 ? ` (${sampleList}${moreCount})` : ''}.\n• ${suspenseCount} unlinked receipt(s) safely moved to Suspense Account.\n\nAll student ledgers and fee balances have been refreshed.`);
             } else {
-                alert("Audit complete! All receipts are already correctly allocated to their rightful students.");
+                alert("Audit complete! All receipts are already correctly allocated to their rightful students.\n\nIf you believe a specific receipt is still on the wrong student account, use the ✏️ Edit (pencil) button on that receipt row to manually reassign it to the correct student.");
             }
         } catch (err: any) {
             console.error("Failed to reallocate receipts:", err);
