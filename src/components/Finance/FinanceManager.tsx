@@ -3,6 +3,7 @@ import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeSt
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
+import { EditStudentInvoiceModal } from './EditStudentInvoiceModal';
 import { InvoiceHistoryManager } from './InvoiceHistoryManager';
 import { ReceiptHistoryManager } from './ReceiptHistoryManager';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
@@ -241,6 +242,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isCreatingDsInvoice, setIsCreatingDsInvoice] = useState(false);
     const [selectedDsInvoice, setSelectedDsInvoice] = useState<any | null>(null);
     const [isRecordingDsPayment, setIsRecordingDsPayment] = useState(false);
+    const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
     // Branch filtering states for multi-branch/multi-institution support
     const [branches, setBranches] = useState<any[]>([]);
@@ -10424,6 +10426,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex justify-center items-center gap-1">
+                                                            <button
+                                                                onClick={() => setEditingInvoice(inv)}
+                                                                title="Edit Invoice"
+                                                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                            >
+                                                                <PencilIcon className="w-4 h-4" />
+                                                            </button>
                                                             <button
                                                                 onClick={() => setSelectedInvoiceForDetails(inv)}
                                                                 title="View Details"
@@ -21500,6 +21509,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 onGenerateInvoices={props.onGenerateInvoices}
                 onRefreshData={props.onRefreshData}
             />
+
+            {/* Edit Student Invoice Modal */}
+            {editingInvoice && (
+                <EditStudentInvoiceModal
+                    isOpen={editingInvoice !== null}
+                    onClose={() => setEditingInvoice(null)}
+                    invoice={editingInvoice}
+                    institution={props.institution}
+                    students={mergedStudents || (props.students || [])}
+                    voteHeads={props.voteHeads || []}
+                    academicYears={props.academicYears || []}
+                    semesters={props.semesters || []}
+                    onRefreshData={props.onRefreshData}
+                    onSaveSuccess={(updatedInv) => {
+                        setAllBranchInvoices(prev => prev.map(inv => inv.id === updatedInv.id ? { ...inv, ...updatedInv } : inv));
+                    }}
+                />
+            )}
 
             {/* Clean Duplicate Receipts Modal (Super Admin Only) */}
             {isSuperAdmin && showCleanDuplicatesModal && (
