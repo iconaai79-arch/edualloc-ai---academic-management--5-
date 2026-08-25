@@ -10427,7 +10427,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="flex justify-center items-center gap-1">
                                                             <button
-                                                                onClick={() => setEditingInvoice(inv)}
+                                                                onClick={() => {
+                                                                    const enrichedInv = {
+                                                                        ...inv,
+                                                                        studentId: student?.id || inv.studentId || (inv as any).student_id,
+                                                                        admissionNumber: (admNum && admNum !== '—') ? admNum : (inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo),
+                                                                        studentName: (studentName && studentName !== 'Unknown Student') ? studentName : ((inv as any).studentName || (inv as any).student_name || (inv as any).name),
+                                                                        className: (gradeName && gradeName !== '—') ? gradeName : ((inv as any).className || (inv as any).studentClass || (inv as any).class_name)
+                                                                    };
+                                                                    setEditingInvoice(enrichedInv);
+                                                                }}
                                                                 title="Edit Invoice"
                                                                 className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
                                                             >

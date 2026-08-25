@@ -46,6 +46,105 @@ const DEFAULT_VOTEHEADS = [
     'Remedial / Tuition'
 ];
 
+// Helper to extract admission number from any student or invoice object structure
+export const extractAdmissionNumber = (obj: any): string => {
+    if (!obj) return '';
+    const candidates = [
+        obj.admissionNumber,
+        obj.admission_number,
+        obj.studentAdmissionNumber,
+        obj.student_admission_number,
+        obj.admNo,
+        obj.adm_no,
+        obj.adm,
+        obj.metadata?.admissionNumber,
+        obj.metadata?.admission_number,
+        obj.metadata?.admNo,
+        obj.metadata?.adm_no,
+        obj.metadata?.studentAdmissionNumber,
+        obj.metadata?.adm
+    ];
+    for (const c of candidates) {
+        if (c !== undefined && c !== null && String(c).trim() !== '' && String(c).trim() !== '—') {
+            return String(c).trim();
+        }
+    }
+    return '';
+};
+
+// Helper to extract student name from any object structure
+export const extractStudentName = (obj: any): string => {
+    if (!obj) return '';
+    const candidates = [
+        obj.name,
+        obj.fullName,
+        obj.full_name,
+        obj.studentName,
+        obj.student_name,
+        obj.metadata?.name,
+        obj.metadata?.studentName,
+        obj.metadata?.fullName
+    ];
+    for (const c of candidates) {
+        if (c !== undefined && c !== null && String(c).trim() !== '' && String(c).trim() !== '—') {
+            return String(c).trim();
+        }
+    }
+    return '';
+};
+
+// Helper to extract class name from any object structure
+export const extractClassName = (obj: any): string => {
+    if (!obj) return '';
+    const candidates = [
+        obj.className,
+        obj.class_name,
+        obj.studentClass,
+        obj.student_class,
+        obj.gradeLevel,
+        obj.grade_level,
+        obj.metadata?.className,
+        obj.metadata?.class_name,
+        obj.metadata?.studentClass
+    ];
+    for (const c of candidates) {
+        if (c !== undefined && c !== null && String(c).trim() !== '' && String(c).trim() !== '—') {
+            return String(c).trim();
+        }
+    }
+    return '';
+};
+
+export const findMatchingStudent = (inv: any, studentList: User[]): User | null => {
+    if (!inv || !studentList || studentList.length === 0) return null;
+
+    const studentId = inv.studentId || inv.student_id || inv.userId || inv.user_id;
+    if (studentId) {
+        const byId = studentList.find(s => s.id === studentId || (s as any).userId === studentId || (s as any).user_id === studentId);
+        if (byId) return byId;
+    }
+
+    const invAdm = extractAdmissionNumber(inv).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (invAdm) {
+        const byAdm = studentList.find(s => {
+            const sAdm = extractAdmissionNumber(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+            return sAdm && sAdm === invAdm;
+        });
+        if (byAdm) return byAdm;
+    }
+
+    const invName = extractStudentName(inv).toLowerCase().trim();
+    if (invName && invName !== 'unknown student' && invName !== 'student') {
+        const byName = studentList.find(s => {
+            const sName = extractStudentName(s).toLowerCase().trim();
+            return sName && (sName === invName || sName.includes(invName) || invName.includes(sName));
+        });
+        if (byName) return byName;
+    }
+
+    return null;
+};
+
 export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = ({
     isOpen,
     onClose,
@@ -81,18 +180,24 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
     useEffect(() => {
         if (!invoice) return;
 
-        const invStudentId = invoice.studentId || (invoice as any).student_id || (invoice as any).userId || (invoice as any).user_id || '';
-        setSelectedStudentId(invStudentId);
-
-        const currentStudent = students.find(s => s.id === invStudentId);
-        if (currentStudent) {
-            const adm = currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo || '';
-            setStudentSearchQuery(adm ? `${currentStudent.name} [${adm}]` : currentStudent.name);
-        } else if ((invoice as any).studentName) {
-            const adm = invoice.admissionNumber || (invoice as any).admission_number || (invoice as any).admNo || '';
-            setStudentSearchQuery(adm ? `${(invoice as any).studentName} [${adm}]` : (invoice as any).studentName);
+        const matchedStudent = findMatchingStudent(invoice, students);
+        if (matchedStudent) {
+            setSelectedStudentId(matchedStudent.id);
+            const adm = extractAdmissionNumber(matchedStudent) || extractAdmissionNumber(invoice);
+            const name = extractStudentName(matchedStudent) || extractStudentName(invoice);
+            setStudentSearchQuery(adm ? `${name} [${adm}]` : name);
         } else {
-            setStudentSearchQuery('');
+            const invStudentId = invoice.studentId || (invoice as any).student_id || (invoice as any).userId || (invoice as any).user_id || '';
+            setSelectedStudentId(invStudentId);
+            const invAdm = extractAdmissionNumber(invoice);
+            const invName = extractStudentName(invoice);
+            if (invName) {
+                setStudentSearchQuery(invAdm ? `${invName} [${invAdm}]` : invName);
+            } else if (invAdm) {
+                setStudentSearchQuery(`[${invAdm}]`);
+            } else {
+                setStudentSearchQuery('');
+            }
         }
 
         // Academic Year
@@ -151,9 +256,9 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
         if (!studentSearchQuery.trim()) return students.slice(0, 15);
         const query = studentSearchQuery.toLowerCase().trim();
         return students.filter(s => {
-            const name = (s.name || s.fullName || '').toLowerCase();
-            const adm = (s.admissionNumber || (s as any).admission_number || (s as any).admNo || '').toLowerCase();
-            const cls = (s.className || (s as any).class_name || '').toLowerCase();
+            const name = extractStudentName(s).toLowerCase();
+            const adm = extractAdmissionNumber(s).toLowerCase();
+            const cls = extractClassName(s).toLowerCase();
             return name.includes(query) || adm.includes(query) || cls.includes(query);
         }).slice(0, 20);
     }, [students, studentSearchQuery]);
@@ -161,11 +266,11 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
     // Selected student details for avatar card
     const selectedStudent = useMemo(() => {
         if (selectedStudentId) {
-            const found = students.find(s => s.id === selectedStudentId);
+            const found = students.find(s => s.id === selectedStudentId || (s as any).userId === selectedStudentId);
             if (found) return found;
         }
-        return null;
-    }, [students, selectedStudentId]);
+        return findMatchingStudent(invoice, students);
+    }, [students, selectedStudentId, invoice]);
 
     // Available Voteheads list
     const availableVoteheadOptions = useMemo(() => {
@@ -183,19 +288,32 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
         }, 0);
     }, [items]);
 
+    // Resolved admission number, name, and class for the display card
+    const displayAdm = useMemo(() => {
+        return extractAdmissionNumber(selectedStudent) || extractAdmissionNumber(invoice) || '—';
+    }, [selectedStudent, invoice]);
+
+    const displayName = useMemo(() => {
+        return extractStudentName(selectedStudent) || extractStudentName(invoice) || 'Student';
+    }, [selectedStudent, invoice]);
+
+    const displayClass = useMemo(() => {
+        return extractClassName(selectedStudent) || extractClassName(invoice) || '—';
+    }, [selectedStudent, invoice]);
+
     // Generate Initials
     const studentInitials = useMemo(() => {
-        const name = selectedStudent?.name || (invoice as any)?.studentName || 'Student';
+        const name = displayName;
         const parts = name.trim().split(/\s+/);
         if (parts.length >= 2) {
             return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
         }
         return name.slice(0, 2).toUpperCase();
-    }, [selectedStudent, invoice]);
+    }, [displayName]);
 
     // Avatar Background color based on name
     const avatarColor = useMemo(() => {
-        const name = selectedStudent?.name || (invoice as any)?.studentName || 'S';
+        const name = displayName;
         const colors = [
             'bg-amber-800 text-amber-100',
             'bg-indigo-700 text-indigo-100',
@@ -211,12 +329,13 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
             hash = name.charCodeAt(i) + ((hash << 5) - hash);
         }
         return colors[Math.abs(hash) % colors.length];
-    }, [selectedStudent, invoice]);
+    }, [displayName]);
 
     const handleSelectStudent = (st: User) => {
         setSelectedStudentId(st.id);
-        const adm = st.admissionNumber || (st as any).admission_number || (st as any).admNo || '';
-        setStudentSearchQuery(adm ? `${st.name} [${adm}]` : st.name);
+        const adm = extractAdmissionNumber(st);
+        const name = extractStudentName(st);
+        setStudentSearchQuery(adm ? `${name} [${adm}]` : name);
         setIsStudentDropdownOpen(false);
     };
 
@@ -397,19 +516,19 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
                                 <div className="flex justify-between items-center py-1">
                                     <span className="text-slate-400 font-semibold">Admission</span>
                                     <span className="font-bold text-slate-800 dark:text-slate-200">
-                                        {selectedStudent?.admissionNumber || (selectedStudent as any)?.admission_number || (selectedStudent as any)?.admNo || invoice.admissionNumber || (invoice as any)?.admission_number || '—'}
+                                        {displayAdm}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center py-1">
                                     <span className="text-slate-400 font-semibold">Name</span>
-                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[130px]" title={selectedStudent?.name || (invoice as any)?.studentName || '—'}>
-                                        {selectedStudent?.name || (invoice as any)?.studentName || '—'}
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[130px]" title={displayName}>
+                                        {displayName}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center py-1">
                                     <span className="text-slate-400 font-semibold">Class</span>
-                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[130px]" title={selectedStudent?.className || (invoice as any)?.className || (invoice as any)?.studentClass || '—'}>
-                                        {selectedStudent?.className || (invoice as any)?.className || (invoice as any)?.studentClass || '—'}
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[130px]" title={displayClass}>
+                                        {displayClass}
                                     </span>
                                 </div>
                             </div>
