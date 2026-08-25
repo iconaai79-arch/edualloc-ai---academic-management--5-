@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
-import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isEduInstitution } from '../utils/roleUtils';
+import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isPrimaryInstitution, isSecondaryInstitution } from '../utils/roleUtils';
 import { PlusIcon } from './icons/PlusIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -953,6 +953,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
     const isSchool = isSchoolInstitution(currentInstitution);
     const isHigherEd = isHigherEdInstitution(currentInstitution);
     const isEdu = isEduInstitution(currentInstitution);
+    const isPrimaryOrSecondary = isPrimaryInstitution(currentInstitution) || isSecondaryInstitution(currentInstitution);
     const isAutoMarket = useMemo(() => {
         if (typeof isAutoMarketProp === 'boolean') return isAutoMarketProp;
         const type = currentInstitution?.institutionType;
@@ -1454,11 +1455,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                 <label className="block text-sm font-medium mb-1">Full Name</label>
                                 <input type="text" value={name} onChange={e => setName(e.target.value)} className="form-input w-full" required />
                             </div>
+                            {!isPrimaryOrSecondary && (
                             <div>
                                 <label className="block text-sm font-medium mb-1">Email Address</label>
                                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="form-input w-full" placeholder="e.g. john.doe@inst.edu" />
                                 <p className="text-[10px] text-slate-500 mt-1">If empty, an email will be generated automatically.</p>
                             </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium mb-1">Phone Number</label>
                                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="form-input w-full" />

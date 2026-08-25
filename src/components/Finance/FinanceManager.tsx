@@ -2606,7 +2606,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             const rawOpeningBal = parseMoneyAmount(openingBalancesMap[s.id] ?? extractStudentOpeningBalance(s));
 
-            const studentInvoices = mappedInvoices.filter(inv => {
+            const studentInvoicesRaw = mappedInvoices.filter(inv => {
                 if (inv.status === 'cancelled' || inv.status === 'quote') return false;
                 const invStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
                 if (invStudentId && studentIds.has(invStudentId)) return true;
@@ -2615,6 +2615,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if ((inv as any).studentName && studentNameLower && String((inv as any).studentName).trim().toLowerCase() === studentNameLower) return true;
                 return false;
             });
+            const studentInvoices = Array.from(new Map(studentInvoicesRaw.map(i => [String(i.id), i])).values());
             const invoicedWithoutOpening = studentInvoices.reduce((sum, inv) => {
                 const amt = inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
@@ -2626,7 +2627,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
             };
 
-            const allStudentReceipts = mappedReceipts.filter(rec => {
+            const allStudentReceiptsRaw = mappedReceipts.filter(rec => {
                 const recStudentId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
                 if (recStudentId && studentIds.has(recStudentId)) return true;
                 const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
@@ -2636,6 +2637,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if ((rec as any).studentName && studentNameLower && String((rec as any).studentName).trim().toLowerCase() === studentNameLower) return true;
                 return false;
             });
+            const allStudentReceipts = Array.from(new Map(allStudentReceiptsRaw.map(r => [String(r.id), r])).values());
 
             // Single-entry prepayment deduplication:
             // If the student has a negative opening balance (prepayment credit) AND that exact amount is already
@@ -6699,13 +6701,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
                 };
                 const rawBalPrevOpeningBal = balPrevFinanceRecord?.totals?.openingBalance ?? parseMoneyAmount(openingBalancesMap[balPreviewStudentId] ?? balPrevStudentRaw?.metadata?.openingBalance ?? 0);
-                const allBalPrevReceipts = mappedReceipts.filter((r: any) =>
+                // Collect receipts matching this student — deduplicate by ID to prevent same receipt appearing twice
+                const allBalPrevReceiptsRaw = mappedReceipts.filter((r: any) =>
                     r.studentId === balPreviewStudentId ||
                     (r as any).student_id === balPreviewStudentId ||
                     String(r.studentId) === String(balPreviewStudentId) ||
                     String((r as any).student_id) === String(balPreviewStudentId) ||
                     (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
                     balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
+                );
+                // Deduplicate by receipt ID — prevents double-entry from multiple OR match conditions
+                const allBalPrevReceipts = Array.from(
+                    new Map(allBalPrevReceiptsRaw.map((r: any) => [String(r.id), r])).values()
                 );
                 // Single-entry prepayment deduplication:
                 // If a negative opening balance (credit) matches an existing payment receipt, suppress the opening credit row
@@ -19636,13 +19643,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
                                 };
 
-                                const allStudentReceipts = mappedReceipts.filter((r: any) =>
+                                // Collect receipts matching this student — deduplicate by ID to prevent same receipt appearing twice
+                                const allStudentReceiptsRaw = mappedReceipts.filter((r: any) =>
                                     r.studentId === stmtStudentId ||
                                     (r as any).student_id === stmtStudentId ||
                                     String(r.studentId) === String(stmtStudentId) ||
                                     String((r as any).student_id) === String(stmtStudentId) ||
                                     (resolvedAdmNo && resolvedAdmNo !== '—' && (r.admissionNumber === resolvedAdmNo || (r as any).admission_number === resolvedAdmNo)) ||
                                     studentInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
+                                );
+                                // Deduplicate by receipt ID — prevents double-entry from multiple OR match conditions
+                                const allStudentReceipts = Array.from(
+                                    new Map(allStudentReceiptsRaw.map((r: any) => [String(r.id), r])).values()
                                 );
 
                                 const rawOpeningBalForStmt = (() => {
