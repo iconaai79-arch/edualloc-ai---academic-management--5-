@@ -215,6 +215,50 @@ const isEventTargetMatch = (target: string | undefined, enr: any, context?: stri
     return enr.metadata?.gradeLevel === target;
 };
 
+// Helper: unify grade keys (e.g. "PG", "PLAY GROUP", "Playgroup" -> "playgroup"; "1", "Grade 1", "1 East" -> "grade 1")
+const getNormalizedGradeKey = (raw: string): string => {
+    if (!raw) return '';
+    let s = String(raw).trim().toLowerCase();
+    // Remove stream suffixes (East, West, North, South, Central, Red, Blue, etc.)
+    s = s.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+
+    if (s === 'pg' || s.includes('playgroup') || s.includes('play group') || s.includes('daycare') || s.includes('day care')) return 'playgroup';
+    if (s === 'pp1' || s.includes('pre-primary 1') || s.includes('pre primary 1') || s.includes('preprimary 1') || s.includes('baby class')) return 'pp1';
+    if (s === 'pp2' || s.includes('pre-primary 2') || s.includes('pre primary 2') || s.includes('preprimary 2') || s.includes('top class') || s.includes('middle class')) return 'pp2';
+
+    const numMatch = s.match(/(?:grade|class|std|standard|form|year)?\s*(\d{1,2})/i);
+    if (numMatch) {
+        const num = numMatch[1];
+        if (s.includes('form')) return `form ${num}`;
+        if (s.includes('year')) return `year ${num}`;
+        return `grade ${num}`;
+    }
+    return s;
+};
+
+// Helper: normalize bare numbers like "1", "2" → "Grade 1", "Grade 2" (or "Form 1" for secondary)
+const normalizeGradeLabel = (raw: string, prefix = 'Grade'): string => {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) return trimmed;
+    const key = getNormalizedGradeKey(trimmed);
+    if (key === 'playgroup') return 'Playgroup';
+    if (key === 'pp1') return 'PP1';
+    if (key === 'pp2') return 'PP2';
+    if (key.startsWith('grade ')) {
+        const num = key.replace('grade ', '');
+        return `Grade ${num}`;
+    }
+    if (key.startsWith('form ')) {
+        const num = key.replace('form ', '');
+        return `Form ${num}`;
+    }
+    if (/^(grade|form|pp|std|year|class|standard|pre-primary|playgroup)/i.test(trimmed)) return trimmed;
+    if (/^\d{1,2}$/.test(trimmed)) return `${prefix} ${trimmed}`;
+    const ns = trimmed.match(/^(\d{1,2})\s+(.+)$/);
+    if (ns) return `${prefix} ${ns[1]} ${ns[2]}`;
+    return trimmed;
+};
+
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
@@ -4570,50 +4614,6 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
         }
     };
-
-    // Helper: unify grade keys (e.g. "PG", "PLAY GROUP", "Playgroup" -> "playgroup"; "1", "Grade 1", "1 East" -> "grade 1")
-    const getNormalizedGradeKey = useCallback((raw: string): string => {
-        if (!raw) return '';
-        let s = String(raw).trim().toLowerCase();
-        // Remove stream suffixes (East, West, North, South, Central, Red, Blue, etc.)
-        s = s.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-
-        if (s === 'pg' || s.includes('playgroup') || s.includes('play group') || s.includes('daycare') || s.includes('day care')) return 'playgroup';
-        if (s === 'pp1' || s.includes('pre-primary 1') || s.includes('pre primary 1') || s.includes('preprimary 1') || s.includes('baby class')) return 'pp1';
-        if (s === 'pp2' || s.includes('pre-primary 2') || s.includes('pre primary 2') || s.includes('preprimary 2') || s.includes('top class') || s.includes('middle class')) return 'pp2';
-
-        const numMatch = s.match(/(?:grade|class|std|standard|form|year)?\s*(\d{1,2})/i);
-        if (numMatch) {
-            const num = numMatch[1];
-            if (s.includes('form')) return `form ${num}`;
-            if (s.includes('year')) return `year ${num}`;
-            return `grade ${num}`;
-        }
-        return s;
-    }, []);
-
-    // Helper: normalize bare numbers like "1", "2" → "Grade 1", "Grade 2" (or "Form 1" for secondary)
-    const normalizeGradeLabel = useCallback((raw: string, prefix = 'Grade'): string => {
-        const trimmed = (raw || '').trim();
-        if (!trimmed) return trimmed;
-        const key = getNormalizedGradeKey(trimmed);
-        if (key === 'playgroup') return 'Playgroup';
-        if (key === 'pp1') return 'PP1';
-        if (key === 'pp2') return 'PP2';
-        if (key.startsWith('grade ')) {
-            const num = key.replace('grade ', '');
-            return `Grade ${num}`;
-        }
-        if (key.startsWith('form ')) {
-            const num = key.replace('form ', '');
-            return `Form ${num}`;
-        }
-        if (/^(grade|form|pp|std|year|class|standard|pre-primary|playgroup)/i.test(trimmed)) return trimmed;
-        if (/^\d{1,2}$/.test(trimmed)) return `${prefix} ${trimmed}`;
-        const ns = trimmed.match(/^(\d{1,2})\s+(.+)$/);
-        if (ns) return `${prefix} ${ns[1]} ${ns[2]}`;
-        return trimmed;
-    }, [getNormalizedGradeKey]);
 
     // Available Cohorts / Grade Levels — Only load registered grades
     const cohortsList = useMemo(() => {
