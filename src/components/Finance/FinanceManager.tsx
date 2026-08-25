@@ -2760,7 +2760,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         excelPaymentMode: string;  // Raw Payment Mode string from Excel column E (e.g. "M-PESA paybill")
         rawDetails: string;
         matchedStudentId: string;
-        matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none';
+        matchConfidence: 'exact_adm' | 'manual' | 'none';
         matchStatus: 'matched' | 'unmatched' | 'ignored';
         paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
     }>>([]);
@@ -3685,40 +3685,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     else if (/cash/i.test(rowText)) paymentMethod = 'Cash';
                 }
 
-                // Strict Student Matching (Prevents False-Positive Collisions)
+                // ADM No-ONLY Student Matching — no name/phone fallback
+                // A receipt with no valid ADM No stays 'unmatched' and must be manually assigned.
                 let matchedStudent: any = null;
-                let matchConfidence: 'exact_adm' | 'exact_phone' | 'exact_name' | 'manual' | 'none' = 'none';
+                let matchConfidence: 'exact_adm' | 'manual' | 'none' = 'none';
 
-                // 1. Direct ADM match (strict O(1))
-                if (admRaw) {
+                // Direct ADM match (strict, O(1))
+                if (admRaw && admRaw.trim().length >= 2) {
                     const admKey = admRaw.toLowerCase().trim();
                     const admDigits = admRaw.replace(/\D/g, '');
                     matchedStudent = admMap.get(admKey) || (admDigits && admDigits.length >= 2 ? admMap.get(admDigits) : null);
                     if (matchedStudent) matchConfidence = 'exact_adm';
                 }
-
-                // 2. Direct Full Name match (strict O(1) - requires at least 2 words)
-                if (!matchedStudent && nameRaw && nameRaw.trim().split(/\s+/).length >= 2) {
-                    const nameLower = nameRaw.trim().toLowerCase();
-                    matchedStudent = nameMap.get(nameLower);
-                    if (matchedStudent) matchConfidence = 'exact_name';
-                }
-
-                // 3. Phone check via Regex + O(1) Map
-                if (!matchedStudent) {
-                    const rowValues = Object.values(row).map(v => String(v)).join(' ');
-                    const phones = rowValues.match(/(?:254|0|\+254)?[17]\d{8}/g);
-                    if (phones) {
-                        for (const p of phones) {
-                            const clean = p.replace(/\D/g, '').slice(-9);
-                            if (phoneMap.has(clean)) {
-                                matchedStudent = phoneMap.get(clean);
-                                matchConfidence = 'exact_phone';
-                                break;
-                            }
-                        }
-                    }
-                }
+                // If no ADM No provided → stays unmatched (no name/phone guessing)
 
                 // Effective admission number: from Excel or from matched student
                 const studentAdm = matchedStudent ? (matchedStudent.admissionNumber || (matchedStudent as any).admission_number || '') : '';
