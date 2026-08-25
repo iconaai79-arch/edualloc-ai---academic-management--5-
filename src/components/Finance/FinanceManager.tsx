@@ -4887,7 +4887,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // ─ Receipt Edit & Transfer ─
     const [receiptEditTarget, setReceiptEditTarget] = useState<any | null>(null);
-    const [receiptEditForm, setReceiptEditForm] = useState<{ amountPaid: string; paymentMethod: string; paymentDate: string; relatedTransactionId: string; paidFor: string; reason: string }>({ amountPaid: '', paymentMethod: 'Cash', paymentDate: '', relatedTransactionId: '', paidFor: '', reason: '' });
+    const [receiptEditForm, setReceiptEditForm] = useState<{ studentId: string; receiptStudentSearch: string; amountPaid: string; paymentMethod: string; paymentDate: string; relatedTransactionId: string; paidFor: string; reason: string }>({ studentId: '', receiptStudentSearch: '', amountPaid: '', paymentMethod: 'Cash', paymentDate: '', relatedTransactionId: '', paidFor: '', reason: '' });
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     const [receiptTransferTarget, setReceiptTransferTarget] = useState<any | null>(null);
@@ -4898,7 +4898,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const openEditReceipt = (rec: any) => {
         setReceiptEditTarget(rec);
+        const recStudent = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find((s: any) => s.id === (rec.studentId || rec.student_id));
         setReceiptEditForm({
+            studentId: rec.studentId || rec.student_id || '',
+            receiptStudentSearch: recStudent ? `${recStudent.name} [${recStudent.admissionNumber || (recStudent as any).admission_number || (recStudent as any).admNo || ''}]` : '',
             amountPaid: String(rec.amountPaid ?? rec.amount_paid ?? rec.amount ?? ''),
             paymentMethod: rec.paymentMethod || rec.payment_method || 'Cash',
             paymentDate: rec.paymentDate || rec.payment_date || rec.date || '',
@@ -4921,8 +4924,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 editedBy: props.userName || props.currentUser?.name || 'Finance Officer',
             };
 
+            const selectedStudent = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find((s: any) => s.id === receiptEditForm.studentId);
+            const newAdm = selectedStudent ? (selectedStudent.admissionNumber || (selectedStudent as any).admission_number || (selectedStudent as any).admNo) : receiptEditTarget.admissionNumber;
+
             const payload: any = {
                 ...receiptEditTarget,
+                studentId: receiptEditForm.studentId || null,
+                student_id: receiptEditForm.studentId || null,
+                admissionNumber: newAdm || '',
+                admission_number: newAdm || '',
+                branchId: selectedStudent?.branchId || (selectedStudent as any)?.branch_id || receiptEditTarget.branchId,
                 amountPaid: parseFloat(receiptEditForm.amountPaid) || 0,
                 amount_paid: parseFloat(receiptEditForm.amountPaid) || 0,
                 paymentMethod: receiptEditForm.paymentMethod,
@@ -9363,6 +9374,48 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <p className="text-xs font-semibold text-slate-400 mt-0.5">Receipt: {receiptEditTarget.receiptNumber}</p>
                                 </div>
                             </div>
+
+                            {/* Student Reassignment */}
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Reassign to Student (Adm No / Name)</label>
+                                <div className="relative">
+                                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        value={receiptEditForm.receiptStudentSearch}
+                                        onChange={e => setReceiptEditForm(p => ({ ...p, receiptStudentSearch: e.target.value, studentId: '' }))}
+                                        placeholder="Search name or Adm No..."
+                                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                                {receiptEditForm.receiptStudentSearch.length >= 2 && !receiptEditForm.studentId && (() => {
+                                    const q = receiptEditForm.receiptStudentSearch.toLowerCase();
+                                    const matches = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).filter((s: any) =>
+                                        (s.name || '').toLowerCase().includes(q) ||
+                                        (s.admissionNumber || s.admission_number || (s as any).admNo || '').toString().toLowerCase().includes(q)
+                                    ).slice(0, 6);
+                                    if (matches.length === 0) return null;
+                                    return (
+                                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                                            {matches.map((s: any) => (
+                                                <button
+                                                    key={s.id}
+                                                    type="button"
+                                                    onClick={() => setReceiptEditForm(p => ({ ...p, studentId: s.id, receiptStudentSearch: `${s.name} [${s.admissionNumber || s.admission_number || (s as any).admNo || ''}]` }))}
+                                                    className="w-full text-left px-3 py-2 text-xs font-bold bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors cursor-pointer"
+                                                >
+                                                    <span className="text-slate-900 dark:text-white">{s.name}</span>
+                                                    <span className="ml-2 text-slate-400">Adm: {s.admissionNumber || s.admission_number || (s as any).admNo || '—'}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+                                {receiptEditForm.studentId && (
+                                    <p className="text-[10px] text-emerald-600 font-bold">✓ Student selected — will be re-assigned on save</p>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Amount (KES)</label>
