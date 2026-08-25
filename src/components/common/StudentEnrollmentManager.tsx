@@ -1230,36 +1230,64 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         const associatedUser = users.find(u => u.id === enr.userId);
         setEditingEnrollment(enr);
 
-        let parentsList = Array.isArray(enr.metadata?.parents) ? [...enr.metadata.parents] : [];
-        if (parentsList.length === 0 && (enr.metadata?.parentName || enr.metadata?.parentPhone)) {
+        // 1. Extract and normalize primary parent data from enrollment metadata and associated user
+        const primaryParentName = enr.metadata?.parentName || (enr.metadata as any)?.fatherName || associatedUser?.metadata?.parentName || (associatedUser as any)?.parentName || '';
+        const primaryParentPhone = enr.metadata?.parentPhone || (enr.metadata as any)?.fatherPhone || associatedUser?.metadata?.parentPhone || associatedUser?.parentPhone || (associatedUser as any)?.parentPhone || (associatedUser as any)?.fatherPhone || '';
+        const primaryParentEmail = enr.metadata?.parentEmail || associatedUser?.metadata?.parentEmail || '';
+        const primaryParentRelation = enr.metadata?.parentRelation || 'Father';
+
+        let parentsList: any[] = Array.isArray(enr.metadata?.parents) ? enr.metadata.parents.map((p: any) => ({ ...p })) : [];
+        if (parentsList.length === 0 && (primaryParentName || primaryParentPhone)) {
             parentsList = [{
-                name: enr.metadata.parentName || '',
-                phone: enr.metadata.parentPhone || '',
-                email: enr.metadata.parentEmail || '',
-                relation: enr.metadata.parentRelation || 'Father'
+                name: primaryParentName,
+                phone: primaryParentPhone,
+                email: primaryParentEmail,
+                relation: primaryParentRelation
             }];
+        } else if (parentsList.length > 0) {
+            if (!parentsList[0].name && primaryParentName) parentsList[0].name = primaryParentName;
+            if (!parentsList[0].phone && primaryParentPhone) parentsList[0].phone = primaryParentPhone;
+            if (!parentsList[0].email && primaryParentEmail) parentsList[0].email = primaryParentEmail;
         }
+
+        // Secondary parent / guardian 2
+        const secPhone = enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.guardianPhone2 || (enr.metadata as any)?.parent2Phone || (enr.metadata as any)?.motherPhone || associatedUser?.secondaryPhone || associatedUser?.parentPhone2 || associatedUser?.metadata?.secondaryPhone || associatedUser?.metadata?.parentPhone2 || (associatedUser as any)?.motherPhone || '';
+        const secName = enr.metadata?.guardian2Name || enr.metadata?.parentName2 || (enr.metadata as any)?.parent2Name || (enr.metadata as any)?.motherName || (associatedUser as any)?.secondaryName || (associatedUser as any)?.motherName || '';
+        const secEmail = enr.metadata?.guardian2Email || (enr.metadata as any)?.parent2Email || '';
+
+        if (secPhone) {
+            if (parentsList.length <= 1) {
+                parentsList.push({
+                    name: secName || 'Secondary Guardian',
+                    phone: secPhone,
+                    email: secEmail || '',
+                    relation: 'Mother'
+                });
+            } else if (parentsList.length > 1) {
+                if (!parentsList[1].phone) parentsList[1].phone = secPhone;
+                if (!parentsList[1].name && secName) parentsList[1].name = secName;
+            }
+        }
+
         if (parentsList.length === 0) {
             parentsList = [{ name: '', phone: '', email: '', relation: 'Father' }];
         }
 
-        const secPhone = enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.guardianPhone2 || associatedUser?.secondaryPhone || associatedUser?.parentPhone2 || '';
-        if (secPhone && parentsList.length === 1) {
-            parentsList.push({
-                name: enr.metadata?.guardian2Name || 'Secondary Guardian',
-                phone: secPhone,
-                email: '',
-                relation: 'Mother'
-            });
-        }
-
         const assessmentNoVal = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
 
+        // 2. Clean & normalize gradeLevel to match cohortsList accurately (prevents defaulting to first option like Playgroup)
+        const rawGrade = enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any)?.classLevel || (enr as any)?.studentClass || '';
+        const normKey = getNormalizedGradeKey(rawGrade);
+        const matchedCohort = cohortsList.find(c => getNormalizedGradeKey(c) === normKey);
+        const resolvedGrade = matchedCohort || normalizeGradeLabel(rawGrade) || rawGrade;
+
+        const currentStream = enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || '';
+
         setFormData({
-            fullName: associatedUser?.name || 'Unknown',
+            fullName: associatedUser?.name || enr.metadata?.studentName || enr.metadata?.name || 'Unknown',
             email: associatedUser?.email || '',
             phoneNumber: associatedUser?.phoneNumber || '',
-            admissionNumber: enr.admissionNumber || '',
+            admissionNumber: enr.admissionNumber || (associatedUser as any)?.admissionNumber || '',
             assessmentNo: assessmentNoVal,
             status: enr.status,
             enrollmentDate: enr.enrollmentDate,
@@ -1272,32 +1300,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 preferredInstructorId: enr.metadata?.preferredInstructorId || '',
                 preferredLessonHours: enr.metadata?.preferredLessonHours || 'Morning',
                 priorAttendedDays: enr.metadata?.priorAttendedDays || 0,
-                gradeLevel: enr.metadata?.gradeLevel || '',
+                gradeLevel: resolvedGrade,
                 assessmentNo: assessmentNoVal,
-                stream: (() => {
-                    const currentStream = enr.metadata?.stream || '';
-                    const gradeVal = enr.metadata?.gradeLevel || '';
-                    if (gradeVal && currentStream) {
-                        const course = courses.find(c => c.name === gradeVal);
-                        if (course?.levels && course.levels.length > 0) {
-                            const levelNames = course.levels.map(lvl => lvl.name);
-                            const matched = levelNames.find(name => 
-                                name.toLowerCase() === currentStream.toLowerCase() ||
-                                currentStream.toLowerCase().endsWith(name.toLowerCase()) ||
-                                name.toLowerCase().endsWith(currentStream.toLowerCase())
-                            );
-                            if (matched) return matched;
-                        }
-                    }
-                    return currentStream;
-                })(),
+                stream: currentStream,
                 boardingStatus: enr.metadata?.boardingStatus || enr.metadata?.residenceType || associatedUser?.metadata?.boardingStatus || associatedUser?.metadata?.residenceType || 'day_scholar',
                 subjects: enr.metadata?.subjects || [],
-                parentName: enr.metadata?.parentName || '',
-                parentPhone: enr.metadata?.parentPhone || '',
-                parentEmail: enr.metadata?.parentEmail || '',
-                parentRelation: enr.metadata?.parentRelation || 'Father',
-                parents: parentsList
+                parentName: parentsList[0]?.name || primaryParentName,
+                parentPhone: parentsList[0]?.phone || primaryParentPhone,
+                parentEmail: parentsList[0]?.email || primaryParentEmail,
+                parentRelation: parentsList[0]?.relation || primaryParentRelation,
+                parents: parentsList,
+                secondaryPhone: secPhone
             }
         });
         setIsFormOpen(true);
@@ -5661,21 +5674,31 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                  <Mail className="w-3 h-3 text-indigo-400" /> {user.email}
                                                              </span>
                                                          )}
-                                                         {user?.phoneNumber && (
-                                                             <span className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 font-semibold" title="Student Personal Phone">
-                                                                 <Phone className="w-3 h-3 text-indigo-500" /> Student: {user.phoneNumber}
-                                                             </span>
-                                                         )}
-                                                         {(enr.metadata?.parentPhone || enr.metadata?.parents?.[0]?.phone || user?.metadata?.parentPhone) && (
-                                                             <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-800/40" title="Primary Parent / Guardian Phone">
-                                                                 <Phone className="w-3 h-3 text-emerald-500 shrink-0" /> Parent 1: {enr.metadata?.parentPhone || enr.metadata?.parents?.[0]?.phone || user?.metadata?.parentPhone}
-                                                             </span>
-                                                         )}
-                                                         {(enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.parents?.[1]?.phone || user?.secondaryPhone || user?.parentPhone2 || user?.metadata?.secondaryPhone) && (
-                                                             <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-bold bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/80 dark:border-purple-800/40 shadow-sm" title="Secondary / Alternative Parent Phone">
-                                                                 <Phone className="w-3 h-3 text-purple-500 shrink-0" /> Parent 2 (Sec): {enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.parents?.[1]?.phone || user?.secondaryPhone || user?.parentPhone2 || user?.metadata?.secondaryPhone}
-                                                             </span>
-                                                         )}
+                                                         {user?.phoneNumber && !user.phoneNumber.endsWith('@eduai.local') && (
+                                                              <span className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 font-semibold" title="Student Personal Phone">
+                                                                  <Phone className="w-3 h-3 text-indigo-500" /> Student: {user.phoneNumber}
+                                                              </span>
+                                                          )}
+                                                          {(() => {
+                                                              const p1Phone = enr.metadata?.parentPhone || enr.metadata?.parents?.[0]?.phone || user?.metadata?.parentPhone || user?.parentPhone || (user as any)?.fatherPhone || (enr.metadata as any)?.fatherPhone;
+                                                              const p1Name = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || user?.metadata?.parentName || (user as any)?.parentName;
+                                                              if (!p1Phone) return null;
+                                                              return (
+                                                                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-800/40" title="Primary Parent / Guardian Phone">
+                                                                      <Phone className="w-3 h-3 text-emerald-500 shrink-0" /> {p1Name ? `${p1Name}: ` : 'Parent 1: '}{p1Phone}
+                                                                  </span>
+                                                              );
+                                                          })()}
+                                                          {(() => {
+                                                              const p2Phone = enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.guardianPhone2 || enr.metadata?.parents?.[1]?.phone || (enr.metadata as any)?.parent2Phone || user?.secondaryPhone || user?.parentPhone2 || user?.metadata?.secondaryPhone || user?.metadata?.parentPhone2 || (user as any)?.motherPhone;
+                                                              const p2Name = enr.metadata?.guardian2Name || enr.metadata?.parentName2 || enr.metadata?.parents?.[1]?.name || (enr.metadata as any)?.parent2Name || (user as any)?.secondaryName || (user as any)?.motherName;
+                                                              if (!p2Phone) return null;
+                                                              return (
+                                                                  <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-bold bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/80 dark:border-purple-800/40 shadow-sm" title="Secondary / Alternative Parent Phone">
+                                                                      <Phone className="w-3 h-3 text-purple-500 shrink-0" /> {p2Name ? `${p2Name}: ` : 'Parent 2 (Sec): '}{p2Phone}
+                                                                  </span>
+                                                              );
+                                                          })()}
                                                      </div>
                                                 </div>
 
@@ -7889,7 +7912,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 {isPrimaryOrSecondary ? 'Grade' : 'Course'}
                                             </label>
                                             <select
-                                                value={formData.metadata.gradeLevel}
+                                                value={cohortsList.find(c => getNormalizedGradeKey(c) === getNormalizedGradeKey(formData.metadata.gradeLevel)) || formData.metadata.gradeLevel}
                                                 onChange={e => setFormData({ 
                                                     ...formData, 
                                                     metadata: { ...formData.metadata, gradeLevel: e.target.value } 
