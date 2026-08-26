@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import type { User, Institution, Invoice, Receipt, CompanyDetails } from '../../types';
+import type { User, Institution, Invoice, Receipt } from '../../types';
 import {
     XIcon,
     ArrowUpTrayIcon,
@@ -8,30 +8,21 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     SparklesIcon,
-    Trash2Icon,
     SearchIcon,
-    DocumentTextIcon,
     ChevronDownIcon,
-    PencilIcon,
-    PlusIcon
+    PlusIcon,
+    Cog8ToothIcon,
+    CreditCardIcon,
+    BanknotesIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 
-export interface ReceiveFeesModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    institution: Institution;
-    students: User[];
-    invoices?: Invoice[];
-    receipts?: Receipt[];
-    enrollments?: any[];
-    userName?: string;
-    currentUser?: any;
-    onReceiptCreated?: (newReceipt: any) => void;
-    onRefreshData?: () => Promise<void>;
-    onLogAction?: (msg: string) => Promise<void> | void;
-    defaultTab?: 'excel' | 'manual';
+export interface VoteHeadAllocationItem {
+    voteHead: string;
+    amount: number;
+    invoiceId?: string;
+    description?: string;
 }
 
 export interface ReconciledFeeItem {
@@ -51,8 +42,37 @@ export interface ReconciledFeeItem {
     matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none';
     matchStatus: 'matched' | 'unmatched';
     paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
+    voteHeadAllocations: VoteHeadAllocationItem[];
+    voteHeadSummary: string;
     rawRowData: Record<string, any>;
 }
+
+export interface ReceiveFeesModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    institution: Institution;
+    students: User[];
+    invoices?: Invoice[];
+    receipts?: Receipt[];
+    enrollments?: any[];
+    userName?: string;
+    currentUser?: any;
+    onReceiptCreated?: (newReceipt: any) => void;
+    onRefreshData?: () => Promise<void>;
+    onLogAction?: (msg: string) => Promise<void> | void;
+    defaultTab?: 'excel' | 'manual';
+}
+
+const DEFAULT_VOTEHEAD_PRIORITIES = [
+    'Tuition & Academic Fees',
+    'Boarding & Accommodation',
+    'Transport / Bus Service',
+    'Lunch & Catering',
+    'Examination & Assessment',
+    'Activity, Sports & Clubs',
+    'Development / Capital Levy',
+    'Uniform & Stationery'
+];
 
 export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     isOpen,
@@ -70,6 +90,19 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     defaultTab = 'excel'
 }) => {
     const [activeTab, setActiveTab] = useState<'excel' | 'manual'>(defaultTab);
+
+    // Votehead Auto-Split configuration
+    const [autoSplitVoteheads, setAutoSplitVoteheads] = useState(true);
+    const [voteheadPriorities, setVoteheadPriorities] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_votehead_priorities_${institution?.id}`);
+            return saved ? JSON.parse(saved) : DEFAULT_VOTEHEAD_PRIORITIES;
+        } catch {
+            return DEFAULT_VOTEHEAD_PRIORITIES;
+        }
+    });
+    const [showVoteheadConfig, setShowVoteheadConfig] = useState(false);
+    const [inspectingItem, setInspectingItem] = useState<ReconciledFeeItem | null>(null);
 
     // Excel import state
     const [excelFile, setExcelFile] = useState<File | null>(null);
@@ -94,8 +127,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [overrideExisting, setOverrideExisting] = useState(true);
-    const [sendSms, setSendSms] = useState(false);
-    const [sendEmail, setSendEmail] = useState(false);
     const [successSummary, setSuccessSummary] = useState<string | null>(null);
 
     // Manual Entry State
@@ -105,10 +136,38 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [manualMethod, setManualMethod] = useState<'Cash' | 'M-Pesa' | 'Bank Transfer' | 'Cheque' | 'Bursary'>('Cash');
     const [manualRef, setManualRef] = useState('');
     const [manualDate, setManualDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [manualInvoiceId, setManualInvoiceId] = useState('');
     const [manualPaidFor, setManualPaidFor] = useState('Tuition & School Fees');
     const [isPostingManual, setIsPostingManual] = useState(false);
     const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
+
+    // Save priorities to localStorage
+    const handleSavePriorities = (newPriorities: string[]) => {
+        setVoteheadPriorities(newPriorities);
+        try {
+            localStorage.setItem(`eduai_votehead_priorities_${institution?.id}`, JSON.stringify(newPriorities));
+        } catch {}
+        // Trigger re-split across existing rows if any
+        if (rawRows.length > 0) {
+            reconcileRows(rawRows, {
+                admCol: admissionCol,
+                nmCol: nameCol,
+                amtCol: amountCol,
+                refCol: referenceCol,
+                dtCol: dateCol,
+                mdCol: modeCol
+            }, newPriorities, autoSplitVoteheads);
+        }
+    };
+
+    const handleMovePriority = (index: number, direction: 'up' | 'down') => {
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= voteheadPriorities.length) return;
+        const copy = [...voteheadPriorities];
+        const temp = copy[index];
+        copy[index] = copy[targetIndex];
+        copy[targetIndex] = temp;
+        handleSavePriorities(copy);
+    };
 
     // Reset when modal opens
     useEffect(() => {
@@ -119,7 +178,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         }
     }, [isOpen, defaultTab]);
 
-    // Build indexing maps for high-precision student matching
+    // Build indexing maps for student matching
     const { admMap, nameMap, allStudentsList } = useMemo(() => {
         const studentPool: User[] = (students || []).filter(Boolean);
         const aMap = new Map<string, User>();
@@ -276,6 +335,120 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return today;
     };
 
+    // ── VOTEHEAD AUTO-SPLIT CALCULATION ENGINE ──
+    const calculateVoteHeadSplit = (
+        studentId: string,
+        paidAmount: number,
+        priorities: string[] = voteheadPriorities,
+        enabled: boolean = autoSplitVoteheads
+    ): { allocations: VoteHeadAllocationItem[]; summary: string } => {
+        if (!enabled || paidAmount <= 0) {
+            return {
+                allocations: [{ voteHead: 'School Fees', amount: paidAmount }],
+                summary: 'School Fees'
+            };
+        }
+
+        let remaining = paidAmount;
+        const allocations: VoteHeadAllocationItem[] = [];
+
+        // 1. Gather all student's invoices and line items
+        const studentInvoices = invoices.filter(inv => 
+            inv.studentId === studentId || 
+            (inv as any).student_id === studentId || 
+            (inv as any).userId === studentId
+        );
+
+        // Map pending invoice items
+        const pendingItems: Array<{
+            invoiceId: string;
+            description: string;
+            voteHead: string;
+            requiredAmount: number;
+            priorityRank: number;
+        }> = [];
+
+        studentInvoices.forEach(inv => {
+            const items = inv.items || [];
+            items.forEach(item => {
+                const desc = item.description || 'Tuition';
+                // Detect which votehead this item belongs to
+                let matchedHead = priorities[0] || 'Tuition & Academic Fees';
+                let bestIndex = 999;
+
+                priorities.forEach((head, hIdx) => {
+                    const cleanHead = head.toLowerCase();
+                    const cleanDesc = desc.toLowerCase();
+                    if (
+                        cleanDesc.includes(cleanHead.split(' ')[0]) || 
+                        (cleanHead.includes('tuition') && cleanDesc.includes('fee')) ||
+                        (cleanHead.includes('transport') && (cleanDesc.includes('bus') || cleanDesc.includes('route'))) ||
+                        (cleanHead.includes('boarding') && (cleanDesc.includes('hostel') || cleanDesc.includes('dorm'))) ||
+                        (cleanHead.includes('lunch') && (cleanDesc.includes('food') || cleanDesc.includes('catering') || cleanDesc.includes('meal'))) ||
+                        (cleanHead.includes('exam') && (cleanDesc.includes('assessment') || cleanDesc.includes('test'))) ||
+                        (cleanHead.includes('activity') && (cleanDesc.includes('sport') || cleanDesc.includes('club') || cleanDesc.includes('trip')))
+                    ) {
+                        if (hIdx < bestIndex) {
+                            bestIndex = hIdx;
+                            matchedHead = head;
+                        }
+                    }
+                });
+
+                pendingItems.push({
+                    invoiceId: inv.id,
+                    description: desc,
+                    voteHead: matchedHead,
+                    requiredAmount: Number(item.amount || item.unitPrice || 0),
+                    priorityRank: bestIndex
+                });
+            });
+        });
+
+        // Sort items by Priority Rank (Tuition first, then Boarding, Transport, etc.)
+        pendingItems.sort((a, b) => a.priorityRank - b.priorityRank);
+
+        if (pendingItems.length > 0) {
+            // Allocate against pending invoice line items
+            for (const item of pendingItems) {
+                if (remaining <= 0) break;
+                const toAllocate = Math.min(remaining, item.requiredAmount);
+                if (toAllocate > 0) {
+                    allocations.push({
+                        voteHead: item.voteHead,
+                        amount: toAllocate,
+                        invoiceId: item.invoiceId,
+                        description: item.description
+                    });
+                    remaining -= toAllocate;
+                }
+            }
+        }
+
+        // If there is still excess money left (or no invoice items existed), allocate according to default primary voteheads
+        if (remaining > 0) {
+            const primaryHead = priorities[0] || 'Tuition & Academic Fees';
+            const existingPrimary = allocations.find(a => a.voteHead === primaryHead);
+            if (existingPrimary) {
+                existingPrimary.amount += remaining;
+            } else {
+                allocations.push({
+                    voteHead: primaryHead,
+                    amount: remaining,
+                    description: 'Prepaid / General Fee Credit'
+                });
+            }
+            remaining = 0;
+        }
+
+        // Generate clean summary text
+        const summary = allocations
+            .map(a => `${a.voteHead.split(' ')[0]}: ${a.amount.toLocaleString()}`)
+            .join(' · ');
+
+        return { allocations, summary: summary || 'Tuition' };
+    };
+
     // Auto-detect columns from parsed headers
     const autoDetectColumns = (headers: string[]) => {
         const findCol = (pattern: RegExp) => headers.find(h => pattern.test(h.trim())) || '';
@@ -315,7 +488,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             refCol: string;
             dtCol: string;
             mdCol: string;
-        }
+        },
+        priorities: string[] = voteheadPriorities,
+        splitEnabled: boolean = autoSplitVoteheads
     ) => {
         const items: ReconciledFeeItem[] = rows.map((row, idx) => {
             const rawAdm = mappings.admCol ? String(row[mappings.admCol] ?? '').trim() : '';
@@ -379,6 +554,14 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             const matchedAdm = matchedStudent ? resolveRealStudentAdmNo(matchedStudent) : '';
 
+            // Compute automated votehead distribution
+            const { allocations, summary } = calculateVoteHeadSplit(
+                matchedStudent ? matchedStudent.id : '',
+                rawAmount,
+                priorities,
+                splitEnabled
+            );
+
             return {
                 id: `rec_row_${idx}_${Date.now()}`,
                 rowIndex: idx + 1,
@@ -396,6 +579,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 matchConfidence,
                 matchStatus: matchedStudent ? 'matched' : 'unmatched',
                 paymentMethod,
+                voteHeadAllocations: allocations,
+                voteHeadSummary: summary,
                 rawRowData: row
             };
         });
@@ -417,7 +602,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
 
-            // Parse headers
             const sheetMatrix: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
             if (sheetMatrix.length === 0) {
                 alert("Spreadsheet is empty.");
@@ -431,10 +615,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             const parsedRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
             setRawRows(parsedRows);
 
-            // Auto-detect columns
             autoDetectColumns(headers);
 
-            // Trigger initial reconciliation
             const findCol = (pattern: RegExp) => headers.find(h => pattern.test(h.trim())) || '';
             const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm|#)?|std|index|upi)$/i) ||
                                 headers.find(h => /adm|admission|reg/i.test(h)) || (headers.length > 0 ? headers[0] : '');
@@ -455,7 +637,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 refCol: detectedRef,
                 dtCol: detectedDate,
                 mdCol: detectedMode
-            });
+            }, voteheadPriorities, autoSplitVoteheads);
         } catch (err: any) {
             console.error("Excel parse error:", err);
             alert("Failed to parse Excel file: " + err.message);
@@ -491,7 +673,23 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 refCol: newRef,
                 dtCol: newDate,
                 mdCol: newMode
-            });
+            }, voteheadPriorities, autoSplitVoteheads);
+        }
+    };
+
+    // Toggle Auto-Split
+    const handleToggleAutoSplit = () => {
+        const nextState = !autoSplitVoteheads;
+        setAutoSplitVoteheads(nextState);
+        if (rawRows.length > 0) {
+            reconcileRows(rawRows, {
+                admCol: admissionCol,
+                nmCol: nameCol,
+                amtCol: amountCol,
+                refCol: referenceCol,
+                dtCol: dateCol,
+                mdCol: modeCol
+            }, voteheadPriorities, nextState);
         }
     };
 
@@ -506,13 +704,21 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         const sAdm = student ? resolveRealStudentAdmNo(student) : '';
         setReconciledItems(prev => prev.map(item => {
             if (item.id === rowId) {
+                const { allocations, summary } = calculateVoteHeadSplit(
+                    student ? student.id : '',
+                    item.rawAmount,
+                    voteheadPriorities,
+                    autoSplitVoteheads
+                );
                 return {
                     ...item,
                     matchedStudentId: student ? student.id : '',
                     matchedStudentName: student ? student.name : '',
                     matchedStudentAdm: sAdm,
                     matchStatus: student ? 'matched' : 'unmatched',
-                    matchConfidence: student ? 'manual' : 'none'
+                    matchConfidence: student ? 'manual' : 'none',
+                    voteHeadAllocations: allocations,
+                    voteHeadSummary: summary
                 };
             }
             return item;
@@ -531,7 +737,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     item.rawName.toLowerCase().includes(q) ||
                     item.rawRef.toLowerCase().includes(q) ||
                     item.matchedStudentName.toLowerCase().includes(q) ||
-                    item.matchedStudentAdm.toLowerCase().includes(q)
+                    item.matchedStudentAdm.toLowerCase().includes(q) ||
+                    item.voteHeadSummary.toLowerCase().includes(q)
                 );
             }
             return true;
@@ -551,6 +758,17 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             totalAmount
         };
     }, [reconciledItems]);
+
+    // Live preview for manual payment votehead split
+    const manualSplitPreview = useMemo(() => {
+        if (!manualSelectedStudent || !manualAmount || Number(manualAmount) <= 0) return null;
+        return calculateVoteHeadSplit(
+            manualSelectedStudent.id,
+            Number(manualAmount),
+            voteheadPriorities,
+            autoSplitVoteheads
+        );
+    }, [manualSelectedStudent, manualAmount, voteheadPriorities, autoSplitVoteheads]);
 
     // Confirm & Post Bulk Receipts
     const handleConfirmPostBulk = async () => {
@@ -575,7 +793,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 const student = allStudentsList.find(s => s.id === item.matchedStudentId);
                 const sAdm = student ? resolveRealStudentAdmNo(student) : item.matchedStudentAdm;
 
-                // Existing receipt lookup if override is enabled
                 let existingReceipt: Receipt | undefined;
                 if (overrideExisting) {
                     existingReceipt = receipts.find(r => 
@@ -586,6 +803,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                 const receiptId = existingReceipt ? existingReceipt.id : `rec_imp_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`;
                 const receiptNumber = item.rawReceiptNo || existingReceipt?.receiptNumber || `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+                const paidForDescription = item.voteHeadSummary ? `Fees [${item.voteHeadSummary}]` : 'School Fees — Excel Bulk Import';
 
                 const receiptRecord: Partial<Receipt> & Record<string, any> = {
                     id: receiptId,
@@ -607,9 +826,10 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     related_transaction_id: cleanRef,
                     paymentDate: item.rawDate,
                     payment_date: item.rawDate,
-                    paidFor: 'School Fees — Excel Bulk Import',
-                    paid_for: 'School Fees — Excel Bulk Import',
-                    notes: `Imported via Excel Mapping: ${item.rawName || ''} [${item.rawAdm || ''}]`,
+                    paidFor: paidForDescription,
+                    paid_for: paidForDescription,
+                    voteHeadAllocations: item.voteHeadAllocations,
+                    notes: `Imported via Excel: ${item.rawName || ''} [${item.rawAdm || ''}] · ${item.voteHeadSummary}`,
                     excelPaymentMode: item.rawMode || item.paymentMethod,
                     updatedAt: new Date().toISOString(),
                     createdAt: existingReceipt?.createdAt || new Date().toISOString()
@@ -623,7 +843,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 if (onReceiptCreated) onReceiptCreated(receiptRecord);
 
                 setBulkProgress({ current: i + 1, total: readyItems.length });
-                await new Promise(r => setTimeout(r, 10)); // smooth progress
+                await new Promise(r => setTimeout(r, 8));
             }
 
             // Save batch audit history
@@ -646,12 +866,12 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             } catch {}
 
             if (onLogAction) {
-                await onLogAction(`Imported ${postedCount} payments totaling KES ${totalVal.toLocaleString()} from Excel file.`);
+                await onLogAction(`Imported ${postedCount} payments totaling KES ${totalVal.toLocaleString()} with Automated Votehead Distribution.`);
             }
 
             if (onRefreshData) await onRefreshData();
 
-            setSuccessSummary(`Successfully posted ${postedCount} receipts totaling KES ${totalVal.toLocaleString()}!`);
+            setSuccessSummary(`Successfully posted ${postedCount} receipts totaling KES ${totalVal.toLocaleString()} with automated votehead allocations!`);
         } catch (err: any) {
             console.error("Bulk receipt post failed:", err);
             alert("Error posting bulk receipts: " + err.message);
@@ -677,6 +897,15 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         const sAdm = resolveRealStudentAdmNo(manualSelectedStudent);
         const receiptNumber = `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
 
+        const { allocations, summary } = calculateVoteHeadSplit(
+            manualSelectedStudent.id,
+            Number(manualAmount),
+            voteheadPriorities,
+            autoSplitVoteheads
+        );
+
+        const paidForText = autoSplitVoteheads ? `Fees [${summary}]` : manualPaidFor;
+
         const receiptRecord: Partial<Receipt> & Record<string, any> = {
             id: `rec_man_${Date.now()}`,
             receiptNumber,
@@ -697,16 +926,16 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             related_transaction_id: manualRef || `MAN-${Date.now()}`,
             paymentDate: manualDate,
             payment_date: manualDate,
-            paidFor: manualPaidFor,
-            paid_for: manualPaidFor,
-            invoiceId: manualInvoiceId || undefined,
+            paidFor: paidForText,
+            paid_for: paidForText,
+            voteHeadAllocations: allocations,
             createdAt: new Date().toISOString()
         };
 
         try {
             await apiService.saveModuleRecord('receipts', receiptRecord);
             if (onReceiptCreated) onReceiptCreated(receiptRecord);
-            if (onLogAction) await onLogAction(`Manually received KES ${Number(manualAmount).toLocaleString()} for ${manualSelectedStudent.name} (${sAdm})`);
+            if (onLogAction) await onLogAction(`Manually received KES ${Number(manualAmount).toLocaleString()} for ${manualSelectedStudent.name} (${sAdm}) with Votehead Split [${summary}]`);
             if (onRefreshData) await onRefreshData();
 
             setManualSuccessMsg(`Receipt ${receiptNumber} created successfully for ${manualSelectedStudent.name}!`);
@@ -725,22 +954,36 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[92vh] overflow-hidden text-left my-auto">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[94vh] overflow-hidden text-left my-auto">
                 
                 {/* ── Modal Top Header ── */}
                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black">
-                            <ArrowUpTrayIcon className="w-4 h-4" />
+                            <BanknotesIcon className="w-4 h-4" />
                         </div>
                         <div>
                             <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                                 Receive fees money
                             </h3>
+                            <p className="text-[10px] font-bold text-slate-400">
+                                Smart payment allocation with automated votehead distribution
+                            </p>
                         </div>
                     </div>
                     
                     <div className="flex items-center gap-2">
+                        {/* Votehead Config Trigger */}
+                        <button
+                            type="button"
+                            onClick={() => setShowVoteheadConfig(true)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Configure Votehead Priority Hierarchy"
+                        >
+                            <Cog8ToothIcon className="w-3.5 h-3.5 text-indigo-500" />
+                            <span>Votehead Rules</span>
+                        </button>
+
                         <button
                             type="button"
                             onClick={onClose}
@@ -752,34 +995,52 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 </div>
 
                 {/* ── Tabs: Import from Excel file | Key-in manually ── */}
-                <div className="px-6 border-b border-slate-200 dark:border-slate-800 flex items-center gap-6 bg-white dark:bg-slate-900 shrink-0">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('excel')}
-                        className={`py-3 text-xs font-bold tracking-wide transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
-                            activeTab === 'excel'
-                                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-black'
-                                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                        }`}
-                    >
-                        <span>Import from Excel file</span>
-                        {reconciledItems.length > 0 && (
-                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-                                {reconciledItems.length}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('manual')}
-                        className={`py-3 text-xs font-bold tracking-wide transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
-                            activeTab === 'manual'
-                                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-black'
-                                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                        }`}
-                    >
-                        <span>Key-in manually</span>
-                    </button>
+                <div className="px-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0">
+                    <div className="flex items-center gap-6">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('excel')}
+                            className={`py-3 text-xs font-bold tracking-wide transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+                                activeTab === 'excel'
+                                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-black'
+                                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            <span>Import from Excel file</span>
+                            {reconciledItems.length > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                                    {reconciledItems.length}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('manual')}
+                            className={`py-3 text-xs font-bold tracking-wide transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+                                activeTab === 'manual'
+                                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-black'
+                                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            <span>Key-in manually</span>
+                        </button>
+                    </div>
+
+                    {/* Auto-Split Mode Pill */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleToggleAutoSplit}
+                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                autoSplitVoteheads
+                                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 shadow-2xs'
+                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                        >
+                            <SparklesIcon className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                            <span>{autoSplitVoteheads ? '⚡ Auto-Split Voteheads: Active' : 'Single Unified Head'}</span>
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── TAB 1: EXCEL IMPORT & FIELD MAPPING ── */}
@@ -804,7 +1065,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                 Select Excel Statement (.xlsx, .xls, .csv)
                                             </h4>
                                             <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
-                                                Upload your bank or M-Pesa statements. You can match the columns in the next step to assign payments accurately.
+                                                Upload your bank or M-Pesa statements. You can match the columns in the next step to assign payments and auto-split voteheads accurately.
                                             </p>
                                         </div>
                                         <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer">
@@ -941,7 +1202,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                             <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                             <input
                                                 type="text"
-                                                placeholder="Filter rows by name, ADM, ref..."
+                                                placeholder="Filter rows by name, ADM, ref, votehead..."
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs outline-none focus:ring-1 focus:ring-indigo-500"
@@ -992,7 +1253,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                     </div>
                                 </div>
 
-                                {/* ── Interactive Data Grid Table matching screenshot ── */}
+                                {/* ── Interactive Data Grid Table with Votehead Breakdown ── */}
                                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
                                     <div className="max-h-[360px] overflow-y-auto">
                                         <table className="w-full border-collapse text-xs">
@@ -1004,7 +1265,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                     <th className="px-4 py-2.5 text-right">Amount</th>
                                                     <th className="px-4 py-2.5 text-left">Reference</th>
                                                     <th className="px-4 py-2.5 text-left">Date Paid</th>
-                                                    <th className="px-4 py-2.5 text-left">Assigned Student</th>
+                                                    <th className="px-4 py-2.5 text-left">Assigned Student &amp; Voteheads</th>
                                                     <th className="px-3 py-2.5 text-center w-24">Action</th>
                                                 </tr>
                                             </thead>
@@ -1041,27 +1302,30 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                             <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 text-xs">
                                                                 {item.rawDate}
                                                             </td>
-                                                            <td className="px-4 py-2.5 min-w-[200px]">
+                                                            <td className="px-4 py-2.5 min-w-[240px]">
                                                                 {item.matchedStudentName ? (
-                                                                    <div className="flex items-center justify-between gap-1.5">
-                                                                        <div>
+                                                                    <div className="space-y-1">
+                                                                        <div className="flex items-center justify-between gap-1.5">
                                                                             <span className="font-bold text-slate-900 dark:text-white block">
                                                                                 {item.matchedStudentName}
                                                                             </span>
                                                                             <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold">
-                                                                                {item.matchedStudentAdm || 'ADM OK'} ({item.matchConfidence})
+                                                                                {item.matchedStudentAdm || 'ADM OK'}
                                                                             </span>
                                                                         </div>
-                                                                        <select
-                                                                            value={item.matchedStudentId}
-                                                                            onChange={(e) => handleReassignStudent(item.id, e.target.value)}
-                                                                            className="opacity-0 hover:opacity-100 focus:opacity-100 w-6 h-6 border rounded text-[10px] cursor-pointer"
-                                                                            title="Change student"
+                                                                        
+                                                                        {/* Votehead Distribution Pill */}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setInspectingItem(item)}
+                                                                            className="w-full text-left p-1 px-2 rounded-lg bg-purple-50/70 hover:bg-purple-100 dark:bg-purple-950/30 dark:hover:bg-purple-950/60 border border-purple-200 dark:border-purple-800/40 text-[10px] font-semibold text-purple-700 dark:text-purple-300 flex items-center justify-between transition-colors cursor-pointer"
+                                                                            title="Click to view detailed votehead allocation breakdown"
                                                                         >
-                                                                            {allStudentsList.map(s => (
-                                                                                <option key={s.id} value={s.id}>{s.name} ({resolveRealStudentAdmNo(s)})</option>
-                                                                            ))}
-                                                                        </select>
+                                                                            <span className="truncate max-w-[190px]">
+                                                                                ⚡ {item.voteHeadSummary}
+                                                                            </span>
+                                                                            <span className="text-[9px] font-black text-purple-500 uppercase tracking-tighter">View</span>
+                                                                        </button>
                                                                     </div>
                                                                 ) : (
                                                                     <select
@@ -1099,7 +1363,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 {isProcessingBulk && bulkProgress.total > 0 && (
                                     <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-4 space-y-2">
                                         <div className="flex justify-between items-center text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
-                                            <span>Posting Receipts to Ledgers...</span>
+                                            <span>Posting Receipts &amp; Splitting Voteheads...</span>
                                             <span>{bulkProgress.current} / {bulkProgress.total} ({Math.round((bulkProgress.current / bulkProgress.total) * 100)}%)</span>
                                         </div>
                                         <div className="h-2.5 w-full bg-emerald-200 dark:bg-emerald-900 rounded-full overflow-hidden">
@@ -1267,6 +1531,27 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 </div>
                             </div>
 
+                            {/* Live Votehead Breakdown Preview */}
+                            {manualSplitPreview && (
+                                <div className="p-3.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-2">
+                                    <div className="flex justify-between items-center text-[11px] font-black text-purple-900 dark:text-purple-200">
+                                        <span className="flex items-center gap-1.5">
+                                            <SparklesIcon className="w-3.5 h-3.5 text-purple-600" />
+                                            <span>Automated Votehead Distribution</span>
+                                        </span>
+                                        <span>KES {Number(manualAmount).toLocaleString()}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {manualSplitPreview.allocations.map((alloc, aIdx) => (
+                                            <div key={aIdx} className="flex justify-between text-xs font-medium text-purple-800 dark:text-purple-300">
+                                                <span>↳ {alloc.voteHead}</span>
+                                                <span className="font-mono font-bold">KES {alloc.amount.toLocaleString()}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Date & Reference */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-1">
@@ -1293,20 +1578,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                                     />
                                 </div>
-                            </div>
-
-                            {/* Paid For / Description */}
-                            <div className="space-y-1">
-                                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                                    Paid For / Votehead Allocation
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. Tuition Fees / Term 1"
-                                    value={manualPaidFor}
-                                    onChange={(e) => setManualPaidFor(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
                             </div>
 
                             {/* Success message */}
@@ -1340,6 +1611,141 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     </form>
                 )}
             </div>
+
+            {/* ── MODAL: VOTEHEAD PRIORITY HIERARCHY CONFIGURATION ── */}
+            {showVoteheadConfig && (
+                <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-lg w-full p-6 text-left space-y-5">
+                        <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div>
+                                <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <SparklesIcon className="w-4 h-4 text-purple-600" />
+                                    <span>Votehead Auto-Split Hierarchy</span>
+                                </h4>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                    Lump sum fee payments will clear voteheads in this order (FIFO).
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowVoteheadConfig(false)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                            >
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Priority List with Up/Down buttons */}
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                            {voteheadPriorities.map((head, idx) => (
+                                <div
+                                    key={head}
+                                    className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200"
+                                >
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-300 flex items-center justify-center text-[10px] font-black">
+                                            {idx + 1}
+                                        </span>
+                                        <span>{head}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            disabled={idx === 0}
+                                            onClick={() => handleMovePriority(idx, 'up')}
+                                            className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 disabled:opacity-30 rounded text-[10px] font-black cursor-pointer"
+                                        >
+                                            ▲
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={idx === voteheadPriorities.length - 1}
+                                            onClick={() => handleMovePriority(idx, 'down')}
+                                            className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 disabled:opacity-30 rounded text-[10px] font-black cursor-pointer"
+                                        >
+                                            ▼
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <button
+                                type="button"
+                                onClick={() => handleSavePriorities(DEFAULT_VOTEHEAD_PRIORITIES)}
+                                className="text-xs font-bold text-slate-500 hover:text-slate-700 underline"
+                            >
+                                Reset to Default
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowVoteheadConfig(false)}
+                                className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold cursor-pointer"
+                            >
+                                Save &amp; Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: ROW VOTEHEAD ALLOCATION INSPECTOR ── */}
+            {inspectingItem && (
+                <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-md w-full p-6 text-left space-y-4">
+                        <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                                    Votehead Breakdown
+                                </h4>
+                                <p className="text-xs text-slate-500 font-medium">
+                                    {inspectingItem.matchedStudentName} ({inspectingItem.matchedStudentAdm})
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setInspectingItem(null)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                            >
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100 dark:border-slate-800">
+                                <span>Votehead / Line Item</span>
+                                <span>Allocated (KES)</span>
+                            </div>
+                            {inspectingItem.voteHeadAllocations.map((alloc, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-xs py-1.5">
+                                    <div>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200 block">{alloc.voteHead}</span>
+                                        {alloc.description && <span className="text-[10px] text-slate-400 font-medium">{alloc.description}</span>}
+                                    </div>
+                                    <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                        KES {alloc.amount.toLocaleString()}
+                                    </span>
+                                </div>
+                            ))}
+                            <div className="flex justify-between items-center text-xs font-black pt-2 border-t-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+                                <span>Total Payment Amount</span>
+                                <span className="text-emerald-600 font-mono">KES {inspectingItem.rawAmount.toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        <div className="pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setInspectingItem(null)}
+                                className="w-full py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
