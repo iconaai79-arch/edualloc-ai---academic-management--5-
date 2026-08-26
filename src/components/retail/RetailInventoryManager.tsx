@@ -52,6 +52,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     // Subtab state: School store stock, Inbound county consignments pipeline, or Sickbay/Pharmacy
     const [inventorySubTab, setInventorySubTab] = useState<'school' | 'county_consignments' | 'pharmacy'>('school');
     const [pharmacyDrugs, setPharmacyDrugs] = useState<HISPharmacyInventory[]>([]);
+    const [editingPharmacyDrug, setEditingPharmacyDrug] = useState<HISPharmacyInventory | null>(null);
     const [pharmacySearch, setPharmacySearch] = useState('');
     const [isPharmacyLoading, setIsPharmacyLoading] = useState(false);
 
@@ -93,29 +94,34 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     ];
     const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
 
+    const fetchPharmacyDrugs = async () => {
+        setIsPharmacyLoading(true);
+        try {
+            const drugs = await apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId);
+            setPharmacyDrugs(drugs || []);
+        } catch (e) {
+            console.warn('Could not load pharmacy inventory:', e);
+        } finally {
+            setIsPharmacyLoading(false);
+        }
+    };
+
     useEffect(() => {
         apiService.fetchModuleRecords('store_categories', institutionId)
             .then((data: any[]) => {
                 if (data && data.length > 0) {
                     const sorted = data.sort((a, b) => a.sortOrder - b.sortOrder);
-                    const names = sorted.map((c: any) => c.name);
-                    setCategories(names);
-                    setFormData(prev => {
-                        if ((prev.category === 'Stationery' || prev.category === 'Smartphones') && names.length > 0) {
-                            return { ...prev, category: names[0] };
-                        }
-                        return prev;
-                    });
+                    setCategories(sorted.map(c => c.name));
                 }
             })
-            .catch(() => { /* keep defaults */ });
+            .catch(() => {});
     }, [institutionId]);
 
-    // Form state
+    // Form data for creating/editing store item
     const [formData, setFormData] = useState<Partial<RetailInventoryItem>>({
         name: '',
         sku: '',
-        category: 'Stationery',
+        category: categories[0] || 'Stationery',
         srpPrice: 0,
         basePrice: 0,
         costPrice: 0,
@@ -125,7 +131,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         imageUrl: '',
         description: '',
         barcode: '',
-        marketplaceEnabled: false,
+        marketplaceEnabled: true,
         procurementAccountId: '',
         procurementAccountName: '',
         storeId: '',
@@ -149,27 +155,27 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         fetchInventory();
 
         // Self-fetch retail stores so the dropdown is always populated
-        // even when the parent component doesn't pass stores as a prop.
         apiService.fetchModuleRecords<any>('retail_stores', institutionId)
             .then(data => setLocalStores(data || []))
-            .catch(() => { /* keep localStores empty */ });
+            .catch(() => {});
 
-        // Load pharmacy inventory for admin overview (edu institutions only)
-        if (isEducation) {
-            setIsPharmacyLoading(true);
-            apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId)
-                .then(drugs => setPharmacyDrugs(drugs || []))
-                .catch(e => console.warn('Could not load pharmacy inventory:', e))
-                .finally(() => setIsPharmacyLoading(false));
-        }
+        // Always load pharmacy inventory so sickbay stock is visible across all views
+        fetchPharmacyDrugs();
 
         const handleInventoryUpdated = () => {
             fetchInventory();
+            fetchPharmacyDrugs();
         };
+        const handlePharmacyUpdated = () => {
+            fetchPharmacyDrugs();
+        };
+
         window.addEventListener('inventory_updated', handleInventoryUpdated);
+        window.addEventListener('pharmacy_updated', handlePharmacyUpdated);
 
         return () => {
             window.removeEventListener('inventory_updated', handleInventoryUpdated);
+            window.removeEventListener('pharmacy_updated', handlePharmacyUpdated);
         };
     }, [institutionId]);
 
@@ -569,26 +575,67 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
 
     const handleAddPharmacyDrug = async (drugData: any) => {
         try {
-            await apiService.saveModuleRecord('his_pharmacy_inventory', {
-                id: `drug_${Date.now()}`,
+            const newDrug = {
+                id: `drug_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
                 institutionId,
                 name: drugData.name,
                 category: drugData.category || 'General',
                 sku: drugData.sku || `SKU-${Date.now()}`,
                 unit: drugData.unit || 'Units',
-                stockQuantity: drugData.stockQuantity || 0,
-                unitPrice: drugData.unitPrice || 0,
-                reorderLevel: drugData.reorderLevel || 10,
-                isNarcotic: drugData.isNarcotic || false
-            });
-            alert('Medication added successfully!');
+                stockQuantity: Number(drugData.stockQuantity) || 0,
+                unitPrice: Number(drugData.unitPrice) || 0,
+                reorderLevel: Number(drugData.reorderLevel) || 10,
+                isNarcotic: Boolean(drugData.isNarcotic),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('his_pharmacy_inventory', newDrug);
             setIsPharmacyAddModalOpen(false);
-            // Reload pharmacy drugs
-            const drugs = await apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId);
-            setPharmacyDrugs(drugs || []);
-        } catch (err) {
+            setEditingPharmacyDrug(null);
+            await fetchPharmacyDrugs();
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
+            alert('✓ Medication added to pharmacy & sickbay inventory successfully!');
+        } catch (err: any) {
             console.error(err);
-            alert('Failed to save medication.');
+            alert('Failed to save medication: ' + (err?.message || 'Error'));
+        }
+    };
+
+    const handleEditPharmacyDrug = async (drugData: any) => {
+        try {
+            const payload = {
+                ...drugData,
+                institutionId,
+                stockQuantity: Number(drugData.stockQuantity) || 0,
+                unitPrice: Number(drugData.unitPrice) || 0,
+                reorderLevel: Number(drugData.reorderLevel) || 10,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('his_pharmacy_inventory', payload);
+            setIsPharmacyAddModalOpen(false);
+            setEditingPharmacyDrug(null);
+            await fetchPharmacyDrugs();
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
+            alert('✓ Medication updated successfully!');
+        } catch (err: any) {
+            console.error(err);
+            alert('Failed to update medication: ' + (err?.message || 'Error'));
+        }
+    };
+
+    const handleDeletePharmacyDrug = async (drug: HISPharmacyInventory) => {
+        if (!window.confirm(`Are you sure you want to remove "${drug.name}" from sickbay & pharmacy inventory?`)) return;
+        try {
+            await apiService.deleteModuleRecord('his_pharmacy_inventory', drug.id);
+            setPharmacyDrugs(prev => prev.filter(d => d.id !== drug.id));
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
+            alert(`✓ "${drug.name}" removed from inventory.`);
+        } catch (err: any) {
+            console.error(err);
+            alert('Failed to delete medication: ' + (err?.message || 'Error'));
         }
     };
 
@@ -602,20 +649,22 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     category: item.category || 'General',
                     sku: item.sku || `SKU-${Date.now()}`,
                     unit: item.unit || 'Units',
-                    stockQuantity: item.stockQuantity || 0,
-                    unitPrice: item.unitPrice || 0,
-                    reorderLevel: item.reorderLevel || 10,
-                    isNarcotic: item.isNarcotic || false
+                    stockQuantity: Number(item.stockQuantity) || 0,
+                    unitPrice: Number(item.unitPrice) || 0,
+                    reorderLevel: Number(item.reorderLevel) || 10,
+                    isNarcotic: Boolean(item.isNarcotic),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
                 });
             }
-            alert(`Bulk import of ${items.length} items completed!`);
             setIsPharmacyImportModalOpen(false);
-            // Reload pharmacy drugs
-            const drugs = await apiService.fetchModuleRecords<HISPharmacyInventory>('his_pharmacy_inventory', institutionId);
-            setPharmacyDrugs(drugs || []);
-        } catch (err) {
+            await fetchPharmacyDrugs();
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
+            alert(`✓ Bulk import of ${items.length} medications completed!`);
+        } catch (err: any) {
             console.error(err);
-            alert('Bulk import failed.');
+            alert('Bulk import failed: ' + (err?.message || 'Error'));
         }
     };
 
@@ -798,28 +847,29 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     </span>
                 </button>
 
-                {isEducation && (
-                    <button
-                        onClick={() => setInventorySubTab('pharmacy')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                            inventorySubTab === 'pharmacy'
-                                ? 'bg-white dark:bg-slate-700 text-fuchsia-600 dark:text-fuchsia-400 shadow-sm'
-                                : 'text-slate-500 hover:text-fuchsia-500 dark:text-slate-400'
-                        }`}
-                    >
-                        <Banknote className="w-3.5 h-3.5" />
-                        Pharmacy / Sickbay
-                        {pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length > 0 ? (
-                            <span className="ml-1 px-1.5 py-0.5 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-md text-[9px] font-black animate-pulse">
-                                {pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length} low
-                            </span>
-                        ) : (
-                            <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-md text-[9px] font-black">
-                                {pharmacyDrugs.length}
-                            </span>
-                        )}
-                    </button>
-                )}
+                <button
+                    onClick={() => {
+                        setInventorySubTab('pharmacy');
+                        fetchPharmacyDrugs();
+                    }}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        inventorySubTab === 'pharmacy'
+                            ? 'bg-white dark:bg-slate-700 text-fuchsia-600 dark:text-fuchsia-400 shadow-sm'
+                            : 'text-slate-500 hover:text-fuchsia-500 dark:text-slate-400'
+                    }`}
+                >
+                    <Banknote className="w-3.5 h-3.5" />
+                    Pharmacy / Sickbay
+                    {pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length > 0 ? (
+                        <span className="ml-1 px-1.5 py-0.5 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-md text-[9px] font-black animate-pulse">
+                            {pharmacyDrugs.filter(d => d.stockQuantity <= d.reorderLevel).length} low
+                        </span>
+                    ) : (
+                        <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-md text-[9px] font-black">
+                            {pharmacyDrugs.length}
+                        </span>
+                    )}
+                </button>
             </div>
 
             {/* ─ INBOUND COUNTY CONSIGNMENTS PANEL ─ */}
@@ -853,30 +903,49 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                         ))}
                     </div>
 
-                    <div className="relative">
-                        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Search drugs by name, category or SKU..."
-                            value={pharmacySearch}
-                            onChange={e => setPharmacySearch(e.target.value)}
-                            className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold placeholder:text-slate-400"
-                        />
+                    <div className="flex flex-col md:flex-row gap-3 items-center">
+                        <div className="relative flex-1 w-full">
+                            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search drugs by name, category or SKU..."
+                                value={pharmacySearch}
+                                onChange={e => setPharmacySearch(e.target.value)}
+                                className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-bold placeholder:text-slate-400"
+                            />
+                        </div>
+                        <button
+                            onClick={() => {
+                                setEditingPharmacyDrug(null);
+                                setIsPharmacyAddModalOpen(true);
+                            }}
+                            className="w-full md:w-auto px-5 py-3 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Sickbay Drug
+                        </button>
+                        <button
+                            onClick={() => setIsPharmacyImportModalOpen(true)}
+                            className="w-full md:w-auto px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all"
+                        >
+                            <Upload className="w-3.5 h-3.5" />
+                            Import CSV
+                        </button>
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-auto shadow-sm">
                         {isPharmacyLoading ? (
-                            <div className="py-20 text-center text-slate-400 text-sm font-bold uppercase tracking-widest animate-pulse">Loading pharmacy inventory...</div>
+                            <div className="py-20 text-center text-slate-400 text-sm font-bold uppercase tracking-widest animate-pulse">Loading pharmacy & sickbay inventory...</div>
                         ) : filteredPharmacyDrugs.length === 0 ? (
                             <div className="py-20 text-center">
-                                <p className="text-slate-400 font-black uppercase text-xs tracking-widest">{pharmacySearch ? 'No drugs match your search.' : 'No pharmacy drugs recorded yet.'}</p>
-                                <p className="text-slate-300 dark:text-slate-600 text-[10px] mt-1">Drugs are added from the EduPulse → Pharmacy / Store tab.</p>
+                                <p className="text-slate-400 font-black uppercase text-xs tracking-widest">{pharmacySearch ? 'No drugs match your search.' : 'No sickbay / pharmacy drugs recorded yet.'}</p>
+                                <p className="text-slate-300 dark:text-slate-600 text-[10px] mt-1">Capture drugs from EduPulse → Pharmacy / Sickbay or click "Add Sickbay Drug" above.</p>
                             </div>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-                                        {['Drug / Item','Category','Unit','Stock Qty','Reorder Lvl','Unit Price (KES)','Narcotic','Linked to Store','Status'].map(h => (
+                                        {['Drug / Item','Category','Unit','Stock Qty','Reorder Lvl','Unit Price (KES)','Narcotic','Linked to Store','Status','Actions'].map(h => (
                                             <th key={h} className="text-left text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 py-3.5">{h}</th>
                                         ))}
                                     </tr>
@@ -901,6 +970,27 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                 <td className="px-4 py-3">{drug.isNarcotic ? <span className="px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 rounded-md text-[9px] font-black">YES</span> : <span className="text-slate-300 dark:text-slate-600 text-[9px]">—</span>}</td>
                                                 <td className="px-4 py-3">{isLinked ? <span className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400 rounded-md text-[9px] font-black w-fit"><CheckCircle className="w-3 h-3"/>Linked</span> : <span className="px-2 py-0.5 bg-slate-100 text-slate-400 dark:bg-slate-700 rounded-md text-[9px] font-black">Standalone</span>}</td>
                                                 <td className="px-4 py-3">{isLow ? <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400 rounded-md text-[9px] font-black animate-pulse"><AlertTriangle className="w-3 h-3"/>Low</span> : <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 rounded-md text-[9px] font-black">OK</span>}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingPharmacyDrug(drug);
+                                                                setIsPharmacyAddModalOpen(true);
+                                                            }}
+                                                            title="Edit Drug"
+                                                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-fuchsia-500 hover:text-white transition-all"
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeletePharmacyDrug(drug)}
+                                                            title="Delete Drug"
+                                                            className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-all"
+                                                        >
+                                                            <Trash className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -909,7 +999,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                         )}
                     </div>
                     <p className="text-[10px] text-slate-400 font-semibold text-center">
-                        Read-only view. To add/edit drugs go to <strong>EduPulse → Pharmacy / Store → Drug Stock</strong>.
+                        Synchronized with <strong>EduPulse → Pharmacy / Sickbay</strong> module. Any stock adjustments or dispensing will reflect in real time.
                     </p>
                 </div>
             )}
@@ -1669,11 +1759,21 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 />
             )}
 
-            {isPharmacyAddModalOpen && (
+            {(isPharmacyAddModalOpen || editingPharmacyDrug) && (
                 <AddPharmacyInventoryModal 
                     institutionId={institutionId}
-                    onClose={() => setIsPharmacyAddModalOpen(false)}
-                    onAdd={handleAddPharmacyDrug}
+                    item={editingPharmacyDrug || undefined}
+                    onClose={() => {
+                        setIsPharmacyAddModalOpen(false);
+                        setEditingPharmacyDrug(null);
+                    }}
+                    onAdd={async (drugData) => {
+                        if (editingPharmacyDrug) {
+                            await handleEditPharmacyDrug({ ...editingPharmacyDrug, ...drugData });
+                        } else {
+                            await handleAddPharmacyDrug(drugData);
+                        }
+                    }}
                 />
             )}
 

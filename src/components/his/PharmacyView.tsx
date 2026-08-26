@@ -73,6 +73,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             setIsDeletingDrugId(drug.id);
             await apiService.deleteModuleRecord('his_pharmacy_inventory', drug.id);
             setInventory(prev => prev.filter(d => d.id !== drug.id));
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
             alert(`✓ "${drug.name}" deleted successfully.`);
         } catch (e) {
             console.error('Failed to delete drug:', e);
@@ -113,6 +115,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
             };
             await apiService.saveModuleRecord('his_pharmacy_inventory', updated);
             setInventory(prev => prev.map(d => d.id === editingDrug.id ? updated : d));
+            window.dispatchEvent(new CustomEvent('inventory_updated'));
+            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
             alert(`✓ "${name}" updated successfully!`);
             setEditingDrug(null);
         } catch (err) {
@@ -1464,7 +1468,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                     ) : (
                                         paginatedHistoryPrescs.map(p => {
                                             const totalBill = (p.items || []).reduce((s: number, i: any) => s + (i.totalPrice || ((i.unitPrice || 0) * (i.quantity || 1)) || 0), 0);
-                                            const dispDate = p.dispensedAt || p.dispensed_at || p.createdAt || p.created_at;
+                                            const dispDate = (p as any).dispensedAt || (p as any).dispensed_at || p.createdAt || (p as any).created_at;
                                             return (
                                                 <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group">
                                                     <td className="px-6 py-5 text-xs text-slate-400 whitespace-nowrap">
@@ -1751,6 +1755,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 });
                             }
                             setIsImportDrugOpen(false);
+                            window.dispatchEvent(new CustomEvent('inventory_updated'));
+                            window.dispatchEvent(new CustomEvent('pharmacy_updated'));
                             loadData();
                         } catch (e) {
                             console.error(e);
@@ -1809,6 +1815,8 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                         isNarcotic: data.isNarcotic === 'on'
                                     });
                                 }
+                                window.dispatchEvent(new CustomEvent('inventory_updated'));
+                                window.dispatchEvent(new CustomEvent('pharmacy_updated'));
                                 alert('Success!');
                                 setIsAddDrugOpen(false);
                                 loadData();
@@ -2787,7 +2795,7 @@ function InpatientFolioModal({
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Patient / Admission</p>
                             <p className="text-sm font-black text-white uppercase">{prescription.patientName}</p>
-                            <p className="text-[9px] font-bold text-indigo-400 mt-0.5">{prescription.patientAdmissionNo || 'ACTIVE INPATIENT'}</p>
+                            <p className="text-[9px] font-bold text-indigo-400 mt-0.5">{(prescription as any).patientAdmissionNo || 'ACTIVE INPATIENT'}</p>
                         </div>
                         <div className="text-right">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cost Added to Folio</p>
