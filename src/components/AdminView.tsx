@@ -842,7 +842,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'dashboard', label: 'Overview', icon: <ChartPieIcon className="w-5 h-5 mr-2" /> },
             { id: 'timetable', label: isEdu ? 'Academics' : 'Timetable', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
             { id: 'users', label: isHeritage ? 'Family Members' : isCommunity ? 'Community Members' : 'Members', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-            { id: 'courses', label: isSchool ? 'Grades' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+            { id: 'courses', label: isSchool ? 'Courses' : isChurch ? 'Departments' : 'Courses', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
             { id: 'boarding', label: 'Boarding System', icon: <BedIcon className="w-5 h-5 mr-2" /> },
             { id: 'leaveout', label: 'Leave Out', icon: <ArchiveBoxIcon className="w-5 h-5 mr-2" /> },
             { id: 'comms', label: isHeritage ? 'Announcements' : isCommunity ? 'Community Updates' : isRetailAgency ? 'Communications' : 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
@@ -1373,7 +1373,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             <div>
                                                 <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Academic Scheduling</h3>
                                                 <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
-                                                    Configure institutional grades, manage classroom allocations, master lesson schedules, and configure teaching constraints.
+                                                    Configure institutional courses, manage classroom allocations, master lesson schedules, and configure teaching constraints.
                                                 </p>
                                                 {!isActive && (
                                                     <button

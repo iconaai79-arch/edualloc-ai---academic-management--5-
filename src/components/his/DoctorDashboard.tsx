@@ -24,6 +24,7 @@ interface DoctorDashboardProps {
     onAddPrescription: () => void;
     onOpenPatient: (patientId: string) => void;
     onRegisterPatient: () => void;
+    isEdu?: boolean;
 }
 
 const SPECIALTIES = ['General Medicine', 'Paediatrics', 'Gynaecology', 'Orthopaedics', 'Cardiology', 'Dermatology'];
@@ -396,7 +397,8 @@ function QuickLabOrderModal({ onClose, patients, institutionId, userName, defaul
 
 export function DoctorDashboard({
     patients, userName, institutionId,
-    onAddVisit, onAddPrescription, onOpenPatient, onRegisterPatient
+    onAddVisit, onAddPrescription, onOpenPatient, onRegisterPatient,
+    isEdu = false
 }: DoctorDashboardProps) {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [activeTab, setActiveTab] = useState<'queue' | 'patients' | 'vitals'>('queue');
@@ -783,73 +785,75 @@ export function DoctorDashboard({
                     created_at: new Date().toISOString()
                 }).catch(() => null);
 
-                // ── Consolidate All Billed Amounts into One Single Master Invoice ──
-                const isInsured = !!(currentActivePatient?.insuranceProvider || (currentActivePatient as any)?.shaNumber || (currentActivePatient as any)?.insurance_provider);
-                const insProvider = currentActivePatient?.insuranceProvider || (currentActivePatient as any)?.insurance_provider || (isInsured ? 'SHA (Social Health Authority)' : undefined);
-                const policyNo = (currentActivePatient as any)?.shaNumber || (currentActivePatient as any)?.policyNumber || (isInsured ? 'SHA-8849-K' : undefined);
-                const consultationFeeVal = getConsultationFeeFromSettings(institutionId, isInsured);
+                // ── Consolidate All Billed Amounts into One Single Master Invoice (Hospital/Clinic only — EduPulse students are not invoiced) ──
+                if (!isEdu) {
+                    const isInsured = !!(currentActivePatient?.insuranceProvider || (currentActivePatient as any)?.shaNumber || (currentActivePatient as any)?.insurance_provider);
+                    const insProvider = currentActivePatient?.insuranceProvider || (currentActivePatient as any)?.insurance_provider || (isInsured ? 'SHA (Social Health Authority)' : undefined);
+                    const policyNo = (currentActivePatient as any)?.shaNumber || (currentActivePatient as any)?.policyNumber || (isInsured ? 'SHA-8849-K' : undefined);
+                    const consultationFeeVal = getConsultationFeeFromSettings(institutionId, isInsured);
 
-                const consolidatedItems = [
-                    { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: consultationFeeVal, total: consultationFeeVal },
-                    { itemName: 'Full Blood Count (FBC) Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
-                    { itemName: 'Amoxicillin 500mg Capsules (20 Caps)', category: 'Pharmacy', quantity: 1, unitPrice: 1200, total: 1200 },
-                    { itemName: 'Paracetamol 500mg Tablets (10 Tabs)', category: 'Pharmacy', quantity: 1, unitPrice: 300, total: 300 }
-                ];
+                    const consolidatedItems = [
+                        { itemName: 'General Practitioner Consultation Fee', category: 'Consultation', quantity: 1, unitPrice: consultationFeeVal, total: consultationFeeVal },
+                        { itemName: 'Full Blood Count (FBC) Lab Screening', category: 'Diagnostics', quantity: 1, unitPrice: 2500, total: 2500 },
+                        { itemName: 'Amoxicillin 500mg Capsules (20 Caps)', category: 'Pharmacy', quantity: 1, unitPrice: 1200, total: 1200 },
+                        { itemName: 'Paracetamol 500mg Tablets (10 Tabs)', category: 'Pharmacy', quantity: 1, unitPrice: 300, total: 300 }
+                    ];
 
-                const totalInvoiceAmount = consolidatedItems.reduce((s, it) => s + it.total, 0); // Total KES 6,000
-                const copay = isInsured ? 500 : totalInvoiceAmount;
-                const insCover = isInsured ? Math.max(0, totalInvoiceAmount - copay) : 0;
-                const payerTypeVal = isInsured ? 'Split (Co-Pay + Insurance)' : 'Self-Pay';
-                const invNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+                    const totalInvoiceAmount = consolidatedItems.reduce((s, it) => s + it.total, 0); // Total KES 6,000
+                    const copay = isInsured ? 500 : totalInvoiceAmount;
+                    const insCover = isInsured ? Math.max(0, totalInvoiceAmount - copay) : 0;
+                    const payerTypeVal = isInsured ? 'Split (Co-Pay + Insurance)' : 'Self-Pay';
+                    const invNo = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-                const masterInvoicePayload = {
-                    id: `inv_${currentActiveId}_${Date.now()}`,
-                    institutionId,
-                    institution_id: institutionId,
-                    invoiceNumber: invNo,
-                    invoice_number: invNo,
-                    patientId: currentActiveId,
-                    patient_id: currentActiveId,
-                    patientName: currentPatientName,
-                    patient_name: currentPatientName,
-                    payerType: payerTypeVal,
-                    payer_type: payerTypeVal,
-                    insuranceProvider: insProvider,
-                    insurance_provider: insProvider,
-                    policyNumber: policyNo,
-                    policy_number: policyNo,
-                    copayAmount: copay,
-                    copay_amount: copay,
-                    insuranceCoverAmount: insCover,
-                    insurance_cover_amount: insCover,
-                    items: consolidatedItems,
-                    totalAmount: totalInvoiceAmount,
-                    total_amount: totalInvoiceAmount,
-                    amountPaid: 0,
-                    amount_paid: 0,
-                    balance: totalInvoiceAmount,
-                    status: 'Pending',
-                    date: new Date().toISOString().slice(0, 10),
-                    createdAt: new Date().toISOString(),
-                    created_at: new Date().toISOString()
-                };
-
-                await apiService.saveModuleRecord('his_invoices', masterInvoicePayload).catch(() => null);
-
-                if (isInsured && insCover > 0) {
-                    await apiService.saveModuleRecord('his_claims', {
-                        id: `clm_${currentActiveId}_${Date.now()}`,
+                    const masterInvoicePayload = {
+                        id: `inv_${currentActiveId}_${Date.now()}`,
                         institutionId,
                         institution_id: institutionId,
+                        invoiceNumber: invNo,
+                        invoice_number: invNo,
                         patientId: currentActiveId,
+                        patient_id: currentActiveId,
                         patientName: currentPatientName,
+                        patient_name: currentPatientName,
+                        payerType: payerTypeVal,
+                        payer_type: payerTypeVal,
                         insuranceProvider: insProvider,
+                        insurance_provider: insProvider,
                         policyNumber: policyNo,
-                        claimAmount: insCover,
+                        policy_number: policyNo,
                         copayAmount: copay,
+                        copay_amount: copay,
+                        insuranceCoverAmount: insCover,
+                        insurance_cover_amount: insCover,
+                        items: consolidatedItems,
+                        totalAmount: totalInvoiceAmount,
+                        total_amount: totalInvoiceAmount,
+                        amountPaid: 0,
+                        amount_paid: 0,
+                        balance: totalInvoiceAmount,
                         status: 'Pending',
-                        submissionDate: new Date().toISOString()
-                    }).catch(() => null);
+                        date: new Date().toISOString().slice(0, 10),
+                        createdAt: new Date().toISOString(),
+                        created_at: new Date().toISOString()
+                    };
+
+                    await apiService.saveModuleRecord('his_invoices', masterInvoicePayload).catch(() => null);
+
+                    if (isInsured && insCover > 0) {
+                        await apiService.saveModuleRecord('his_claims', {
+                            id: `clm_${currentActiveId}_${Date.now()}`,
+                            institutionId,
+                            institution_id: institutionId,
+                            patientId: currentActiveId,
+                            patientName: currentPatientName,
+                            insuranceProvider: insProvider,
+                            policyNumber: policyNo,
+                            claimAmount: insCover,
+                            copayAmount: copay,
+                            status: 'Pending',
+                            submissionDate: new Date().toISOString()
+                        }).catch(() => null);
+                    }
                 }
             }
 

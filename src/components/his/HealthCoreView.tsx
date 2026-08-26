@@ -733,8 +733,6 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <div className="space-y-1">
                                     {[
                                         { id: 'pharmacy' as HISModule, label: 'Pharmacy', icon: BeakerIcon },
-                                        { id: 'hr' as HISModule, label: 'HR & Payroll', icon: UsersIcon },
-                                        { id: 'biometrics' as HISModule, label: 'Biometrics Fleet', icon: ClockIcon },
                                         { id: 'broadcaster' as HISModule, label: 'Communications', icon: BellIcon },
                                         { id: 'attendance' as HISModule, label: 'Attendance', icon: ClockIcon },
                                         { id: 'reports' as HISModule, label: 'Reports', icon: ChartBarIcon },
@@ -1098,6 +1096,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     onAddPrescription={() => setIsPrescriptionModalOpen(true)}
                                     onOpenPatient={(pId) => { setActivePatientId(pId); setActiveModule('general'); isEdu && setEduSidebarItem('patients'); }}
                                     onRegisterPatient={() => setIsRegisterModalOpen(true)}
+                                    isEdu={isEdu}
                                 />
                             );
                             case 'mch': return <MCHMaternityCWCView patients={patients} institutionId={institutionId} userName={userName} />;
