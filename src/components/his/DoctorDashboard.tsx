@@ -2363,7 +2363,7 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
     const [patientSearch, setPatientSearch] = useState('');
     const [admissionDate, setAdmissionDate] = useState(defaultAdm);
     const [dischargeDate, setDischargeDate] = useState(todayStr);
-    const [wardNumber, setWardNumber] = useState('Ward 3B - Bed 14');
+    const [wardBed, setWardBed] = useState('Ward 3B - Bed 14');
     const [admissionDiagnosis, setAdmissionDiagnosis] = useState('Acute Appendicitis with Localized Peritonitis');
     const [finalDiagnosis, setFinalDiagnosis] = useState('Post-Laparoscopic Appendectomy - Recovered');
     const [proceduresPerformed, setProceduresPerformed] = useState('Emergency Diagnostic Laparoscopy + Laparoscopic Appendectomy');
@@ -2381,7 +2381,7 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
         }
     }, [defaultPatientId]);
 
-    const patient = displayPatients.find(p => p.id === selectedPatientId);
+    const patient = (patients || []).find((p: any) => p.id === selectedPatientId);
     const dischargeSummaryNo = `DISCH-SUM-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const handlePrintDischargeReport = () => {
@@ -2533,7 +2533,7 @@ function InpatientDischargeModal({ onClose, patients, institutionId, userName, d
                             onChange={e => setSelectedPatientId(e.target.value)}
                             className="w-full bg-black/40 border border-white/10 focus:border-violet-500 rounded-xl p-3 text-xs font-bold text-white outline-none uppercase"
                         >
-                            {displayPatients.map(p => (
+                            {(patients || []).map((p: any) => (
                                 <option key={p.id} value={p.id} className="bg-slate-900 text-white">
                                     {p.fullName} (ADM: {p.admissionNumber || p.id.substring(0, 8)} • Status: {p.status || 'Admitted'})
                                 </option>

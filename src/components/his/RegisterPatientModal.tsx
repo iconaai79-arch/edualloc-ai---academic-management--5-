@@ -36,13 +36,84 @@ function ChevronLeftIcon(props: any) {
     );
 }
 
+function getStudentResolvedAdm(u: any): string {
+    if (!u) return '';
+    const adm = (
+        u.admissionNumber ||
+        u.admission_number ||
+        u.admissionNo ||
+        u.admission_no ||
+        u.admNo ||
+        u.adm_no ||
+        u.studentAdmissionNumber ||
+        u.student_admission_number ||
+        u.studentId ||
+        u.student_id ||
+        u.studentNumber ||
+        u.student_number ||
+        u.regNo ||
+        u.reg_no ||
+        u.regNumber ||
+        u.registrationNumber ||
+        u.metadata?.admissionNumber ||
+        u.metadata?.admission_number ||
+        u.metadata?.admissionNo ||
+        u.metadata?.admission_no ||
+        u.metadata?.admNo ||
+        u.metadata?.adm_no ||
+        u.metadata?.studentAdmissionNumber ||
+        u.metadata?.student_admission_number ||
+        u.metadata?.studentId ||
+        u.metadata?.student_id ||
+        u.metadata?.studentNumber ||
+        u.metadata?.regNo ||
+        u.metadata?.reg_no ||
+        u.metadata?.staffId ||
+        u.staffId ||
+        ''
+    );
+    return adm ? String(adm).trim() : '';
+}
+
+function getStudentResolvedClass(u: any): string {
+    if (!u) return '';
+    const grade = (
+        u.metadata?.className ||
+        u.metadata?.gradeLevel ||
+        u.metadata?.class_level ||
+        u.metadata?.grade ||
+        u.metadata?.class ||
+        u.className ||
+        u.gradeLevel ||
+        u.grade ||
+        u.class ||
+        u.class_name ||
+        u.grade_level ||
+        ''
+    );
+    const stream = (
+        u.metadata?.stream ||
+        u.metadata?.streamName ||
+        u.stream ||
+        u.stream_name ||
+        ''
+    );
+    const gradeStr = String(grade).trim();
+    const streamStr = String(stream).trim();
+    if (gradeStr && streamStr) {
+        if (gradeStr.toLowerCase().includes(streamStr.toLowerCase())) return gradeStr;
+        return `${gradeStr} ${streamStr}`;
+    }
+    return gradeStr || streamStr || '';
+}
+
 export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], isEdu = false, institutionId, existingPatients = [] }: RegisterPatientModalProps) {
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState({
         customPatientId: '',
         fullName: '',
         dob: '',
-        gender: 'Male',
+        gender: 'Male' as 'Male' | 'Female' | 'Other',
         bloodGroup: '',
         contact: '',
         insuranceProvider: '',
@@ -59,13 +130,15 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     });
 
     const [directorySearch, setDirectorySearch] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isAutoFilled, setIsAutoFilled] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    React.useEffect(() => {
-        if (!isOpen) return;
-        const nextId = generateNextPatientId(existingPatients, institutionId);
-        setFormData(f => ({ ...f, customPatientId: nextId }));
+    // Auto-generate patient ID on mount or when existingPatients updates
+    useEffect(() => {
+        if (isOpen && !formData.customPatientId) {
+            const nextId = generateNextPatientId(existingPatients, institutionId);
+            setFormData(f => ({ ...f, customPatientId: nextId }));
+        }
     }, [isOpen, existingPatients, institutionId]);
 
     // Calculate Age Automatically based on DOB
@@ -75,8 +148,8 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         if (isNaN(birthDate.getTime())) return null;
         const today = new Date();
         let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
             age--;
         }
         return age >= 0 ? age : null;
@@ -86,15 +159,22 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
 
     const filteredUsers = useMemo(() => {
         if (!isEdu || !directorySearch.trim()) return [];
+        const query = directorySearch.toLowerCase().trim();
         return (users || []).filter(u => {
             const isClinicApplicable = ['student', 'teacher', 'boarding_master', 'staff', 'parent', 'librarian'].includes(u.role);
             if (!isClinicApplicable) return false;
-            const adm = u.admissionNumber || u.admission_number || u.metadata?.admissionNumber || u.metadata?.admission_number || '';
+            const adm = getStudentResolvedAdm(u).toLowerCase();
+            const className = getStudentResolvedClass(u).toLowerCase();
+            const name = (u.name || '').toLowerCase();
+            const email = (u.email || '').toLowerCase();
+            const phone = (u.phoneNumber || '');
+
             return (
-                u.name.toLowerCase().includes(directorySearch.toLowerCase()) ||
-                (u.email || '').toLowerCase().includes(directorySearch.toLowerCase()) ||
-                (u.phoneNumber || '').includes(directorySearch) ||
-                adm.toLowerCase().includes(directorySearch.toLowerCase())
+                name.includes(query) ||
+                adm.includes(query) ||
+                className.includes(query) ||
+                email.includes(query) ||
+                phone.includes(query)
             );
         });
     }, [directorySearch, users, isEdu]);
@@ -103,9 +183,9 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         const parentPhone = user.metadata?.parentPhone || user.metadata?.guardianPhone || user.metadata?.emergencyContactPhone || (user as any).parentPhone || (user as any).guardianPhone || (user as any).emergencyContact || user.phoneNumber || '';
         const parentName = user.metadata?.parentName || user.metadata?.guardianName || user.metadata?.emergencyContactName || (user as any).parentName || (user as any).guardianName || '';
         const parentId = user.metadata?.guardianNationalId || user.metadata?.parentId || (user as any).guardianNationalId || (user as any).parentId || '';
-        const adm = user.admissionNumber || user.admission_number || user.metadata?.admissionNumber || user.metadata?.admission_number || (user as any).staffId || user.id || '';
-        const grade = user.metadata?.gradeLevel || user.metadata?.class_level || (user as any).gradeLevel || (user as any).className || '';
-        const stream = user.metadata?.stream || (user as any).stream || '';
+        const adm = getStudentResolvedAdm(user) || (user as any).staffId || user.id || '';
+        const grade = (user as any).metadata?.className || (user as any).metadata?.gradeLevel || (user as any).metadata?.class_level || (user as any).metadata?.grade || (user as any).className || (user as any).gradeLevel || '';
+        const stream = (user as any).metadata?.stream || (user as any).metadata?.streamName || (user as any).stream || '';
 
         setFormData(prev => ({
             ...prev,
@@ -333,24 +413,66 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                         />
                                     </div>
                                     {directorySearch && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl z-[200] max-h-48 overflow-y-auto no-scrollbar">
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[200] max-h-60 overflow-y-auto no-scrollbar divide-y divide-slate-100 dark:divide-white/5">
                                             {filteredUsers.length > 0 ? (
-                                                filteredUsers.map(u => (
-                                                    <button
-                                                        key={u.id}
-                                                        type="button"
-                                                        onClick={() => handleSelectUser(u)}
-                                                        className="w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-wider border-b border-slate-50 dark:border-white/5 last:border-0 flex justify-between items-center text-slate-800 dark:text-slate-200 cursor-pointer"
-                                                    >
-                                                        <div>
-                                                            <p>{u.name} ({u.role})</p>
-                                                            <p className="text-[8px] text-slate-400 font-normal">Adm: {u.admissionNumber || u.admission_number || u.staffId || 'N/A'}</p>
-                                                        </div>
-                                                        <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">Select</span>
-                                                    </button>
-                                                ))
+                                                filteredUsers.map(u => {
+                                                    const admNo = getStudentResolvedAdm(u);
+                                                    const className = getStudentResolvedClass(u);
+                                                    const isStudent = (u.role || '').toLowerCase() === 'student';
+                                                    const roleBadgeColor = isStudent
+                                                        ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
+                                                        : u.role === 'teacher' || u.role === 'staff'
+                                                        ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700';
+
+                                                    return (
+                                                        <button
+                                                            key={u.id}
+                                                            type="button"
+                                                            onClick={() => handleSelectUser(u)}
+                                                            className="w-full p-3.5 sm:p-4 text-left hover:bg-indigo-50/70 dark:hover:bg-indigo-950/30 transition-all flex justify-between items-center gap-3 text-slate-800 dark:text-slate-200 cursor-pointer group"
+                                                        >
+                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm shrink-0 group-hover:scale-105 transition-transform">
+                                                                    {(u.name || 'U').charAt(0).toUpperCase()}
+                                                                </div>
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <span className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-tight truncate">
+                                                                            {u.name}
+                                                                        </span>
+                                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${roleBadgeColor}`}>
+                                                                            {u.role || 'STUDENT'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                                                                        <span className="font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                                                                            <span className="text-slate-400 font-semibold text-[9px]">ADM:</span>
+                                                                            <span className="text-indigo-600 dark:text-indigo-400 font-black">{admNo || 'PENDING'}</span>
+                                                                        </span>
+                                                                        {className ? (
+                                                                            <span className="font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                                                                <span>🏫</span>
+                                                                                <span className="font-black uppercase tracking-tight">{className}</span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            isStudent && (
+                                                                                <span className="text-[9px] text-slate-400 font-medium italic">Class not assigned</span>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-white bg-indigo-600 group-hover:bg-indigo-700 px-3.5 py-1.5 rounded-xl shadow-sm transition-all">
+                                                                Select
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })
                                             ) : (
-                                                <div className="p-4 text-center text-[10px] font-bold text-slate-400 uppercase">No matching directory records</div>
+                                                <div className="p-5 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    No matching student or staff records found
+                                                </div>
                                             )}
                                         </div>
                                     )}
