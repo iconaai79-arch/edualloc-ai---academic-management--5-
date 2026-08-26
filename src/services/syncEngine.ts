@@ -95,25 +95,43 @@ class SyncEngine {
             if (onProgress) onProgress(p);
         };
 
-        // Helper: write a table to both IndexedDB AND localStorage.
+        // Helper: write a table to both IndexedDB AND localStorage safely.
         // IndexedDB is read by localDb.getAll() in App.tsx (Phase 2 offline branch).
-        // localStorage is read by fetchModuleRecords.queryLocal() used inside library
-        // components (LibraryMemberManager, BookLendingManager, etc.) when offline.
+        // localStorage is read by fetchModuleRecords.queryLocal() used inside components when offline.
         const cacheTable = async (storeName: string, records: any[]) => {
-            // Write each record to IndexedDB
-            await Promise.all(records.map((item: any) => localDb.put(storeName, item)));
+            if (!Array.isArray(records)) return;
+            try {
+                // Clear old store data before filling with fresh tenant snapshot
+                await localDb.clear(storeName);
+                for (const item of records) {
+                    if (item && typeof item === 'object') {
+                        await localDb.put(storeName, item);
+                    }
+                }
+            } catch (e) {
+                console.warn(`[SyncEngine] IndexedDB caching error on ${storeName}:`, e);
+            }
+
             // Merge into localStorage so component-level fetchModuleRecords calls work offline
             try {
                 const existing: any[] = JSON.parse(localStorage.getItem(`eduai_${storeName}`) || '[]');
                 const merged = [...existing];
                 for (const item of records) {
-                    const idx = merged.findIndex((r: any) => r && r.id === item.id);
+                    if (!item) continue;
+                    const itemId = item.id || item._id || item.code;
+                    const idx = merged.findIndex((r: any) => r && (r.id === itemId || (itemId && r.id === itemId)));
                     if (idx >= 0) merged[idx] = item;
                     else merged.push(item);
                 }
-                localStorage.setItem(`eduai_${storeName}`, JSON.stringify(merged));
+                try {
+                    localStorage.setItem(`eduai_${storeName}`, JSON.stringify(merged));
+                } catch (e) {
+                    // If localStorage quota exceeded, preserve most recent 300 records
+                    console.warn(`[SyncEngine] Quota limit for localStorage ${storeName}, trimming snapshot:`, e);
+                    localStorage.setItem(`eduai_${storeName}`, JSON.stringify(merged.slice(-300)));
+                }
             } catch (e) {
-                console.warn(`[SyncEngine] localStorage write failed for ${storeName}:`, e);
+                console.warn(`[SyncEngine] localStorage write skipped for ${storeName}:`, e);
             }
         };
 
@@ -160,11 +178,9 @@ class SyncEngine {
                 apiService.fetchModuleRecords('bc_practicals', tenantId).catch(() => []),
             ]);
 
-            update(35);
+            update(30);
 
             // ── BATCH 2: Library module tables ───────────────────────────────
-            // These are NOT fetched anywhere else at sync time, which is why
-            // Members / Students tabs show empty data when offline.
             const [
                 books,
                 libraryTransactions,
@@ -183,10 +199,9 @@ class SyncEngine {
                 apiService.fetchModuleRecords('student_enrollments', tenantId).catch(() => []),
             ]);
 
-            update(60);
+            update(50);
 
             // ── BATCH 3: Security module tables ──────────────────────────────
-            // visitors, watchlist, alerts, event pins, building logs, etc.
             const [
                 visitors,
                 watchlistRecords,
@@ -205,7 +220,7 @@ class SyncEngine {
                 apiService.fetchModuleRecords('building_visitor_assets').catch(() => []),
             ]);
 
-            update(75);
+            update(65);
 
             // ── BATCH 4: Finance module tables ───────────────────────────────
             const [
@@ -234,7 +249,7 @@ class SyncEngine {
                 apiService.fetchModuleRecords('transactions', tenantId).catch(() => []),
             ]);
 
-            update(85);
+            update(75);
 
             // ── BATCH 5: Restaurant & Cafe POS module tables ─────────────────
             const [
@@ -251,10 +266,81 @@ class SyncEngine {
                 apiService.fetchModuleRecords('retail_stores', tenantId).catch(() => []),
             ]);
 
+            update(85);
+
+            // ── BATCH 6: EduPulse / Healthcare (HIS) module tables ───────────
+            const [
+                hisPatients,
+                hisAppointments,
+                hisVitalStatistics,
+                hisClinicalEvents,
+                hisPrescriptions,
+                hisPrescriptionItems,
+                hisPharmacyInventory,
+                hisPharmacyBatches,
+                hisPharmacySales,
+                hisPharmacySaleItems,
+                hisPharmacyLedger,
+                hisPharmacyStaff,
+                hisPharmacySettings,
+                hisPharmacyInteractions,
+                hisPharmacyAdherenceAlerts,
+                hisLabRequests,
+                hisPartnerLabs,
+                hisWards,
+                hisInpatientRecords,
+                hisNurseTasks,
+                hisTariffs,
+                hisClaims,
+                hisBillingItems,
+                hisInvoices,
+                hisPayments,
+                hisAncRecords,
+                hisDeliveryRecords,
+                hisCwcImmunizations,
+                hisNbuAdmissions,
+                hisPatientIdConfig,
+                hisAuditLogs,
+                hisQueueCalls,
+            ] = await Promise.all([
+                apiService.fetchModuleRecords('his_patients', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_appointments', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_vital_statistics', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_clinical_events', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_prescriptions', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_prescription_items', undefined).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_inventory', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_batches', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_sales', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_sale_items', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_ledger', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_staff', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_settings', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_interactions', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_pharmacy_adherence_alerts', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_lab_requests', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_partner_labs', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_wards', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_inpatient_records', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_nurse_tasks', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_tariffs', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_claims', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_billing_items', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_invoices', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_payments', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_anc_records', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_delivery_records', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_cwc_immunizations', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_nbu_admissions', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_patient_id_config', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_audit_logs', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('his_queue_calls', tenantId).catch(() => []),
+            ]);
+
             update(95);
 
             // ── Write everything to IndexedDB + localStorage ──────────────────
-            await Promise.all([
+            await Promise.allSettled([
                 // Core
                 cacheTable('institutions', institutions),
                 cacheTable('constituencies', constituencies),
@@ -310,6 +396,39 @@ class SyncEngine {
                 cacheTable('retail_sales', retailSales),
                 cacheTable('retail_inventory', retailInventory),
                 cacheTable('retail_stores', retailStores),
+                // EduPulse / Healthcare (HIS)
+                cacheTable('his_patients', hisPatients),
+                cacheTable('his_appointments', hisAppointments),
+                cacheTable('his_vital_statistics', hisVitalStatistics),
+                cacheTable('his_clinical_events', hisClinicalEvents),
+                cacheTable('his_prescriptions', hisPrescriptions),
+                cacheTable('his_prescription_items', hisPrescriptionItems),
+                cacheTable('his_pharmacy_inventory', hisPharmacyInventory),
+                cacheTable('his_pharmacy_batches', hisPharmacyBatches),
+                cacheTable('his_pharmacy_sales', hisPharmacySales),
+                cacheTable('his_pharmacy_sale_items', hisPharmacySaleItems),
+                cacheTable('his_pharmacy_ledger', hisPharmacyLedger),
+                cacheTable('his_pharmacy_staff', hisPharmacyStaff),
+                cacheTable('his_pharmacy_settings', hisPharmacySettings),
+                cacheTable('his_pharmacy_interactions', hisPharmacyInteractions),
+                cacheTable('his_pharmacy_adherence_alerts', hisPharmacyAdherenceAlerts),
+                cacheTable('his_lab_requests', hisLabRequests),
+                cacheTable('his_partner_labs', hisPartnerLabs),
+                cacheTable('his_wards', hisWards),
+                cacheTable('his_inpatient_records', hisInpatientRecords),
+                cacheTable('his_nurse_tasks', hisNurseTasks),
+                cacheTable('his_tariffs', hisTariffs),
+                cacheTable('his_claims', hisClaims),
+                cacheTable('his_billing_items', hisBillingItems),
+                cacheTable('his_invoices', hisInvoices),
+                cacheTable('his_payments', hisPayments),
+                cacheTable('his_anc_records', hisAncRecords),
+                cacheTable('his_delivery_records', hisDeliveryRecords),
+                cacheTable('his_cwc_immunizations', hisCwcImmunizations),
+                cacheTable('his_nbu_admissions', hisNbuAdmissions),
+                cacheTable('his_patient_id_config', hisPatientIdConfig),
+                cacheTable('his_audit_logs', hisAuditLogs),
+                cacheTable('his_queue_calls', hisQueueCalls),
             ]);
 
             update(100);
