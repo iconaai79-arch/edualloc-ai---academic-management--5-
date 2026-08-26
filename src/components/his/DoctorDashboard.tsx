@@ -531,27 +531,28 @@ export function DoctorDashboard({
         (p as any).customPatientId?.toLowerCase().includes(universalPatientQuery.toLowerCase())
     ) : [];
 
-    useEffect(() => {
+    const loadPatientHistory = React.useCallback(async () => {
         if (!activePatient?.id || !institutionId) return;
-        const loadHistory = async () => {
-            setIsLoadingPatientHistory(true);
-            try {
-                const [events, prescs, labs] = await Promise.all([
-                    apiService.fetchModuleRecords('his_clinical_events', institutionId, undefined, { filter: { patientId: activePatient.id } }).catch(() => []),
-                    apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { filter: { patientId: activePatient.id } }).catch(() => []),
-                    apiService.fetchModuleRecords('his_lab_requests', institutionId, undefined, { filter: { patientId: activePatient.id } }).catch(() => [])
-                ]);
-                setPatientClinicalEvents(events || []);
-                setPatientPrescriptions(prescs || []);
-                setPatientLabRequests(labs || []);
-            } catch (e) {
-                console.error("Error loading patient clinical history:", e);
-            } finally {
-                setIsLoadingPatientHistory(false);
-            }
-        };
-        loadHistory();
+        setIsLoadingPatientHistory(true);
+        try {
+            const [events, prescs, labs] = await Promise.all([
+                apiService.fetchModuleRecords('his_clinical_events', institutionId, undefined, { filter: { patientId: activePatient.id } }).catch(() => []),
+                apiService.fetchModuleRecords('his_prescriptions', institutionId, undefined, { filter: { patientId: activePatient.id } }).catch(() => []),
+                apiService.fetchModuleRecords('his_lab_requests', institutionId, undefined, { filter: { patientId: activePatient.id } }).catch(() => [])
+            ]);
+            setPatientClinicalEvents(events || []);
+            setPatientPrescriptions(prescs || []);
+            setPatientLabRequests(labs || []);
+        } catch (e) {
+            console.error("Error loading patient clinical history:", e);
+        } finally {
+            setIsLoadingPatientHistory(false);
+        }
     }, [activePatient?.id, institutionId]);
+
+    useEffect(() => {
+        loadPatientHistory();
+    }, [loadPatientHistory]);
 
     const handleCallPatient = (pat: HISPatient) => {
         setActiveConsultationId(pat.id);
@@ -711,9 +712,7 @@ export function DoctorDashboard({
             setCompletedSoapPatientIds(prev => new Set(prev).add(selectedSoapPatient.id));
         }
         setIsSoapModalOpen(false);
-        if (confirm(`✓ SOAP Clinical Note saved successfully!\n\nWould you like to complete checkout and call the next patient now?`)) {
-            handleCallNextVoice(true);
-        }
+        loadPatientHistory();
     };
 
     useEffect(() => {
