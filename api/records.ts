@@ -508,14 +508,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.branch_id === undefined) copy.branch_id = copy.branchId;
                     delete copy.branchId;
                 }
-                if ('bankAccountId' in copy) {
-                    if (copy.bank_account_id === undefined) copy.bank_account_id = copy.bankAccountId;
-                    delete copy.bankAccountId;
-                }
-                if ('voteheadId' in copy) {
-                    if (copy.votehead_id === undefined) copy.votehead_id = copy.voteheadId;
-                    delete copy.voteheadId;
-                }
                 if ('receiptNumber' in copy) {
                     if (copy.receipt_number === undefined) copy.receipt_number = copy.receiptNumber;
                     delete copy.receiptNumber;
@@ -536,6 +528,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.paid_for === undefined) copy.paid_for = copy.paidFor;
                     delete copy.paidFor;
                 }
+                delete copy.bankAccountId;
+                delete copy.bank_account_id;
+                delete copy.voteheadId;
+                delete copy.votehead_id;
                 delete copy.notes;
                 delete copy.receiptSource;
                 delete copy.receipt_source;
@@ -975,6 +971,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'matchConfidence', 'match_confidence', 'matchedStudentId', 'matched_student_id',
                         'notes', 'receiptSource', 'receipt_source', 'voteHeadAllocations', 'vote_head_allocations',
                         'studentName', 'student_name',
+                        'bank_account_id', 'bankAccountId', 'votehead_id', 'voteheadId',
                         'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
                         'updated_at', 'updatedAt', 'created_at', 'createdAt'
                     ];
