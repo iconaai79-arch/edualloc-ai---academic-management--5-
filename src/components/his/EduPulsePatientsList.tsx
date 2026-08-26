@@ -12,8 +12,9 @@ import { apiService } from '../../services/apiService';
 import { generatePatientHistoryPdf } from '../../services/pdfService';
 import { isEduInstitution } from '../../utils/roleUtils';
 import { SmartHISPatientImporterModal } from './SmartHISPatientImporterModal';
+import { User } from '../../types';
 
-interface Patient {
+export interface Patient {
     id: string;
     fullName: string;
     gender: string;
@@ -30,10 +31,125 @@ interface Patient {
     gradeLevel?: string;
     stream?: string;
     createdAt?: string;
+    [key: string]: any;
+}
+
+export function getPatientAdmNo(p: any, users: User[] = []): string {
+    if (!p) return '';
+    const direct = (
+        p.admissionNumber ||
+        p.admission_number ||
+        p.admissionNo ||
+        p.admission_no ||
+        p.admNo ||
+        p.adm_no ||
+        p.studentAdmissionNumber ||
+        p.student_admission_number ||
+        p.customPatientId ||
+        p.custom_patient_id ||
+        p.patientNumber ||
+        p.patient_number ||
+        p.opNumber ||
+        p.op_number ||
+        p.studentNumber ||
+        p.student_number ||
+        p.studentId ||
+        p.student_id ||
+        p.metadata?.admissionNumber ||
+        p.metadata?.admission_number ||
+        p.metadata?.admissionNo ||
+        p.metadata?.admNo ||
+        p.metadata?.adm_no
+    );
+    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—' && String(direct).trim() !== '-') {
+        return String(direct).trim();
+    }
+    if (users && users.length > 0) {
+        const pName = (p.fullName || p.name || '').trim().toLowerCase();
+        const pEmail = (p.email || '').trim().toLowerCase();
+        const pContact = (p.contact || p.phoneNumber || '').trim();
+        const pUserId = p.userId || p.user_id || p.id;
+        const matched = users.find(u => {
+            if (!u) return false;
+            if (pUserId && u.id === pUserId) return true;
+            if (pName && u.name && u.name.trim().toLowerCase() === pName) return true;
+            if (pEmail && u.email && u.email.trim().toLowerCase() === pEmail) return true;
+            if (pContact && u.phoneNumber && u.phoneNumber.trim() === pContact) return true;
+            return false;
+        });
+        if (matched) {
+            const userAdm = (
+                matched.admissionNumber ||
+                matched.admission_number ||
+                matched.admissionNo ||
+                (matched as any).admission_no ||
+                (matched as any).admNo ||
+                (matched as any).adm_no ||
+                matched.metadata?.admissionNumber ||
+                matched.metadata?.admission_number ||
+                matched.metadata?.admissionNo ||
+                matched.metadata?.admNo ||
+                matched.metadata?.adm_no ||
+                matched.metadata?.student_admission_number ||
+                matched.metadata?.studentId ||
+                matched.metadata?.student_id
+            );
+            if (userAdm && String(userAdm).trim() !== '') {
+                return String(userAdm).trim();
+            }
+        }
+    }
+    return '';
+}
+
+export function getPatientGrade(p: any, users: User[] = []): string {
+    if (!p) return '';
+    const direct = p.gradeLevel || (p as any).grade_level || p.classLevel || (p as any).class_level;
+    if (direct && String(direct).trim() !== '') return String(direct).trim();
+    if (users && users.length > 0) {
+        const pName = (p.fullName || p.name || '').trim().toLowerCase();
+        const pUserId = p.userId || p.user_id || p.id;
+        const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
+        if (matched) {
+            return matched.metadata?.gradeLevel || matched.metadata?.class_level || matched.metadata?.grade_level || (matched as any).gradeLevel || '';
+        }
+    }
+    return '';
+}
+
+export function getPatientStream(p: any, users: User[] = []): string {
+    if (!p) return '';
+    const direct = p.stream || (p as any).stream_name;
+    if (direct && String(direct).trim() !== '') return String(direct).trim();
+    if (users && users.length > 0) {
+        const pName = (p.fullName || p.name || '').trim().toLowerCase();
+        const pUserId = p.userId || p.user_id || p.id;
+        const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
+        if (matched) {
+            return matched.metadata?.stream || (matched as any).stream || '';
+        }
+    }
+    return '';
+}
+
+export function getPatientContact(p: any, users: User[] = []): string {
+    if (!p) return '';
+    const direct = p.contact || (p as any).phoneNumber || (p as any).phone;
+    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—') return String(direct).trim();
+    if (users && users.length > 0) {
+        const pName = (p.fullName || p.name || '').trim().toLowerCase();
+        const pUserId = p.userId || p.user_id || p.id;
+        const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
+        if (matched) {
+            return matched.phoneNumber || matched.email || '';
+        }
+    }
+    return '';
 }
 
 interface EduPulsePatientsListProps {
     patients: Patient[];
+    users?: User[];
     onRegisterPatient: () => void;
     onSelectPatient: (patientId: string) => void;
     onPatientUpdated: () => void;
@@ -46,16 +162,22 @@ interface EduPulsePatientsListProps {
 /* ─── Inline Edit Modal ─── */
 function EditPatientModal({
     patient,
+    users = [],
     isEdu = false,
     onClose,
     onSave
 }: {
     patient: Patient;
+    users?: User[];
     isEdu?: boolean;
     onClose: () => void;
     onSave: (updated: Patient) => Promise<void>;
 }) {
-    const existingOp = patient.admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).custom_patient_id || (patient as any).patientNumber || (patient as any).patient_number || (patient as any).opNumber || (patient as any).op_number || '';
+    const existingOp = getPatientAdmNo(patient, users);
+    const existingGrade = getPatientGrade(patient, users);
+    const existingStream = getPatientStream(patient, users);
+    const existingContact = getPatientContact(patient, users);
+
     const [formData, setFormData] = useState({
         ...patient,
         admissionNumber: existingOp,
@@ -66,8 +188,9 @@ function EditPatientModal({
         patient_number: existingOp,
         opNumber: existingOp,
         op_number: existingOp,
-        gradeLevel: patient.gradeLevel || (patient as any).grade_level || '',
-        stream: patient.stream || ''
+        gradeLevel: existingGrade,
+        stream: existingStream,
+        contact: existingContact
     });
     const [isSaving, setIsSaving] = useState(false);
 
@@ -152,14 +275,14 @@ function EditPatientModal({
                     {/* Row: Department & Category */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className={labelCls}>Department / Ward</label>
-                            <input type="text" placeholder="General OPD / Female Ward" value={formData.gradeLevel || ''}
+                            <label className={labelCls}>{isEdu ? 'Grade / Class Level' : 'Department / Ward'}</label>
+                            <input type="text" placeholder={isEdu ? 'Grade 4 / Form 2' : 'General OPD / Ward'} value={formData.gradeLevel || ''}
                                 onChange={e => setFormData(p => ({ ...p, gradeLevel: e.target.value }))}
                                 className={inputCls} />
                         </div>
                         <div>
-                            <label className={labelCls}>Category / Clinic Type</label>
-                            <input type="text" placeholder="Outpatient / Inpatient / Clinic" value={formData.stream || ''}
+                            <label className={labelCls}>{isEdu ? 'Stream / Class Group' : 'Category / Clinic Type'}</label>
+                            <input type="text" placeholder={isEdu ? 'East / Blue / Alpha' : 'Outpatient / Inpatient'} value={formData.stream || ''}
                                 onChange={e => setFormData(p => ({ ...p, stream: e.target.value }))}
                                 className={inputCls} />
                         </div>
@@ -256,11 +379,11 @@ const genderColor = (g: string) => {
     if (g === 'Female') return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
     return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
 };
-/* ─── Patient History Modal ─── */
 function PatientHistoryModal({
     patient,
     institutionId,
     institutionData,
+    users = [],
     isEdu = false,
     onPreviewPdf,
     onClose
@@ -268,6 +391,7 @@ function PatientHistoryModal({
     patient: Patient;
     institutionId?: string;
     institutionData?: any;
+    users?: User[];
     isEdu?: boolean;
     onPreviewPdf?: (pdfUrl: string) => void;
     onClose: () => void;
@@ -284,8 +408,16 @@ function PatientHistoryModal({
         setIsGeneratingPdf(true);
         try {
             const logo = institutionData?.logoUrl || null;
+            const patientForPdf = {
+                ...patient,
+                admissionNumber: getPatientAdmNo(patient, users),
+                admission_number: getPatientAdmNo(patient, users),
+                gradeLevel: getPatientGrade(patient, users),
+                stream: getPatientStream(patient, users),
+                contact: getPatientContact(patient, users)
+            };
             const pdfDataUri = await generatePatientHistoryPdf(
-                patient as any,
+                patientForPdf as any,
                 events,
                 vitals,
                 prescriptions,
@@ -425,8 +557,8 @@ function PatientHistoryModal({
                             </div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
                                 {isEdu 
-                                    ? `Adm: ${patient.admissionNumber || (patient as any).admission_number || 'N/A'}` 
-                                    : `File No: ${patient.admissionNumber || (patient as any).admission_number || (patient as any).customPatientId || (patient as any).patientNumber || (patient as any).opNumber || 'N/A'}`
+                                    ? `Adm: ${getPatientAdmNo(patient, users) || 'N/A'}` 
+                                    : `File No: ${getPatientAdmNo(patient, users) || 'N/A'}`
                                 } · Age: {age !== null ? `${age} yrs` : 'N/A'} · Blood: {patient.bloodGroup || 'UNK'}
                             </p>
                         </div>
@@ -604,10 +736,13 @@ function PatientHistoryModal({
             </div>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }
 
 export function EduPulsePatientsList({
     patients,
+    users = [],
     onRegisterPatient,
     onSelectPatient,
     onPatientUpdated,
@@ -659,46 +794,49 @@ export function EduPulsePatientsList({
     const gradeOptions = useMemo(() => {
         const grades = new Set<string>();
         patients.forEach(p => {
-            const grade = p.gradeLevel || (p as any).grade_level;
+            const grade = getPatientGrade(p, users);
             if (grade) grades.add(grade);
         });
         return ['All', ...Array.from(grades).sort()];
-    }, [patients]);
+    }, [patients, users]);
 
     const streamOptions = useMemo(() => {
         const streams = new Set<string>();
         patients.forEach(p => {
-            if (p.stream) streams.add(p.stream);
+            const stream = getPatientStream(p, users);
+            if (stream) streams.add(stream);
         });
         return ['All', ...Array.from(streams).sort()];
-    }, [patients]);
+    }, [patients, users]);
 
     const filtered = useMemo(() => {
         return patients
             .filter(p => {
                 const q = searchTerm.toLowerCase();
-                const adm = p.admissionNumber || (p as any).admission_number || '';
-                const grade = p.gradeLevel || (p as any).grade_level || '';
+                const adm = getPatientAdmNo(p, users);
+                const grade = getPatientGrade(p, users);
+                const stream = getPatientStream(p, users);
+                const contact = getPatientContact(p, users) || p.contact || '';
                 const matchesSearch = !q
                     || p.fullName.toLowerCase().includes(q)
                     || adm.toLowerCase().includes(q)
-                    || (p.contact || '').includes(q);
+                    || contact.includes(q);
                 const matchesGender = genderFilter === 'All' || p.gender === genderFilter;
                 const matchesGrade = selectedGrade === 'All' || grade === selectedGrade;
-                const matchesStream = selectedStream === 'All' || p.stream === selectedStream;
+                const matchesStream = selectedStream === 'All' || stream === selectedStream;
                 return matchesSearch && matchesGender && matchesGrade && matchesStream;
             })
             .sort((a, b) => {
                 if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
                 if (sortBy === 'adm') {
-                    const admA = a.admissionNumber || (a as any).admission_number || '';
-                    const admB = b.admissionNumber || (b as any).admission_number || '';
+                    const admA = getPatientAdmNo(a, users);
+                    const admB = getPatientAdmNo(b, users);
                     return admA.localeCompare(admB);
                 }
                 if (sortBy === 'recent') return (b.createdAt || '').localeCompare(a.createdAt || '');
                 return 0;
             });
-    }, [patients, searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
+    }, [patients, users, searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
     const paginatedPatients = useMemo(() => {
@@ -781,7 +919,7 @@ export function EduPulsePatientsList({
                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="SEARCH BY PATIENT NAME, FILE # OR CONTACT..."
+                        placeholder={isEdu ? "SEARCH BY STUDENT NAME, ADMISSION # OR CONTACT..." : "SEARCH BY PATIENT NAME, FILE # OR CONTACT..."}
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none transition-all dark:text-white"
@@ -807,19 +945,19 @@ export function EduPulsePatientsList({
                     ))}
                 </div>
 
-                {/* Department filter */}
+                {/* Department / Grade filter */}
                 <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)}
                     className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[130px]">
-                    <option value="All">All Departments</option>
+                    <option value="All">{isEdu ? 'All Classes' : 'All Departments'}</option>
                     {gradeOptions.filter(g => g !== 'All').map(g => (
                         <option key={g} value={g}>{g}</option>
                     ))}
                 </select>
 
-                {/* Category filter */}
+                {/* Category / Stream filter */}
                 <select value={selectedStream} onChange={e => setSelectedStream(e.target.value)}
                     className="bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-5 py-3.5 text-[10px] font-black uppercase tracking-widest outline-none dark:text-white appearance-none min-w-[130px]">
-                    <option value="All">All Categories</option>
+                    <option value="All">{isEdu ? 'All Streams' : 'All Categories'}</option>
                     {streamOptions.filter(s => s !== 'All').map(s => (
                         <option key={s} value={s}>{s}</option>
                     ))}
@@ -874,6 +1012,10 @@ export function EduPulsePatientsList({
                         )}
                         {paginatedPatients.map((p) => {
                             const age = calcAge(p.dob);
+                            const admNo = getPatientAdmNo(p, users);
+                            const grade = getPatientGrade(p, users);
+                            const stream = getPatientStream(p, users);
+                            const contact = getPatientContact(p, users) || p.contact;
                             return (
                                 <tr key={p.id} className="hover:bg-indigo-50/30 dark:hover:bg-white/5 transition-colors group">
                                     
@@ -886,9 +1028,9 @@ export function EduPulsePatientsList({
                                             <div>
                                                 <p className="text-sm font-black italic tracking-tight text-slate-900 dark:text-white">{p.fullName}</p>
                                                 <div className="flex gap-1.5 mt-0.5 flex-wrap items-center">
-                                                    {(p.gradeLevel || (p as any).grade_level) && (
+                                                    {grade && (
                                                         <span className="text-[8px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30 inline-block">
-                                                            {p.gradeLevel || (p as any).grade_level} {p.stream ? `• ${p.stream}` : ''}
+                                                            {grade} {stream ? `• ${stream}` : ''}
                                                         </span>
                                                     )}
                                                     {p.allergies && (
@@ -903,7 +1045,7 @@ export function EduPulsePatientsList({
 
                                     <td className="px-7 py-5">
                                         <span className="text-[10px] font-mono font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/30 px-3 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-800/30">
-                                            {p.admissionNumber || (p as any).admission_number || (p as any).customPatientId || (p as any).custom_patient_id || (p as any).patientNumber || (p as any).patient_number || (p as any).opNumber || (p as any).op_number || '—'}
+                                            {admNo || '—'}
                                         </span>
                                     </td>
 
@@ -924,7 +1066,7 @@ export function EduPulsePatientsList({
 
                                     {/* Contact */}
                                     <td className="px-7 py-5 text-[10px] font-black text-slate-600 dark:text-slate-400">
-                                        {p.contact || '—'}
+                                        {contact || '—'}
                                     </td>
 
                                     {/* Blood Group */}
@@ -977,6 +1119,10 @@ export function EduPulsePatientsList({
                 )}
                 {paginatedPatients.map((p) => {
                     const age = calcAge(p.dob);
+                    const admNo = getPatientAdmNo(p, users);
+                    const grade = getPatientGrade(p, users);
+                    const stream = getPatientStream(p, users);
+                    const contact = getPatientContact(p, users) || p.contact;
                     return (
                         <div key={p.id} className="bg-white dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-white/5 p-6 shadow-xl">
                             <div className="flex items-start justify-between gap-4 mb-5">
@@ -988,14 +1134,11 @@ export function EduPulsePatientsList({
                                         <h4 className="text-sm font-black uppercase italic text-slate-900 dark:text-white">{p.fullName}</h4>
                                         <div className="flex gap-2 items-center mt-1">
                                             <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                                {isEdu 
-                                                    ? (p.admissionNumber || (p as any).admission_number || 'No Adm No')
-                                                    : (p.admissionNumber || (p as any).admission_number || (p as any).customPatientId || (p as any).patientNumber || (p as any).opNumber || 'No File No')
-                                                }
+                                                {admNo || (isEdu ? 'No Adm No' : 'No File No')}
                                             </span>
-                                            {(p.gradeLevel || (p as any).grade_level) && (
+                                            {grade && (
                                                 <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-300 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded">
-                                                    {p.gradeLevel || (p as any).grade_level} {p.stream ? `• ${p.stream}` : ''}
+                                                    {grade} {stream ? `• ${stream}` : ''}
                                                 </span>
                                             )}
                                         </div>
@@ -1017,7 +1160,7 @@ export function EduPulsePatientsList({
                                 </div>
                                 <div className="bg-slate-50 dark:bg-white/5 p-3 rounded-xl col-span-2">
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Contact</p>
-                                    <p className="text-[11px] font-black">{p.contact || '—'}</p>
+                                    <p className="text-[11px] font-black">{contact || '—'}</p>
                                 </div>
                             </div>
 
@@ -1108,6 +1251,7 @@ export function EduPulsePatientsList({
             {editingPatient && (
                 <EditPatientModal
                     patient={editingPatient}
+                    users={users}
                     isEdu={isEdu}
                     onClose={() => setEditingPatient(null)}
                     onSave={handleSaveEdit}
@@ -1120,6 +1264,7 @@ export function EduPulsePatientsList({
                     patient={historyPatient}
                     institutionId={institutionId}
                     institutionData={institutionData}
+                    users={users}
                     isEdu={isEdu}
                     onPreviewPdf={onPreviewPdf}
                     onClose={() => setHistoryPatient(null)}

@@ -1343,6 +1343,22 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'his_patients' && Array.isArray(result)) {
+                    result.forEach((p: any) => {
+                        const fileNo = p.admissionNumber || p.admission_number || p.admissionNo || p.customPatientId || p.custom_patient_id || p.patientNumber || p.patient_number || p.opNumber || p.op_number || '';
+                        p.admissionNumber = fileNo;
+                        p.admission_number = fileNo;
+                        p.customPatientId = fileNo;
+                        p.custom_patient_id = fileNo;
+                        p.patientNumber = fileNo;
+                        p.patient_number = fileNo;
+                        p.opNumber = fileNo;
+                        p.op_number = fileNo;
+                        if (!p.fullName && (p.name || p.first_name)) {
+                            p.fullName = p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim();
+                        }
+                    });
+                }
 
                 if (Array.isArray(result)) {
                     const localData = queryLocal();

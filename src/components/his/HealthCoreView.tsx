@@ -390,19 +390,81 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
         setIsLoading(true);
         try {
             const data = await apiService.fetchModuleRecords('his_patients', institutionId || undefined);
-            if (data && data.length > 0) {
-                setPatients(data);
-            } else if (!institutionId && demoData?.hisPatients) {
-                setPatients(demoData.hisPatients);
-            } else {
-                setPatients(data || []);
-            }
+            const rawList = (data && data.length > 0) ? data : (!institutionId && demoData?.hisPatients ? demoData.hisPatients : (data || []));
+
+            // Enrich patients with school directory user data (student admission numbers, class/grade, etc.)
+            const enrichedList = (rawList || []).map((p: any) => {
+                if (!users || users.length === 0) return p;
+                const pName = (p.fullName || p.name || '').trim().toLowerCase();
+                const pUserId = p.userId || p.user_id || p.id;
+                const pContact = (p.contact || p.phoneNumber || '').trim();
+                const pEmail = (p.email || '').trim().toLowerCase();
+
+                const matchedUser = users.find(u => {
+                    if (!u) return false;
+                    if (pUserId && u.id === pUserId) return true;
+                    if (pName && u.name && u.name.trim().toLowerCase() === pName) return true;
+                    if (pEmail && u.email && u.email.trim().toLowerCase() === pEmail) return true;
+                    if (pContact && u.phoneNumber && u.phoneNumber.trim() === pContact) return true;
+                    return false;
+                });
+
+                if (matchedUser) {
+                    const userAdm = (
+                        matchedUser.admissionNumber ||
+                        matchedUser.admission_number ||
+                        matchedUser.admissionNo ||
+                        (matchedUser as any).admission_no ||
+                        (matchedUser as any).admNo ||
+                        (matchedUser as any).adm_no ||
+                        matchedUser.metadata?.admissionNumber ||
+                        matchedUser.metadata?.admission_number ||
+                        matchedUser.metadata?.admissionNo ||
+                        matchedUser.metadata?.admNo ||
+                        matchedUser.metadata?.adm_no ||
+                        matchedUser.metadata?.student_admission_number ||
+                        matchedUser.metadata?.studentId ||
+                        matchedUser.metadata?.student_id ||
+                        ''
+                    );
+                    const userGrade = matchedUser.metadata?.gradeLevel || matchedUser.metadata?.class_level || matchedUser.metadata?.grade_level || (matchedUser as any).gradeLevel;
+                    const userStream = matchedUser.metadata?.stream || (matchedUser as any).stream;
+                    const userDob = matchedUser.metadata?.dob || matchedUser.metadata?.dateOfBirth;
+                    const userGender = matchedUser.gender || matchedUser.metadata?.gender;
+                    const userContact = matchedUser.phoneNumber || matchedUser.email;
+                    const userBlood = matchedUser.metadata?.bloodGroup || matchedUser.metadata?.blood_group;
+                    const userEmergencyName = matchedUser.metadata?.emergencyContactName || matchedUser.metadata?.guardianName || matchedUser.metadata?.parentName;
+                    const userEmergencyPhone = matchedUser.metadata?.emergencyContactPhone || matchedUser.metadata?.guardianPhone || matchedUser.metadata?.parentPhone;
+
+                    const effectiveAdm = p.admissionNumber || p.admission_number || p.customPatientId || p.patientNumber || p.opNumber || userAdm || '';
+
+                    return {
+                        ...p,
+                        admissionNumber: effectiveAdm,
+                        admission_number: effectiveAdm,
+                        customPatientId: p.customPatientId || p.custom_patient_id || effectiveAdm,
+                        patientNumber: p.patientNumber || p.patient_number || effectiveAdm,
+                        opNumber: p.opNumber || p.op_number || effectiveAdm,
+                        gradeLevel: p.gradeLevel || (p as any).grade_level || userGrade || '',
+                        stream: p.stream || userStream || '',
+                        dob: p.dob || userDob || '',
+                        gender: p.gender || userGender || 'Unknown',
+                        bloodGroup: p.bloodGroup || (p as any).blood_group || userBlood || '',
+                        contact: p.contact || userContact || '',
+                        emergencyContactName: p.emergencyContactName || (p as any).emergency_contact_name || userEmergencyName || '',
+                        emergencyContactPhone: p.emergencyContactPhone || (p as any).emergency_contact_phone || userEmergencyPhone || ''
+                    };
+                }
+                return p;
+            });
+
+            setPatients(enrichedList);
         } catch (error) {
             console.error("Failed to fetch patients:", error);
         } finally {
             setIsLoading(false);
         }
-    }, [institutionId, demoData]);
+    }, [institutionId, demoData, users]);
 
     React.useEffect(() => {
         fetchPatients();
@@ -1062,6 +1124,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     return (
                                         <EduPulsePatientsList
                                             patients={patients as any}
+                                            users={users}
                                             onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                             onSelectPatient={(pId) => setActivePatientId(pId)}
                                             onPatientUpdated={fetchPatients}
@@ -1124,6 +1187,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                             case 'patients': return (
                                 <EduPulsePatientsList
                                     patients={patients as any}
+                                    users={users}
                                     onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                     onSelectPatient={(p: any) => {
                                         const pId = typeof p === 'string' ? p : p?.id;
