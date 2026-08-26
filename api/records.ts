@@ -973,6 +973,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'offline_fallback', 'offlineFallback', 'offline', 'success', 'error',
                         'excelPaymentMode', 'excel_payment_mode', 'matchStatus', 'match_status',
                         'matchConfidence', 'match_confidence', 'matchedStudentId', 'matched_student_id',
+                        'notes', 'receiptSource', 'receipt_source', 'voteHeadAllocations', 'vote_head_allocations',
+                        'studentName', 'student_name',
                         'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
                         'updated_at', 'updatedAt', 'created_at', 'createdAt'
                     ];
