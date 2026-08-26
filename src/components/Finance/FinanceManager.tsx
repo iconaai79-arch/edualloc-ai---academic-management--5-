@@ -3775,13 +3775,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             // Process each payment row with O(1) matching
             const processed = rawRows.map((row, idx) => {
-                // Column A: ADM — strict admission number headers only (avoid loose /adm/i matching "admin fee")
+                // Column A: ADM — resolve admission number headers or first column containing numeric/ADM ID
                 const admRaw = resolveCol(row,
-                    /^adm(ission)?[\s_\-\.#]*(no|num|number)?$/i,
-                    /^reg(istration)?[\s_\-\.#]*(no|num|number)?$/i,
-                    /^student[\s_]*(no|id|num|adm|#)$/i,
-                    /^std[\s_\-\.#]*(no|num|number|id)?$/i
-                );
+                    /^adm/i,
+                    /^admission/i,
+                    /^reg/i,
+                    /^registration/i,
+                    /^student[\s_]*(no|id|num|adm|#)?$/i,
+                    /^std/i,
+                    /^index/i,
+                    /^id$/i,
+                    /^code$/i
+                ) || (() => {
+                    const firstKey = Object.keys(row)[0];
+                    if (firstKey && row[firstKey] !== undefined && row[firstKey] !== null) {
+                        const str = String(row[firstKey]).trim();
+                        if (/^\d{2,8}$/.test(str)) return str;
+                    }
+                    return '';
+                })();
 
                 // Column B: Name
                 const nameRaw = resolveCol(row,
