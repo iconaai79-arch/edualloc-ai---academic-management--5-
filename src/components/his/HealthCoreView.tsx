@@ -986,7 +986,12 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                             { id: 'dental' as HISModule, label: 'Dental', icon: '🦷' },
                             { id: 'eye' as HISModule, label: 'Ocular Clinic', icon: '👁️' },
                             { id: 'config' as HISModule, label: 'Settings', icon: '⚙️' },
-                        ].map(item => {
+                        ].filter(item => {
+                            if (isEdu) {
+                                return !['inpatient', 'diagnostics', 'billing', 'reflab', 'dental', 'eye'].includes(item.id);
+                            }
+                            return true;
+                        }).map(item => {
                             const isActive = activeModule === item.id;
                             return (
                                 <button
