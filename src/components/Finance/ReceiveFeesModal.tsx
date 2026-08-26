@@ -122,6 +122,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [reconciledItems, setReconciledItems] = useState<ReconciledFeeItem[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'matched' | 'unmatched'>('all');
+    const [excelPage, setExcelPage] = useState(1);
+    const PAGE_SIZE = 25;
     
     // Processing state
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
@@ -335,7 +337,21 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return today;
     };
 
-    // ── VOTEHEAD AUTO-SPLIT CALCULATION ENGINE ──
+    // Pre-index student invoices map for O(1) instant votehead resolution
+    const studentInvoicesMap = useMemo(() => {
+        const map = new Map<string, Invoice[]>();
+        (invoices || []).forEach(inv => {
+            const sId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || '');
+            if (sId) {
+                const list = map.get(sId) || [];
+                list.push(inv);
+                map.set(sId, list);
+            }
+        });
+        return map;
+    }, [invoices]);
+
+    // ── VOTEHEAD AUTO-SPLIT CALCULATION ENGINE (O(1) Optimized) ──
     const calculateVoteHeadSplit = (
         studentId: string,
         paidAmount: number,
@@ -352,64 +368,55 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         let remaining = paidAmount;
         const allocations: VoteHeadAllocationItem[] = [];
 
-        // 1. Gather all student's invoices and line items
-        const studentInvoices = invoices.filter(inv => 
-            inv.studentId === studentId || 
-            (inv as any).student_id === studentId || 
-            (inv as any).userId === studentId
-        );
+        // 1. O(1) lookup of student's invoices
+        const studentInvoices = studentId ? (studentInvoicesMap.get(studentId) || []) : [];
 
-        // Map pending invoice items
-        const pendingItems: Array<{
-            invoiceId: string;
-            description: string;
-            voteHead: string;
-            requiredAmount: number;
-            priorityRank: number;
-        }> = [];
+        if (studentInvoices.length > 0) {
+            const pendingItems: Array<{
+                invoiceId: string;
+                description: string;
+                voteHead: string;
+                requiredAmount: number;
+                priorityRank: number;
+            }> = [];
 
-        studentInvoices.forEach(inv => {
-            const items = inv.items || [];
-            items.forEach(item => {
-                const desc = item.description || 'Tuition';
-                // Detect which votehead this item belongs to
-                let matchedHead = priorities[0] || 'Tuition & Academic Fees';
-                let bestIndex = 999;
+            studentInvoices.forEach(inv => {
+                const items = inv.items || [];
+                items.forEach(item => {
+                    const desc = item.description || 'Tuition';
+                    let matchedHead = priorities[0] || 'Tuition & Academic Fees';
+                    let bestIndex = 999;
 
-                priorities.forEach((head, hIdx) => {
-                    const cleanHead = head.toLowerCase();
                     const cleanDesc = desc.toLowerCase();
-                    if (
-                        cleanDesc.includes(cleanHead.split(' ')[0]) || 
-                        (cleanHead.includes('tuition') && cleanDesc.includes('fee')) ||
-                        (cleanHead.includes('transport') && (cleanDesc.includes('bus') || cleanDesc.includes('route'))) ||
-                        (cleanHead.includes('boarding') && (cleanDesc.includes('hostel') || cleanDesc.includes('dorm'))) ||
-                        (cleanHead.includes('lunch') && (cleanDesc.includes('food') || cleanDesc.includes('catering') || cleanDesc.includes('meal'))) ||
-                        (cleanHead.includes('exam') && (cleanDesc.includes('assessment') || cleanDesc.includes('test'))) ||
-                        (cleanHead.includes('activity') && (cleanDesc.includes('sport') || cleanDesc.includes('club') || cleanDesc.includes('trip')))
-                    ) {
-                        if (hIdx < bestIndex) {
+                    for (let hIdx = 0; hIdx < priorities.length; hIdx++) {
+                        const cleanHead = priorities[hIdx].toLowerCase();
+                        if (
+                            cleanDesc.includes(cleanHead.split(' ')[0]) || 
+                            (cleanHead.includes('tuition') && cleanDesc.includes('fee')) ||
+                            (cleanHead.includes('transport') && (cleanDesc.includes('bus') || cleanDesc.includes('route'))) ||
+                            (cleanHead.includes('boarding') && (cleanDesc.includes('hostel') || cleanDesc.includes('dorm'))) ||
+                            (cleanHead.includes('lunch') && (cleanDesc.includes('food') || cleanDesc.includes('meal'))) ||
+                            (cleanHead.includes('exam') && (cleanDesc.includes('assessment') || cleanDesc.includes('test'))) ||
+                            (cleanHead.includes('activity') && (cleanDesc.includes('sport') || cleanDesc.includes('club')))
+                        ) {
                             bestIndex = hIdx;
-                            matchedHead = head;
+                            matchedHead = priorities[hIdx];
+                            break;
                         }
                     }
-                });
 
-                pendingItems.push({
-                    invoiceId: inv.id,
-                    description: desc,
-                    voteHead: matchedHead,
-                    requiredAmount: Number(item.amount || item.unitPrice || 0),
-                    priorityRank: bestIndex
+                    pendingItems.push({
+                        invoiceId: inv.id,
+                        description: desc,
+                        voteHead: matchedHead,
+                        requiredAmount: Number(item.amount || item.unitPrice || 0),
+                        priorityRank: bestIndex
+                    });
                 });
             });
-        });
 
-        // Sort items by Priority Rank (Tuition first, then Boarding, Transport, etc.)
-        pendingItems.sort((a, b) => a.priorityRank - b.priorityRank);
+            pendingItems.sort((a, b) => a.priorityRank - b.priorityRank);
 
-        if (pendingItems.length > 0) {
-            // Allocate against pending invoice line items
             for (const item of pendingItems) {
                 if (remaining <= 0) break;
                 const toAllocate = Math.min(remaining, item.requiredAmount);
@@ -425,7 +432,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             }
         }
 
-        // If there is still excess money left (or no invoice items existed), allocate according to default primary voteheads
+        // Allocate excess or general credit
         if (remaining > 0) {
             const primaryHead = priorities[0] || 'Tuition & Academic Fees';
             const existingPrimary = allocations.find(a => a.voteHead === primaryHead);
@@ -441,7 +448,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             remaining = 0;
         }
 
-        // Generate clean summary text
         const summary = allocations
             .map(a => `${a.voteHead.split(' ')[0]}: ${a.amount.toLocaleString()}`)
             .join(' · ');
@@ -596,23 +602,33 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         setIsParsingExcel(true);
         e.target.value = '';
 
+        // Yield to event loop so React paints the spinner immediately
+        await new Promise(r => setTimeout(r, 20));
+
         try {
             const buffer = await file.arrayBuffer();
+            // dense: true and cellDates: true speeds up parsing and avoids sparse memory allocations
             const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array', dense: true, cellDates: true });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
 
-            const sheetMatrix: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-            if (sheetMatrix.length === 0) {
-                alert("Spreadsheet is empty.");
+            const parsedRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            if (parsedRows.length === 0) {
+                alert("The selected Excel file appears to be empty.");
                 setIsParsingExcel(false);
                 return;
             }
 
-            const headers = (sheetMatrix[0] || []).map(h => String(h).trim()).filter(Boolean);
+            // Extract all distinct keys from first 10 rows in a single pass
+            const keySet = new Set<string>();
+            for (let i = 0; i < Math.min(10, parsedRows.length); i++) {
+                Object.keys(parsedRows[i] || {}).forEach(k => {
+                    const clean = String(k).trim();
+                    if (clean && !clean.startsWith('__EMPTY')) keySet.add(clean);
+                });
+            }
+            const headers = Array.from(keySet);
             setExcelHeaders(headers);
-
-            const parsedRows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
             setRawRows(parsedRows);
 
             autoDetectColumns(headers);
@@ -638,6 +654,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 dtCol: detectedDate,
                 mdCol: detectedMode
             }, voteheadPriorities, autoSplitVoteheads);
+            setExcelPage(1);
         } catch (err: any) {
             console.error("Excel parse error:", err);
             alert("Failed to parse Excel file: " + err.message);
@@ -1255,7 +1272,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                                 {/* ── Interactive Data Grid Table with Votehead Breakdown ── */}
                                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-                                    <div className="max-h-[360px] overflow-y-auto">
+                                    <div className="max-h-[380px] overflow-y-auto">
                                         <table className="w-full border-collapse text-xs">
                                             <thead>
                                                 <tr className="bg-slate-100/80 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold sticky top-0 z-10">
@@ -1277,86 +1294,122 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                         </td>
                                                     </tr>
                                                 ) : (
-                                                    filteredItems.map((item) => (
-                                                        <tr 
-                                                            key={item.id}
-                                                            className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors ${
-                                                                item.matchStatus === 'unmatched' ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''
-                                                            }`}
-                                                        >
-                                                            <td className="px-3 py-2.5 text-center text-slate-400 font-mono text-[11px]">
-                                                                {item.rowIndex}
-                                                            </td>
-                                                            <td className="px-4 py-2.5 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
-                                                                {item.rawAdm || <span className="text-slate-300 italic">none</span>}
-                                                            </td>
-                                                            <td className="px-4 py-2.5 text-slate-800 dark:text-slate-200 font-medium">
-                                                                {item.rawName || <span className="text-slate-300 italic">—</span>}
-                                                            </td>
-                                                            <td className="px-4 py-2.5 text-right font-black font-mono text-emerald-600 dark:text-emerald-400">
-                                                                {item.rawAmount ? item.rawAmount.toLocaleString() : '0'}
-                                                            </td>
-                                                            <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 dark:text-slate-300">
-                                                                {item.rawRef}
-                                                            </td>
-                                                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 text-xs">
-                                                                {item.rawDate}
-                                                            </td>
-                                                            <td className="px-4 py-2.5 min-w-[240px]">
-                                                                {item.matchedStudentName ? (
-                                                                    <div className="space-y-1">
-                                                                        <div className="flex items-center justify-between gap-1.5">
-                                                                            <span className="font-bold text-slate-900 dark:text-white block">
-                                                                                {item.matchedStudentName}
-                                                                            </span>
-                                                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold">
-                                                                                {item.matchedStudentAdm || 'ADM OK'}
-                                                                            </span>
+                                                    (() => {
+                                                        const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+                                                        const safePage = Math.min(Math.max(1, excelPage), totalPages);
+                                                        const paginated = filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+                                                        return paginated.map((item) => (
+                                                            <tr 
+                                                                key={item.id}
+                                                                className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors ${
+                                                                    item.matchStatus === 'unmatched' ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''
+                                                                }`}
+                                                            >
+                                                                <td className="px-3 py-2.5 text-center text-slate-400 font-mono text-[11px]">
+                                                                    {item.rowIndex}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                                                    {item.rawAdm || <span className="text-slate-300 italic">none</span>}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-slate-800 dark:text-slate-200 font-medium">
+                                                                    {item.rawName || <span className="text-slate-300 italic">—</span>}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-right font-black font-mono text-emerald-600 dark:text-emerald-400">
+                                                                    {item.rawAmount ? item.rawAmount.toLocaleString() : '0'}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                                                                    {item.rawRef}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 text-xs">
+                                                                    {item.rawDate}
+                                                                </td>
+                                                                <td className="px-4 py-2.5 min-w-[240px]">
+                                                                    {item.matchedStudentName ? (
+                                                                        <div className="space-y-1">
+                                                                            <div className="flex items-center justify-between gap-1.5">
+                                                                                <span className="font-bold text-slate-900 dark:text-white block">
+                                                                                    {item.matchedStudentName}
+                                                                                </span>
+                                                                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+                                                                                    {item.matchedStudentAdm || 'ADM OK'}
+                                                                                </span>
+                                                                            </div>
+                                                                            
+                                                                            {/* Votehead Distribution Pill */}
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setInspectingItem(item)}
+                                                                                className="w-full text-left p-1 px-2 rounded-lg bg-purple-50/70 hover:bg-purple-100 dark:bg-purple-950/30 dark:hover:bg-purple-950/60 border border-purple-200 dark:border-purple-800/40 text-[10px] font-semibold text-purple-700 dark:text-purple-300 flex items-center justify-between transition-colors cursor-pointer"
+                                                                                title="Click to view detailed votehead allocation breakdown"
+                                                                            >
+                                                                                <span className="truncate max-w-[190px]">
+                                                                                    ⚡ {item.voteHeadSummary}
+                                                                                </span>
+                                                                                <span className="text-[9px] font-black text-purple-500 uppercase tracking-tighter">View</span>
+                                                                            </button>
                                                                         </div>
-                                                                        
-                                                                        {/* Votehead Distribution Pill */}
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setInspectingItem(item)}
-                                                                            className="w-full text-left p-1 px-2 rounded-lg bg-purple-50/70 hover:bg-purple-100 dark:bg-purple-950/30 dark:hover:bg-purple-950/60 border border-purple-200 dark:border-purple-800/40 text-[10px] font-semibold text-purple-700 dark:text-purple-300 flex items-center justify-between transition-colors cursor-pointer"
-                                                                            title="Click to view detailed votehead allocation breakdown"
+                                                                    ) : (
+                                                                        <select
+                                                                            value={item.matchedStudentId}
+                                                                            onChange={(e) => handleReassignStudent(item.id, e.target.value)}
+                                                                            className="w-full px-2 py-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg text-xs font-bold text-amber-900 dark:text-amber-200 outline-none cursor-pointer"
                                                                         >
-                                                                            <span className="truncate max-w-[190px]">
-                                                                                ⚡ {item.voteHeadSummary}
-                                                                            </span>
-                                                                            <span className="text-[9px] font-black text-purple-500 uppercase tracking-tighter">View</span>
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <select
-                                                                        value={item.matchedStudentId}
-                                                                        onChange={(e) => handleReassignStudent(item.id, e.target.value)}
-                                                                        className="w-full px-2 py-1 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg text-xs font-bold text-amber-900 dark:text-amber-200 outline-none cursor-pointer"
+                                                                            <option value="">-- Match Student --</option>
+                                                                            {allStudentsList.map(s => (
+                                                                                <option key={s.id} value={s.id}>
+                                                                                    {resolveRealStudentAdmNo(s)} · {s.name}
+                                                                                </option>
+                                                                            ))}
+                                                                        </select>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-3 py-2.5 text-center">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveRow(item.id)}
+                                                                        className="px-2.5 py-1 bg-white hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-300 dark:border-slate-700 hover:border-rose-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer shadow-2xs active:scale-95"
                                                                     >
-                                                                        <option value="">-- Match Student --</option>
-                                                                        {allStudentsList.map(s => (
-                                                                            <option key={s.id} value={s.id}>
-                                                                                {resolveRealStudentAdmNo(s)} · {s.name}
-                                                                            </option>
-                                                                        ))}
-                                                                    </select>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-3 py-2.5 text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleRemoveRow(item.id)}
-                                                                    className="px-2.5 py-1 bg-white hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 border border-slate-300 dark:border-slate-700 hover:border-rose-300 rounded-lg text-[11px] font-bold transition-all cursor-pointer shadow-2xs active:scale-95"
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))
+                                                                        Remove
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ));
+                                                    })()
                                                 )}
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {/* Pagination Footer */}
+                                    {filteredItems.length > PAGE_SIZE && (
+                                        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                                            <span>
+                                                Showing {((excelPage - 1) * PAGE_SIZE) + 1} - {Math.min(excelPage * PAGE_SIZE, filteredItems.length)} of {filteredItems.length} entries
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    disabled={excelPage <= 1}
+                                                    onClick={() => setExcelPage(p => Math.max(1, p - 1))}
+                                                    className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold cursor-pointer"
+                                                >
+                                                    Previous
+                                                </button>
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                    Page {excelPage} of {Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    disabled={excelPage >= Math.ceil(filteredItems.length / PAGE_SIZE)}
+                                                    onClick={() => setExcelPage(p => p + 1)}
+                                                    className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold cursor-pointer"
+                                                >
+                                                    Next
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Progress Bar during bulk posting */}
