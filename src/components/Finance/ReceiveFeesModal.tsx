@@ -63,6 +63,7 @@ export interface ReceiveFeesModalProps {
     onClose: () => void;
     institution: Institution;
     students: User[];
+    bankAccounts?: any[];
     invoices?: Invoice[];
     receipts?: Receipt[];
     enrollments?: any[];
@@ -85,19 +86,12 @@ const DEFAULT_VOTEHEAD_PRIORITIES = [
     'Uniform & Stationery'
 ];
 
-const DEFAULT_BANK_ACCOUNTS: BankAccountOption[] = [
-    { id: 'acc_equity_main', bankName: 'Equity Bank', accountName: 'Main Fee Collection Account', accountNumber: '0123456789012', type: 'BANK' },
-    { id: 'acc_kcb_tuition', bankName: 'KCB Bank', accountName: 'Tuition & Operations Account', accountNumber: '1102938475', type: 'BANK' },
-    { id: 'acc_coop_coll', bankName: 'Co-operative Bank', accountName: 'School Collection Account', accountNumber: '01129384756000', type: 'BANK' },
-    { id: 'acc_mpesa_paybill', bankName: 'Safaricom M-Pesa', accountName: 'Paybill Collection', accountNumber: '522123', type: 'MPESA' },
-    { id: 'acc_cash_office', bankName: 'School Accounts', accountName: 'Main Cash Office / Counter', accountNumber: 'CASH-01', type: 'CASH' }
-];
-
 export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     isOpen,
     onClose,
     institution,
     students,
+    bankAccounts: propsBankAccounts = [],
     invoices = [],
     receipts = [],
     enrollments = [],
@@ -123,9 +117,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [showVoteheadConfig, setShowVoteheadConfig] = useState(false);
     const [inspectingItem, setInspectingItem] = useState<ReconciledFeeItem | null>(null);
 
-    // Bank Accounts State
-    const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>(DEFAULT_BANK_ACCOUNTS);
-    const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('acc_equity_main');
+    // Bank Accounts State (Starts empty and populated with exact configured accounts)
+    const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
+    const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
 
     // Payment Mode & Notification Options
     const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' | 'Bursary' | 'Direct Deposit'>('Bank Transfer');
@@ -173,75 +167,125 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [isPostingManual, setIsPostingManual] = useState(false);
     const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
 
-    // Load institution Bank Accounts on modal open
+    // Load institution Bank Accounts dynamically (from props, school_bank_accounts, bank_accounts, integration configs)
     useEffect(() => {
         if (!isOpen) return;
         const loadAccounts = async () => {
             try {
                 const instId = institution?.id;
-                const customAccounts: BankAccountOption[] = [];
-                
+                const foundAccounts: BankAccountOption[] = [];
+                const seenAccNumbers = new Set<string>();
+
+                const addAccount = (acc: any, defaultType: 'BANK' | 'MPESA' | 'CASH' = 'BANK') => {
+                    if (!acc) return;
+                    const num = String(acc.accountNumber || acc.account_number || acc.accountNo || acc.account_no || acc.paybillNumber || acc.shortCode || '').trim();
+                    const name = acc.accountName || acc.account_name || acc.name || acc.bankName || acc.bank_name || 'Account';
+                    const bank = acc.bankName || acc.bank_name || acc.bank || (acc.type === 'MPESA' ? 'Safaricom M-Pesa' : 'Bank');
+                    const key = `${bank}_${num || name}`.toLowerCase();
+                    if (seenAccNumbers.has(key)) return;
+                    seenAccNumbers.add(key);
+
+                    let type = defaultType;
+                    const lowerBank = String(bank).toLowerCase();
+                    const lowerName = String(name).toLowerCase();
+                    if (lowerBank.includes('mpesa') || lowerName.includes('mpesa') || lowerBank.includes('paybill') || lowerName.includes('paybill')) {
+                        type = 'MPESA';
+                    } else if (lowerBank.includes('cash') || lowerName.includes('cash')) {
+                        type = 'CASH';
+                    }
+
+                    foundAccounts.push({
+                        id: acc.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                        bankName: bank,
+                        accountName: name,
+                        accountNumber: num || 'N/A',
+                        type
+                    });
+                };
+
+                // 1. From props.bankAccounts (passed from FinanceManager state)
+                if (Array.isArray(propsBankAccounts) && propsBankAccounts.length > 0) {
+                    propsBankAccounts.forEach(a => addAccount(a));
+                }
+
+                // 2. Query school_bank_accounts (FinanceManager's primary table)
+                try {
+                    const schoolBankRecords = await apiService.fetchModuleRecords('school_bank_accounts', instId);
+                    if (Array.isArray(schoolBankRecords)) {
+                        schoolBankRecords.forEach(a => addAccount(a));
+                    }
+                } catch {}
+
+                // 3. Query bank_accounts
+                try {
+                    const bankRecords = await apiService.fetchModuleRecords('bank_accounts', instId);
+                    if (Array.isArray(bankRecords)) {
+                        bankRecords.forEach(a => addAccount(a));
+                    }
+                } catch {}
+
+                // 4. Institution configured banking integrations
                 if (institution?.coopConfig?.accountNumber) {
-                    customAccounts.push({
+                    addAccount({
                         id: 'coop_inst_acc',
                         bankName: 'Co-operative Bank',
                         accountName: institution.coopConfig.accountName || 'Co-op Collection Account',
-                        accountNumber: institution.coopConfig.accountNumber,
-                        type: 'BANK'
+                        accountNumber: institution.coopConfig.accountNumber
                     });
                 }
                 if (institution?.kcbConfig?.accountNumber) {
-                    customAccounts.push({
+                    addAccount({
                         id: 'kcb_inst_acc',
                         bankName: 'KCB Bank',
                         accountName: institution.kcbConfig.accountName || 'KCB Collection Account',
-                        accountNumber: institution.kcbConfig.accountNumber,
-                        type: 'BANK'
+                        accountNumber: institution.kcbConfig.accountNumber
                     });
                 }
                 if (institution?.mpesaConfig?.shortCode || institution?.mpesaConfig?.paybillNumber) {
                     const paybillNum = institution.mpesaConfig.shortCode || institution.mpesaConfig.paybillNumber;
-                    customAccounts.push({
+                    addAccount({
                         id: 'mpesa_inst_paybill',
                         bankName: 'Safaricom M-Pesa',
                         accountName: `M-Pesa Paybill (${paybillNum})`,
                         accountNumber: String(paybillNum),
                         type: 'MPESA'
-                    });
+                    }, 'MPESA');
                 }
-                
-                try {
-                    const dbAccounts = await apiService.fetchModuleRecords('bank_accounts', instId);
-                    if (Array.isArray(dbAccounts) && dbAccounts.length > 0) {
-                        dbAccounts.forEach((acc: any) => {
-                            if (acc && (acc.accountNumber || acc.account_number)) {
-                                customAccounts.push({
-                                    id: acc.id || `acc_${Date.now()}`,
-                                    bankName: acc.bankName || acc.bank_name || 'Bank',
-                                    accountName: acc.accountName || acc.account_name || 'Operating Account',
-                                    accountNumber: acc.accountNumber || acc.account_number || '',
-                                    type: (acc.type || 'BANK').toUpperCase() as any
-                                });
-                            }
-                        });
+
+                // 5. Institution embedded bank accounts
+                if (Array.isArray((institution as any)?.bankAccounts)) {
+                    (institution as any).bankAccounts.forEach((a: any) => addAccount(a));
+                }
+                if (Array.isArray((institution as any)?.schoolBankAccounts)) {
+                    (institution as any).schoolBankAccounts.forEach((a: any) => addAccount(a));
+                }
+
+                // If configured accounts were found, use ONLY the real configured accounts!
+                if (foundAccounts.length > 0) {
+                    setBankAccounts(foundAccounts);
+                    if (!selectedBankAccountId || !foundAccounts.some(a => a.id === selectedBankAccountId)) {
+                        setSelectedBankAccountId(foundAccounts[0].id);
                     }
-                } catch {}
-
-                const merged = customAccounts.length > 0 
-                    ? [...customAccounts, ...DEFAULT_BANK_ACCOUNTS.filter(d => !customAccounts.some(c => c.accountNumber === d.accountNumber))]
-                    : DEFAULT_BANK_ACCOUNTS;
-
-                setBankAccounts(merged);
-                if (merged.length > 0) {
-                    setSelectedBankAccountId(merged[0].id);
+                } else {
+                    // Fallback to general institution fee account if zero configured accounts exist
+                    const genericAccount: BankAccountOption[] = [
+                        {
+                            id: 'acc_school_general',
+                            bankName: institution?.name || 'School Bank',
+                            accountName: 'Main Fee Collection Account',
+                            accountNumber: 'OPERATING-01',
+                            type: 'BANK'
+                        }
+                    ];
+                    setBankAccounts(genericAccount);
+                    setSelectedBankAccountId(genericAccount[0].id);
                 }
             } catch (e) {
-                setBankAccounts(DEFAULT_BANK_ACCOUNTS);
-                setSelectedBankAccountId(DEFAULT_BANK_ACCOUNTS[0].id);
+                console.error("Error loading institution bank accounts:", e);
             }
         };
         loadAccounts();
-    }, [isOpen, institution]);
+    }, [isOpen, institution, propsBankAccounts]);
 
     // Save priorities to localStorage
     const handleSavePriorities = (newPriorities: string[]) => {

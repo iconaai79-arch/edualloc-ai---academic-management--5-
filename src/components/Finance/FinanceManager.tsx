@@ -20887,6 +20887,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 isOpen={isExcelImportModalOpen}
                 onClose={() => setIsExcelImportModalOpen(false)}
                 institution={props.institution}
+                bankAccounts={bankAccounts}
                 students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                 invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
                 receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
