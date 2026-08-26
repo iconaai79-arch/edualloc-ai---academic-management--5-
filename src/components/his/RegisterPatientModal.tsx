@@ -36,7 +36,7 @@ function ChevronLeftIcon(props: any) {
     );
 }
 
-function getStudentResolvedAdm(u: any): string {
+export function getStudentResolvedAdm(u: any, generateFallback: boolean = false): string {
     if (!u) return '';
     const adm = (
         u.admissionNumber ||
@@ -55,6 +55,8 @@ function getStudentResolvedAdm(u: any): string {
         u.reg_no ||
         u.regNumber ||
         u.registrationNumber ||
+        u.assessmentNo ||
+        u.assessmentNumber ||
         u.metadata?.admissionNumber ||
         u.metadata?.admission_number ||
         u.metadata?.admissionNo ||
@@ -68,21 +70,47 @@ function getStudentResolvedAdm(u: any): string {
         u.metadata?.studentNumber ||
         u.metadata?.regNo ||
         u.metadata?.reg_no ||
+        u.metadata?.assessmentNo ||
+        u.metadata?.assessmentNumber ||
+        u.metadata?.upi ||
+        u.metadata?.upiNumber ||
         u.metadata?.staffId ||
         u.staffId ||
         ''
     );
-    return adm ? String(adm).trim() : '';
+    const cleaned = adm ? String(adm).trim() : '';
+    if (cleaned && cleaned !== '—' && cleaned !== '-' && cleaned.toLowerCase() !== 'pending') {
+        return cleaned;
+    }
+    if (generateFallback) {
+        const idSeed = String(u.id || u.email || Math.random().toString(36).substring(2, 7)).replace(/[^a-zA-Z0-9]/g, '');
+        const suffix = idSeed.length >= 4 ? idSeed.slice(-4).toUpperCase() : idSeed.toUpperCase().padStart(4, '0');
+        const year = new Date().getFullYear();
+        const isStudent = !u.role || (u.role || '').toLowerCase() === 'student';
+        return isStudent ? `ADM-${year}-${suffix}` : `STF-${year}-${suffix}`;
+    }
+    return '';
 }
 
-function getStudentResolvedClass(u: any): string {
+export function getStudentResolvedClass(u: any): string {
     if (!u) return '';
     const grade = (
+        u.studentClass ||
+        u.supervisedClass ||
+        u.metadata?.studentClass ||
         u.metadata?.className ||
         u.metadata?.gradeLevel ||
         u.metadata?.class_level ||
+        u.metadata?.grade_level ||
         u.metadata?.grade ||
         u.metadata?.class ||
+        u.metadata?.class_name ||
+        u.metadata?.courseLevel ||
+        u.metadata?.courseLevelName ||
+        u.metadata?.academicLevel ||
+        u.metadata?.academicLevelName ||
+        u.metadata?.form ||
+        u.metadata?.level ||
         u.className ||
         u.gradeLevel ||
         u.grade ||
@@ -94,6 +122,8 @@ function getStudentResolvedClass(u: any): string {
     const stream = (
         u.metadata?.stream ||
         u.metadata?.streamName ||
+        u.metadata?.stream_name ||
+        u.metadata?.stream_title ||
         u.stream ||
         u.stream_name ||
         ''
@@ -183,9 +213,22 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         const parentPhone = user.metadata?.parentPhone || user.metadata?.guardianPhone || user.metadata?.emergencyContactPhone || (user as any).parentPhone || (user as any).guardianPhone || (user as any).emergencyContact || user.phoneNumber || '';
         const parentName = user.metadata?.parentName || user.metadata?.guardianName || user.metadata?.emergencyContactName || (user as any).parentName || (user as any).guardianName || '';
         const parentId = user.metadata?.guardianNationalId || user.metadata?.parentId || (user as any).guardianNationalId || (user as any).parentId || '';
-        const adm = getStudentResolvedAdm(user) || (user as any).staffId || user.id || '';
-        const grade = (user as any).metadata?.className || (user as any).metadata?.gradeLevel || (user as any).metadata?.class_level || (user as any).metadata?.grade || (user as any).className || (user as any).gradeLevel || '';
-        const stream = (user as any).metadata?.stream || (user as any).metadata?.streamName || (user as any).stream || '';
+        
+        // Auto-generate a clean, unique admission/staff ID if not already assigned
+        const adm = getStudentResolvedAdm(user, true);
+        const resolvedClass = getStudentResolvedClass(user);
+        
+        const grade = (user as any).metadata?.gradeLevel || 
+            (user as any).metadata?.class_level || 
+            (user as any).metadata?.grade_level || 
+            (user as any).metadata?.className || 
+            (user as any).metadata?.studentClass || 
+            (user as any).studentClass || 
+            (user as any).className || 
+            (user as any).gradeLevel || 
+            resolvedClass || '';
+            
+        const stream = (user as any).metadata?.stream || (user as any).metadata?.streamName || (user as any).metadata?.stream_name || (user as any).stream || '';
 
         setFormData(prev => ({
             ...prev,
@@ -416,7 +459,8 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                         <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl z-[200] max-h-60 overflow-y-auto no-scrollbar divide-y divide-slate-100 dark:divide-white/5">
                                             {filteredUsers.length > 0 ? (
                                                 filteredUsers.map(u => {
-                                                    const admNo = getStudentResolvedAdm(u);
+                                                    const admNo = getStudentResolvedAdm(u, false);
+                                                    const fallbackAdm = getStudentResolvedAdm(u, true);
                                                     const className = getStudentResolvedClass(u);
                                                     const isStudent = (u.role || '').toLowerCase() === 'student';
                                                     const roleBadgeColor = isStudent
@@ -446,10 +490,17 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                                                         </span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2 flex-wrap text-[10px]">
-                                                                        <span className="font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
-                                                                            <span className="text-slate-400 font-semibold text-[9px]">ADM:</span>
-                                                                            <span className="text-indigo-600 dark:text-indigo-400 font-black">{admNo || 'PENDING'}</span>
-                                                                        </span>
+                                                                        {admNo ? (
+                                                                            <span className="font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                                                                                <span className="text-slate-400 font-semibold text-[9px]">ADM:</span>
+                                                                                <span className="text-indigo-600 dark:text-indigo-400 font-black">{admNo}</span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-300/40 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono" title="Will auto-assign upon selection">
+                                                                                <span className="text-indigo-400 font-semibold text-[8px]">⚡ AUTO ADM:</span>
+                                                                                <span className="text-indigo-600 dark:text-indigo-400 font-black">{fallbackAdm}</span>
+                                                                            </span>
+                                                                        )}
                                                                         {className ? (
                                                                             <span className="font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
                                                                                 <span>🏫</span>
@@ -457,7 +508,10 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                                                             </span>
                                                                         ) : (
                                                                             isStudent && (
-                                                                                <span className="text-[9px] text-slate-400 font-medium italic">Class not assigned</span>
+                                                                                <span className="text-[9px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                                                                                    <span>🏫</span>
+                                                                                    <span>Class: Pending</span>
+                                                                                </span>
                                                                             )
                                                                         )}
                                                                     </div>

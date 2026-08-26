@@ -21,8 +21,8 @@ const getJsPdf = () => {
 // Internal in-memory image cache for fast zero-latency re-use across PDF generations
 const pdfImageCache = new Map<string, HTMLImageElement>();
 
-// Internal utility to load images safely with caching & strict timeout for instant PDF generation
-const loadImage = (url: string | null | undefined, timeoutMs: number = 2000): Promise<HTMLImageElement | null> => {
+// Internal utility to load images safely with caching & generous timeout for reliable PDF generation
+const loadImage = (url: string | null | undefined, timeoutMs: number = 7000): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
         if (!url) return resolve(null);
         if (pdfImageCache.has(url)) {
@@ -51,11 +51,28 @@ const loadImage = (url: string | null | undefined, timeoutMs: number = 2000): Pr
             }
         };
         img.onerror = () => {
+            // Attempt fallback without anonymous CORS if CORS failed on remote server
             if (!settled) {
-                settled = true;
-                clearTimeout(timer);
-                console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
-                resolve(null);
+                const fallbackImg = new Image();
+                fallbackImg.onload = () => {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        try {
+                            pdfImageCache.set(url, fallbackImg);
+                        } catch (e) {}
+                        resolve(fallbackImg);
+                    }
+                };
+                fallbackImg.onerror = () => {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
+                        resolve(null);
+                    }
+                };
+                fallbackImg.src = url;
             }
         };
         img.src = url;

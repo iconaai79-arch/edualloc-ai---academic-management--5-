@@ -1208,15 +1208,40 @@ export const apiService = {
                     }
                 }
 
-                // Always merge localDb records as fallback so trial activation never fails
+                // If remoteRecords is empty, try API records endpoint
+                if (remoteRecords.length === 0) {
+                    try {
+                        let token = await apiService.getAuthToken();
+                        const url = new URL(`${window.location.origin}/api/records`);
+                        url.searchParams.append('module', 'institution_module_states');
+                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                        const response = await fetch(url.toString(), {
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            const resJson = await response.json();
+                            const fetched = resJson.data || resJson || [];
+                            if (Array.isArray(fetched) && fetched.length > 0) {
+                                remoteRecords = toCamelCase(fetched);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] API records fetch for institution_module_states failed:', e);
+                    }
+                }
+
+                // Always merge localDb records as fallback, with REMOTE records taking priority over local records!
                 const localRecords = (ls.get('institution_module_states') || []) as any[];
                 const localFiltered = localRecords.filter((m: any) => 
                     !institutionId || institutionId === 'ALL' || m.institutionId === institutionId || m.institution_id === institutionId
                 ).map((item: any) => toCamelCase(item));
 
                 const map = new Map<string, any>();
-                remoteRecords.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
                 localFiltered.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
+                remoteRecords.forEach((r: any) => map.set(r.id || `${r.institutionId}_${r.moduleId}`, r));
                 return Array.from(map.values());
             }
 

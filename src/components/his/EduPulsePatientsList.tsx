@@ -55,13 +55,15 @@ export function getPatientAdmNo(p: any, users: User[] = []): string {
         p.student_number ||
         p.studentId ||
         p.student_id ||
+        p.assessmentNo ||
+        p.assessmentNumber ||
         p.metadata?.admissionNumber ||
         p.metadata?.admission_number ||
         p.metadata?.admissionNo ||
         p.metadata?.admNo ||
         p.metadata?.adm_no
     );
-    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—' && String(direct).trim() !== '-') {
+    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—' && String(direct).trim() !== '-' && String(direct).trim().toLowerCase() !== 'pending') {
         return String(direct).trim();
     }
     if (users && users.length > 0) {
@@ -92,9 +94,14 @@ export function getPatientAdmNo(p: any, users: User[] = []): string {
                 matched.metadata?.adm_no ||
                 matched.metadata?.student_admission_number ||
                 matched.metadata?.studentId ||
-                matched.metadata?.student_id
+                matched.metadata?.student_id ||
+                (matched as any).assessmentNo ||
+                (matched as any).assessmentNumber ||
+                matched.metadata?.assessmentNo ||
+                matched.staffId ||
+                matched.metadata?.staffId
             );
-            if (userAdm && String(userAdm).trim() !== '') {
+            if (userAdm && String(userAdm).trim() !== '' && String(userAdm).trim() !== '—' && String(userAdm).trim().toLowerCase() !== 'pending') {
                 return String(userAdm).trim();
             }
         }
@@ -104,14 +111,29 @@ export function getPatientAdmNo(p: any, users: User[] = []): string {
 
 export function getPatientGrade(p: any, users: User[] = []): string {
     if (!p) return '';
-    const direct = p.gradeLevel || (p as any).grade_level || p.classLevel || (p as any).class_level;
+    const direct = p.gradeLevel || (p as any).grade_level || p.classLevel || (p as any).class_level || p.studentClass || (p as any).className;
     if (direct && String(direct).trim() !== '') return String(direct).trim();
     if (users && users.length > 0) {
         const pName = (p.fullName || p.name || '').trim().toLowerCase();
         const pUserId = p.userId || p.user_id || p.id;
         const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
         if (matched) {
-            return matched.metadata?.gradeLevel || matched.metadata?.class_level || matched.metadata?.grade_level || (matched as any).gradeLevel || '';
+            return (
+                matched.studentClass ||
+                matched.metadata?.studentClass ||
+                matched.metadata?.gradeLevel || 
+                matched.metadata?.class_level || 
+                matched.metadata?.grade_level || 
+                matched.metadata?.className ||
+                matched.metadata?.class ||
+                matched.metadata?.grade ||
+                matched.metadata?.courseLevel ||
+                matched.metadata?.courseLevelName ||
+                matched.metadata?.academicLevel ||
+                (matched as any).gradeLevel || 
+                (matched as any).className || 
+                ''
+            );
         }
     }
     return '';
@@ -119,14 +141,20 @@ export function getPatientGrade(p: any, users: User[] = []): string {
 
 export function getPatientStream(p: any, users: User[] = []): string {
     if (!p) return '';
-    const direct = p.stream || (p as any).stream_name;
+    const direct = p.stream || (p as any).stream_name || (p as any).streamName;
     if (direct && String(direct).trim() !== '') return String(direct).trim();
     if (users && users.length > 0) {
         const pName = (p.fullName || p.name || '').trim().toLowerCase();
         const pUserId = p.userId || p.user_id || p.id;
         const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
         if (matched) {
-            return matched.metadata?.stream || (matched as any).stream || '';
+            return (
+                matched.metadata?.stream || 
+                matched.metadata?.streamName || 
+                matched.metadata?.stream_name || 
+                (matched as any).stream || 
+                ''
+            );
         }
     }
     return '';
@@ -141,7 +169,7 @@ export function getPatientContact(p: any, users: User[] = []): string {
         const pUserId = p.userId || p.user_id || p.id;
         const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
         if (matched) {
-            return matched.phoneNumber || matched.email || '';
+            return matched.phoneNumber || matched.email || matched.metadata?.parentPhone || matched.metadata?.guardianPhone || '';
         }
     }
     return '';

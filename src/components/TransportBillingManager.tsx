@@ -44,7 +44,8 @@ export interface TransportFeeInvoice {
 interface TransportBillingProps {
     routeSettings: RouteFeeSetting[];
     invoices: TransportFeeInvoice[];
-    onUpdateRouteFee: (routeId: string, termFee: number, monthlyFee: number) => void;
+    onUpdateRouteFee: (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => void;
+    onDeleteRoute?: (routeId: string) => void;
     onGenerateInvoices: (cycle: BillingCycle, period: string) => void;
     onMarkPaid: (invoiceId: string, method: string) => void;
     onWaive: (invoiceId: string, reason: string) => void;
@@ -74,20 +75,23 @@ const fmt = (n: number, currency = 'KES') =>
 
 const RouteFeeSettings: React.FC<{
     routes: RouteFeeSetting[];
-    onUpdate: (routeId: string, termFee: number, monthlyFee: number) => void;
-}> = ({ routes, onUpdate }) => {
+    onUpdate: (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => void;
+    onDelete?: (routeId: string) => void;
+}> = ({ routes, onUpdate, onDelete }) => {
     const [editing, setEditing] = useState<string | null>(null);
+    const [nameVal, setNameVal] = useState('');
     const [termVal, setTermVal] = useState('');
     const [monthVal, setMonthVal] = useState('');
 
     const startEdit = (r: RouteFeeSetting) => {
         setEditing(r.routeId);
+        setNameVal(r.routeName);
         setTermVal(String(r.termFee));
         setMonthVal(String(r.monthlyFee));
     };
 
     const save = (routeId: string) => {
-        onUpdate(routeId, Number(termVal), Number(monthVal));
+        onUpdate(routeId, Number(termVal), Number(monthVal), nameVal.trim());
         setEditing(null);
     };
 
@@ -106,9 +110,23 @@ const RouteFeeSettings: React.FC<{
                             <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl flex items-center justify-center flex-shrink-0">
                                 <Bus className="w-5 h-5 text-indigo-600" />
                             </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{r.routeName}</p>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Round-trip base rate</p>
+                            <div className="min-w-0 flex-1">
+                                {editing === r.routeId ? (
+                                    <div className="flex flex-col gap-1 pr-4">
+                                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Route Name</label>
+                                        <input
+                                            type="text"
+                                            value={nameVal}
+                                            onChange={e => setNameVal(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{r.routeName}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Round-trip base rate</p>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -120,7 +138,7 @@ const RouteFeeSettings: React.FC<{
                                         type="number"
                                         value={termVal}
                                         onChange={e => setTermVal(e.target.value)}
-                                        className="w-36 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                        className="w-32 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
                                     />
                                 </div>
                                 <div className="flex flex-col gap-1">
@@ -129,20 +147,20 @@ const RouteFeeSettings: React.FC<{
                                         type="number"
                                         value={monthVal}
                                         onChange={e => setMonthVal(e.target.value)}
-                                        className="w-36 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                        className="w-32 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
                                     />
                                 </div>
                                 <div className="flex items-end gap-2 pb-0.5">
-                                    <button onClick={() => save(r.routeId)} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                                    <button onClick={() => save(r.routeId)} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
                                         Save
                                     </button>
-                                    <button onClick={() => setEditing(null)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                                    <button onClick={() => setEditing(null)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
                                         Cancel
                                     </button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-6 flex-wrap">
+                            <div className="flex items-center gap-4 flex-wrap">
                                 <div className="text-center">
                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Term</p>
                                     <p className="text-lg font-black text-indigo-600">{fmt(r.termFee)}</p>
@@ -155,12 +173,23 @@ const RouteFeeSettings: React.FC<{
                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">One-Way</p>
                                     <p className="text-lg font-black text-emerald-600">{fmt(Math.round(r.termFee * 0.6))}</p>
                                 </div>
-                                <button
-                                    onClick={() => startEdit(r)}
-                                    className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                                >
-                                    Edit Fees
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => startEdit(r)}
+                                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                    >
+                                        Edit
+                                    </button>
+                                    {onDelete && (
+                                        <button
+                                            onClick={() => onDelete(r.routeId)}
+                                            className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                            title="Delete Route"
+                                        >
+                                            Delete
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -394,6 +423,7 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
     routeSettings,
     invoices,
     onUpdateRouteFee,
+    onDeleteRoute,
     onGenerateInvoices,
     onMarkPaid,
     onWaive,
@@ -589,7 +619,7 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
 
             {/* Fees Section */}
             {activeSection === 'fees' && (
-                <RouteFeeSettings routes={routeSettings} onUpdate={onUpdateRouteFee} />
+                <RouteFeeSettings routes={routeSettings} onUpdate={onUpdateRouteFee} onDelete={onDeleteRoute} />
             )}
 
             {/* Invoices Section */}

@@ -28,9 +28,16 @@ import {
     Ticket,
     Landmark,
     Users,
-    Bell
+    Bell,
+    Edit3,
+    Trash2,
+    Filter,
+    GraduationCap,
+    Layers,
+    X
 } from 'lucide-react';
 import type { Institution, User as UserType } from '../types';
+import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
 import { TransportBillingManager } from './TransportBillingManager';
@@ -223,8 +230,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
-    const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number) => {
-        setRouteFeeSetting(prev => prev.map(r => r.routeId === routeId ? { ...r, termFee, monthlyFee } : r));
+    const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => {
+        setRouteFeeSetting(prev => prev.map(r => r.routeId === routeId ? {
+            ...r,
+            termFee,
+            monthlyFee,
+            ...(routeName ? { routeName } : {})
+        } : r));
+        if (routeName) {
+            setBusRoutes(prev => prev.map(br => br.id === routeId ? { ...br, name: routeName } : br));
+        }
     };
 
     const handleGenerateInvoices = (cycle: BillingCycle, period: string) => {
@@ -297,38 +312,153 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     // School Bus Routes State
-    const [busRoutes, setBusRoutes] = useState([
-        { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: 'Westlands School Gate', bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-        { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: 'Westlands School Gate', bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
-        { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: 'Westlands School Gate', bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-    ]);
-
-    // Student Commute Preferences: Maps student.id -> routeId & preference
-    const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
-        const saved = localStorage.getItem('eduai_student_commute_prefs');
+    const [busRoutes, setBusRoutes] = useState<Array<{
+        id: string;
+        name: string;
+        startPoint: string;
+        endPoint: string;
+        bus: string;
+        driver: string;
+        attendant: string;
+    }>>(() => {
+        const saved = localStorage.getItem('eduai_transport_bus_routes');
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                if (parsed && typeof parsed === 'object') return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             } catch (e) {
-                console.error('Error parsing student commute preferences:', e);
+                console.error('Error parsing bus routes from localStorage:', e);
             }
         }
-        return {};
+        return [
+            { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: 'Westlands School Gate', bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+            { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: 'Westlands School Gate', bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+            { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: 'Westlands School Gate', bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+        ];
     });
 
     React.useEffect(() => {
-        localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(studentCommutePrefs));
-    }, [studentCommutePrefs]);
+        localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(busRoutes));
+    }, [busRoutes]);
 
-    // Route Registration Form Modal States
+    // Route Registration & Editing Modal States
     const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
+    const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
+    const [selectedStreamFilter, setSelectedStreamFilter] = useState<string>('ALL');
+    const [editingRoute, setEditingRoute] = useState<{
+        id: string;
+        name: string;
+        startPoint: string;
+        endPoint: string;
+        bus: string;
+        driver: string;
+        attendant: string;
+    } | null>(null);
     const [newRouteName, setNewRouteName] = useState('');
     const [newRouteStart, setNewRouteStart] = useState('');
     const [newRouteEnd, setNewRouteEnd] = useState('');
     const [newRouteBus, setNewRouteBus] = useState('Bus 04 (KDC 992P)');
     const [newRouteDriver, setNewRouteDriver] = useState('');
     const [newRouteAttendant, setNewRouteAttendant] = useState('');
+
+    const getStudentResolvedStream = (u: any): string => {
+        if (!u) return '';
+        const stream = (
+            u.stream ||
+            u.stream_name ||
+            u.metadata?.stream ||
+            u.metadata?.streamName ||
+            u.metadata?.stream_name ||
+            u.metadata?.stream_title ||
+            u.metadata?.section ||
+            u.metadata?.arm ||
+            ''
+        );
+        return String(stream).trim();
+    };
+
+    const getStudentBaseClass = (u: any): string => {
+        if (!u) return 'Unassigned';
+        const rawClass = (
+            u.studentClass ||
+            u.supervisedClass ||
+            u.metadata?.studentClass ||
+            u.metadata?.className ||
+            u.metadata?.gradeLevel ||
+            u.metadata?.class_level ||
+            u.metadata?.grade_level ||
+            u.metadata?.grade ||
+            u.metadata?.class ||
+            u.metadata?.class_name ||
+            u.metadata?.courseLevel ||
+            u.metadata?.academicLevel ||
+            u.metadata?.form ||
+            u.metadata?.level ||
+            u.className ||
+            u.gradeLevel ||
+            u.grade ||
+            u.class ||
+            ''
+        );
+        const stream = getStudentResolvedStream(u);
+        let classStr = String(rawClass).trim();
+        if (stream && classStr.toLowerCase().endsWith(stream.toLowerCase())) {
+            classStr = classStr.substring(0, classStr.length - stream.length).trim();
+        }
+        return classStr || 'Unassigned';
+    };
+
+    const handleOpenAddRoute = () => {
+        setEditingRoute(null);
+        setNewRouteName('');
+        setNewRouteStart('');
+        setNewRouteEnd('Westlands School Gate');
+        setNewRouteBus('Bus 04 (KDC 992P)');
+        setNewRouteDriver('');
+        setNewRouteAttendant('');
+        setIsAddRouteModalOpen(true);
+    };
+
+    const handleOpenEditRoute = (route: {
+        id: string;
+        name: string;
+        startPoint: string;
+        endPoint: string;
+        bus: string;
+        driver: string;
+        attendant: string;
+    }) => {
+        setEditingRoute(route);
+        setNewRouteName(route.name);
+        setNewRouteStart(route.startPoint);
+        setNewRouteEnd(route.endPoint);
+        setNewRouteBus(route.bus || 'Bus 04 (KDC 992P)');
+        setNewRouteDriver(route.driver || '');
+        setNewRouteAttendant(route.attendant || '');
+        setIsAddRouteModalOpen(true);
+    };
+
+    const handleDeleteRoute = (routeId: string) => {
+        const routeToDelete = busRoutes.find(r => r.id === routeId);
+        if (!routeToDelete) return;
+        if (!window.confirm(`Are you sure you want to delete the route "${routeToDelete.name}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        setBusRoutes(prev => prev.filter(r => r.id !== routeId));
+        setRouteFeeSetting(prev => prev.filter(rf => rf.routeId !== routeId));
+
+        // Clean up student preferences assigned to this route
+        setStudentCommutePrefs(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(stId => {
+                if (next[stId]?.routeId === routeId) {
+                    delete next[stId];
+                }
+            });
+            return next;
+        });
+    };
 
     const students = useMemo(() => users.filter(u => u.role === 'student'), [users]);
 
@@ -505,23 +635,60 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setTimeout(() => setParentLinkCopied(false), 2000);
         };
 
-        const handleAddRoute = (e: React.FormEvent) => {
+        const handleSaveRoute = (e: React.FormEvent) => {
             e.preventDefault();
-            if (!newRouteName || !newRouteStart || !newRouteEnd) {
-                alert('Please fill in Route Name, Start Point, and End Point.');
+            if (!newRouteName.trim() || !newRouteStart.trim() || !newRouteEnd.trim()) {
+                alert('Please fill in Route Name, Starting Landmark, and Terminal Landmark.');
                 return;
             }
-            const newRoute = {
-                id: `route_${Date.now()}`,
-                name: newRouteName,
-                startPoint: newRouteStart,
-                endPoint: newRouteEnd,
-                bus: newRouteBus,
-                driver: newRouteDriver || 'TBD',
-                attendant: newRouteAttendant || 'TBD'
-            };
-            setBusRoutes([...busRoutes, newRoute]);
+
+            if (editingRoute) {
+                // Updating existing route
+                const updatedRoutes = busRoutes.map(r => r.id === editingRoute.id ? {
+                    ...r,
+                    name: newRouteName.trim(),
+                    startPoint: newRouteStart.trim(),
+                    endPoint: newRouteEnd.trim(),
+                    bus: newRouteBus,
+                    driver: newRouteDriver.trim() || 'TBD',
+                    attendant: newRouteAttendant.trim() || 'TBD'
+                } : r);
+                setBusRoutes(updatedRoutes);
+                
+                // Sync route name in billing route settings
+                setRouteFeeSetting(prev => prev.map(rf => rf.routeId === editingRoute.id ? {
+                    ...rf,
+                    routeName: newRouteName.trim()
+                } : rf));
+            } else {
+                // Adding new route
+                const routeId = `route_${Date.now()}`;
+                const newRoute = {
+                    id: routeId,
+                    name: newRouteName.trim(),
+                    startPoint: newRouteStart.trim(),
+                    endPoint: newRouteEnd.trim(),
+                    bus: newRouteBus,
+                    driver: newRouteDriver.trim() || 'TBD',
+                    attendant: newRouteAttendant.trim() || 'TBD'
+                };
+                setBusRoutes(prev => [...prev, newRoute]);
+                
+                // Automatically register in billing settings
+                setRouteFeeSetting(prev => [
+                    ...prev,
+                    {
+                        routeId,
+                        routeName: newRouteName.trim(),
+                        termFee: 8000,
+                        monthlyFee: 3000,
+                        currency: 'KES'
+                    }
+                ]);
+            }
+
             setIsAddRouteModalOpen(false);
+            setEditingRoute(null);
             setNewRouteName('');
             setNewRouteStart('');
             setNewRouteEnd('');
@@ -529,22 +696,76 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setNewRouteAttendant('');
         };
 
-        const displayStudents = students.length > 0 ? students.map(s => ({
-            id: s.id,
-            name: s.name,
-            admissionNumber: s.admissionNumber || s.admission_number || `ADM/${s.id.substring(0, 4)}`
-        })) : [
-            { id: 'st_1', name: 'Kelvin Kiprop', admissionNumber: 'ADM/8821/24' },
-            { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24' },
-            { id: 'st_3', name: 'Liam Otieno', admissionNumber: 'ADM/8774/24' },
-            { id: 'st_4', name: 'Chloe Kamau', admissionNumber: 'ADM/9331/25' },
-            { id: 'st_5', name: 'Ethan Ndwiga', admissionNumber: 'ADM/8109/23' },
-        ];
+        const displayStudents = useMemo(() => {
+            const rawStudents = students.length > 0 ? students : [
+                { id: 'st_1', name: 'Kelvin Kiprop', role: 'student', studentClass: 'Grade 4', stream: 'North', metadata: { admissionNumber: 'ADM/8821/24', studentClass: 'Grade 4', stream: 'North' } },
+                { id: 'st_2', name: 'Alisha Wanjiku', role: 'student', studentClass: 'Grade 3', stream: 'East', metadata: { admissionNumber: 'ADM/9012/24', studentClass: 'Grade 3', stream: 'East' } },
+                { id: 'st_3', name: 'Liam Otieno', role: 'student', studentClass: 'Grade 5', stream: 'West', metadata: { admissionNumber: 'ADM/8774/24', studentClass: 'Grade 5', stream: 'West' } },
+                { id: 'st_4', name: 'Chloe Kamau', role: 'student', studentClass: 'Grade 2', stream: 'Blue', metadata: { admissionNumber: 'ADM/9331/25', studentClass: 'Grade 2', stream: 'Blue' } },
+                { id: 'st_5', name: 'Ethan Ndwiga', role: 'student', studentClass: 'Grade 6', stream: 'Gold', metadata: { admissionNumber: 'ADM/8109/23', studentClass: 'Grade 6', stream: 'Gold' } },
+            ];
 
-        const filteredStudents = displayStudents.filter(s => 
-            s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            s.admissionNumber.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+            return rawStudents.map(s => {
+                const resolvedAdm = getStudentResolvedAdm(s, true);
+                const resolvedClass = getStudentResolvedClass(s) || 'Unassigned Class';
+                const baseClass = getStudentBaseClass(s);
+                const stream = getStudentResolvedStream(s) || (s.metadata?.stream || (s as any).stream || '');
+
+                return {
+                    ...s,
+                    id: s.id,
+                    name: s.name,
+                    admissionNumber: resolvedAdm,
+                    studentClass: resolvedClass,
+                    baseClass: baseClass || 'Unassigned',
+                    stream: stream || ''
+                };
+            });
+        }, [students]);
+
+        // Dynamic list of unique classes for filtering
+        const availableClasses = useMemo(() => {
+            const set = new Set<string>();
+            displayStudents.forEach(s => {
+                if (s.baseClass && s.baseClass !== 'Unassigned') {
+                    set.add(s.baseClass);
+                }
+            });
+            return Array.from(set).sort();
+        }, [displayStudents]);
+
+        // Dynamic list of unique streams for filtering
+        const availableStreams = useMemo(() => {
+            const set = new Set<string>();
+            displayStudents.forEach(s => {
+                if (s.stream) {
+                    set.add(s.stream);
+                }
+            });
+            return Array.from(set).sort();
+        }, [displayStudents]);
+
+        const filteredStudents = useMemo(() => {
+            return displayStudents.filter(s => {
+                const searchLower = searchTerm.toLowerCase().trim();
+                const matchesSearch = !searchLower || 
+                    s.name.toLowerCase().includes(searchLower) || 
+                    s.admissionNumber.toLowerCase().includes(searchLower) ||
+                    s.studentClass.toLowerCase().includes(searchLower) ||
+                    s.stream.toLowerCase().includes(searchLower);
+
+                const matchesClass = 
+                    selectedClassFilter === 'ALL' || 
+                    s.baseClass.toLowerCase() === selectedClassFilter.toLowerCase() ||
+                    s.studentClass.toLowerCase().includes(selectedClassFilter.toLowerCase());
+
+                const matchesStream = 
+                    selectedStreamFilter === 'ALL' || 
+                    s.stream.toLowerCase() === selectedStreamFilter.toLowerCase();
+
+                return matchesSearch && matchesClass && matchesStream;
+            });
+        }, [displayStudents, searchTerm, selectedClassFilter, selectedStreamFilter]);
 
         return (
             <div className="animate-fade-in-up space-y-8">
@@ -750,8 +971,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                     <p className="text-slate-500 font-medium text-xs mt-1">Onboard and configure bus routes, start and terminal landmarks, and assign personnel.</p>
                                 </div>
                                 <button 
-                                    onClick={() => setIsAddRouteModalOpen(true)}
-                                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                    onClick={handleOpenAddRoute}
+                                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Register Route
@@ -767,11 +988,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Bus</th>
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Driver</th>
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Attendant</th>
+                                            <th className="px-8 py-6 text-right text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                                         {busRoutes.map(route => (
-                                            <tr key={route.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                            <tr key={route.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors group">
                                                 <td className="px-8 py-6">
                                                     <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{route.name}</p>
                                                 </td>
@@ -790,6 +1012,28 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                 <td className="px-8 py-6 font-bold text-slate-500">
                                                     {route.attendant}
                                                 </td>
+                                                <td className="px-8 py-6 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenEditRoute(route)}
+                                                            className="p-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                                                            title="Edit Route"
+                                                        >
+                                                            <Edit3 className="w-3.5 h-3.5" />
+                                                            <span className="text-[9px] font-black uppercase tracking-wider">Edit</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteRoute(route.id)}
+                                                            className="p-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                                                            title="Delete Route"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                            <span className="text-[9px] font-black uppercase tracking-wider">Delete</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -797,14 +1041,18 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             </div>
                         </div>
 
-                        {/* Add Route Modal */}
+                        {/* Add / Edit Route Modal */}
                         {isAddRouteModalOpen && (
                             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
                                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up">
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Register Bus Route</h3>
-                                    <p className="text-slate-500 text-xs font-medium mb-6">Create school run routes, specify geographic bounds, and assign fleet vehicles.</p>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">
+                                        {editingRoute ? 'Edit Bus Route' : 'Register Bus Route'}
+                                    </h3>
+                                    <p className="text-slate-500 text-xs font-medium mb-6">
+                                        {editingRoute ? 'Modify route landmarks, assigned bus vehicle, and designated personnel.' : 'Create school run routes, specify geographic bounds, and assign fleet vehicles.'}
+                                    </p>
                                     
-                                    <form onSubmit={handleAddRoute} className="space-y-4">
+                                    <form onSubmit={handleSaveRoute} className="space-y-4">
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Route Name *</label>
                                             <input 
@@ -836,7 +1084,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                     value={newRouteEnd}
                                                     onChange={e => setNewRouteEnd(e.target.value)}
                                                     placeholder="Westlands School Gate"
-                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs animate-pulse"
+                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
                                                 />
                                             </div>
                                         </div>
@@ -878,16 +1126,19 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         <div className="flex gap-4 pt-4">
                                             <button 
                                                 type="button"
-                                                onClick={() => setIsAddRouteModalOpen(false)}
-                                                className="flex-1 py-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                                                onClick={() => {
+                                                    setIsAddRouteModalOpen(false);
+                                                    setEditingRoute(null);
+                                                }}
+                                                className="flex-1 py-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
                                             >
                                                 Cancel
                                             </button>
                                             <button 
                                                 type="submit"
-                                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-colors"
+                                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-colors cursor-pointer"
                                             >
-                                                Register
+                                                {editingRoute ? 'Update Route' : 'Register Route'}
                                             </button>
                                         </div>
                                     </form>
@@ -901,89 +1152,215 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     <div className="space-y-8 animate-fade-in">
                         {/* Student Commute Registry */}
                         <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                            <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center gap-6">
-                                <div>
-                                    <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Student Commute Registry</h3>
-                                    <p className="text-slate-500 font-medium text-xs mt-1">Specify student commute preferences (round trip, one-way pick-up, one-way drop-off) and assign routes.</p>
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-700 space-y-6">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Student Commute Registry</h3>
+                                        <p className="text-slate-500 font-medium text-xs mt-1">Specify student commute preferences (round trip, one-way pick-up, one-way drop-off) and assign routes.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-widest border border-indigo-100 dark:border-indigo-900/40">
+                                            {filteredStudents.length} / {displayStudents.length} Students
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="relative w-full md:w-96">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <input 
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                        placeholder="Search by student name or ADM..." 
-                                        className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-none outline-none font-bold text-sm"
-                                    />
+
+                                {/* Filter Controls Bar */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-center">
+                                    {/* Search Bar */}
+                                    <div className="relative col-span-1 md:col-span-1 lg:col-span-2">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <input 
+                                            value={searchTerm}
+                                            onChange={e => setSearchTerm(e.target.value)}
+                                            placeholder="Search by student name or ADM..." 
+                                            className="w-full pl-11 pr-9 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-700 outline-none font-bold text-xs focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white"
+                                        />
+                                        {searchTerm && (
+                                            <button
+                                                onClick={() => setSearchTerm('')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                                title="Clear search"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Class Filter */}
+                                    <div className="relative">
+                                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <GraduationCap className="w-4 h-4" />
+                                        </div>
+                                        <select
+                                            value={selectedClassFilter}
+                                            onChange={e => setSelectedClassFilter(e.target.value)}
+                                            className="w-full pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-700 outline-none font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+                                        >
+                                            <option value="ALL">All Classes {availableClasses.length > 0 ? `(${availableClasses.length})` : ''}</option>
+                                            {availableClasses.map(cls => (
+                                                <option key={cls} value={cls}>{cls}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <Filter className="w-3.5 h-3.5" />
+                                        </div>
+                                    </div>
+
+                                    {/* Stream Filter */}
+                                    <div className="relative">
+                                        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <Layers className="w-4 h-4" />
+                                        </div>
+                                        <select
+                                            value={selectedStreamFilter}
+                                            onChange={e => setSelectedStreamFilter(e.target.value)}
+                                            className="w-full pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-700 outline-none font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
+                                        >
+                                            <option value="ALL">All Streams {availableStreams.length > 0 ? `(${availableStreams.length})` : ''}</option>
+                                            {availableStreams.map(str => (
+                                                <option key={str} value={str}>{str}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <Filter className="w-3.5 h-3.5" />
+                                        </div>
+                                    </div>
                                 </div>
+
+                                {/* Active Filter Chips */}
+                                {(selectedClassFilter !== 'ALL' || selectedStreamFilter !== 'ALL' || searchTerm) && (
+                                    <div className="flex items-center gap-2 flex-wrap pt-1">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Active Filters:</span>
+                                        {selectedClassFilter !== 'ALL' && (
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 rounded-full text-[10px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800">
+                                                Class: {selectedClassFilter}
+                                                <button onClick={() => setSelectedClassFilter('ALL')} className="hover:text-rose-500 cursor-pointer"><X className="w-3 h-3" /></button>
+                                            </span>
+                                        )}
+                                        {selectedStreamFilter !== 'ALL' && (
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 rounded-full text-[10px] font-black uppercase tracking-wider border border-purple-200 dark:border-purple-800">
+                                                Stream: {selectedStreamFilter}
+                                                <button onClick={() => setSelectedStreamFilter('ALL')} className="hover:text-rose-500 cursor-pointer"><X className="w-3 h-3" /></button>
+                                            </span>
+                                        )}
+                                        {searchTerm && (
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-[10px] font-black uppercase tracking-wider border border-slate-200 dark:border-slate-600">
+                                                Search: "{searchTerm}"
+                                                <button onClick={() => setSearchTerm('')} className="hover:text-rose-500 cursor-pointer"><X className="w-3 h-3" /></button>
+                                            </span>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                setSelectedClassFilter('ALL');
+                                                setSelectedStreamFilter('ALL');
+                                                setSearchTerm('');
+                                            }}
+                                            className="text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline ml-2 cursor-pointer"
+                                        >
+                                            Reset All Filters
+                                        </button>
+                                    </div>
+                                )}
                             </div>
+
                             <div className="overflow-x-auto">
                                 <table className="w-full">
                                     <thead className="bg-slate-50 dark:bg-slate-900/50">
                                         <tr>
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Student</th>
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Admission No.</th>
+                                            <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Class & Stream</th>
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Commute Route</th>
                                             <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Daily Schedule / Direction</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                        {filteredStudents.map(student => {
-                                            const currentPref = studentCommutePrefs[student.id] || { routeId: 'none', preference: 'none' };
-                                            return (
-                                                <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
-                                                    <td className="px-8 py-6">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 rounded-xl flex items-center justify-center font-black">
-                                                                {student.name.charAt(0)}
+                                        {filteredStudents.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-8 py-16 text-center text-slate-400 text-sm font-bold">
+                                                    No students found matching the selected class, stream, or search criteria.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredStudents.map(student => {
+                                                const currentPref = studentCommutePrefs[student.id] || { routeId: 'none', preference: 'none' };
+                                                return (
+                                                    <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                                        <td className="px-8 py-6">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-650 dark:text-indigo-400 rounded-xl flex items-center justify-center font-black">
+                                                                    {student.name.charAt(0)}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-800 dark:text-white uppercase tracking-tight">{student.name}</p>
+                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                                                                        {student.studentClass}
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                            <p className="font-bold text-slate-800 dark:text-white">{student.name}</p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-8 py-6 font-bold text-slate-650 dark:text-slate-350">
-                                                        {student.admissionNumber}
-                                                    </td>
-                                                    <td className="px-8 py-6">
-                                                        <select
-                                                            value={currentPref.routeId}
-                                                            onChange={e => {
-                                                                setStudentCommutePrefs({
-                                                                    ...studentCommutePrefs,
-                                                                    [student.id]: { ...currentPref, routeId: e.target.value }
-                                                                });
-                                                            }}
-                                                            className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl font-bold text-xs"
-                                                        >
-                                                            <option value="none">-- Unassigned --</option>
-                                                            {busRoutes.map(route => (
-                                                                <option key={route.id} value={route.id}>{route.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                    <td className="px-8 py-6">
-                                                        <select
-                                                            value={currentPref.preference}
-                                                            onChange={e => {
-                                                                setStudentCommutePrefs({
-                                                                    ...studentCommutePrefs,
-                                                                    [student.id]: { ...currentPref, preference: e.target.value as any }
-                                                                });
-                                                            }}
-                                                            className={`px-4 py-2 border rounded-xl font-black uppercase text-[10px] tracking-wider ${
-                                                                currentPref.preference === 'round_trip' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                                currentPref.preference === 'one_way_pickup' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                                currentPref.preference === 'one_way_drop' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                                'bg-slate-50 text-slate-400 border-slate-200'
-                                                            }`}
-                                                        >
-                                                            <option value="round_trip">🔄 Round Trip</option>
-                                                            <option value="one_way_pickup">🌅 One Way - Pickup Only</option>
-                                                            <option value="one_way_drop">🌇 One Way - Drop-off Only</option>
-                                                            <option value="none">❌ Not Commuting</option>
-                                                        </select>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <span className="px-3.5 py-1.5 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl font-mono font-black text-xs tracking-wider border border-indigo-100 dark:border-indigo-900/50 inline-flex items-center gap-1.5 shadow-sm">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                                                                {student.admissionNumber}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-750 dark:text-slate-200 rounded-lg text-xs font-black uppercase tracking-tight w-fit">
+                                                                    {student.baseClass}
+                                                                </span>
+                                                                {student.stream && (
+                                                                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest pl-0.5">
+                                                                        Stream: {student.stream}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <select
+                                                                value={currentPref.routeId}
+                                                                onChange={e => {
+                                                                    setStudentCommutePrefs({
+                                                                        ...studentCommutePrefs,
+                                                                        [student.id]: { ...currentPref, routeId: e.target.value }
+                                                                    });
+                                                                }}
+                                                                className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                                                            >
+                                                                <option value="none">-- Unassigned --</option>
+                                                                {busRoutes.map(route => (
+                                                                    <option key={route.id} value={route.id}>{route.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <select
+                                                                value={currentPref.preference}
+                                                                onChange={e => {
+                                                                    setStudentCommutePrefs({
+                                                                        ...studentCommutePrefs,
+                                                                        [student.id]: { ...currentPref, preference: e.target.value as any }
+                                                                    });
+                                                                }}
+                                                                className={`px-4 py-2.5 border rounded-xl font-black uppercase text-[10px] tracking-wider outline-none cursor-pointer ${
+                                                                    currentPref.preference === 'round_trip' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800' :
+                                                                    currentPref.preference === 'one_way_pickup' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' :
+                                                                    currentPref.preference === 'one_way_drop' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' :
+                                                                    'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-700'
+                                                                }`}
+                                                            >
+                                                                <option value="none">✕ Not Commuting</option>
+                                                                <option value="round_trip">🔄 Round Trip</option>
+                                                                <option value="one_way_pickup">🌅 Morning Pick-up</option>
+                                                                <option value="one_way_drop">🌇 Afternoon Drop-off</option>
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -1866,6 +2243,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         routeSettings={routeFeeSetting}
                         invoices={transportInvoices}
                         onUpdateRouteFee={handleUpdateRouteFee}
+                        onDeleteRoute={handleDeleteRoute}
                         onGenerateInvoices={handleGenerateInvoices}
                         onMarkPaid={handleMarkPaid}
                         onWaive={handleWaiveFee}

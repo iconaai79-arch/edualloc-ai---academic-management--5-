@@ -997,17 +997,44 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     const storeData = match?.settings || match?.stateData || match?.data;
                     if (storeData && typeof storeData === 'object') {
                         setExamMarksStore(prev => {
-                            const merged = { ...storeData, ...prev };
+                            const merged = { ...prev, ...storeData };
                             try {
                                 localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
                             } catch (e) { }
                             return merged;
                         });
+                        if (selectedExamId && storeData[selectedExamId] && Array.isArray(storeData[selectedExamId]) && storeData[selectedExamId].length > 0) {
+                            setBroadsheetStudentRows(sanitizeBroadsheetRows(storeData[selectedExamId]));
+                        }
                     }
                 })
                 .catch(() => { });
         }
-    }, [currentInstitution]);
+
+        const handleAcademicsSync = () => {
+            try {
+                if (currentInstitution?.id) {
+                    const saved = localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed && typeof parsed === 'object') {
+                            setExamMarksStore(prev => ({ ...prev, ...parsed }));
+                            if (selectedExamId && parsed[selectedExamId] && Array.isArray(parsed[selectedExamId])) {
+                                setBroadsheetStudentRows(sanitizeBroadsheetRows(parsed[selectedExamId]));
+                            }
+                        }
+                    }
+                }
+            } catch (e) { }
+        };
+
+        window.addEventListener('eduai_broadsheets_updated', handleAcademicsSync);
+        window.addEventListener('eduai_academics_synced', handleAcademicsSync);
+        return () => {
+            window.removeEventListener('eduai_broadsheets_updated', handleAcademicsSync);
+            window.removeEventListener('eduai_academics_synced', handleAcademicsSync);
+        };
+    }, [currentInstitution, selectedExamId, sanitizeBroadsheetRows]);
 
     // Comprehensive helper to resolve student class name across all schema variations
     const getStudentClass = useCallback((st: any): string => {

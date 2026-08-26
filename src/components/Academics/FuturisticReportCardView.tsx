@@ -15,6 +15,7 @@ import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
 import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
+import { apiService } from '../../services/apiService';
 import * as XLSX from 'xlsx';
 
 interface FuturisticReportCardViewProps {
@@ -75,6 +76,55 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         } catch (e) {}
         return [{ year: '2026', term: 'Term 2' }];
     });
+
+    // Broadsheet State Loaded from Database and Local Storage
+    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
+        try {
+            const instKey = currentInstitution?.id || 'default';
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instKey}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) {}
+        return {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => 
+                        r.id === `broadsheets_${currentInstitution.id}` || 
+                        r.module_id === 'exam_broadsheets' || 
+                        r.moduleId === 'exam_broadsheets' || 
+                        r.moduleName === 'exam_broadsheets'
+                    );
+                    const storeData = match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object') {
+                        setSavedBroadsheets(prev => {
+                            const merged = { ...prev, ...storeData };
+                            try {
+                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+
+        const handleSync = () => {
+            try {
+                const instKey = currentInstitution?.id || 'default';
+                const saved = localStorage.getItem(`eduai_exam_broadsheets_${instKey}`);
+                if (saved) setSavedBroadsheets(JSON.parse(saved) || {});
+            } catch(e) {}
+        };
+        window.addEventListener('eduai_broadsheets_updated', handleSync);
+        window.addEventListener('eduai_academics_synced', handleSync);
+        return () => {
+            window.removeEventListener('eduai_broadsheets_updated', handleSync);
+            window.removeEventListener('eduai_academics_synced', handleSync);
+        };
+    }, [currentInstitution]);
 
     // Dynamic Year-Terms Tree: ONLY for years and terms with generated report cards or evaluated assessments
     const yearTermsTree = useMemo(() => {
@@ -529,19 +579,24 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         // 2. Search saved broadsheets if any exist
         let savedSheetRows: any[] = [];
         try {
+            const allSheets = { ...savedBroadsheets };
             const savedSheetsStr = localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution?.id || 'default'}`);
             if (savedSheetsStr) {
                 const parsed = JSON.parse(savedSheetsStr);
-                Object.values(parsed).forEach((sheetArray: any) => {
-                    if (Array.isArray(sheetArray)) {
-                        const match = sheetArray.find((r: any) => 
-                            String(r.admNo || r.id || r.admissionNo || '').toLowerCase() === String(studentId).toLowerCase() ||
-                            (admNo && String(r.admNo || r.id || r.admissionNo || '').toLowerCase() === admNo.toLowerCase())
-                        );
-                        if (match) savedSheetRows.push(match);
-                    }
-                });
+                if (parsed && typeof parsed === 'object') {
+                    Object.assign(allSheets, parsed);
+                }
             }
+            Object.values(allSheets).forEach((sheetArray: any) => {
+                if (Array.isArray(sheetArray)) {
+                    const match = sheetArray.find((r: any) => 
+                        String(r.admNo || r.id || r.admissionNo || '').toLowerCase() === String(studentId).toLowerCase() ||
+                        (admNo && String(r.admNo || r.id || r.admissionNo || '').toLowerCase() === admNo.toLowerCase()) ||
+                        (r.name && currentStudent?.name && r.name.toLowerCase().trim() === currentStudent.name.toLowerCase().trim())
+                    );
+                    if (match) savedSheetRows.push(match);
+                }
+            });
         } catch (e) {}
 
         return activeSubjects.map((sub, idx) => {
