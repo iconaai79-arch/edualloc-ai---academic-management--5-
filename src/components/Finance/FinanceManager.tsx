@@ -1964,8 +1964,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const rRaw = String((r as any).rawDetails || (r as any).raw_details || '');
                 const currentStudentId = r.studentId || (r as any).student_id || '';
 
+                // Strip parenthetical sequence suffix (e.g. " (2)", "(18)") from receipt/ref numbers
+                // before building combinedText — prevents the bare number being matched as an ADM
+                const stripRcptSuffix = (s: string) => s.replace(/\s*\(\d+\)\s*$/g, '').trim();
                 const explicitAdm = cleanAdm(r.admissionNumber || (r as any).admission_number || (r as any).admNo || r.metadata?.admissionNumber);
-                const combinedText = `${rRef} ${rNotes} ${rRaw} ${rPayer} ${rNum}`.trim();
+                const combinedText = `${stripRcptSuffix(rRef)} ${rNotes} ${rRaw} ${rPayer} ${stripRcptSuffix(rNum)}`.trim();
 
                 let targetStudentId = currentStudentId;
                 let isModified = false;
@@ -3446,29 +3449,42 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (val === undefined || val === null) return [];
                 const str = String(val).trim().toLowerCase();
                 if (!str || str === '—' || str === 'n/a' || str === 'undefined' || str === 'null') return [];
+
+                // Detect receipt-like prefixes (BURSARY, RCPT, REC, INV, etc.) — these are NOT ADM numbers.
+                // Strip the parenthetical sequence suffix e.g. "BURSARY0125 (2)" → work only with "bursary0125"
+                // and never emit the bare parenthetical number as an ADM candidate.
+                const isReceiptLike = /^(bursary|rcpt|rec|receipt|inv|ref|bank|mpesa|pay)\d*/i.test(str);
+                // Remove trailing parenthetical sequence e.g. " (2)" or "(18)" before processing
+                const strClean = str.replace(/\s*\(\d+\)\s*$/, '').trim();
+
                 const candidates = new Set<string>();
-                candidates.add(str);
-                const noSpaces = str.replace(/\s+/g, '');
+                candidates.add(strClean);
+                const noSpaces = strClean.replace(/\s+/g, '');
                 if (noSpaces) candidates.add(noSpaces);
-                const alnum = str.replace(/[^a-z0-9]/g, '');
+                const alnum = strClean.replace(/[^a-z0-9]/g, '');
                 if (alnum) candidates.add(alnum);
-                const digits = str.replace(/\D/g, '');
+                const digits = strClean.replace(/\D/g, '');
                 if (digits) {
                     candidates.add(digits);
                     const noZeros = digits.replace(/^0+/, '');
                     if (noZeros) candidates.add(noZeros);
                 }
-                // Extract all continuous 2+ digit chunks (e.g. "3125/2024" -> "3125", "2024")
-                const digitsMatch = str.match(/\d{2,10}/g);
-                if (digitsMatch) {
-                    digitsMatch.forEach(d => {
-                        candidates.add(d);
-                        const nz = d.replace(/^0+/, '');
-                        if (nz) candidates.add(nz);
-                    });
+
+                // Extract digit chunks ONLY for non-receipt-like values to avoid false ADM hits.
+                // e.g. "3125/2024" → "3125", "2024" is fine, but "BURSARY0125" → skip short-chunk extraction
+                if (!isReceiptLike) {
+                    const digitsMatch = strClean.match(/\d{2,10}/g);
+                    if (digitsMatch) {
+                        digitsMatch.forEach(d => {
+                            candidates.add(d);
+                            const nz = d.replace(/^0+/, '');
+                            if (nz) candidates.add(nz);
+                        });
+                    }
                 }
-                const strippedPrefix = str.replace(/^(adm|std|reg|no|num|#|\/|-|_|\s)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
-                if (strippedPrefix) {
+
+                const strippedPrefix = strClean.replace(/^(adm|std|reg|no|num|#|\/|-|_|\s)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
+                if (strippedPrefix && !isReceiptLike) {
                     candidates.add(strippedPrefix);
                     const stripAlnum = strippedPrefix.replace(/[^a-z0-9]/g, '');
                     if (stripAlnum) candidates.add(stripAlnum);
@@ -3829,10 +3845,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /^payment[\s_]*type$/i
                 );
 
-                // Column G: Receipt #
+                // Column G: Receipt # — also matches BURSARY-style receipt columns
                 const receiptRaw = resolveCol(row,
                     /^receipt[\s_]*(#|no|number)?$/i,
-                    /^rcpt/i
+                    /^rcpt/i,
+                    /^bursary/i,
+                    /^voucher/i
                 );
 
                 // Column H: Paid On — use resolveDateRaw to preserve JS Date objects from cellDates:true
@@ -3845,7 +3863,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /time/i
                 );
 
-                const ref = refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`;
+                // Strip parenthetical sequence suffix from receipt/ref for use as transaction reference
+                // e.g. "BURSARY0125 (2)" → ref stored as "BURSARY0125" (sequence suffix excluded)
+                const stripSeqSuffix = (s: string) => s.replace(/\s*\(\d+\)\s*$/, '').trim();
+                const ref = stripSeqSuffix(refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`);
                 const amount = parseMoneyAmount(amtRaw);
                 const payer = nameRaw || 'Excel Import';
                 // dateRaw may be a JS Date object, number serial, or string — excelDateToISO handles all
