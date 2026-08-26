@@ -536,6 +536,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.paid_for === undefined) copy.paid_for = copy.paidFor;
                     delete copy.paidFor;
                 }
+                delete copy.notes;
+                delete copy.receiptSource;
+                delete copy.receipt_source;
+                delete copy.voteHeadAllocations;
+                delete copy.vote_head_allocations;
+                delete copy.studentName;
+                delete copy.student_name;
                 delete copy.admDisplay;
                 delete copy.adm_display;
                 delete copy.excelPaymentMode;

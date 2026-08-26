@@ -853,10 +853,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     institution_id: instId,
                     studentId: item.matchedStudentId,
                     student_id: item.matchedStudentId,
-                    studentName: item.matchedStudentName || student?.name || 'Student',
-                    student_name: item.matchedStudentName || student?.name || 'Student',
-                    admissionNumber: sAdm,
-                    admission_number: sAdm,
                     amountPaid: Number(item.rawAmount),
                     amount_paid: Number(item.rawAmount),
                     paymentMethod: item.paymentMethod,
@@ -866,13 +862,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     paymentDate: item.rawDate,
                     payment_date: item.rawDate,
                     paidFor: paidForDescription,
-                    paid_for: paidForDescription,
-                    voteHeadAllocations: item.voteHeadAllocations,
-                    receiptSource: item.receiptSource,
-                    notes: `Imported via Excel: ${item.rawName || ''} [${item.rawAdm || ''}] · ${item.voteHeadSummary} · ${item.receiptSource === 'excel' ? 'Receipt: ' + receiptNumber : 'Auto Receipt'}`,
-                    excelPaymentMode: item.rawMode || item.paymentMethod,
-                    updatedAt: new Date().toISOString(),
-                    createdAt: existingReceipt?.createdAt || new Date().toISOString()
+                    paid_for: paidForDescription
                 };
 
                 await apiService.saveModuleRecord('receipts', receiptRecord);
@@ -954,10 +944,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             institution_id: instId,
             studentId: manualSelectedStudent.id,
             student_id: manualSelectedStudent.id,
-            studentName: manualSelectedStudent.name,
-            student_name: manualSelectedStudent.name,
-            admissionNumber: sAdm,
-            admission_number: sAdm,
             amountPaid: Number(manualAmount),
             amount_paid: Number(manualAmount),
             paymentMethod: manualMethod,
@@ -967,9 +953,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             paymentDate: manualDate,
             payment_date: manualDate,
             paidFor: paidForText,
-            paid_for: paidForText,
-            voteHeadAllocations: allocations,
-            createdAt: new Date().toISOString()
+            paid_for: paidForText
         };
 
         try {
