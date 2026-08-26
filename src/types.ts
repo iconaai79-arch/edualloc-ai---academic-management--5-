@@ -1748,6 +1748,14 @@ export interface LibraryTransaction {
     id: string;
     bookId: string;
     userId: string;
+    userName?: string;
+    admissionNumber?: string;
+    admission_number?: string;
+    studentName?: string;
+    borrowerName?: string;
+    recipientName?: string;
+    classLevel?: string;
+    stream?: string;
     issueDate: string;
     dueDate: string;
     returnDate?: string;
@@ -1755,6 +1763,7 @@ export interface LibraryTransaction {
     fineAmount?: number;
     institutionId: string;
     memberSignature?: string;
+    [key: string]: any;
 }
 
 export interface LibraryFine {

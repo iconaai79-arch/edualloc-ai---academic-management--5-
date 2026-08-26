@@ -582,25 +582,14 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 const copy = books.find(b => b.id === copyId);
                 if (!copy) continue;
 
-                const studentObj = getUserObject(student.id) || student;
-                const patronName = studentObj.name || extractStudentName(studentObj) || 'Member';
-                const admNo = studentObj.admissionNumber || studentObj.admission_number || studentObj.staffId || student.id;
-
                 const transactionId = `ltx_bulk_${Date.now()}_${student.id.slice(-4)}_${Math.random().toString(36).substr(2, 4)}`;
-                const transaction: any = {
+                const transaction = {
                     id: transactionId,
                     bookId: copyId,
                     userId: student.id,
-                    userName: patronName,
-                    studentName: patronName,
-                    borrowerName: patronName,
-                    recipientName: patronName,
-                    admissionNumber: admNo,
-                    classLevel: studentObj.gradeLevel || '',
-                    stream: studentObj.stream || '',
                     issueDate,
                     dueDate,
-                    status: 'issued',
+                    status: 'issued' as const,
                     institutionId,
                     fineAmount: 0
                 };
@@ -628,41 +617,22 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             await loadData();
             onDataChange();
         } catch (error: any) {
-            alert("Failed to issue books in bulk: " + (error.message || error));
+            console.error('Bulk Issuance Error:', error);
+            alert(`Failed during bulk issuance: ${error.message || 'Unknown database error'}`);
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const handleIssueBook = async (e: React.FormEvent) => {
-        e.preventDefault();
-
+    const handleIssueBook = async () => {
         if (!newLoan.userId || !newLoan.bookId || !newLoan.dueDate) {
-            alert('Please select both a member and a book, and set a due date.');
+            alert('Please select a member, book, and due date.');
             return;
         }
-
-        if (isProcessing) return;
 
         const book = books.find(b => b.id === newLoan.bookId);
-        if (!book) {
-            alert('Selected resource not found in registry.');
-            return;
-        }
-
-        const hasActiveLoan = transactions.some(t =>
-            t.userId === newLoan.userId &&
-            t.bookId === newLoan.bookId &&
-            (t.status === 'issued' || t.status === 'overdue')
-        );
-
-        if (hasActiveLoan) {
-            alert(`This member already has an active loan for "${book.title}". They must return the current copy before being issued another one.`);
-            return;
-        }
-
-        if (book.available < 1) {
-            alert(`"${book.title}" is currently out of stock. (Total: ${book.quantity}, Available: 0)`);
+        if (!book || book.available < 1) {
+            alert('This book is currently out of stock.');
             return;
         }
 
@@ -670,31 +640,20 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         try {
             const signatureUrl = hasSigned && signatureCanvasRef.current ? signatureCanvasRef.current.toDataURL('image/png') : undefined;
 
-            const patronObj = getUserObject(newLoan.userId) || allMembersList.find(m => m.id === newLoan.userId || m.userId === newLoan.userId);
-            const patronName = patronObj?.name || extractStudentName(patronObj) || 'Member';
-            const admNo = patronObj?.admissionNumber || patronObj?.admission_number || patronObj?.staffId || newLoan.userId;
-
             const transactionId = `ltx_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
             const issueDate = new Date().toISOString();
             const dueDate = new Date(newLoan.dueDate).toISOString();
 
-            const transaction: any = {
+            const transaction = {
                 id: transactionId,
                 bookId: newLoan.bookId,
                 userId: newLoan.userId,
-                userName: patronName,
-                studentName: patronName,
-                borrowerName: patronName,
-                recipientName: patronName,
-                admissionNumber: admNo,
-                classLevel: patronObj?.gradeLevel || '',
-                stream: patronObj?.stream || '',
                 issueDate,
                 dueDate,
-                status: 'issued',
+                status: 'issued' as const,
                 institutionId,
                 fineAmount: 0,
-                memberSignature: signatureUrl
+                ...(signatureUrl ? { memberSignature: signatureUrl } : {})
             };
 
             await apiService.saveModuleRecord('library_transactions', transaction);
@@ -705,6 +664,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 available: newAvail,
                 available_copies: newAvail
             });
+
+            const patronObj = getUserObject(newLoan.userId) || allMembersList.find(m => m.id === newLoan.userId || m.userId === newLoan.userId);
+            const patronName = patronObj?.name || extractStudentName(patronObj) || 'Member';
+            const admNo = patronObj?.admissionNumber || patronObj?.admission_number || patronObj?.staffId || newLoan.userId;
 
             await onLogAction(`Issued book "${book.title}" to ${patronName} (${admNo})`);
 

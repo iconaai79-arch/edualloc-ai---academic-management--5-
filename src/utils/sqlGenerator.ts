@@ -1033,11 +1033,17 @@ CREATE TABLE IF NOT EXISTS library_transactions (
     id TEXT PRIMARY KEY,
     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    admission_number TEXT,
+    user_name TEXT,
+    student_name TEXT,
+    class_level TEXT,
+    stream TEXT,
     issue_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     due_date TIMESTAMP WITH TIME ZONE NOT NULL,
     return_date TIMESTAMP WITH TIME ZONE,
     status TEXT DEFAULT 'issued',
     fine_amount DECIMAL(10,2) DEFAULT 0,
+    member_signature TEXT,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
 );
 
