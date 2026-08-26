@@ -6,13 +6,11 @@ import {
     ArrowUpTrayIcon,
     CheckBadgeIcon,
     CheckCircleIcon,
-    ExclamationTriangleIcon,
     SparklesIcon,
     SearchIcon,
     ChevronDownIcon,
     PlusIcon,
     Cog8ToothIcon,
-    CreditCardIcon,
     BanknotesIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
@@ -35,6 +33,8 @@ export interface ReconciledFeeItem {
     rawDate: string;
     rawMode: string;
     rawReceiptNo: string;
+    receiptNumber: string;
+    receiptSource: 'excel' | 'system';
     admDisplay: string;
     matchedStudentId: string;
     matchedStudentName: string;
@@ -117,6 +117,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [referenceCol, setReferenceCol] = useState<string>('');
     const [dateCol, setDateCol] = useState<string>('');
     const [modeCol, setModeCol] = useState<string>('');
+    const [receiptCol, setReceiptCol] = useState<string>('');
 
     // Reconciled rows
     const [reconciledItems, setReconciledItems] = useState<ReconciledFeeItem[]>([]);
@@ -138,6 +139,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [manualMethod, setManualMethod] = useState<'Cash' | 'M-Pesa' | 'Bank Transfer' | 'Cheque' | 'Bursary'>('Cash');
     const [manualRef, setManualRef] = useState('');
     const [manualDate, setManualDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [manualReceiptNo, setManualReceiptNo] = useState('');
     const [manualPaidFor, setManualPaidFor] = useState('Tuition & School Fees');
     const [isPostingManual, setIsPostingManual] = useState(false);
     const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
@@ -156,7 +158,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 amtCol: amountCol,
                 refCol: referenceCol,
                 dtCol: dateCol,
-                mdCol: modeCol
+                mdCol: modeCol,
+                rcptCol: receiptCol
             }, newPriorities, autoSplitVoteheads);
         }
     };
@@ -476,12 +479,15 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
         const detectedMode = findCol(/^(payment[\s_]*mode|pay[\s_]*mode|mode|payment[\s_]*type|channel)$/i) || '';
 
+        const detectedReceipt = findCol(/^(receipt|receipt[\s_]*(no|number|#|id)?|rcpt|rcpt[\s_]*(no|#)?|rec[\s_]*(no|#)?)$/i) || '';
+
         setAdmissionCol(detectedAdm);
         setNameCol(detectedName);
         setAmountCol(detectedAmt);
         setReferenceCol(detectedRef);
         setDateCol(detectedDate);
         setModeCol(detectedMode);
+        setReceiptCol(detectedReceipt);
     };
 
     // Reconcile rows based on currently selected column mappings
@@ -494,6 +500,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             refCol: string;
             dtCol: string;
             mdCol: string;
+            rcptCol: string;
         },
         priorities: string[] = voteheadPriorities,
         splitEnabled: boolean = autoSplitVoteheads
@@ -505,6 +512,12 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             const rawRef = mappings.refCol ? String(row[mappings.refCol] ?? '').trim() : `REF-${Date.now()}-${idx + 1}`;
             const rawDate = mappings.dtCol ? parseExcelDate(row[mappings.dtCol]) : new Date().toISOString().split('T')[0];
             const rawMode = mappings.mdCol ? String(row[mappings.mdCol] ?? '').trim() : '';
+            const rawReceiptNo = mappings.rcptCol ? String(row[mappings.rcptCol] ?? '').trim() : '';
+
+            // Generate official system receipt number if not mapped from Excel
+            const systemReceiptNo = `RCPT-${Math.floor(100000 + (idx + 1) * 37 + Math.random() * 9000)}`;
+            const finalReceiptNumber = rawReceiptNo || systemReceiptNo;
+            const receiptSource: 'excel' | 'system' = rawReceiptNo ? 'excel' : 'system';
 
             // Match student
             let matchedStudent: User | null = null;
@@ -577,7 +590,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 rawRef,
                 rawDate,
                 rawMode,
-                rawReceiptNo: '',
+                rawReceiptNo,
+                receiptNumber: finalReceiptNumber,
+                receiptSource,
                 admDisplay: rawAdm || matchedAdm || '—',
                 matchedStudentId: matchedStudent ? matchedStudent.id : '',
                 matchedStudentName: matchedStudent ? matchedStudent.name : '',
@@ -645,6 +660,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             const detectedDate = findCol(/^(paid[\s_]*on|date|payment[\s_]*date|trans[\s_]*date|txn[\s_]*date)$/i) ||
                                  headers.find(h => /date|paid|time/i.test(h)) || '';
             const detectedMode = findCol(/^(payment[\s_]*mode|pay[\s_]*mode|mode|payment[\s_]*type|channel)$/i) || '';
+            const detectedReceipt = findCol(/^(receipt|receipt[\s_]*(no|number|#|id)?|rcpt|rcpt[\s_]*(no|#)?|rec[\s_]*(no|#)?)$/i) || '';
 
             reconcileRows(parsedRows, {
                 admCol: detectedAdm,
@@ -652,7 +668,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 amtCol: detectedAmt,
                 refCol: detectedRef,
                 dtCol: detectedDate,
-                mdCol: detectedMode
+                mdCol: detectedMode,
+                rcptCol: detectedReceipt
             }, voteheadPriorities, autoSplitVoteheads);
             setExcelPage(1);
         } catch (err: any) {
@@ -665,7 +682,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
     // When user changes any column mapping dropdown
     const handleMappingChange = (
-        type: 'adm' | 'name' | 'amount' | 'ref' | 'date' | 'mode',
+        type: 'adm' | 'name' | 'amount' | 'ref' | 'date' | 'mode' | 'receipt',
         newCol: string
     ) => {
         let newAdm = admissionCol;
@@ -674,6 +691,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         let newRef = referenceCol;
         let newDate = dateCol;
         let newMode = modeCol;
+        let newRcpt = receiptCol;
 
         if (type === 'adm') { setAdmissionCol(newCol); newAdm = newCol; }
         if (type === 'name') { setNameCol(newCol); newName = newCol; }
@@ -681,6 +699,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         if (type === 'ref') { setReferenceCol(newCol); newRef = newCol; }
         if (type === 'date') { setDateCol(newCol); newDate = newCol; }
         if (type === 'mode') { setModeCol(newCol); newMode = newCol; }
+        if (type === 'receipt') { setReceiptCol(newCol); newRcpt = newCol; }
 
         if (rawRows.length > 0) {
             reconcileRows(rawRows, {
@@ -689,7 +708,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 amtCol: newAmt,
                 refCol: newRef,
                 dtCol: newDate,
-                mdCol: newMode
+                mdCol: newMode,
+                rcptCol: newRcpt
             }, voteheadPriorities, autoSplitVoteheads);
         }
     };
@@ -705,7 +725,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 amtCol: amountCol,
                 refCol: referenceCol,
                 dtCol: dateCol,
-                mdCol: modeCol
+                mdCol: modeCol,
+                rcptCol: receiptCol
             }, voteheadPriorities, nextState);
         }
     };
@@ -753,6 +774,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     item.rawAdm.toLowerCase().includes(q) ||
                     item.rawName.toLowerCase().includes(q) ||
                     item.rawRef.toLowerCase().includes(q) ||
+                    item.receiptNumber.toLowerCase().includes(q) ||
                     item.matchedStudentName.toLowerCase().includes(q) ||
                     item.matchedStudentAdm.toLowerCase().includes(q) ||
                     item.voteHeadSummary.toLowerCase().includes(q)
@@ -814,12 +836,12 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 if (overrideExisting) {
                     existingReceipt = receipts.find(r => 
                         (r.relatedTransactionId && cleanRef && String(r.relatedTransactionId).trim().toLowerCase() === cleanRef.toLowerCase()) ||
-                        (item.rawReceiptNo && r.receiptNumber && String(r.receiptNumber).trim().toLowerCase() === item.rawReceiptNo.trim().toLowerCase())
+                        (item.receiptNumber && r.receiptNumber && String(r.receiptNumber).trim().toLowerCase() === item.receiptNumber.trim().toLowerCase())
                     );
                 }
 
                 const receiptId = existingReceipt ? existingReceipt.id : `rec_imp_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 4)}`;
-                const receiptNumber = item.rawReceiptNo || existingReceipt?.receiptNumber || `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
+                const receiptNumber = item.receiptNumber || item.rawReceiptNo || existingReceipt?.receiptNumber || `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
 
                 const paidForDescription = item.voteHeadSummary ? `Fees [${item.voteHeadSummary}]` : 'School Fees — Excel Bulk Import';
 
@@ -846,7 +868,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     paidFor: paidForDescription,
                     paid_for: paidForDescription,
                     voteHeadAllocations: item.voteHeadAllocations,
-                    notes: `Imported via Excel: ${item.rawName || ''} [${item.rawAdm || ''}] · ${item.voteHeadSummary}`,
+                    receiptSource: item.receiptSource,
+                    notes: `Imported via Excel: ${item.rawName || ''} [${item.rawAdm || ''}] · ${item.voteHeadSummary} · ${item.receiptSource === 'excel' ? 'Receipt: ' + receiptNumber : 'Auto Receipt'}`,
                     excelPaymentMode: item.rawMode || item.paymentMethod,
                     updatedAt: new Date().toISOString(),
                     createdAt: existingReceipt?.createdAt || new Date().toISOString()
@@ -888,7 +911,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             if (onRefreshData) await onRefreshData();
 
-            setSuccessSummary(`Successfully posted ${postedCount} receipts totaling KES ${totalVal.toLocaleString()} with automated votehead allocations!`);
+            setSuccessSummary(`Successfully posted ${postedCount} receipts totaling KES ${totalVal.toLocaleString()}!`);
         } catch (err: any) {
             console.error("Bulk receipt post failed:", err);
             alert("Error posting bulk receipts: " + err.message);
@@ -912,7 +935,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         setIsPostingManual(true);
         const instId = institution?.id || '';
         const sAdm = resolveRealStudentAdmNo(manualSelectedStudent);
-        const receiptNumber = `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
+        const receiptNumber = manualReceiptNo.trim() || `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
 
         const { allocations, summary } = calculateVoteHeadSplit(
             manualSelectedStudent.id,
@@ -952,7 +975,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         try {
             await apiService.saveModuleRecord('receipts', receiptRecord);
             if (onReceiptCreated) onReceiptCreated(receiptRecord);
-            if (onLogAction) await onLogAction(`Manually received KES ${Number(manualAmount).toLocaleString()} for ${manualSelectedStudent.name} (${sAdm}) with Votehead Split [${summary}]`);
+            if (onLogAction) await onLogAction(`Manually received KES ${Number(manualAmount).toLocaleString()} for ${manualSelectedStudent.name} (${sAdm}) with Receipt ${receiptNumber}`);
             if (onRefreshData) await onRefreshData();
 
             setManualSuccessMsg(`Receipt ${receiptNumber} created successfully for ${manualSelectedStudent.name}!`);
@@ -960,6 +983,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             setManualStudentSearch('');
             setManualAmount('');
             setManualRef('');
+            setManualReceiptNo('');
         } catch (err: any) {
             alert("Failed to post receipt: " + err.message);
         } finally {
@@ -984,7 +1008,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 Receive fees money
                             </h3>
                             <p className="text-[10px] font-bold text-slate-400">
-                                Smart payment allocation with automated votehead distribution
+                                Smart payment allocation with Excel field matching &amp; votehead auto-split
                             </p>
                         </div>
                     </div>
@@ -1082,7 +1106,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                 Select Excel Statement (.xlsx, .xls, .csv)
                                             </h4>
                                             <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
-                                                Upload your bank or M-Pesa statements. You can match the columns in the next step to assign payments and auto-split voteheads accurately.
+                                                Upload bank/M-Pesa statements. You can match the columns to assign payments, map receipt numbers or use system-generated receipts, and auto-split voteheads.
                                             </p>
                                         </div>
                                         <label className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer">
@@ -1106,11 +1130,11 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 
                                 {/* Instruction Banner matching sample UI */}
                                 <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                                    We will now need you to tell us which columns in your Excel file contain the admission number, amount paid, payment reference and date of payment by clicking on <span className="font-black text-slate-800 dark:text-white">⌵</span> and choosing the column name.
+                                    We will now need you to tell us which columns in your Excel file contain the admission number, amount paid, payment reference, receipt number, and date of payment by clicking on <span className="font-black text-slate-800 dark:text-white">⌵</span> and choosing the column name.
                                 </div>
 
-                                {/* ── Field Mapping Selectors (Row of 4-5 dropdowns) ── */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                {/* ── Field Mapping Selectors (Row of 6 dropdowns) ── */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 p-4 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800">
                                     {/* Admission number mapping */}
                                     <div className="space-y-1">
                                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
@@ -1191,6 +1215,26 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         </div>
                                     </div>
 
+                                    {/* Receipt Number mapping (From Excel or System Generated) */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                            Receipt number
+                                        </label>
+                                        <div className="relative">
+                                            <select
+                                                value={receiptCol}
+                                                onChange={(e) => handleMappingChange('receipt', e.target.value)}
+                                                className="w-full appearance-none px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 pr-8 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                            >
+                                                <option value="">✨ System Generated (Auto)</option>
+                                                {excelHeaders.map(h => (
+                                                    <option key={h} value={h}>{h} (From Excel)</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                        </div>
+                                    </div>
+
                                     {/* Date paid mapping */}
                                     <div className="space-y-1">
                                         <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
@@ -1219,7 +1263,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                             <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                             <input
                                                 type="text"
-                                                placeholder="Filter rows by name, ADM, ref, votehead..."
+                                                placeholder="Filter rows by name, ADM, ref, receipt, votehead..."
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
                                                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs outline-none focus:ring-1 focus:ring-indigo-500"
@@ -1270,7 +1314,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                     </div>
                                 </div>
 
-                                {/* ── Interactive Data Grid Table with Votehead Breakdown ── */}
+                                {/* ── Interactive Data Grid Table with Votehead Breakdown & Receipt No ── */}
                                 <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
                                     <div className="max-h-[380px] overflow-y-auto">
                                         <table className="w-full border-collapse text-xs">
@@ -1280,6 +1324,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                     <th className="px-4 py-2.5 text-left">Admission</th>
                                                     <th className="px-4 py-2.5 text-left">Name</th>
                                                     <th className="px-4 py-2.5 text-right">Amount</th>
+                                                    <th className="px-4 py-2.5 text-left">Receipt No</th>
                                                     <th className="px-4 py-2.5 text-left">Reference</th>
                                                     <th className="px-4 py-2.5 text-left">Date Paid</th>
                                                     <th className="px-4 py-2.5 text-left">Assigned Student &amp; Voteheads</th>
@@ -1289,7 +1334,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                                 {filteredItems.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                                                        <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
                                                             No rows match your filters or mappings.
                                                         </td>
                                                     </tr>
@@ -1317,6 +1362,20 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                                 </td>
                                                                 <td className="px-4 py-2.5 text-right font-black font-mono text-emerald-600 dark:text-emerald-400">
                                                                     {item.rawAmount ? item.rawAmount.toLocaleString() : '0'}
+                                                                </td>
+                                                                <td className="px-4 py-2.5">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                                                            {item.receiptNumber}
+                                                                        </span>
+                                                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${
+                                                                            item.receiptSource === 'excel'
+                                                                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                                                : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800'
+                                                                        }`}>
+                                                                            {item.receiptSource === 'excel' ? 'Excel' : 'Auto'}
+                                                                        </span>
+                                                                    </div>
                                                                 </td>
                                                                 <td className="px-4 py-2.5 font-mono text-[11px] text-slate-700 dark:text-slate-300">
                                                                     {item.rawRef}
@@ -1631,6 +1690,20 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                                     />
                                 </div>
+                            </div>
+
+                            {/* Receipt Number (Optional custom or Auto) */}
+                            <div className="space-y-1">
+                                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                                    Receipt Number (Optional — leave blank for system auto)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. RCPT-2026-0042 (Leave empty for auto-generated)"
+                                    value={manualReceiptNo}
+                                    onChange={(e) => setManualReceiptNo(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                />
                             </div>
 
                             {/* Success message */}
