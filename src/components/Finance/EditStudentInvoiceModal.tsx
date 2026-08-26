@@ -201,11 +201,11 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
         }
 
         // Academic Year
-        const invYear = (invoice as any).academicYear || (invoice as any).academic_year || invoice.metadata?.academicYear || invoice.metadata?.academic_year || new Date().getFullYear().toString();
+        const invYear = (invoice as any).academicYear || (invoice as any).academic_year || (invoice as any).metadata?.academicYear || (invoice as any).metadata?.academic_year || new Date().getFullYear().toString();
         setAcademicYear(invYear);
 
         // Term
-        const invTerm = (invoice as any).term || (invoice as any).semester || invoice.metadata?.term || invoice.metadata?.semester || 'Term 1';
+        const invTerm = (invoice as any).term || (invoice as any).semester || (invoice as any).metadata?.term || (invoice as any).metadata?.semester || 'Term 1';
         setTerm(invTerm);
 
         // Due Date
@@ -398,11 +398,11 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
 
         try {
             const studentAdm = selectedStudent
-                ? (selectedStudent.admissionNumber || (selectedStudent as any).admission_number || (selectedStudent as any).admNo || '')
-                : (invoice.admissionNumber || (invoice as any).admission_number || '');
+                ? ((selectedStudent as any).admissionNumber || (selectedStudent as any).admission_number || (selectedStudent as any).admNo || '')
+                : ((invoice as any).admissionNumber || (invoice as any).admission_number || '');
 
             const studentClass = selectedStudent
-                ? (selectedStudent.className || (selectedStudent as any).class_name || '')
+                ? ((selectedStudent as any).className || (selectedStudent as any).class_name || '')
                 : ((invoice as any).className || (invoice as any).studentClass || '');
 
             const studentName = selectedStudent
@@ -433,7 +433,7 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
                 academic_year: academicYear,
                 term: term,
                 metadata: {
-                    ...(invoice.metadata || {}),
+                    ...((invoice as any).metadata || {}),
                     academicYear: academicYear,
                     academic_year: academicYear,
                     term: term,
@@ -565,8 +565,8 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
                                     <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                                         {filteredStudents.length > 0 ? (
                                             filteredStudents.map(st => {
-                                                const adm = st.admissionNumber || (st as any).admission_number || (st as any).admNo || 'No ADM';
-                                                const cls = st.className || (st as any).class_name || 'No Class';
+                                                const adm = (st as any).admissionNumber || (st as any).admission_number || (st as any).admNo || 'No ADM';
+                                                const cls = (st as any).className || (st as any).class_name || 'No Class';
                                                 const isCurrent = st.id === selectedStudentId;
                                                 return (
                                                     <div

@@ -3867,7 +3867,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 // ADM No-ONLY Student Matching — no name/phone fallback
                 // A receipt with no valid ADM No stays 'unmatched' and must be manually assigned.
                 let matchedStudent: any = null;
-                let matchConfidence: 'exact_adm' | 'manual' | 'none' = 'none';
+                let matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none' = 'none';
 
                 // 1. Direct ADM match (strict, O(1))
                 if (admRaw && String(admRaw).trim().length >= 1) {
