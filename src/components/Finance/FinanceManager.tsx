@@ -2760,7 +2760,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         excelPaymentMode: string;  // Raw Payment Mode string from Excel column E (e.g. "M-PESA paybill")
         rawDetails: string;
         matchedStudentId: string;
-        matchConfidence: 'exact_adm' | 'manual' | 'none';
+        matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none';
         matchStatus: 'matched' | 'unmatched' | 'ignored';
         paymentMethod: 'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque';
     }>>([]);
@@ -3458,6 +3458,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const noZeros = digits.replace(/^0+/, '');
                     if (noZeros) candidates.add(noZeros);
                 }
+                // Extract all continuous 2+ digit chunks (e.g. "3125/2024" -> "3125", "2024")
+                const digitsMatch = str.match(/\d{2,10}/g);
+                if (digitsMatch) {
+                    digitsMatch.forEach(d => {
+                        candidates.add(d);
+                        const nz = d.replace(/^0+/, '');
+                        if (nz) candidates.add(nz);
+                    });
+                }
                 const strippedPrefix = str.replace(/^(adm|std|reg|no|num|#|\/|-|_|\s)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
                 if (strippedPrefix) {
                     candidates.add(strippedPrefix);
@@ -3606,6 +3615,66 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         // Also index first + last name
                         nameMap.set(`${parts[0]} ${parts[parts.length - 1]}`, student);
                         nameMap.set(`${parts[parts.length - 1]} ${parts[0]}`, student);
+                    }
+                }
+            });
+
+            // Cross-index all historical Invoices to link any ADMs or names recorded on invoices
+            const allInvs = [...(props.invoices || []), ...(allBranchInvoices || []), ...(mappedInvoices || [])];
+            allInvs.forEach((inv: any) => {
+                const invStId = inv.studentId || inv.student_id || inv.userId || inv.user_id;
+                if (!invStId) return;
+                const student = uniqueStudentsMap.get(String(invStId));
+                if (!student) return;
+                [
+                    inv.admissionNumber,
+                    inv.admission_number,
+                    inv.studentAdmissionNumber,
+                    inv.admNo,
+                    inv.adm_no,
+                    inv.metadata?.admissionNumber,
+                    inv.metadata?.admNo
+                ].forEach(f => {
+                    cleanAdmCandidates(f).forEach(k => {
+                        if (k && k.length >= 2) admMap.set(k, student);
+                    });
+                });
+                if (inv.studentName && typeof inv.studentName === 'string') {
+                    const invName = inv.studentName.trim().toLowerCase();
+                    if (invName) {
+                        nameMap.set(invName, student);
+                        const cleanAlpha = invName.replace(/[^a-z0-9]/g, '');
+                        if (cleanAlpha) nameMap.set(cleanAlpha, student);
+                    }
+                }
+            });
+
+            // Cross-index all historical Receipts to link any ADMs or names recorded on prior receipts
+            const allRecs = [...(props.receipts || []), ...(allBranchReceipts || []), ...(mappedReceipts || [])];
+            allRecs.forEach((rec: any) => {
+                const recStId = rec.studentId || rec.student_id || rec.userId || rec.user_id;
+                if (!recStId) return;
+                const student = uniqueStudentsMap.get(String(recStId));
+                if (!student) return;
+                [
+                    rec.admissionNumber,
+                    rec.admission_number,
+                    rec.studentAdmissionNumber,
+                    rec.admNo,
+                    rec.adm_no,
+                    rec.metadata?.admissionNumber,
+                    rec.metadata?.admNo
+                ].forEach(f => {
+                    cleanAdmCandidates(f).forEach(k => {
+                        if (k && k.length >= 2) admMap.set(k, student);
+                    });
+                });
+                if (rec.studentName && typeof rec.studentName === 'string') {
+                    const recName = rec.studentName.trim().toLowerCase();
+                    if (recName) {
+                        nameMap.set(recName, student);
+                        const cleanAlpha = recName.replace(/[^a-z0-9]/g, '');
+                        if (cleanAlpha) nameMap.set(cleanAlpha, student);
                     }
                 }
             });
@@ -3788,7 +3857,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 let matchedStudent: any = null;
                 let matchConfidence: 'exact_adm' | 'manual' | 'none' = 'none';
 
-                // Direct ADM match (strict, O(1))
+                // 1. Direct ADM match (strict, O(1))
                 if (admRaw && String(admRaw).trim().length >= 1) {
                     const keys = cleanAdmCandidates(admRaw);
                     for (const k of keys) {
@@ -3799,7 +3868,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         }
                     }
                 }
-                // If no ADM No provided or not found in system → stays unmatched (no name/phone guessing)
+
+                // 2. High-precision full name match (fallback if ADM lookup missed, requires 2+ words)
+                if (!matchedStudent && nameRaw && nameRaw.trim().split(/\s+/).filter(Boolean).length >= 2) {
+                    const nameKey = nameRaw.trim().toLowerCase();
+                    const cleanAlpha = nameKey.replace(/[^a-z0-9]/g, '');
+                    const parts = nameKey.split(/\s+/).filter(Boolean);
+                    const reversed = parts.length > 1 ? parts.slice().reverse().join(' ') : '';
+                    const firstLast = parts.length > 2 ? `${parts[0]} ${parts[parts.length - 1]}` : '';
+
+                    matchedStudent = nameMap.get(nameKey) || 
+                        (cleanAlpha ? nameMap.get(cleanAlpha) : null) || 
+                        (reversed ? nameMap.get(reversed) : null) || 
+                        (firstLast ? nameMap.get(firstLast) : null);
+
+                    if (matchedStudent) {
+                        matchConfidence = 'exact_name';
+                    }
+                }
 
                 // Effective admission number: from Excel or from matched student
                 const studentAdm = matchedStudent ? (matchedStudent.admissionNumber || (matchedStudent as any).admission_number || '') : '';
