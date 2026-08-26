@@ -1094,7 +1094,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION public.process_teacher_checkin TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT, TEXT, TIMESTAMP WITH TIME ZONE) TO anon, authenticated, service_role;
                     `).catch(e => console.warn('[Schema Update] process_teacher_checkin signature update failed:', e));
                 }
 
