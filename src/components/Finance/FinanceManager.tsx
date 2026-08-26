@@ -1910,7 +1910,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const allReceiptsList = Array.from(uniqueReceiptsMap.values());
 
             // Helper to find true student strictly by Admission Number (Adm No ONLY - never name to prevent homonym collisions)
-            const findStudentByAdm = (r: any, combinedText: string, excludeAdm: string = ''): any | null => {
+            const findStudentByAdm = (r: any, rawStrings: string[], excludeAdm: string = ''): any | null => {
                 // 1. Check explicit admission number properties on the receipt object
                 const explicitAdmCandidates = [
                     r.admissionNumber,
@@ -1927,7 +1927,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 for (const cand of explicitAdmCandidates) {
                     const c = cleanAdm(cand);
-                    if (c && c.length >= 2) {
+                    if (c && c.length >= 1) {
                         if (excludeAdm && c === excludeAdm) continue;
                         if (strictAdmToStudent.has(c)) {
                             return strictAdmToStudent.get(c);
@@ -1935,16 +1935,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
-                // 2. Scan combined text strictly for known admission numbers
-                if (combinedText && typeof combinedText === 'string') {
-                    const cleanText = combinedText.toLowerCase();
-                    for (const [admKey, st] of strictAdmToStudent.entries()) {
-                        if (excludeAdm && admKey === excludeAdm) continue;
-                        // Match admKey with boundary delimiters (start/end, non-alphanumeric, spaces, slashes)
-                        const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
-                        if (pattern.test(cleanText)) {
-                            return st;
+                // 2. Check parenthetical admission numbers first e.g. "BURSARY0064 (22)" -> 22
+                for (const raw of rawStrings) {
+                    if (!raw) continue;
+                    const parens = raw.match(/\((\d+)\)/g);
+                    if (parens) {
+                        for (const p of parens) {
+                            const pNum = p.replace(/\D/g, '');
+                            const cleanedPNum = cleanAdm(pNum);
+                            if (cleanedPNum && (!excludeAdm || cleanedPNum !== excludeAdm)) {
+                                if (strictAdmToStudent.has(cleanedPNum)) {
+                                    return strictAdmToStudent.get(cleanedPNum);
+                                }
+                            }
                         }
+                    }
+                }
+
+                // 3. Scan combined text strictly for known admission numbers
+                const fullText = rawStrings.join(' ').toLowerCase();
+                for (const [admKey, st] of strictAdmToStudent.entries()) {
+                    if (excludeAdm && admKey === excludeAdm) continue;
+                    // Match admKey with boundary delimiters (start/end, non-alphanumeric, spaces, slashes)
+                    const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
+                    if (pattern.test(fullText)) {
+                        return st;
                     }
                 }
 
@@ -1957,7 +1972,52 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const updatedReceipts: any[] = [];
             const reallocatedStudentNames: string[] = [];
 
+            // Duplicate Detection
+            const duplicateReceiptIdsToDelete: string[] = [];
+            const seenReceiptKeys = new Map<string, string>();
+
             for (const r of allReceiptsList) {
+                const rId = r.id;
+                const rNum = String(r.receiptNumber || (r as any).receipt_number || '').trim().toLowerCase();
+                const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim().toLowerCase();
+                const rStudentId = r.studentId || (r as any).student_id || '';
+                const rAmount = parseFloat(r.amountPaid || (r as any).amount_paid || r.amount || '0');
+                const rDate = String(r.paymentDate || (r as any).payment_date || r.date || '').split('T')[0];
+
+                // Exact duplicate receiptNumber
+                if (rNum && rNum !== 'null' && rNum !== 'undefined') {
+                    const rcptKey = `rcpt:${rNum}`;
+                    if (seenReceiptKeys.has(rcptKey)) {
+                        duplicateReceiptIdsToDelete.push(rId);
+                        continue;
+                    }
+                    seenReceiptKeys.set(rcptKey, rId);
+                }
+
+                // Exact duplicate transaction ref
+                if (rRef && rRef.length >= 6 && rRef !== 'null' && rRef !== 'undefined') {
+                    const refKey = `ref:${rRef}`;
+                    if (seenReceiptKeys.has(refKey)) {
+                        duplicateReceiptIdsToDelete.push(rId);
+                        continue;
+                    }
+                    seenReceiptKeys.set(refKey, rId);
+                }
+
+                // Exact duplicate content (student + amount + date + paymentMethod)
+                if (rStudentId && rAmount > 0 && rDate) {
+                    const rMethod = String(r.paymentMethod || (r as any).payment_method || '').trim().toLowerCase();
+                    const contentKey = `content:${rStudentId}:${rAmount}:${rDate}:${rMethod}`;
+                    if (seenReceiptKeys.has(contentKey)) {
+                        duplicateReceiptIdsToDelete.push(rId);
+                        continue;
+                    }
+                    seenReceiptKeys.set(contentKey, rId);
+                }
+            }
+
+            for (const r of allReceiptsList) {
+                if (duplicateReceiptIdsToDelete.includes(r.id)) continue;
                 const rNum = String(r.receiptNumber || (r as any).receipt_number || '').trim();
                 const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim();
                 const rPayer = String((r as any).payer || (r as any).payerName || (r as any).senderName || '').trim();
@@ -1965,11 +2025,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const rRaw = String((r as any).rawDetails || (r as any).raw_details || '');
                 const currentStudentId = r.studentId || (r as any).student_id || '';
 
-                // Strip parenthetical sequence suffix (e.g. " (2)", "(18)") from receipt/ref numbers
-                // before building combinedText — prevents the bare number being matched as an ADM
-                const stripRcptSuffix = (s: string) => s.replace(/\s*\(\d+\)\s*$/g, '').trim();
+                const rawFields = [rRef, rNotes, rRaw, rPayer, rNum];
                 const explicitAdm = cleanAdm(r.admissionNumber || (r as any).admission_number || (r as any).admNo || r.metadata?.admissionNumber);
-                const combinedText = `${stripRcptSuffix(rRef)} ${rNotes} ${rRaw} ${rPayer} ${stripRcptSuffix(rNum)}`.trim();
 
                 let targetStudentId = currentStudentId;
                 let isModified = false;
@@ -1982,7 +2039,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     if (!isVerified) {
                         // Misallocated to Victor. Find true student strictly by admission number:
-                        const trueStudent = findStudentByAdm(r, combinedText, '2364');
+                        const trueStudent = findStudentByAdm(r, rawFields, '2364');
 
                         if (trueStudent) {
                             targetStudentId = trueStudent.id;
@@ -2002,7 +2059,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 } 
                 // Case 2: Unallocated / Suspense receipts (attempt to link them strictly by Adm No)
                 else if (!currentStudentId || currentStudentId === '' || currentStudentId === 'null' || rNotes.includes('Suspense') || rNotes.includes('Victor Kipchumba')) {
-                    const trueStudent = findStudentByAdm(r, combinedText, '2364');
+                    const trueStudent = findStudentByAdm(r, rawFields, '2364');
                     if (trueStudent) {
                         targetStudentId = trueStudent.id;
                         r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
@@ -2012,13 +2069,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         isModified = true;
                     }
                 }
-                // Case 3: Receipts assigned to a student whose Adm No does not match the receipt's Adm No
+                // Case 3: Receipts assigned to a student whose Adm No does not match the receipt's Adm No or bracketed bursary number
                 else if (currentStudentId) {
                     const currentStudent = allStudentsPool.find(s => s.id === currentStudentId);
                     const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
                     
                     // If receipt has an explicit Adm No or text containing another Adm No that differs from currentStudent's Adm No:
-                    const trueStudent = findStudentByAdm(r, combinedText, currentAdmClean);
+                    const trueStudent = findStudentByAdm(r, rawFields, currentAdmClean);
                     if (trueStudent && trueStudent.id !== currentStudentId) {
                         const trueAdm = cleanAdm(trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo);
                         if (trueAdm && trueAdm !== currentAdmClean) {
@@ -2046,12 +2103,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
 
             // ── Pass 4: Invoice Cross-Check ──────────────────────────────────────
-            // For receipts that passed Passes 1-3 (still allocated to a student)
-            // check: does the payment amount + date match an invoice belonging to
-            // a DIFFERENT student? If yes, the receipt is on the wrong account.
             const allInvoices: any[] = [...(mappedInvoices || [])];
             if (allInvoices.length > 0) {
                 for (const r of allReceiptsList) {
+                    if (duplicateReceiptIdsToDelete.includes(r.id)) continue;
                     if (updatedReceipts.find(u => u.id === r.id)) continue; // already fixed
                     const currentStudentId = r.studentId || (r as any).student_id || '';
                     if (!currentStudentId) continue;
@@ -2096,6 +2151,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             // ─────────────────────────────────────────────────────────────────────
 
+            let deletedDuplicatesCount = 0;
+            if (duplicateReceiptIdsToDelete.length > 0) {
+                const confirmPrune = window.confirm(
+                    `Audit Engine detected ${duplicateReceiptIdsToDelete.length} duplicate/redundant receipt record(s) on student accounts.\n\nWould you like to automatically remove these duplicate receipts and recalculate clean balances?`
+                );
+                if (confirmPrune) {
+                    await handleDeleteReceipts(duplicateReceiptIdsToDelete);
+                    deletedDuplicatesCount = duplicateReceiptIdsToDelete.length;
+                }
+            }
+
             if (fixedCount > 0) {
                 try {
                     await apiService.saveModuleRecords('receipts', updatedReceipts);
@@ -2118,9 +2184,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const sampleList = uniqueNames.slice(0, 5).join(', ');
                 const moreCount = uniqueNames.length > 5 ? ` and ${uniqueNames.length - 5} more` : '';
 
-                alert(`Audit complete!\n\n• ${reallocatedToStudentCount} receipt(s) re-allocated directly to students${uniqueNames.length > 0 ? ` (${sampleList}${moreCount})` : ''}.\n• ${suspenseCount} unlinked receipt(s) safely moved to Suspense Account.\n\nAll student ledgers and fee balances have been refreshed.`);
+                alert(`Audit complete!\n\n• ${reallocatedToStudentCount} receipt(s) re-allocated directly to rightful students${uniqueNames.length > 0 ? ` (${sampleList}${moreCount})` : ''}.\n• ${suspenseCount} unlinked receipt(s) safely moved to Suspense Account.\n${deletedDuplicatesCount > 0 ? `• ${deletedDuplicatesCount} duplicate receipt(s) pruned.\n` : ''}\nAll student ledgers and fee balances have been refreshed.`);
+            } else if (deletedDuplicatesCount > 0) {
+                alert(`Audit complete! Successfully pruned ${deletedDuplicatesCount} duplicate receipt(s). All student ledgers and fee balances have been refreshed.`);
             } else {
-                alert("Audit complete! All receipts are already correctly allocated to their rightful students.\n\nIf you believe a specific receipt is still on the wrong student account, use the ✏️ Edit (pencil) button on that receipt row to manually reassign it to the correct student.");
+                alert("Audit complete! No misallocated or duplicate receipts were detected automatically.\n\nTip: To remove an older duplicate payment or reassign a specific receipt, open the student's Statement of Account in 'Table' view and click 🗑️ Delete/Reverse or 🔄 Transfer directly on that row.");
             }
         } catch (err: any) {
             console.error("Failed to reallocate receipts:", err);
@@ -7394,7 +7462,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         ))}
                                     </div>
                                     <div className="p-5">
-                                        <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3">Transaction Ledger</h4>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">Transaction Ledger</h4>
+                                            <span className="text-[10px] text-slate-500 font-bold">💡 Click 'Delete' on duplicate receipts or 'Transfer' to reassign to another student</span>
+                                        </div>
                                         {balPrevLedger.length === 0 ? (
                                             <p className="text-xs text-slate-400 text-center py-6 font-medium">No transactions found for this student.</p>
                                         ) : (
@@ -7402,7 +7473,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <table className="w-full text-left text-xs">
                                                     <thead>
                                                         <tr className="border-b-2 border-slate-200 dark:border-slate-700">
-                                                            {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=><th key={h} className="py-2.5 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>)}
+                                                            {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance','Action'].map(h=><th key={h} className="py-2.5 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>)}
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -7413,6 +7484,40 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <td className="py-2 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
                                                                 <td className="py-2 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
                                                                 <td className={`py-2 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                                <td className="py-2 px-3 whitespace-nowrap">
+                                                                    {entry.eType === 'payment' && entry.data?.id ? (
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={async () => {
+                                                                                    if (window.confirm(`Are you sure you want to permanently delete and reverse receipt "${entry.description}" (KSh ${entry.credit.toLocaleString()}) from ${balPrevStudent.name}'s account?`)) {
+                                                                                        await handleDeleteReceipts([entry.data.id]);
+                                                                                    }
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-rose-200 shadow-xs cursor-pointer active:scale-95"
+                                                                                title="Permanently delete or reverse this payment from student ledger"
+                                                                            >
+                                                                                <Trash2Icon className="w-3 h-3" />
+                                                                                Delete
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setReceiptTransferTarget(entry.data);
+                                                                                    setTransferStudentSearch('');
+                                                                                    setTransferTargetStudent(null);
+                                                                                    setTransferReason(`Reallocated from ${balPrevStudent.name} (${balPrevResolvedAdmNo})`);
+                                                                                }}
+                                                                                className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-indigo-200 shadow-xs cursor-pointer active:scale-95"
+                                                                                title="Transfer this receipt to another student"
+                                                                            >
+                                                                                Transfer
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-[10px] text-slate-300 dark:text-slate-600">—</span>
+                                                                    )}
+                                                                </td>
                                                             </tr>
                                                         ))}
                                                         <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
@@ -7420,6 +7525,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <td className="py-2.5 px-3 text-slate-900 dark:text-white">KSh {balPrevTotalInvoiced.toLocaleString()}</td>
                                                             <td className="py-2.5 px-3 text-emerald-600">KSh {balPrevTotalPaid.toLocaleString()}</td>
                                                             <td className={`py-2.5 px-3 ${balPrevBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balPrevBalance).toLocaleString()} <span className="text-[10px] opacity-70">{balPrevBalance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                                            <td className="py-2.5 px-3" />
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -7436,6 +7542,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             {/* PDF DOCUMENT PREVIEW MODE */}
                             {balPreviewViewMode === 'preview' && (
                                 <div className="space-y-3 animate-in fade-in duration-200">
+                                    <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                                        <span className="text-amber-800 dark:text-amber-300 font-semibold">
+                                            💡 Notice duplicate or previous erroneous payments on this statement? Switch to <strong>📊 Table View</strong> to delete, reverse, or transfer individual payments with 1 click.
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBalPreviewViewMode('table')}
+                                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 cursor-pointer shadow-xs active:scale-95"
+                                        >
+                                            📊 Switch to Table View
+                                        </button>
+                                    </div>
                                     <div className="flex justify-between items-center text-xs font-bold text-slate-500 px-2">
                                         <span className="flex items-center gap-2">
                                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
