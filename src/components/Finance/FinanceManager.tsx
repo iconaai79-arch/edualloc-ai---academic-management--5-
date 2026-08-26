@@ -3441,52 +3441,150 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return;
             }
 
+            // Helper to generate all searchable key variations for an admission number
+            const cleanAdmCandidates = (val: any): string[] => {
+                if (val === undefined || val === null) return [];
+                const str = String(val).trim().toLowerCase();
+                if (!str || str === '—' || str === 'n/a' || str === 'undefined' || str === 'null') return [];
+                const candidates = new Set<string>();
+                candidates.add(str);
+                const noSpaces = str.replace(/\s+/g, '');
+                if (noSpaces) candidates.add(noSpaces);
+                const alnum = str.replace(/[^a-z0-9]/g, '');
+                if (alnum) candidates.add(alnum);
+                const digits = str.replace(/\D/g, '');
+                if (digits) {
+                    candidates.add(digits);
+                    const noZeros = digits.replace(/^0+/, '');
+                    if (noZeros) candidates.add(noZeros);
+                }
+                const strippedPrefix = str.replace(/^(adm|std|reg|no|num|#|\/|-|_|\s)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
+                if (strippedPrefix) {
+                    candidates.add(strippedPrefix);
+                    const stripAlnum = strippedPrefix.replace(/[^a-z0-9]/g, '');
+                    if (stripAlnum) candidates.add(stripAlnum);
+                    const stripDigits = strippedPrefix.replace(/\D/g, '');
+                    if (stripDigits) {
+                        candidates.add(stripDigits);
+                        const stripNoZeros = stripDigits.replace(/^0+/, '');
+                        if (stripNoZeros) candidates.add(stripNoZeros);
+                    }
+                }
+                return Array.from(candidates);
+            };
+
             // Build high-performance Maps for O(1) student reconciliation
             const admMap = new Map<string, any>();
             const phoneMap = new Map<string, any>();
             const nameMap = new Map<string, any>();
 
-            // Build high-performance Maps for O(1) student reconciliation across ALL students in the system
+            // Build high-performance Maps for O(1) student reconciliation across ALL students and enrollments in the system
             const allAvailableStudents = [
                 ...(props.students || []),
                 ...(allBranchStudents || []),
-                ...(mergedStudents || [])
+                ...(mergedStudents || []),
+                ...((props.users || []).filter((u: any) => u.role === 'student' || (u as any).userType === 'student'))
             ];
             const uniqueStudentsMap = new Map<string, any>();
-            allAvailableStudents.forEach(s => { if (s && s.id) uniqueStudentsMap.set(s.id, s); });
+            allAvailableStudents.forEach(s => { if (s && s.id) uniqueStudentsMap.set(String(s.id), s); });
+
+            // Also integrate student_enrollments so students registered only in enrollments are indexed
+            const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+            allEnrs.forEach((enr: any) => {
+                if (!enr) return;
+                const enrStudentId = enr.userId || enr.user_id || enr.studentId || enr.student_id;
+                let targetStudent = enrStudentId ? uniqueStudentsMap.get(String(enrStudentId)) : null;
+                if (!targetStudent && enrStudentId) {
+                    targetStudent = {
+                        id: enrStudentId,
+                        name: enr.student_name || enr.studentName || enr.name || 'Student',
+                        fullName: enr.student_name || enr.studentName || enr.name || 'Student',
+                        admissionNumber: enr.admissionNumber || enr.admission_number || enr.admNo || enr.adm_no || '',
+                        branchId: enr.branchId || enr.branch_id || props.institution.id
+                    };
+                    uniqueStudentsMap.set(String(enrStudentId), targetStudent);
+                }
+
+                if (targetStudent) {
+                    const enrAdmFields = [
+                        enr.admissionNumber,
+                        enr.admission_number,
+                        enr.admissionNo,
+                        enr.admNo,
+                        enr.adm_no,
+                        enr.studentAdmissionNumber,
+                        enr.staffId,
+                        enr.metadata?.admissionNumber,
+                        enr.metadata?.admission_number,
+                        enr.metadata?.admissionNo,
+                        enr.metadata?.admNo,
+                        enr.metadata?.adm_no,
+                        enr.metadata?.studentAdmissionNumber
+                    ];
+                    enrAdmFields.forEach(f => {
+                        cleanAdmCandidates(f).forEach(k => {
+                            if (k && k.length >= 2) admMap.set(k, targetStudent);
+                        });
+                    });
+                }
+            });
+
             const allStudentsPool = Array.from(uniqueStudentsMap.values());
 
             allStudentsPool.forEach(student => {
+                const sId = String(student.id || '');
+                const directAdm = getStudentAdmNumber(student);
+                const helperAdm = studentAdmissionNumber(student);
+
+                // Collect all possible admission number variants for this student
                 const ids = [
                     student.id,
+                    directAdm,
+                    helperAdm !== '—' ? helperAdm : '',
                     student.admissionNumber,
                     (student as any).admission_number,
+                    (student as any).admissionNo,
                     student.metadata?.admissionNumber,
                     student.metadata?.admission_number,
+                    student.metadata?.admissionNo,
                     (student as any).admNo,
+                    (student as any).adm_no,
+                    (student as any).studentAdmissionNumber,
+                    (student as any).student_admission_number,
                     (student as any).registrationNumber,
+                    (student as any).regNo,
                     (student as any).reg_no,
                     (student as any).staffId,
+                    (student as any).staff_id,
+                    (student as any).customStudentId,
+                    (student as any).custom_student_id,
                     (student as any).indexNumber,
-                    (student as any).index_number
+                    (student as any).index_number,
+                    student.metadata?.admNo,
+                    student.metadata?.adm_no,
+                    student.metadata?.staffId,
+                    student.metadata?.studentAdmissionNumber
                 ];
+
+                // Check matching enrollment for this student
+                const matchingEnr = allEnrs.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
+                if (matchingEnr) {
+                    ids.push(
+                        matchingEnr.admissionNumber,
+                        matchingEnr.admission_number,
+                        matchingEnr.admissionNo,
+                        matchingEnr.admNo,
+                        matchingEnr.adm_no,
+                        matchingEnr.studentAdmissionNumber,
+                        matchingEnr.metadata?.admissionNumber,
+                        matchingEnr.metadata?.admNo
+                    );
+                }
+
                 ids.forEach(idVal => {
-                    if (idVal !== undefined && idVal !== null) {
-                        const rawAdm = String(idVal).trim().toLowerCase();
-                        if (rawAdm) {
-                            admMap.set(rawAdm, student);
-                            const cleanAlnum = rawAdm.replace(/[^a-z0-9]/g, '');
-                            if (cleanAlnum) admMap.set(cleanAlnum, student);
-                            const digits = rawAdm.replace(/\D/g, '');
-                            if (digits) {
-                                admMap.set(digits, student);
-                                const noLeadingZeros = digits.replace(/^0+/, '');
-                                if (noLeadingZeros) admMap.set(noLeadingZeros, student);
-                            }
-                            const strippedPrefix = rawAdm.replace(/^(adm|std|reg|no|num|#|\/|-|_)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
-                            if (strippedPrefix) admMap.set(strippedPrefix, student);
-                        }
-                    }
+                    cleanAdmCandidates(idVal).forEach(k => {
+                        if (k && k.length >= 2) admMap.set(k, student);
+                    });
                 });
 
                 const phone = getStudentParentPhone(student) || student.phoneNumber || (student as any).phone || student.metadata?.parentPhone;
@@ -3691,13 +3789,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 let matchConfidence: 'exact_adm' | 'manual' | 'none' = 'none';
 
                 // Direct ADM match (strict, O(1))
-                if (admRaw && admRaw.trim().length >= 2) {
-                    const admKey = admRaw.toLowerCase().trim();
-                    const admDigits = admRaw.replace(/\D/g, '');
-                    matchedStudent = admMap.get(admKey) || (admDigits && admDigits.length >= 2 ? admMap.get(admDigits) : null);
-                    if (matchedStudent) matchConfidence = 'exact_adm';
+                if (admRaw && String(admRaw).trim().length >= 1) {
+                    const keys = cleanAdmCandidates(admRaw);
+                    for (const k of keys) {
+                        if (admMap.has(k)) {
+                            matchedStudent = admMap.get(k);
+                            matchConfidence = 'exact_adm';
+                            break;
+                        }
+                    }
                 }
-                // If no ADM No provided → stays unmatched (no name/phone guessing)
+                // If no ADM No provided or not found in system → stays unmatched (no name/phone guessing)
 
                 // Effective admission number: from Excel or from matched student
                 const studentAdm = matchedStudent ? (matchedStudent.admissionNumber || (matchedStudent as any).admission_number || '') : '';
