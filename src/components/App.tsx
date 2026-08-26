@@ -1028,6 +1028,8 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
     EXECUTE FUNCTION allocate_tenant_sms_bonus();
                     `).catch(e => console.warn('[Schema Update] SMS trigger install failed:', e));
 
+                    apiService.runMigration(`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;`).catch(() => {});
+
                     // Idempotent setup of process_teacher_checkin signature update
                     apiService.runMigration(`
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT);

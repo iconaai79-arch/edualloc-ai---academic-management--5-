@@ -595,9 +595,10 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
                     const retailItem = c.item as RetailInventoryItem;
                     const newQty = Math.max(0, (retailItem.quantity || 0) - c.quantity);
+                    const { source, ...cleanRetailPayload } = retailItem as any;
                     stockUpdatePromises.push(
                         apiService.saveModuleRecord('retail_inventory_items', {
-                            ...retailItem,
+                            ...cleanRetailPayload,
                             quantity: newQty,
                             lastUpdated: new Date().toISOString()
                         }).catch((stockErr) => {
