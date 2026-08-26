@@ -750,7 +750,27 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 </div>
 
                 {/* Vertical Navigation Menu */}
-                <nav className="flex-1 p-3 space-y-4 overflow-y-auto mt-2 no-scrollbar">
+                <nav className="flex-1 p-3 space-y-4 overflow-y-auto mt-2 his-sidebar-scroll pr-1.5">
+                    <style>{`
+                        .his-sidebar-scroll::-webkit-scrollbar {
+                            width: 5px;
+                        }
+                        .his-sidebar-scroll::-webkit-scrollbar-track {
+                            background: rgba(15, 23, 42, 0.4);
+                            border-radius: 10px;
+                        }
+                        .his-sidebar-scroll::-webkit-scrollbar-thumb {
+                            background: rgba(99, 102, 241, 0.45);
+                            border-radius: 10px;
+                        }
+                        .his-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+                            background: rgba(129, 140, 248, 0.85);
+                        }
+                        .his-sidebar-scroll {
+                            scrollbar-width: thin;
+                            scrollbar-color: rgba(99, 102, 241, 0.45) rgba(15, 23, 42, 0.4);
+                        }
+                    `}</style>
                     {/* EduPulse Menu Mode */}
                     {isEdu ? (
                         <>
