@@ -100,26 +100,33 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
     }, [directorySearch, users, isEdu]);
 
     const handleSelectUser = (user: User) => {
+        const parentPhone = user.metadata?.parentPhone || user.metadata?.guardianPhone || user.metadata?.emergencyContactPhone || (user as any).parentPhone || (user as any).guardianPhone || (user as any).emergencyContact || user.phoneNumber || '';
+        const parentName = user.metadata?.parentName || user.metadata?.guardianName || user.metadata?.emergencyContactName || (user as any).parentName || (user as any).guardianName || '';
+        const parentId = user.metadata?.guardianNationalId || user.metadata?.parentId || (user as any).guardianNationalId || (user as any).parentId || '';
+        const adm = user.admissionNumber || user.admission_number || user.metadata?.admissionNumber || user.metadata?.admission_number || (user as any).staffId || user.id || '';
+        const grade = user.metadata?.gradeLevel || user.metadata?.class_level || (user as any).gradeLevel || (user as any).className || '';
+        const stream = user.metadata?.stream || (user as any).stream || '';
+
         setFormData(prev => ({
             ...prev,
             fullName: user.name,
-            dob: user.metadata?.dob || '',
-            gender: (user.metadata?.gender === 'Female' ? 'Female' : 'Male'),
-            bloodGroup: user.metadata?.bloodGroup || '',
-            contact: user.phoneNumber || user.email || '',
-            insuranceProvider: 'School Coverage',
+            dob: user.metadata?.dob || (user as any).dob || '',
+            gender: (user.metadata?.gender === 'Female' || (user as any).gender === 'Female' ? 'Female' : 'Male'),
+            bloodGroup: user.metadata?.bloodGroup || (user as any).bloodGroup || '',
+            contact: user.phoneNumber || user.email || parentPhone || '',
+            insuranceProvider: isEdu ? 'School Coverage / EduPulse Free Student Care' : 'School Coverage',
             shaNumber: user.metadata?.shaNumber || '',
-            emergencyContactName: user.metadata?.emergencyContactName || '',
-            emergencyContactPhone: user.metadata?.emergencyContactPhone || '',
-            guardianName: user.metadata?.guardianName || user.metadata?.parentName || '',
-            guardianPhone: user.metadata?.guardianPhone || user.metadata?.parentPhone || '',
-            guardianNationalId: user.metadata?.guardianNationalId || user.metadata?.parentId || '',
-            admissionNumber: user.admissionNumber || user.admission_number || user.metadata?.admissionNumber || user.metadata?.admission_number || '',
+            emergencyContactName: user.metadata?.emergencyContactName || parentName || '',
+            emergencyContactPhone: user.metadata?.emergencyContactPhone || parentPhone || '',
+            guardianName: parentName,
+            guardianPhone: parentPhone,
+            guardianNationalId: parentId,
+            admissionNumber: adm,
             allergies: Array.isArray(user.metadata?.allergies) 
                 ? user.metadata.allergies.join(', ') 
-                : (user.metadata?.allergies || ''),
-            gradeLevel: user.metadata?.gradeLevel || user.metadata?.class_level || '',
-            stream: user.metadata?.stream || '',
+                : (user.metadata?.allergies || (user as any).allergies || ''),
+            gradeLevel: grade,
+            stream: stream,
         }));
         setIsAutoFilled(true);
         setDirectorySearch('');
@@ -134,7 +141,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             gender: 'Male',
             bloodGroup: '',
             contact: '',
-            insuranceProvider: '',
+            insuranceProvider: isEdu ? 'School Coverage / EduPulse Free Student Care' : '',
             shaNumber: '',
             emergencyContactName: '',
             emergencyContactPhone: '',
@@ -163,7 +170,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             alert('Please select or enter Patient Date of Birth.');
             return false;
         }
-        if (isMinor) {
+        if (isMinor && !isEdu) {
             if (!formData.guardianName.trim() || !formData.guardianPhone.trim()) {
                 setCurrentStep(4);
                 alert('For minor patients (<18 yrs), Parent/Guardian Name and Phone Line are required.');
@@ -182,7 +189,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             case 3:
                 return true;
             case 4:
-                if (isMinor) {
+                if (isMinor && !isEdu) {
                     return formData.guardianName.trim().length > 0 && formData.guardianPhone.trim().length > 0;
                 }
                 return true;
@@ -223,6 +230,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                 admissionNumber: formData.admissionNumber || generatedId,
                 opNumber: generatedId,
                 gender: formData.gender as 'Male' | 'Female' | 'Other',
+                insuranceProvider: isEdu ? 'School Coverage / EduPulse Free Student Care' : (formData.insuranceProvider || 'Direct / Cash'),
                 allergies: formData.allergies
                     ? formData.allergies.split(',').map(s => s.trim()).filter(Boolean)
                     : []
@@ -252,10 +260,10 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
 
                 <div className="flex items-center justify-between p-8 border-b border-slate-100 dark:border-white/5 relative z-10">
                     <div>
-                        <h2 className="text-2xl font-black uppercase tracking-tighter italic">Register <span className="text-indigo-600 dark:text-indigo-400">New Patient</span></h2>
-                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] mt-1">H.I.S Intake Module</p>
+                        <h2 className="text-2xl font-black uppercase tracking-tighter italic">Register <span className="text-indigo-600 dark:text-indigo-400">{isEdu ? 'Student / Patient' : 'New Patient'}</span></h2>
+                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] mt-1">{isEdu ? 'EduPulse Clinic Intake' : 'H.I.S Intake Module'}</p>
                     </div>
-                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-white/5 rounded-2xl text-slate-400 hover:text-red-500 transition-all">
+                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-white/5 rounded-2xl text-slate-400 hover:text-red-500 transition-all cursor-pointer">
                         <XIcon className="w-5 h-5" />
                     </button>
                 </div>
@@ -294,16 +302,16 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                     <div className="flex justify-between mt-2 text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                         <span>Identity</span>
                         <span>Clinical</span>
-                        <span>Coverage</span>
-                        <span>Emergency</span>
+                        <span>{isEdu ? 'Service Tier' : 'Coverage'}</span>
+                        <span>{isEdu ? 'Parent / Registry' : 'Emergency'}</span>
                     </div>
                 </div>
 
                 {/* Auto-filled Notification Banner */}
                 {isAutoFilled && (
                     <div className="mx-8 mt-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex justify-between items-center text-[10px] font-black text-emerald-500 uppercase tracking-widest relative z-10">
-                        <span>✓ Record pre-filled from school directory</span>
-                        <button type="button" onClick={handleResetForm} className="underline hover:text-emerald-400">Clear</button>
+                        <span>✓ Record & Parent Data Linked from School Directory</span>
+                        <button type="button" onClick={handleResetForm} className="underline hover:text-emerald-400 cursor-pointer">Clear</button>
                     </div>
                 )}
 
@@ -313,12 +321,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                         <div className="space-y-6 animate-fade-in">
                             {isEdu && (
                                 <div className="space-y-2 relative">
-                                    <label className="text-[10px] font-black uppercase text-indigo-500 ml-1">Auto-fill from School Directory</label>
+                                    <label className="text-[10px] font-black uppercase text-indigo-500 ml-1">Auto-fill from Student / Staff Registry</label>
                                     <div className="relative group">
                                         <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                         <input
                                             type="text"
-                                            placeholder="SEARCH STUDENTS, TEACHERS, OR STAFF..."
+                                            placeholder="SEARCH BY STUDENT NAME, ADMISSION NUMBER OR CLASS..."
                                             className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-800 dark:text-slate-100"
                                             value={directorySearch}
                                             onChange={e => setDirectorySearch(e.target.value)}
@@ -332,9 +340,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                                         key={u.id}
                                                         type="button"
                                                         onClick={() => handleSelectUser(u)}
-                                                        className="w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-wider border-b border-slate-50 dark:border-white/5 last:border-0 flex justify-between items-center text-slate-800 dark:text-slate-200"
+                                                        className="w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-wider border-b border-slate-50 dark:border-white/5 last:border-0 flex justify-between items-center text-slate-800 dark:text-slate-200 cursor-pointer"
                                                     >
-                                                        <span>{u.name} ({u.role})</span>
+                                                        <div>
+                                                            <p>{u.name} ({u.role})</p>
+                                                            <p className="text-[8px] text-slate-400 font-normal">Adm: {u.admissionNumber || u.admission_number || u.staffId || 'N/A'}</p>
+                                                        </div>
                                                         <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">Select</span>
                                                     </button>
                                                 ))
@@ -356,7 +367,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                                 const nextId = generateNextPatientId(existingPatients, institutionId);
                                                 setFormData(f => ({ ...f, customPatientId: nextId }));
                                             }}
-                                            className="text-[8px] text-indigo-500 hover:text-indigo-400 font-black uppercase tracking-widest flex items-center gap-1 hover:underline"
+                                            className="text-[8px] text-indigo-500 hover:text-indigo-400 font-black uppercase tracking-widest flex items-center gap-1 hover:underline cursor-pointer"
                                             title="Re-calculate next unique sequential ID"
                                         >
                                             <span>🔄 Re-Sequence</span>
@@ -412,7 +423,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                                 : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                                         }`}>
                                             <span>🎂 Calculated Age: {calculatedAge} Yrs Old</span>
-                                            <span>{isMinor ? '⚠️ MINOR (<18) — Parent Details Mandatory' : '✓ ADULT (18+) — Emergency Contact Optional'}</span>
+                                            <span>{isEdu ? '🎓 School Clinic Coverage' : isMinor ? '⚠️ MINOR (<18)' : '✓ ADULT (18+)'}</span>
                                         </div>
                                     )}
                                 </div>
@@ -433,12 +444,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                 {isEdu && (
                                     <>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Patient File / OP Number</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Student Admission / Staff Number</label>
                                             <div className="relative group">
                                                 <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
                                                     type="text"
-                                                    placeholder="E.G. PAT-1234"
+                                                    placeholder="E.G. ADM-1234"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                                     value={formData.admissionNumber}
                                                     onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
@@ -447,12 +458,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Department / Ward</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Grade / Class Level</label>
                                             <div className="relative group">
                                                 <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
                                                     type="text"
-                                                    placeholder="E.G. GENERAL OPD"
+                                                    placeholder="E.G. GRADE 5 / FORM 2"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                                     value={formData.gradeLevel}
                                                     onChange={e => setFormData({ ...formData, gradeLevel: e.target.value })}
@@ -461,12 +472,12 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                         </div>
 
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Category / Clinic Type</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Stream / Class Group</label>
                                             <div className="relative group">
                                                 <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
                                                     type="text"
-                                                    placeholder="E.G. OUTPATIENT"
+                                                    placeholder="E.G. EAST / BLUE / ALPHA"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
                                                     value={formData.stream}
                                                     onChange={e => setFormData({ ...formData, stream: e.target.value })}
@@ -510,110 +521,196 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
 
                     {currentStep === 3 && (
                         <div className="space-y-6 animate-fade-in">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Primary Contact Unit</label>
-                                    <div className="relative group">
-                                        <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                        <input
-                                            required
-                                            type="tel"
-                                            placeholder="+254..."
-                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                            value={formData.contact}
-                                            onChange={e => setFormData({ ...formData, contact: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">S.H.A Identifier (Registry)</label>
-                                    <div className="relative group">
-                                        <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                        <input
-                                            type="text"
-                                            placeholder="SHA-XXXXXX"
-                                            className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                            value={formData.shaNumber}
-                                            onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3 md:col-span-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Intake Payment Method *</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, insuranceProvider: '' })}
-                                            className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all text-[10px] font-black uppercase tracking-wider ${
-                                                !formData.insuranceProvider
-                                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md'
-                                                    : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-500 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            💵 Cash / Mobile Money (Direct)
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, insuranceProvider: 'SHA (Social Health Authority)' })}
-                                            className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all text-[10px] font-black uppercase tracking-wider ${
-                                                !!formData.insuranceProvider
-                                                    ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-md'
-                                                    : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-500 hover:bg-slate-100'
-                                            }`}
-                                        >
-                                            🛡️ Insurance Cover / SHA Scheme
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {!!formData.insuranceProvider && (
-                                    <>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Insurance Partner / Cover Scheme</label>
-                                            <div className="relative group">
-                                                <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                                <select
-                                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white appearance-none"
-                                                    value={formData.insuranceProvider}
-                                                    onChange={e => setFormData({ ...formData, insuranceProvider: e.target.value })}
-                                                >
-                                                    <option value="SHA (Social Health Authority)">SHA (Social Health Authority)</option>
-                                                    <option value="Jubilee Insurance">Jubilee Insurance</option>
-                                                    <option value="UAP Old Mutual">UAP Old Mutual</option>
-                                                    <option value="AAR Insurance">AAR Insurance</option>
-                                                    <option value="APA Insurance">APA Insurance</option>
-                                                    <option value="Britam Health">Britam Health</option>
-                                                    <option value="CIC Africa Group">CIC Africa Group</option>
-                                                    <option value="School Coverage">School Coverage / EduPulse</option>
-                                                    <option value="Other Commercial Cover">Other Commercial Cover</option>
-                                                </select>
+                            {isEdu ? (
+                                <div className="space-y-4">
+                                    <div className="p-6 bg-gradient-to-r from-emerald-500/10 via-indigo-500/10 to-emerald-500/10 border border-emerald-500/30 rounded-2xl">
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-2xl">✨</span>
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">100% Free School Health Service</h4>
+                                                <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                                    School clinic intake, consultations, nursing triage, and emergency first aid are free institutional health services for students. No checkout, cashier billing, or payment options are required.
+                                                </p>
                                             </div>
                                         </div>
+                                    </div>
 
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Policy / SHA Member ID</label>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Institutional Coverage Tier</label>
+                                            <input
+                                                type="text"
+                                                readOnly
+                                                value="School Health Coverage (Complimentary)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 outline-none cursor-default font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Student / Primary Phone (Optional)</label>
                                             <div className="relative group">
-                                                <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                                 <input
-                                                    type="text"
-                                                    placeholder="SHA-XXXXXX OR POLICY NO..."
+                                                    type="tel"
+                                                    placeholder="E.G. +254... (OPTIONAL)"
                                                     className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
-                                                    value={formData.shaNumber}
-                                                    onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
+                                                    value={formData.contact}
+                                                    onChange={e => setFormData({ ...formData, contact: e.target.value })}
                                                 />
                                             </div>
                                         </div>
-                                    </>
-                                )}
-                            </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Primary Contact Unit</label>
+                                        <div className="relative group">
+                                            <PhoneIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                            <input
+                                                required
+                                                type="tel"
+                                                placeholder="+254..."
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.contact}
+                                                onChange={e => setFormData({ ...formData, contact: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">S.H.A Identifier (Registry)</label>
+                                        <div className="relative group">
+                                            <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                            <input
+                                                type="text"
+                                                placeholder="SHA-XXXXXX"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.shaNumber}
+                                                onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3 md:col-span-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Intake Payment Method *</label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, insuranceProvider: '' })}
+                                                className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all text-[10px] font-black uppercase tracking-wider cursor-pointer ${
+                                                    !formData.insuranceProvider
+                                                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-md'
+                                                        : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-500 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                💵 Cash / Mobile Money (Direct)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, insuranceProvider: 'SHA (Social Health Authority)' })}
+                                                className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-3 transition-all text-[10px] font-black uppercase tracking-wider cursor-pointer ${
+                                                    !!formData.insuranceProvider
+                                                        ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 shadow-md'
+                                                        : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-500 hover:bg-slate-100'
+                                                }`}
+                                            >
+                                                🛡️ Insurance Cover / SHA Scheme
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {!!formData.insuranceProvider && (
+                                        <>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Insurance Partner / Cover Scheme</label>
+                                                <div className="relative group">
+                                                    <IdentificationIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                    <select
+                                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white appearance-none"
+                                                        value={formData.insuranceProvider}
+                                                        onChange={e => setFormData({ ...formData, insuranceProvider: e.target.value })}
+                                                    >
+                                                        <option value="SHA (Social Health Authority)">SHA (Social Health Authority)</option>
+                                                        <option value="Jubilee Insurance">Jubilee Insurance</option>
+                                                        <option value="UAP Old Mutual">UAP Old Mutual</option>
+                                                        <option value="AAR Insurance">AAR Insurance</option>
+                                                        <option value="APA Insurance">APA Insurance</option>
+                                                        <option value="Britam Health">Britam Health</option>
+                                                        <option value="CIC Africa Group">CIC Africa Group</option>
+                                                        <option value="School Coverage">School Coverage / EduPulse</option>
+                                                        <option value="Other Commercial Cover">Other Commercial Cover</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Policy / SHA Member ID</label>
+                                                <div className="relative group">
+                                                    <ShieldCheckIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="SHA-XXXXXX OR POLICY NO..."
+                                                        className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                        value={formData.shaNumber}
+                                                        onChange={e => setFormData({ ...formData, shaNumber: e.target.value })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {currentStep === 4 && (
                         <div className="space-y-6 animate-fade-in">
-                            {isMinor ? (
+                            {isEdu ? (
+                                <div className="space-y-6">
+                                    <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center justify-between">
+                                        <span>🎓 Student Registry Parent / Guardian Data (Auto-Fetched)</span>
+                                        <span className="px-2 py-0.5 bg-indigo-500/20 rounded font-bold">Auto-Linked</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                        Parent and guardian contact details are automatically linked from the student's admission profile in the school registry. You may leave these fields as-is or optionally update them below.
+                                    </p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2 md:col-span-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Parent / Legal Guardian Name (From Student Registry)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Parent / Guardian Name (Auto-Populated from Registry)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.guardianName}
+                                                onChange={e => setFormData({ ...formData, guardianName: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Parent / Guardian Phone Line (Optional)</label>
+                                            <input
+                                                type="tel"
+                                                placeholder="+254 7XX XXX XXX (Optional)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.guardianPhone}
+                                                onChange={e => setFormData({ ...formData, guardianPhone: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Parent National ID / Emergency Phone (Optional)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="ID No. or Emergency Contact (Optional)"
+                                                className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner text-slate-900 dark:text-white"
+                                                value={formData.guardianNationalId || formData.emergencyContactPhone}
+                                                onChange={e => setFormData({ ...formData, guardianNationalId: e.target.value, emergencyContactPhone: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : isMinor ? (
                                 <>
                                     <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center justify-between">
                                         <span>👨‍👩‍👧 MINOR PATIENT (&lt;18 YRS) — PARENT / GUARDIAN DETAILS MANDATORY</span>

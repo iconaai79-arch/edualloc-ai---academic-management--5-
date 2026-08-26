@@ -26,6 +26,7 @@ interface ReceptionistViewProps {
     institutionId?: string;
     userName?: string;
     users?: any[];
+    isEdu?: boolean;
     onPatientsUpdated?: () => void;
 }
 
@@ -40,7 +41,7 @@ const statusStyles: Record<string, string> = {
     Rescheduled:'bg-orange-500/10 text-orange-500 border-orange-500/20',
 };
 
-export function ReceptionistView({ institutionId, userName, users = [], onPatientsUpdated }: ReceptionistViewProps) {
+export function ReceptionistView({ institutionId, userName, users = [], isEdu = false, onPatientsUpdated }: ReceptionistViewProps) {
     const [patients, setPatients] = useState<HISPatient[]>([]);
     const [appointments, setAppointments] = useState<HISAppointment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -633,7 +634,7 @@ export function ReceptionistView({ institutionId, userName, users = [], onPatien
                     isOpen={isBookingOpen}
                     onClose={() => { setIsBookingOpen(false); setSelectedPatient(null); }}
                     onAdd={handleBookAppointment}
-                    isEdu={false}
+                    isEdu={isEdu}
                     referredBy={userName || ''}
                     initialPatient={selectedPatient}
                     patients={patients}
@@ -647,7 +648,7 @@ export function ReceptionistView({ institutionId, userName, users = [], onPatien
                 onClose={() => setIsRegisterOpen(false)}
                 onRegister={handleRegisterPatient}
                 users={users}
-                isEdu={false}
+                isEdu={isEdu}
                 institutionId={institutionId}
                 existingPatients={patients}
             />

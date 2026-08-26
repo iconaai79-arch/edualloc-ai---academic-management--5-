@@ -1182,7 +1182,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     institution={currentInst}
                                 />
                             );
-                            case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} onPatientsUpdated={fetchPatients} />;
+                            case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} isEdu={isEdu} onPatientsUpdated={fetchPatients} />;
                             case 'queuing': return <HISQueueManagerView institutionId={institutionId} userName={userName} activeRole={activeRole} />;
                             case 'patients': return (
                                 <EduPulsePatientsList
