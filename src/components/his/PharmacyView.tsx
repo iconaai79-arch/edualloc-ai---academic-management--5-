@@ -1645,23 +1645,23 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
             {/* Dispensing History Record Details Modal */}
             {selectedHistoryPresc && createPortal(
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
-                    <div className="glass-morphism bg-slate-900 border border-white/10 p-8 rounded-[2.5rem] w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-8 rounded-[2.5rem] w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-white/10">
                             <div>
-                                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase tracking-widest border border-emerald-500/30">
+                                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase tracking-widest border border-emerald-500/30">
                                     Dispensed Record
                                 </span>
-                                <h3 className="text-xl font-black text-white mt-2">
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white mt-2">
                                     {selectedHistoryPresc.patientName}
                                 </h3>
-                                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
                                     {(selectedHistoryPresc as any).patientAdmissionNo || selectedHistoryPresc.patientId} • Prescribed by {selectedHistoryPresc.doctorName || 'Attending Physician'}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setSelectedHistoryPresc(null)}
-                                className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                                className="p-2.5 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                             >
                                 ✕
                             </button>
@@ -1669,26 +1669,26 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
                         <div className="mt-6 space-y-6">
                             <div>
-                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Dispensed Medications</h4>
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-3">Dispensed Medications</h4>
                                 <div className="space-y-2">
                                     {(selectedHistoryPresc.items || []).map((item: any, idx: number) => (
-                                        <div key={idx} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between">
+                                        <div key={idx} className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 flex items-center justify-between">
                                             <div>
-                                                <div className="font-black text-white text-sm">{item.drugName}</div>
-                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                <div className="font-black text-slate-900 dark:text-white text-sm">{item.drugName}</div>
+                                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                                     {item.dosage && <span className="mr-2">{item.dosage}</span>}
                                                     {item.frequency && <span className="mr-2">• {item.frequency}</span>}
                                                     {item.duration && <span>• {item.duration}</span>}
                                                 </div>
                                                 {item.instructions && (
-                                                    <div className="text-[11px] text-emerald-400/80 mt-1 italic">
+                                                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400/80 mt-1 italic">
                                                         Note: {item.instructions}
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="text-right">
-                                                <div className="text-xs font-bold text-slate-400">Qty: {item.quantity}</div>
-                                                <div className="font-black text-indigo-400 text-sm mt-0.5">
+                                                <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Qty: {item.quantity}</div>
+                                                <div className="font-black text-indigo-600 dark:text-indigo-400 text-sm mt-0.5">
                                                     KES {((item.totalPrice || (item.unitPrice * item.quantity)) || 0).toLocaleString()}
                                                 </div>
                                             </div>
@@ -1697,12 +1697,12 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 </div>
                             </div>
 
-                            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between">
+                            <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 flex items-center justify-between">
                                 <div>
-                                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Billed & Cleared</div>
-                                    <div className="text-[10px] text-emerald-400 font-bold mt-0.5">Payment reconciled via Hospital Billing Desk</div>
+                                    <div className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Total Billed & Cleared</div>
+                                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">Payment reconciled via Hospital Billing Desk</div>
                                 </div>
-                                <div className="text-2xl font-black text-indigo-400 italic">
+                                <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 italic">
                                     KES {(selectedHistoryPresc.items || []).reduce((s: number, i: any) => s + (i.totalPrice || (i.unitPrice * i.quantity) || 0), 0).toLocaleString()}
                                 </div>
                             </div>
@@ -1713,7 +1713,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                         handlePreviewExternalRxPdf(selectedHistoryPresc, true);
                                         setSelectedHistoryPresc(null);
                                     }}
-                                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl text-xs border border-white/10 transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-2xl text-xs border border-slate-200 dark:border-white/10 transition-all flex items-center justify-center gap-2"
                                 >
                                     <span>🖨️</span> Print EPOS Thermal (80mm)
                                 </button>
@@ -1722,7 +1722,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                         handlePreviewExternalRxPdf(selectedHistoryPresc, false);
                                         setSelectedHistoryPresc(null);
                                     }}
-                                    className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition-all flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
                                 >
                                     <span>📄</span> Download Full PDF Rx
                                 </button>
@@ -1762,19 +1762,19 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
             {/* Add Medication / Batch Modal Overlay */}
             {isAddDrugOpen && createPortal(
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
-                    <div className="glass-morphism bg-slate-900 border border-white/10 p-8 sm:p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between mb-8 pb-3 border-b border-white/10">
-                            <h3 className="text-2xl font-black uppercase tracking-tighter italic">
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-8 sm:p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-8 pb-3 border-b border-slate-100 dark:border-white/10">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter italic text-slate-900 dark:text-white">
                                 {showBatchRegistry ? 'Record New ' : 'Add New '}
-                                <span className={showBatchRegistry ? 'text-indigo-400' : 'text-emerald-400'}>
+                                <span className={showBatchRegistry ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'}>
                                     {showBatchRegistry ? 'Inventory Batch' : 'Medication'}
                                 </span>
                             </h3>
                             <button
                                 type="button"
                                 onClick={() => setIsAddDrugOpen(false)}
-                                className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                                className="p-2.5 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
                             >
                                 ✕
                             </button>
@@ -1819,68 +1819,68 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                             {!showBatchRegistry ? (
                                 <>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Drug Name</label>
-                                        <input name="name" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
+                                        <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Drug Name</label>
+                                        <input name="name" required className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none placeholder-slate-400" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Category</label>
-                                            <input name="category" placeholder="Antibiotic, etc" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Category</label>
+                                            <input name="category" placeholder="Antibiotic, etc" className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none placeholder-slate-400" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Base Unit</label>
-                                            <input name="unit" placeholder="Tablet, Vial" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Base Unit</label>
+                                            <input name="unit" placeholder="Tablet, Vial" className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none placeholder-slate-400" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Price (KES)</label>
-                                            <input name="unitPrice" type="number" step="0.01" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Unit Price (KES)</label>
+                                            <input name="unitPrice" type="number" step="0.01" required className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none placeholder-slate-400" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Reorder Level</label>
-                                            <input name="reorderLevel" type="number" defaultValue="10" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-emerald-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Reorder Level</label>
+                                            <input name="reorderLevel" type="number" defaultValue="10" className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-emerald-500 outline-none placeholder-slate-400" />
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
-                                        <input type="checkbox" name="isNarcotic" className="w-4 h-4 rounded border-white/10 bg-white/5" />
-                                        <label className="text-[10px] font-black uppercase text-rose-400">Classified Narcotic / Controlled Substance</label>
+                                    <div className="flex items-center gap-3 p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl">
+                                        <input type="checkbox" name="isNarcotic" className="w-4 h-4 rounded border-slate-300 dark:border-white/10 text-rose-600 focus:ring-rose-500" />
+                                        <label className="text-[10px] font-black uppercase text-rose-600 dark:text-rose-400">Classified Narcotic / Controlled Substance</label>
                                     </div>
                                 </>
                             ) : (
                                 <>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Select Medication</label>
-                                        <select name="medicationId" required className="w-full bg-slate-800 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none">
-                                            {inventory.map(i => <option key={i.id} value={i.id} className="bg-slate-900">{i.name}</option>)}
+                                        <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Select Medication</label>
+                                        <select name="medicationId" required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 outline-none">
+                                            {inventory.map(i => <option key={i.id} value={i.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{i.name}</option>)}
                                         </select>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Batch Number</label>
-                                            <input name="batchNumber" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Batch Number</label>
+                                            <input name="batchNumber" required className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 outline-none placeholder-slate-400" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Expiry Date</label>
-                                            <input name="expiryDate" type="date" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Expiry Date</label>
+                                            <input name="expiryDate" type="date" required className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 outline-none placeholder-slate-400" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Batch Quantity</label>
-                                            <input name="quantity" type="number" required className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Batch Quantity</label>
+                                            <input name="quantity" type="number" required className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 outline-none placeholder-slate-400" />
                                         </div>
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Cost (KES)</label>
-                                            <input name="unitCost" type="number" step="0.01" className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-indigo-500/50 outline-none" />
+                                            <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Unit Cost (KES)</label>
+                                            <input name="unitCost" type="number" step="0.01" className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-indigo-500 outline-none placeholder-slate-400" />
                                         </div>
                                     </div>
                                 </>
                             )}
 
                             <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => setIsAddDrugOpen(false)} className="flex-1 bg-white/5 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Cancel</button>
-                                <button type="submit" className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl ${showBatchRegistry ? 'bg-indigo-500 text-white shadow-indigo-500/20' : 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'}`}>
+                                <button type="button" onClick={() => setIsAddDrugOpen(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">Cancel</button>
+                                <button type="submit" className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl ${showBatchRegistry ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/20' : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20'}`}>
                                     Commit Entry
                                 </button>
                             </div>
@@ -2302,15 +2302,15 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
 
             {/* Edit Medication Modal Overlay */}
             {editingDrug && createPortal(
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fade-in">
-                    <div className="glass-morphism bg-slate-900 border border-white/10 p-8 sm:p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-8 pb-3 border-b border-white/10">
-                            <h3 className="text-2xl font-black uppercase tracking-tighter italic text-amber-400">
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 p-8 sm:p-10 rounded-[2.5rem] w-full max-w-xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-8 pb-3 border-b border-slate-100 dark:border-white/10">
+                            <h3 className="text-2xl font-black uppercase tracking-tighter italic text-amber-600 dark:text-amber-400">
                                 Edit Medication
                             </h3>
                             <button 
                                 onClick={() => setEditingDrug(null)}
-                                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                                className="p-2.5 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors cursor-pointer"
                             >
                                 ✕
                             </button>
@@ -2318,74 +2318,74 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                         
                         <form onSubmit={handleSaveEditDrug} className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Drug Name</label>
+                                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Drug Name</label>
                                 <input 
                                     name="name" 
                                     required 
                                     defaultValue={editingDrug.name}
-                                    className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-amber-500 outline-none placeholder-slate-400" 
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Category</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Category</label>
                                     <input 
                                         name="category" 
                                         defaultValue={editingDrug.category}
                                         placeholder="Antibiotic, Analgesic, etc" 
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-amber-500 outline-none placeholder-slate-400" 
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Base Unit</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Base Unit</label>
                                     <input 
                                         name="unit" 
                                         defaultValue={editingDrug.unit}
                                         placeholder="Tablet, Vial, Bottle" 
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-amber-500 outline-none placeholder-slate-400" 
                                     />
                                 </div>
                             </div>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Unit Price (KES)</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Unit Price (KES)</label>
                                     <input 
                                         name="unitPrice" 
                                         type="number" 
                                         step="0.01" 
                                         required 
                                         defaultValue={editingDrug.unitPrice}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-amber-500 outline-none" 
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Stock Quantity</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Stock Quantity</label>
                                     <input 
                                         name="stockQuantity" 
                                         type="number" 
                                         required 
                                         defaultValue={editingDrug.stockQuantity}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-amber-500 outline-none" 
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Reorder Level</label>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-2">Reorder Level</label>
                                     <input 
                                         name="reorderLevel" 
                                         type="number" 
                                         defaultValue={editingDrug.reorderLevel || 10}
-                                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-amber-500/50 outline-none" 
+                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4 text-slate-900 dark:text-white text-sm focus:border-amber-500 outline-none" 
                                     />
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
+                            <div className="flex items-center gap-3 p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl">
                                 <input 
                                     type="checkbox" 
                                     name="isNarcotic" 
                                     defaultChecked={editingDrug.isNarcotic}
-                                    className="w-4 h-4 rounded border-white/10 bg-white/5" 
+                                    className="w-4 h-4 rounded border-slate-300 dark:border-white/10 text-rose-600 focus:ring-rose-500" 
                                 />
-                                <label className="text-[10px] font-black uppercase text-rose-400">Classified Narcotic / Controlled Substance</label>
+                                <label className="text-[10px] font-black uppercase text-rose-600 dark:text-rose-400">Classified Narcotic / Controlled Substance</label>
                             </div>
 
                             <div className="flex gap-4 pt-4">
@@ -2398,7 +2398,7 @@ export function PharmacyView({ institutionId }: { institutionId?: string }) {
                                 <button 
                                     type="button" 
                                     onClick={() => setEditingDrug(null)} 
-                                    className="px-8 bg-white/10 hover:bg-white/20 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer"
+                                    className="px-8 bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer"
                                 >
                                     Cancel
                                 </button>
