@@ -1203,111 +1203,113 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden min-h-[400px]">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Resource</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Issue Context</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Deadline</th>
-                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                                {filteredCirculation.map(transaction => {
-                                    const isOverdue = new Date(transaction.dueDate) < new Date();
-                                    return (
-                                        <tr key={transaction.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
-                                            <td className="px-6 py-5">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs">
-                                                        {getUserName(transaction.userId, transaction).charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{getUserName(transaction.userId, transaction)}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400">{getUserStaffId(transaction.userId, transaction)}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{getBookTitle(transaction.bookId)}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-slate-100 dark:bg-slate-900 text-slate-500 rounded">
-                                                        {books.find(b => b.id === transaction.bookId)?.accessionNumber || 'N/A'}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                                {new Date(transaction.issueDate).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                <div className="space-y-1">
-                                                    <div className={`flex items-center gap-2 ${isOverdue ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                        <ClockIcon className="w-4 h-4" />
-                                                        <span className="text-xs font-black uppercase tracking-tight">{new Date(transaction.dueDate).toLocaleDateString()}</span>
-                                                        {isOverdue && <span className="text-[8px] px-2 py-0.5 bg-rose-50 dark:bg-rose-900/40 text-rose-600 rounded-full font-black animate-pulse uppercase">OVERDUE</span>}
-                                                    </div>
-                                                    {(() => {
-                                                        const diffDays = Math.ceil((new Date(transaction.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                                                        if (diffDays < 0) {
-                                                            return <p className="text-[9px] font-bold text-rose-500 uppercase">{Math.abs(diffDays)} {Math.abs(diffDays) === 1 ? 'day' : 'days'} overdue</p>;
-                                                        } else if (diffDays === 0) {
-                                                            return <p className="text-[9px] font-bold text-amber-500 uppercase">Due today</p>;
-                                                        } else {
-                                                            return <p className="text-[9px] font-bold text-emerald-500 uppercase">{diffDays} {diffDays === 1 ? 'day' : 'days'} remaining</p>;
-                                                        }
-                                                    })()}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5 text-right">
-                                                <div className="flex items-center justify-end gap-2 flex-wrap">
-                                                    <button
-                                                        onClick={() => handleRenewBook(transaction, 14)}
-                                                        disabled={isProcessing}
-                                                        className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-500 hover:text-white text-amber-700 dark:text-amber-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border border-amber-200 dark:border-amber-800 disabled:opacity-50"
-                                                        title="Extend loan deadline by 14 days"
-                                                    >
-                                                        Renew (+14d)
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleSendReminder(transaction)}
-                                                        className={`p-2 rounded-xl transition-all cursor-pointer ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
-                                                        title="Send SMS Reminder"
-                                                    >
-                                                        <BellIcon className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleReturnBook(transaction)}
-                                                        disabled={isProcessing}
-                                                        className="px-4 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                                                    >
-                                                        Process Return
-                                                    </button>
-                                                    {transaction.memberSignature && (
-                                                        <div className="group relative">
-                                                            <button className="p-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer" title="View Confirmation Signature">
-                                                                <EyeIcon className="w-4 h-4" />
-                                                            </button>
-                                                            <div className="absolute bottom-full right-0 mb-2 p-2 bg-white dark:bg-slate-800 border rounded-xl shadow-xl hidden group-hover:block z-50">
-                                                                <img loading="lazy" src={transaction.memberSignature} className="w-32 h-16 object-contain" alt="Signature" />
-                                                                <p className="text-[8px] font-black uppercase text-center text-slate-400 mt-1">Receipt Confirm</p>
-                                                            </div>
+                        <div className="overflow-x-auto w-full">
+                            <table className="w-full text-left min-w-[720px]">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Recipient</th>
+                                        <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Resource</th>
+                                        <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Issue Context</th>
+                                        <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Deadline</th>
+                                        <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right whitespace-nowrap min-w-[240px]">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                                    {filteredCirculation.map(transaction => {
+                                        const isOverdue = new Date(transaction.dueDate) < new Date();
+                                        return (
+                                            <tr key={transaction.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
+                                                <td className="px-5 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs shrink-0">
+                                                            {getUserName(transaction.userId, transaction).charAt(0)}
                                                         </div>
-                                                    )}
-                                                </div>
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[180px]">{getUserName(transaction.userId, transaction)}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400">{getUserStaffId(transaction.userId, transaction)}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[200px]">{getBookTitle(transaction.bookId)}</p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[9px] font-black px-1.5 py-0.5 bg-slate-100 dark:bg-slate-900 text-slate-500 rounded font-mono">
+                                                            {books.find(b => b.id === transaction.bookId)?.accessionNumber || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">
+                                                    {new Date(transaction.issueDate).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-5 py-4 whitespace-nowrap">
+                                                    <div className="space-y-1">
+                                                        <div className={`flex items-center gap-2 ${isOverdue ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                            <ClockIcon className="w-4 h-4 shrink-0" />
+                                                            <span className="text-xs font-black uppercase tracking-tight">{new Date(transaction.dueDate).toLocaleDateString()}</span>
+                                                            {isOverdue && <span className="text-[8px] px-2 py-0.5 bg-rose-50 dark:bg-rose-900/40 text-rose-600 rounded-full font-black animate-pulse uppercase">OVERDUE</span>}
+                                                        </div>
+                                                        {(() => {
+                                                            const diffDays = Math.ceil((new Date(transaction.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                                                            if (diffDays < 0) {
+                                                                return <p className="text-[9px] font-bold text-rose-500 uppercase">{Math.abs(diffDays)} {Math.abs(diffDays) === 1 ? 'day' : 'days'} overdue</p>;
+                                                            } else if (diffDays === 0) {
+                                                                return <p className="text-[9px] font-bold text-amber-500 uppercase">Due today</p>;
+                                                            } else {
+                                                                return <p className="text-[9px] font-bold text-emerald-500 uppercase">{diffDays} {diffDays === 1 ? 'day' : 'days'} remaining</p>;
+                                                            }
+                                                        })()}
+                                                    </div>
+                                                </td>
+                                                <td className="px-5 py-4 text-right whitespace-nowrap">
+                                                    <div className="flex items-center justify-end gap-2 flex-nowrap">
+                                                        <button
+                                                            onClick={() => handleRenewBook(transaction, 14)}
+                                                            disabled={isProcessing}
+                                                            className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-500 hover:text-white text-amber-700 dark:text-amber-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border border-amber-200 dark:border-amber-800 disabled:opacity-50 whitespace-nowrap shrink-0"
+                                                            title="Extend loan deadline by 14 days"
+                                                        >
+                                                            Renew (+14d)
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleSendReminder(transaction)}
+                                                            className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${isOverdue ? 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-200'}`}
+                                                            title="Send SMS Reminder"
+                                                        >
+                                                            <BellIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleReturnBook(transaction)}
+                                                            disabled={isProcessing}
+                                                            className="px-4 py-2 bg-slate-900 dark:bg-slate-700 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-sm disabled:opacity-50 whitespace-nowrap shrink-0"
+                                                        >
+                                                            Process Return
+                                                        </button>
+                                                        {transaction.memberSignature && (
+                                                            <div className="group relative shrink-0">
+                                                                <button className="p-2 bg-indigo-50 text-indigo-600 rounded-xl cursor-pointer" title="View Confirmation Signature">
+                                                                    <EyeIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <div className="absolute bottom-full right-0 mb-2 p-2 bg-white dark:bg-slate-800 border rounded-xl shadow-xl hidden group-hover:block z-50">
+                                                                    <img loading="lazy" src={transaction.memberSignature} className="w-32 h-16 object-contain" alt="Signature" />
+                                                                    <p className="text-[8px] font-black uppercase text-center text-slate-400 mt-1">Receipt Confirm</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredCirculation.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-black uppercase text-[10px] tracking-[0.3em]">
+                                                {circulationSearch ? `No circulation records matching "${circulationSearch}"` : 'No active loans found in registry'}
                                             </td>
                                         </tr>
-                                    );
-                                })}
-                                {filteredCirculation.length === 0 && (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-20 text-center text-slate-400 font-black uppercase text-[10px] tracking-[0.3em]">
-                                            {circulationSearch ? `No circulation records matching "${circulationSearch}"` : 'No active loans found in registry'}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
