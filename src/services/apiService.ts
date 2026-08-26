@@ -2292,6 +2292,9 @@ export const apiService = {
             return toCamelCase(payload);
         }
     },
+    async updateModuleRecord<T = any>(module: string, id: string, payload: Partial<T>): Promise<T | null> {
+        return apiService.saveModuleRecord(module, { ...payload, id });
+    },
     async fetchSmsOutbox(institutionId: string): Promise<any[]> {
         return apiService.fetchModuleRecords('sms_outbox', institutionId, undefined, {
             order: 'created_at.desc'

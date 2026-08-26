@@ -446,14 +446,17 @@ export const EditStudentInvoiceModal: React.FC<EditStudentInvoiceModalProps> = (
                 updated_at: new Date().toISOString()
             };
 
-            await apiService.updateModuleRecord('invoices', invoice.id, updatedInvoicePayload);
-
-            if (onRefreshData) {
-                await onRefreshData();
-            }
+            const savedResult = await apiService.saveModuleRecord('invoices', updatedInvoicePayload);
+            const finalSaved = savedResult ? { ...updatedInvoicePayload, ...savedResult } : updatedInvoicePayload;
 
             if (onSaveSuccess) {
-                onSaveSuccess(updatedInvoicePayload);
+                onSaveSuccess(finalSaved);
+            }
+
+            if (onRefreshData) {
+                try {
+                    await onRefreshData();
+                } catch (_) {}
             }
 
             onClose();

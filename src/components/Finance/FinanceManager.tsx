@@ -21818,9 +21818,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     voteHeads={props.voteHeads || []}
                     academicYears={props.academicYears || []}
                     semesters={props.semesters || []}
-                    onRefreshData={props.onRefreshData}
                     onSaveSuccess={(updatedInv) => {
-                        setAllBranchInvoices(prev => prev.map(inv => inv.id === updatedInv.id ? { ...inv, ...updatedInv } : inv));
+                        setAllBranchInvoices(prev => {
+                            const exists = prev.some(inv => inv.id === updatedInv.id);
+                            if (exists) {
+                                return prev.map(inv => inv.id === updatedInv.id ? { ...inv, ...updatedInv } : inv);
+                            }
+                            return [...prev, updatedInv];
+                        });
+                        if (props.onRefreshData) {
+                            props.onRefreshData();
+                        }
                     }}
                 />
             )}
