@@ -1098,26 +1098,37 @@ export function DoctorDashboard({
                 <div className="relative z-10">
                     <div className="flex items-center gap-4 mb-4">
                         <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-indigo-500/30 ring-2 ring-white/10 flex-shrink-0">
-                            {(userName || 'D')[0].toUpperCase()}
+                            {(userName || (isEdu ? 'N' : 'D'))[0].toUpperCase()}
                         </div>
                         <div>
-                            <p className="text-[9px] font-black text-indigo-300/60 uppercase tracking-[0.3em]">Physician Workspace</p>
+                            <p className="text-[9px] font-black text-indigo-300/60 uppercase tracking-[0.3em]">
+                                {isEdu ? 'School Clinic & Sickbay Desk' : 'Physician Workspace'}
+                            </p>
                             <h1 className="text-2xl font-black uppercase tracking-tighter text-white italic leading-tight">
-                                Dr. <span className="text-indigo-300">{userName || 'Clinician'}</span>
+                                {isEdu ? '' : 'Dr. '}<span className="text-indigo-300">{userName || (isEdu ? 'Nurse / Clinical Officer' : 'Clinician')}</span>
                             </h1>
                         </div>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                         <select value={selectedSpecialty} onChange={e => setSelectedSpecialty(e.target.value)}
                             className="bg-white/10 border border-white/10 text-white rounded-xl px-4 py-2.5 text-[9px] font-black uppercase tracking-widest outline-none focus:border-indigo-400/50 hover:bg-white/20 transition-all">
-                            {SPECIALTIES.map(s => <option key={s} value={s} className="bg-slate-900 text-white">{s}</option>)}
+                            {isEdu ? (
+                                <>
+                                    <option value="School Nursing & First Aid" className="bg-slate-900 text-white">School Nursing & First Aid</option>
+                                    <option value="Clinical Officer Consultation" className="bg-slate-900 text-white">Clinical Officer Consultation</option>
+                                    <option value="Student Wellness & Triage" className="bg-slate-900 text-white">Student Wellness & Triage</option>
+                                    <option value="Sickbay Ward Care" className="bg-slate-900 text-white">Sickbay Ward Care</option>
+                                </>
+                            ) : (
+                                SPECIALTIES.map(s => <option key={s} value={s} className="bg-slate-900 text-white">{s}</option>)
+                            )}
                         </select>
                         <span className="px-3 py-2 bg-emerald-500/20 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-500/20 flex items-center gap-2">
                             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse inline-block" />
                             On Duty
                         </span>
                         <span className="px-3 py-2 bg-white/10 text-indigo-200 rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/10">
-                            {selectedSpecialty}
+                            {isEdu ? 'EduPulse Clinic Active' : selectedSpecialty}
                         </span>
                     </div>
                 </div>
@@ -1135,11 +1146,22 @@ export function DoctorDashboard({
                             onChange={(e) => setRoomNo(e.target.value)}
                             className="bg-black/40 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl px-4 py-2.5 text-[9px] uppercase tracking-widest outline-none focus:border-emerald-400"
                         >
-                            <option>Consultation Room 1</option>
-                            <option>Consultation Room 2</option>
-                            <option>Consultation Room 3</option>
-                            <option>Dental Suite 1</option>
-                            <option>Eye Clinic Room A</option>
+                            {isEdu ? (
+                                <>
+                                    <option>School Sickbay / Clinic Desk</option>
+                                    <option>Nurse Consultation Room</option>
+                                    <option>Triage & Observation Bay</option>
+                                    <option>First Aid Station</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option>Consultation Room 1</option>
+                                    <option>Consultation Room 2</option>
+                                    <option>Consultation Room 3</option>
+                                    <option>Dental Suite 1</option>
+                                    <option>Eye Clinic Room A</option>
+                                </>
+                            )}
                         </select>
                         <button
                             onClick={handleCallNextVoice}
@@ -1431,18 +1453,18 @@ export function DoctorDashboard({
                         </div>
                     </div>
 
-                    {/* ── 🧭 ORGANIZED HORIZONTAL ACTION MENU (DOCTOR'S TOOLBELT) ── */}
+                    {/* ── 🧭 ORGANIZED HORIZONTAL ACTION MENU (CLINICAL ACTIONS) ── */}
                     <div className="space-y-2 pt-2">
                         <div className="flex items-center justify-between">
                             <p className="text-[9px] font-black text-indigo-300 uppercase tracking-[0.25em]">
-                                🛠️ Clinical Actions &amp; Orders Menu
+                                🛠️ {isEdu ? 'Clinic Actions & Care Menu' : 'Clinical Actions & Orders Menu'}
                             </p>
                             <span className="text-[9px] text-slate-400 font-bold uppercase">
                                 Active Encounter: {activePatient.fullName}
                             </span>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+                        <div className={`grid grid-cols-2 sm:grid-cols-3 ${isEdu ? 'lg:grid-cols-5' : 'lg:grid-cols-8'} gap-2.5`}>
                             {/* 1. SOAP Note */}
                             <button
                                 onClick={() => handleOpenSoapModal(activePatient)}
@@ -1452,23 +1474,27 @@ export function DoctorDashboard({
                                 <span className="text-center font-black">🩺 SOAP Note</span>
                             </button>
 
-                            {/* 2. Order Lab Test */}
-                            <button
-                                onClick={() => setShowLabOrderModal(true)}
-                                className="p-3.5 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-blue-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
-                            >
-                                <BeakerIcon className="w-5 h-5 text-blue-400" />
-                                <span className="text-center">🔬 Order Lab</span>
-                            </button>
+                            {/* 2. Order Lab Test - Hidden in EduPulse */}
+                            {!isEdu && (
+                                <button
+                                    onClick={() => setShowLabOrderModal(true)}
+                                    className="p-3.5 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-blue-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
+                                >
+                                    <BeakerIcon className="w-5 h-5 text-blue-400" />
+                                    <span className="text-center">🔬 Order Lab</span>
+                                </button>
+                            )}
 
-                            {/* 3. Order Radiology / X-Ray */}
-                            <button
-                                onClick={() => setShowLabOrderModal(true)}
-                                className="p-3.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
-                            >
-                                <span className="text-lg">🩻</span>
-                                <span className="text-center">Radiology / X-Ray</span>
-                            </button>
+                            {/* 3. Order Radiology / X-Ray - Hidden in EduPulse */}
+                            {!isEdu && (
+                                <button
+                                    onClick={() => setShowLabOrderModal(true)}
+                                    className="p-3.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
+                                >
+                                    <span className="text-lg">🩻</span>
+                                    <span className="text-center">Radiology / X-Ray</span>
+                                </button>
+                            )}
 
                             {/* 4. E-Prescribe */}
                             <button
@@ -1479,13 +1505,13 @@ export function DoctorDashboard({
                                 <span className="text-center">E-Prescribe</span>
                             </button>
 
-                            {/* 5. Hold for Results */}
+                            {/* 5. Hold for Results / Observation */}
                             <button
                                 onClick={() => handleHoldActivePatient()}
                                 className="p-3.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
                             >
                                 <span className="text-lg">⏸️</span>
-                                <span className="text-center">Hold for Results</span>
+                                <span className="text-center">{isEdu ? 'Hold / Observe' : 'Hold for Results'}</span>
                             </button>
 
                             {/* 6. Sick Off Permission */}
@@ -1497,14 +1523,16 @@ export function DoctorDashboard({
                                 <span className="text-center">📄 Sick Off</span>
                             </button>
 
-                            {/* 7. Inpatient / Discharge */}
-                            <button
-                                onClick={() => setShowDischargeModal(true)}
-                                className="p-3.5 bg-violet-600/30 hover:bg-violet-600/50 border border-violet-500/40 text-violet-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
-                            >
-                                <span className="text-lg">📋</span>
-                                <span className="text-center">Inpatient / DC</span>
-                            </button>
+                            {/* 7. Inpatient / Discharge - Hidden in EduPulse */}
+                            {!isEdu && (
+                                <button
+                                    onClick={() => setShowDischargeModal(true)}
+                                    className="p-3.5 bg-violet-600/30 hover:bg-violet-600/50 border border-violet-500/40 text-violet-200 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all shadow-md flex flex-col items-center justify-center gap-1.5 hover:scale-[1.03] active:scale-95 cursor-pointer"
+                                >
+                                    <span className="text-lg">📋</span>
+                                    <span className="text-center">Inpatient / DC</span>
+                                </button>
+                            )}
 
                             {/* 8. Complete & Call Next */}
                             <button
@@ -1532,10 +1560,10 @@ export function DoctorDashboard({
                             {/* Sub-Tab Switcher */}
                             <div className="flex items-center gap-1.5 flex-wrap">
                                 {[
-                                    { id: 'encounters', label: 'Past Encounters', count: patientClinicalEvents.length || 2 },
-                                    { id: 'meds', label: 'Medication History', count: patientPrescriptions.length || 3 },
-                                    { id: 'labs', label: 'Lab & Diagnostics', count: patientLabRequests.length || 2 },
-                                    { id: 'insurance', label: 'Insurance & SHA', count: null },
+                                    { id: 'encounters', label: 'Past Encounters', count: patientClinicalEvents.length || 0 },
+                                    { id: 'meds', label: 'Medication History', count: patientPrescriptions.length || 0 },
+                                    ...(!isEdu ? [{ id: 'labs', label: 'Lab & Diagnostics', count: patientLabRequests.length || 0 }] : []),
+                                    { id: 'insurance', label: isEdu ? 'School Registry & Parent' : 'Insurance & SHA', count: null },
                                 ].map((tab) => (
                                     <button
                                         key={tab.id}

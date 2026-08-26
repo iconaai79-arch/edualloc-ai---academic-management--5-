@@ -761,7 +761,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         { id: 'home', label: 'Home', icon: HeartIcon, module: 'general' as HISModule },
                                         { id: 'patients', label: 'Manage Patients', icon: UsersIcon, module: 'patients' as HISModule },
                                         { id: 'appointment', label: 'Appointment', icon: CalendarIcon, module: 'appointments' as HISModule },
-                                        { id: 'doctor', label: 'Doctor Dashboard', icon: ActivityIcon, module: 'doctor' as HISModule },
+                                        { id: 'doctor', label: 'Nurse / Clinical Desk', icon: ActivityIcon, module: 'doctor' as HISModule },
                                     ].map(item => {
                                         const isActive = eduSidebarItem === item.id;
                                         return (
