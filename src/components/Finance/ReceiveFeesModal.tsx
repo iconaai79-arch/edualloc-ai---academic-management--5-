@@ -14,7 +14,10 @@ import {
     BanknotesIcon,
     BuildingLibraryIcon,
     DevicePhoneMobileIcon,
-    EnvelopeIcon
+    EnvelopeIcon,
+    DownloadIcon,
+    AcademicCapIcon,
+    UserIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
@@ -152,7 +155,9 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [overrideExisting, setOverrideExisting] = useState(true);
-    const [successSummary, setSuccessSummary] = useState<string | null>(null);
+    // Searchable Assign Row Modal State
+    const [assigningRowItem, setAssigningRowItem] = useState<ReconciledFeeItem | null>(null);
+    const [assignSearchQuery, setAssignSearchQuery] = useState('');
 
     // Manual Entry State
     const [manualStudentSearch, setManualStudentSearch] = useState('');
@@ -469,17 +474,21 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 student.metadata?.admNo
             ];
 
-            const enr = enrollments.find(e => e.userId === student.id || (e as any).studentId === student.id);
-            if (enr) {
+            const studentEnrs = enrollments.filter(e => e.userId === student.id || (e as any).studentId === student.id || e.id === student.id);
+            studentEnrs.forEach(enr => {
                 candidates.push(
                     enr.admissionNumber,
                     enr.admission_number,
+                    enr.admissionNo,
                     enr.admNo,
                     enr.adm_no,
+                    enr.registrationNo,
+                    enr.registrationNumber,
                     enr.metadata?.admissionNumber,
+                    enr.metadata?.admission_number,
                     enr.metadata?.admNo
                 );
-            }
+            });
 
             candidates.forEach(c => {
                 cleanAdmCandidates(c).forEach(k => {
@@ -712,13 +721,17 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     matchedStudent = admMap.get(noZeros)!;
                     matchConfidence = 'exact_adm';
                 }
-                // IMPORTANT: If an Admission Number was provided in the Excel row, DO NOT fall back to loose name matching.
-                // This prevents assigning receipts of other students with similar names (e.g. Kipkoech/Brian) to the wrong student!
-            } else if (rawName && rawName.trim().length >= 3) {
-                // 2. Only if Admission column was completely blank in Excel, check strictly unique full name
+            }
+
+            // 2. Exact Unique Full Name Matching Fallback (if ADM was missing or unmatched in database)
+            if (!matchedStudent && rawName && rawName.trim().length >= 3) {
                 const nameKey = rawName.trim().toLowerCase();
+                const cleanAlphaName = nameKey.replace(/[^a-z0-9]/g, '');
                 if (nameMap.has(nameKey)) {
                     matchedStudent = nameMap.get(nameKey)!;
+                    matchConfidence = 'exact_name';
+                } else if (cleanAlphaName && nameMap.has(cleanAlphaName)) {
+                    matchedStudent = nameMap.get(cleanAlphaName)!;
                     matchConfidence = 'exact_name';
                 }
             }
@@ -966,6 +979,48 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             .reduce((sum, i) => sum + i.rawAmount, 0);
         return { totalRows, matchedCount, unmatchedCount, totalAmount };
     }, [reconciledItems]);
+
+    // Download unmatched records as Excel file
+    const handleDownloadUnmatched = () => {
+        const unmatched = reconciledItems.filter(i => i.matchStatus === 'unmatched');
+        if (unmatched.length === 0) {
+            alert("No unmatched records to download.");
+            return;
+        }
+
+        const exportData = unmatched.map((item, idx) => ({
+            '#': item.rowIndex || idx + 1,
+            'Admission No (Excel)': item.rawAdm || '',
+            'Student Name (Excel)': item.rawName || '',
+            'Amount Paid (KES)': item.rawAmount,
+            'Payment Mode': item.paymentMethod || item.rawMode || defaultPaymentMethod,
+            'Receipt Number': item.receiptNumber || '',
+            'Reference / Tx Code': item.rawRef || '',
+            'Date Paid': item.rawDate || '',
+            'Status': 'Unmatched - Student not found in database'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Unmatched Payments');
+
+        // Set column widths for readability
+        ws['!cols'] = [
+            { wch: 6 },  // #
+            { wch: 22 }, // Admission
+            { wch: 30 }, // Name
+            { wch: 18 }, // Amount
+            { wch: 16 }, // Payment Mode
+            { wch: 20 }, // Receipt No
+            { wch: 22 }, // Reference
+            { wch: 14 }, // Date Paid
+            { wch: 42 }  // Status
+        ];
+
+        const cleanInstName = (institution?.name || 'School').replace(/[^a-zA-Z0-9]/g, '_');
+        const timestamp = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `${cleanInstName}_Unmatched_Payments_${timestamp}.xlsx`);
+    };
 
     // Live preview for manual tab votehead split
     const manualSplitPreview = useMemo(() => {
@@ -1594,21 +1649,27 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                                     }`}
                                                 >
-                                                    {st}
+                                                    {st} {st === 'unmatched' && stats.unmatchedCount > 0 ? `(${stats.unmatchedCount})` : ''}
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
 
-                                    {/* Stats Badges */}
-                                    <div className="flex items-center gap-2 shrink-0">
+                                    {/* Stats Badges & Download Actions */}
+                                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                                         <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-lg font-bold border border-emerald-200 dark:border-emerald-800/40 text-[10px]">
                                             ✓ {stats.matchedCount} Matched
                                         </span>
                                         {stats.unmatchedCount > 0 && (
-                                            <span className="px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-lg font-bold border border-amber-200 dark:border-amber-800/40 text-[10px]">
-                                                ⚠ {stats.unmatchedCount} Unmatched
-                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleDownloadUnmatched}
+                                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg font-black text-[10px] flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                                                title="Download all unmatched records as an Excel spreadsheet"
+                                            >
+                                                <DownloadIcon className="w-3.5 h-3.5" />
+                                                <span>Download Unmatched ({stats.unmatchedCount})</span>
+                                            </button>
                                         )}
                                         <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-lg font-black border border-indigo-200 dark:border-indigo-800/40 text-[10px]">
                                             KES {stats.totalAmount.toLocaleString()}
@@ -1620,7 +1681,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                 setReconciledItems([]);
                                                 setRawRows([]);
                                             }}
-                                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold"
+                                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold cursor-pointer"
                                         >
                                             Change File
                                         </button>
@@ -1753,24 +1814,35 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                                 </td>
                                                                 <td className="px-3 py-2.5 text-center">
                                                                     {item.matchStatus === 'unmatched' ? (
-                                                                        <select
-                                                                            onChange={(e) => {
-                                                                                if (e.target.value) handleManualAssign(item.id, e.target.value);
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setAssigningRowItem(item);
+                                                                                setAssignSearchQuery(item.rawName || item.rawAdm || '');
                                                                             }}
-                                                                            defaultValue=""
-                                                                            className="w-full text-[10px] font-bold py-1 px-1.5 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded-lg text-amber-800 dark:text-amber-200 cursor-pointer"
+                                                                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                                                                            title="Search and assign student"
                                                                         >
-                                                                            <option value="" disabled>Assign...</option>
-                                                                            {allStudentsList.slice(0, 50).map(s => (
-                                                                                <option key={s.id} value={s.id}>
-                                                                                    {s.name} {getResolvedAdm(s) !== 'N/A' ? `(${getResolvedAdm(s)})` : ''}
-                                                                                </option>
-                                                                            ))}
-                                                                        </select>
+                                                                            <SearchIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                                                            <span>Assign...</span>
+                                                                        </button>
                                                                     ) : (
-                                                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                                                            Ready
-                                                                        </span>
+                                                                        <div className="inline-flex items-center gap-1.5">
+                                                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                                                Ready
+                                                                            </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setAssigningRowItem(item);
+                                                                                    setAssignSearchQuery(item.matchedStudentName || item.rawName || '');
+                                                                                }}
+                                                                                className="text-[10px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline font-semibold cursor-pointer"
+                                                                                title="Change assigned student"
+                                                                            >
+                                                                                Change
+                                                                            </button>
+                                                                        </div>
                                                                     )}
                                                                 </td>
                                                             </tr>
@@ -2257,6 +2329,293 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
                             >
                                 Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: SEARCHABLE STUDENT ASSIGNMENT PICKER ── */}
+            {assigningRowItem && (
+                <div 
+                    className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+                    onKeyDown={(e) => {
+                        if (e.key === 'Escape') setAssigningRowItem(null);
+                    }}
+                >
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-xl w-full p-6 text-left space-y-4 max-h-[90vh] flex flex-col">
+                        
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
+                            <div>
+                                <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <SearchIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                                    <span>Assign Student · Row #{assigningRowItem.rowIndex}</span>
+                                </h4>
+                                <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                    Search by student name, admission number, form/class, or parent phone.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAssigningRowItem(null)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Payment Row Summary Card */}
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-950/80 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs space-y-2 shrink-0">
+                            <div className="flex justify-between items-center font-bold">
+                                <span className="text-slate-500 uppercase tracking-wider text-[10px] font-black">Transaction Details</span>
+                                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                    KES {assigningRowItem.rawAmount.toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+                                <div>
+                                    <span className="block text-[10px] text-slate-400 font-semibold">Excel ADM</span>
+                                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{assigningRowItem.rawAdm || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] text-slate-400 font-semibold">Excel Name</span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">{assigningRowItem.rawName || '—'}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] text-slate-400 font-semibold">Receipt / Ref</span>
+                                    <span className="font-mono font-bold truncate block">{assigningRowItem.receiptNumber || assigningRowItem.rawRef}</span>
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] text-slate-400 font-semibold">Date Paid</span>
+                                    <span className="font-bold">{assigningRowItem.rawDate}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Search Input Bar with Clear Button */}
+                        <div className="space-y-2 shrink-0">
+                            <div className="relative">
+                                <SearchIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    autoFocus
+                                    value={assignSearchQuery}
+                                    onChange={(e) => setAssignSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const q = assignSearchQuery.trim().toLowerCase();
+                                            const tokens = q.split(/\s+/).filter(Boolean);
+                                            const matches = allStudentsList.filter(s => {
+                                                if (!q) return true;
+                                                const sName = (s.name || '').toLowerCase();
+                                                const sAdm = getResolvedAdm(s).toLowerCase();
+                                                return tokens.every(t => sName.includes(t) || sAdm.includes(t));
+                                            });
+                                            const target = matches[0] || allStudentsList[0];
+                                            if (target) {
+                                                handleManualAssign(assigningRowItem.id, target.id);
+                                                setAssigningRowItem(null);
+                                            }
+                                        }
+                                    }}
+                                    placeholder="Search student by name, ADM, class, phone (Press Enter to assign)..."
+                                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner"
+                                />
+                                {assignSearchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center justify-center text-xs font-bold cursor-pointer transition-colors"
+                                        title="Clear search"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Quick Suggestion Chips */}
+                            <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                <span className="text-slate-400 font-semibold">Quick search:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setAssignSearchQuery('')}
+                                    className={`px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                                        !assignSearchQuery.trim()
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    Show All ({allStudentsList.length})
+                                </button>
+                                {(() => {
+                                    const rawWords = (assigningRowItem.rawName || '').split(/\s+/).filter(w => w.length >= 2);
+                                    const rawAdmClean = (assigningRowItem.rawAdm || '').trim();
+                                    const chips: Array<{ label: string; val: string }> = [];
+
+                                    if (rawAdmClean && rawAdmClean !== 'N/A') {
+                                        chips.push({ label: `ADM: ${rawAdmClean}`, val: rawAdmClean });
+                                    }
+                                    rawWords.forEach(w => {
+                                        if (!chips.some(c => c.val.toLowerCase() === w.toLowerCase())) {
+                                            chips.push({ label: `"${w}"`, val: w });
+                                        }
+                                    });
+
+                                    return chips.slice(0, 4).map((chip, cIdx) => (
+                                        <button
+                                            key={cIdx}
+                                            type="button"
+                                            onClick={() => setAssignSearchQuery(chip.val)}
+                                            className={`px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                                                assignSearchQuery.toLowerCase() === chip.val.toLowerCase()
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100'
+                                            }`}
+                                        >
+                                            {chip.label}
+                                        </button>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* Search Results List */}
+                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl min-h-[220px] max-h-[320px] bg-white dark:bg-slate-900">
+                            {(() => {
+                                const q = assignSearchQuery.trim().toLowerCase();
+                                const tokens = q.split(/\s+/).filter(Boolean);
+
+                                const matches = allStudentsList.filter(s => {
+                                    if (!q) return true;
+                                    const sName = (s.name || '').toLowerCase();
+                                    const sAdm = getResolvedAdm(s).toLowerCase();
+                                    const sReg = String((s as any).registrationNumber || (s as any).regNo || '').toLowerCase();
+                                    const sClass = String((s as any).className || (s as any).form || '').toLowerCase();
+                                    const sPhone = String(s.phoneNumber || s.parentPhone || (s as any).guardianPhone || '').toLowerCase();
+
+                                    return tokens.every(token => 
+                                        sName.includes(token) || 
+                                        sAdm.includes(token) || 
+                                        sReg.includes(token) || 
+                                        sClass.includes(token) || 
+                                        sPhone.includes(token)
+                                    );
+                                });
+
+                                const isShowingFallback = q.length > 0 && matches.length === 0;
+                                const displayList = isShowingFallback ? allStudentsList.slice(0, 40) : matches.slice(0, 50);
+
+                                if (displayList.length === 0) {
+                                    return (
+                                        <div className="p-8 text-center text-xs text-slate-400 font-semibold space-y-1.5">
+                                            <p className="font-bold text-slate-600 dark:text-slate-300 text-sm">No registered students found in database</p>
+                                            <p className="text-[11px]">Please ensure students have been enrolled in the Students / Academics module.</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <>
+                                        {isShowingFallback && (
+                                            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-800 dark:text-amber-300 font-semibold flex items-center justify-between">
+                                                <span>⚠ No exact match for "{assignSearchQuery}". Pick from students below:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAssignSearchQuery('')}
+                                                    className="underline font-bold text-amber-900 dark:text-amber-200 hover:text-indigo-600 cursor-pointer"
+                                                >
+                                                    Clear Query
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {displayList.map(student => {
+                                            const admNo = getResolvedAdm(student);
+                                            const isCurrentMatch = assigningRowItem.matchedStudentId === student.id;
+                                            const initials = (student.name || 'ST')
+                                                .split(' ')
+                                                .map((n: string) => n[0])
+                                                .slice(0, 2)
+                                                .join('')
+                                                .toUpperCase();
+                                            const studentClass = (student as any).className || (student as any).form || (student as any).grade;
+                                            const parentContact = student.parentPhone || student.phoneNumber || (student as any).guardianPhone;
+
+                                            return (
+                                                <div
+                                                    key={student.id}
+                                                    onClick={() => {
+                                                        handleManualAssign(assigningRowItem.id, student.id);
+                                                        setAssigningRowItem(null);
+                                                    }}
+                                                    className={`p-3 flex items-center justify-between hover:bg-indigo-50/70 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer group ${
+                                                        isCurrentMatch ? 'bg-indigo-50 dark:bg-indigo-950/60' : ''
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        {/* Avatar Initials */}
+                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                                            {initials}
+                                                        </div>
+
+                                                        <div className="space-y-0.5 min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-bold text-slate-800 dark:text-slate-200 text-xs group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                                    {student.name}
+                                                                </span>
+                                                                {admNo !== 'N/A' && (
+                                                                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-1.5 py-0.2 rounded border border-indigo-200 dark:border-indigo-800 text-[10px]">
+                                                                        ADM: {admNo}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
+                                                                {studentClass && (
+                                                                    <span className="font-medium text-slate-500 dark:text-slate-400">
+                                                                        📚 {studentClass}
+                                                                    </span>
+                                                                )}
+                                                                {parentContact && (
+                                                                    <span className="font-mono text-slate-400">
+                                                                        📱 {parentContact}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleManualAssign(assigningRowItem.id, student.id);
+                                                            setAssigningRowItem(null);
+                                                        }}
+                                                        className="px-3.5 py-1.5 bg-indigo-600 group-hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black transition-all shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                                                    >
+                                                        <CheckBadgeIcon className="w-3.5 h-3.5" />
+                                                        <span>Assign</span>
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                );
+                            })()}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="pt-2 flex items-center justify-between shrink-0 text-xs">
+                            <span className="text-slate-400 text-[11px]">
+                                Press <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-[10px] font-bold">Enter</kbd> to assign first match, or <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-[10px] font-bold">Esc</kbd> to cancel.
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setAssigningRowItem(null)}
+                                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                            >
+                                Cancel
                             </button>
                         </div>
                     </div>
