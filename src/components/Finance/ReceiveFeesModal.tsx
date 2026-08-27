@@ -955,10 +955,23 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                     let existingReceipt: Receipt | undefined;
                     if (overrideExisting) {
-                        existingReceipt = receipts.find(r => 
-                            (r.relatedTransactionId && cleanRef && String(r.relatedTransactionId).trim().toLowerCase() === cleanRef.toLowerCase()) ||
-                            (item.receiptNumber && r.receiptNumber && String(r.receiptNumber).trim().toLowerCase() === item.receiptNumber.trim().toLowerCase())
-                        );
+                        // ONLY match existing receipt by exact receiptNumber (or if reference is used, it MUST belong to the exact same student).
+                        // Never match by reference alone because bursaries share the same reference across multiple students!
+                        existingReceipt = receipts.find(r => {
+                            const rRcptNum = String(r.receiptNumber || (r as any).receipt_number || '').trim().toLowerCase();
+                            const itemRcptNum = String(item.receiptNumber || item.rawReceiptNo || '').trim().toLowerCase();
+                            if (itemRcptNum && rRcptNum && itemRcptNum === rRcptNum) {
+                                return true;
+                            }
+                            const rStudentId = r.studentId || (r as any).student_id || '';
+                            if (rStudentId === item.matchedStudentId && cleanRef) {
+                                const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim().toLowerCase();
+                                if (rRef && rRef === cleanRef.toLowerCase()) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
                     }
 
                     const receiptId = existingReceipt ? existingReceipt.id : `rec_imp_${Date.now()}_${actualIdx}_${Math.random().toString(36).substr(2, 4)}`;
