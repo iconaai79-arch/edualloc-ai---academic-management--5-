@@ -330,6 +330,64 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return (students || []).filter(u => u.role === 'student' || !u.role);
     }, [students]);
 
+    // Helper: Safely and reliably resolve student admission number across direct properties, enrollments, and Excel fallback
+    const getResolvedAdm = (student: User | null, fallbackRawAdm?: string): string => {
+        if (!student) return (fallbackRawAdm && fallbackRawAdm !== 'N/A') ? String(fallbackRawAdm).trim() : 'N/A';
+
+        // 1. Direct student fields
+        const directCandidates = [
+            student.admissionNumber,
+            (student as any).admission_number,
+            (student as any).admissionNo,
+            (student as any).admission_no,
+            (student as any).admNo,
+            (student as any).adm_no,
+            (student as any).registrationNo,
+            (student as any).registrationNumber,
+            (student as any).regNo,
+            (student as any).reg_no,
+            (student as any).studentId,
+            (student as any).student_id,
+            student.metadata?.admissionNumber,
+            student.metadata?.admission_number,
+            student.metadata?.admissionNo,
+            student.metadata?.admNo
+        ];
+        for (const c of directCandidates) {
+            if (c !== null && c !== undefined) {
+                const s = String(c).trim();
+                if (s && s !== 'N/A' && s !== 'null' && s !== 'undefined' && !s.startsWith('usr_') && !s.startsWith('user_')) {
+                    return s;
+                }
+            }
+        }
+
+        // 2. Check enrollments linked to student
+        const enr = enrollments.find(e => e.userId === student.id || (e as any).studentId === student.id || e.id === student.id);
+        if (enr) {
+            const enrAdm = enr.admissionNumber || enr.admission_number || enr.admissionNo || enr.admNo || enr.registrationNo || enr.metadata?.admissionNumber || enr.metadata?.admNo;
+            if (enrAdm) {
+                const s = String(enrAdm).trim();
+                if (s && s !== 'N/A' && s !== 'null' && s !== 'undefined' && !s.startsWith('usr_') && !s.startsWith('user_')) {
+                    return s;
+                }
+            }
+        }
+
+        // 3. Check utility resolution
+        const utilAdm = resolveRealStudentAdmNo(student, undefined, enrollments);
+        if (utilAdm && utilAdm !== 'N/A' && !utilAdm.startsWith('usr_') && !utilAdm.startsWith('user_')) {
+            return utilAdm;
+        }
+
+        // 4. Fallback to raw admission from mapped Excel row
+        if (fallbackRawAdm && String(fallbackRawAdm).trim() && String(fallbackRawAdm).trim() !== 'N/A') {
+            return String(fallbackRawAdm).trim();
+        }
+
+        return 'N/A';
+    };
+
     // Pre-indexed Invoices map by student ID for O(1) votehead allocation lookups
     const studentInvoicesMap = useMemo(() => {
         const map = new Map<string, Invoice[]>();
@@ -394,7 +452,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         };
 
         studentPool.forEach(student => {
-            const rawAdm = resolveRealStudentAdmNo(student);
+            const rawAdm = getResolvedAdm(student);
             const candidates = [
                 student.id,
                 rawAdm,
@@ -688,7 +746,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 else paymentMethod = fallbackMode || 'Bank Transfer';
             }
 
-            const matchedAdm = matchedStudent ? resolveRealStudentAdmNo(matchedStudent) : '';
+            const matchedAdm = matchedStudent ? getResolvedAdm(matchedStudent, rawAdm) : (rawAdm || '');
 
             // Compute automated votehead distribution
             const { allocations, summary } = calculateVoteHeadSplit(
@@ -858,7 +916,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
         setReconciledItems(prev => prev.map(item => {
             if (item.id !== itemId) return item;
-            const sAdm = resolveRealStudentAdmNo(student);
+            const sAdm = getResolvedAdm(student, item.rawAdm);
             const { allocations, summary } = calculateVoteHeadSplit(
                 student.id,
                 item.rawAmount,
@@ -951,7 +1009,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     const actualIdx = i + chunkIdx;
                     const cleanRef = item.rawRef.trim();
                     const student = allStudentsList.find(s => s.id === item.matchedStudentId);
-                    const sAdm = student ? resolveRealStudentAdmNo(student) : item.matchedStudentAdm;
+                    const sAdm = student ? getResolvedAdm(student, item.rawAdm) : (item.matchedStudentAdm || item.rawAdm);
 
                     let existingReceipt: Receipt | undefined;
                     if (overrideExisting) {
@@ -1662,14 +1720,22 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                                 <td className="px-4 py-2.5">
                                                                     {item.matchStatus === 'matched' ? (
                                                                         <div className="space-y-1">
-                                                                            <div className="flex items-center gap-1.5">
+                                                                            <div className="flex items-center gap-1.5 flex-wrap">
                                                                                 <CheckBadgeIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                                                                                 <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">
                                                                                     {item.matchedStudentName}
                                                                                 </span>
-                                                                                <span className="font-mono text-slate-400 text-[10px]">
-                                                                                    ({item.matchedStudentAdm})
-                                                                                </span>
+                                                                                {(() => {
+                                                                                    const displayAdm = (item.matchedStudentAdm && item.matchedStudentAdm !== 'N/A')
+                                                                                        ? item.matchedStudentAdm
+                                                                                        : (item.rawAdm && item.rawAdm !== 'N/A' ? item.rawAdm : '');
+                                                                                    if (!displayAdm) return null;
+                                                                                    return (
+                                                                                        <span className="font-mono text-slate-500 dark:text-slate-400 text-[10px] font-bold">
+                                                                                            ({displayAdm})
+                                                                                        </span>
+                                                                                    );
+                                                                                })()}
                                                                             </div>
                                                                             
                                                                             {/* Votehead pill breakdown */}
@@ -1701,7 +1767,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                                             <option value="" disabled>Assign...</option>
                                                                             {allStudentsList.slice(0, 50).map(s => (
                                                                                 <option key={s.id} value={s.id}>
-                                                                                    {s.name} ({resolveRealStudentAdmNo(s)})
+                                                                                    {s.name} {getResolvedAdm(s) !== 'N/A' ? `(${getResolvedAdm(s)})` : ''}
                                                                                 </option>
                                                                             ))}
                                                                         </select>
@@ -1863,7 +1929,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         {allStudentsList
                                             .filter(s => 
                                                 (s.name || '').toLowerCase().includes(manualStudentSearch.toLowerCase()) ||
-                                                resolveRealStudentAdmNo(s).toLowerCase().includes(manualStudentSearch.toLowerCase())
+                                                getResolvedAdm(s).toLowerCase().includes(manualStudentSearch.toLowerCase())
                                             )
                                             .slice(0, 8)
                                             .map(st => (
@@ -1872,13 +1938,13 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                     type="button"
                                                     onClick={() => {
                                                         setManualSelectedStudent(st);
-                                                        setManualStudentSearch(`${st.name} (${resolveRealStudentAdmNo(st)})`);
+                                                        setManualStudentSearch(`${st.name} ${getResolvedAdm(st) !== 'N/A' ? `(${getResolvedAdm(st)})` : ''}`);
                                                     }}
                                                     className="w-full p-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between transition-colors cursor-pointer"
                                                 >
                                                     <span>{st.name}</span>
                                                     <span className="font-mono text-slate-400 text-[11px] font-bold">
-                                                        ADM: {resolveRealStudentAdmNo(st)}
+                                                        ADM: {getResolvedAdm(st)}
                                                     </span>
                                                 </button>
                                             ))}
@@ -1886,7 +1952,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 )}
                                 {manualSelectedStudent && (
                                     <p className="text-[11px] text-emerald-600 font-bold">
-                                        ✓ Selected: {manualSelectedStudent.name} ({resolveRealStudentAdmNo(manualSelectedStudent)})
+                                        ✓ Selected: {manualSelectedStudent.name} {getResolvedAdm(manualSelectedStudent) !== 'N/A' ? `(${getResolvedAdm(manualSelectedStudent)})` : ''}
                                     </p>
                                 )}
                             </div>

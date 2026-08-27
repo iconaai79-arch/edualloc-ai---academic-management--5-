@@ -178,17 +178,26 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
         }
     }
 
-    // Match by name in registry if provided
-    if (registry && Array.isArray(registry) && registry.length > 0 && student.name) {
-        const cleanName = String(student.name).trim().toLowerCase();
+    // Match by ID or Name in registry / enrollments if provided
+    if (registry && Array.isArray(registry) && registry.length > 0) {
+        const studentId = student.id;
+        const cleanName = student.name ? String(student.name).trim().toLowerCase() : '';
         const matched = registry.find(s => {
-            const sName = String(s.name || s.fullName || '').trim().toLowerCase();
-            return sName && (sName === cleanName || sName.includes(cleanName) || cleanName.includes(sName));
+            if (studentId && (s.userId === studentId || s.studentId === studentId || s.id === studentId)) {
+                return true;
+            }
+            if (cleanName) {
+                const sName = String(s.name || s.fullName || '').trim().toLowerCase();
+                if (sName && (sName === cleanName || sName.includes(cleanName) || cleanName.includes(sName))) {
+                    return true;
+                }
+            }
+            return false;
         });
         if (matched) {
-            const realAdm = matched.admissionNumber || matched.admission_number || matched.admissionNo || matched.admNo || matched.registrationNo || matched.studentId || matched.customId;
+            const realAdm = matched.admissionNumber || matched.admission_number || matched.admissionNo || matched.admNo || matched.registrationNo || matched.studentId || matched.customId || matched.metadata?.admissionNumber || matched.metadata?.admission_number || matched.metadata?.admNo;
             const strAdm = String(realAdm || '').trim();
-            if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm)) {
+            if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm) && strAdm !== 'N/A' && strAdm !== 'undefined' && strAdm !== 'null') {
                 return strAdm;
             }
         }
