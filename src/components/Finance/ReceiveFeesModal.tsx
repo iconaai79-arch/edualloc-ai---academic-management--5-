@@ -3074,6 +3074,13 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 onClick={() => setAssigningRowItem(null)}
                                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                             >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── MODAL: POST-UPLOAD RECONCILIATION AUDIT & COMPARISON REPORT ── */}
             {uploadAuditReport && (
                 <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
