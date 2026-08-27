@@ -228,6 +228,23 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         localStorage.setItem('eduai_transport_fee_invoices', JSON.stringify(transportInvoices));
     }, [transportInvoices]);
 
+    const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
+        const saved = localStorage.getItem('eduai_student_commute_prefs');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            } catch (e) {
+                console.error('Error parsing student commute prefs:', e);
+            }
+        }
+        return {};
+    });
+
+    React.useEffect(() => {
+        localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(studentCommutePrefs));
+    }, [studentCommutePrefs]);
+
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
     const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => {
