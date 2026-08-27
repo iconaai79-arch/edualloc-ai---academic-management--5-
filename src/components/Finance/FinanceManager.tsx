@@ -1909,8 +1909,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             allExistingReceipts.forEach(r => { if (r && r.id) uniqueReceiptsMap.set(r.id, r); });
             const allReceiptsList = Array.from(uniqueReceiptsMap.values());
 
-            // Helper to find true student strictly by Admission Number (Adm No ONLY - never name to prevent homonym collisions)
-            const findStudentByAdm = (r: any, rawStrings: string[], excludeAdm: string = ''): any | null => {
+            // Helper to find true student strictly by explicit admission number properties or receipt number ONLY
+            // (Never use transaction reference, notes, or raw details because in bursary cases the reference is shared across many students)
+            const findStudentByAdm = (r: any, receiptNum: string, excludeAdm: string = ''): any | null => {
                 // 1. Check explicit admission number properties on the receipt object
                 const explicitAdmCandidates = [
                     r.admissionNumber,
@@ -1935,10 +1936,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
-                // 2. Check parenthetical admission numbers first e.g. "BURSARY0064 (22)" -> 22
-                for (const raw of rawStrings) {
-                    if (!raw) continue;
-                    const parens = raw.match(/\((\d+)\)/g);
+                // 2. ONLY check receipt number (rNum) for embedded admission number
+                if (receiptNum && typeof receiptNum === 'string') {
+                    // Check parenthetical in receipt number e.g. "RCPT-001 (2591)" -> 2591
+                    const parens = receiptNum.match(/\((\d+)\)/g);
                     if (parens) {
                         for (const p of parens) {
                             const pNum = p.replace(/\D/g, '');
@@ -1950,16 +1951,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             }
                         }
                     }
-                }
 
-                // 3. Scan combined text strictly for known admission numbers
-                const fullText = rawStrings.join(' ').toLowerCase();
-                for (const [admKey, st] of strictAdmToStudent.entries()) {
-                    if (excludeAdm && admKey === excludeAdm) continue;
-                    // Match admKey with boundary delimiters (start/end, non-alphanumeric, spaces, slashes)
-                    const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
-                    if (pattern.test(fullText)) {
-                        return st;
+                    // Check exact admKey matching in receipt number (e.g. "ADM-2591", "2591")
+                    const cleanRcpt = receiptNum.toLowerCase();
+                    for (const [admKey, st] of strictAdmToStudent.entries()) {
+                        if (excludeAdm && admKey === excludeAdm) continue;
+                        const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
+                        if (pattern.test(cleanRcpt)) {
+                            return st;
+                        }
                     }
                 }
 
@@ -1972,60 +1972,48 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const updatedReceipts: any[] = [];
             const reallocatedStudentNames: string[] = [];
 
-            // Duplicate Detection
+            // Duplicate Detection:
+            // ONLY check exact duplicate receipt numbers or exact same student duplicate entries.
+            // NEVER use reference (rRef) for duplicates because bursaries share the same reference for all beneficiary students.
             const duplicateReceiptIdsToDelete: string[] = [];
-            const seenReceiptKeys = new Map<string, string>();
+            const seenReceiptNumberKeys = new Map<string, string>();
+            const seenStudentPaymentKeys = new Map<string, string>();
 
             for (const r of allReceiptsList) {
                 const rId = r.id;
                 const rNum = String(r.receiptNumber || (r as any).receipt_number || '').trim().toLowerCase();
-                const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim().toLowerCase();
                 const rStudentId = r.studentId || (r as any).student_id || '';
                 const rAmount = parseFloat(r.amountPaid || (r as any).amount_paid || r.amount || '0');
                 const rDate = String(r.paymentDate || (r as any).payment_date || r.date || '').split('T')[0];
 
-                // Exact duplicate receiptNumber
-                if (rNum && rNum !== 'null' && rNum !== 'undefined') {
+                // Exact duplicate receiptNumber (if receipt number is provided and non-trivial)
+                if (rNum && rNum !== 'null' && rNum !== 'undefined' && rNum.length >= 3) {
                     const rcptKey = `rcpt:${rNum}`;
-                    if (seenReceiptKeys.has(rcptKey)) {
+                    if (seenReceiptNumberKeys.has(rcptKey)) {
                         duplicateReceiptIdsToDelete.push(rId);
                         continue;
                     }
-                    seenReceiptKeys.set(rcptKey, rId);
+                    seenReceiptNumberKeys.set(rcptKey, rId);
                 }
 
-                // Exact duplicate transaction ref
-                if (rRef && rRef.length >= 6 && rRef !== 'null' && rRef !== 'undefined') {
-                    const refKey = `ref:${rRef}`;
-                    if (seenReceiptKeys.has(refKey)) {
-                        duplicateReceiptIdsToDelete.push(rId);
-                        continue;
-                    }
-                    seenReceiptKeys.set(refKey, rId);
-                }
-
-                // Exact duplicate content (student + amount + date + paymentMethod)
+                // Exact duplicate content for the SAME student (same student + same amount + same date + same receiptNumber)
                 if (rStudentId && rAmount > 0 && rDate) {
                     const rMethod = String(r.paymentMethod || (r as any).payment_method || '').trim().toLowerCase();
-                    const contentKey = `content:${rStudentId}:${rAmount}:${rDate}:${rMethod}`;
-                    if (seenReceiptKeys.has(contentKey)) {
+                    const contentKey = `student_dup:${rStudentId}:${rAmount}:${rDate}:${rMethod}:${rNum}`;
+                    if (seenStudentPaymentKeys.has(contentKey)) {
                         duplicateReceiptIdsToDelete.push(rId);
                         continue;
                     }
-                    seenReceiptKeys.set(contentKey, rId);
+                    seenStudentPaymentKeys.set(contentKey, rId);
                 }
             }
 
             for (const r of allReceiptsList) {
                 if (duplicateReceiptIdsToDelete.includes(r.id)) continue;
                 const rNum = String(r.receiptNumber || (r as any).receipt_number || '').trim();
-                const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim();
-                const rPayer = String((r as any).payer || (r as any).payerName || (r as any).senderName || '').trim();
                 const rNotes = String(r.notes || (r as any).paidFor || '').trim();
-                const rRaw = String((r as any).rawDetails || (r as any).raw_details || '');
                 const currentStudentId = r.studentId || (r as any).student_id || '';
 
-                const rawFields = [rRef, rNotes, rRaw, rPayer, rNum];
                 const explicitAdm = cleanAdm(r.admissionNumber || (r as any).admission_number || (r as any).admNo || r.metadata?.admissionNumber);
 
                 let targetStudentId = currentStudentId;
@@ -2034,12 +2022,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 // Case 1: Victor Kipchumba (Adm 2364) misallocated receipts
                 if (victorId && (currentStudentId === victorId || explicitAdm === '2364')) {
                     const rNumClean = rNum.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    const rRefClean = rRef.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    const isVerified = Array.from(victorVerifiedReceipts).some(vr => rNumClean.includes(vr) || rRefClean.includes(vr));
+                    const isVerified = Array.from(victorVerifiedReceipts).some(vr => rNumClean.includes(vr));
 
                     if (!isVerified) {
-                        // Misallocated to Victor. Find true student strictly by admission number:
-                        const trueStudent = findStudentByAdm(r, rawFields, '2364');
+                        // Misallocated to Victor. Find true student strictly by receipt number / explicit adm:
+                        const trueStudent = findStudentByAdm(r, rNum, '2364');
 
                         if (trueStudent) {
                             targetStudentId = trueStudent.id;
@@ -2057,9 +2044,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         isModified = true;
                     }
                 } 
-                // Case 2: Unallocated / Suspense receipts (attempt to link them strictly by Adm No)
+                // Case 2: Unallocated / Suspense receipts (attempt to link them strictly by Receipt Number / Adm No)
                 else if (!currentStudentId || currentStudentId === '' || currentStudentId === 'null' || rNotes.includes('Suspense') || rNotes.includes('Victor Kipchumba')) {
-                    const trueStudent = findStudentByAdm(r, rawFields, '2364');
+                    const trueStudent = findStudentByAdm(r, rNum, '2364');
                     if (trueStudent) {
                         targetStudentId = trueStudent.id;
                         r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
@@ -2069,13 +2056,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         isModified = true;
                     }
                 }
-                // Case 3: Receipts assigned to a student whose Adm No does not match the receipt's Adm No or bracketed bursary number
+                // Case 3: Receipts assigned to a student whose Adm No does not match the receipt's Adm No or receipt number
                 else if (currentStudentId) {
                     const currentStudent = allStudentsPool.find(s => s.id === currentStudentId);
                     const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
                     
-                    // If receipt has an explicit Adm No or text containing another Adm No that differs from currentStudent's Adm No:
-                    const trueStudent = findStudentByAdm(r, rawFields, currentAdmClean);
+                    // If receipt has an explicit Adm No or receipt number containing another Adm No that differs from currentStudent's Adm No:
+                    const trueStudent = findStudentByAdm(r, rNum, currentAdmClean);
                     if (trueStudent && trueStudent.id !== currentStudentId) {
                         const trueAdm = cleanAdm(trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo);
                         if (trueAdm && trueAdm !== currentAdmClean) {
@@ -2099,54 +2086,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     };
                     updatedReceipts.push(updated);
                     fixedCount++;
-                }
-            }
-
-            // ── Pass 4: Invoice Cross-Check ──────────────────────────────────────
-            const allInvoices: any[] = [...(mappedInvoices || [])];
-            if (allInvoices.length > 0) {
-                for (const r of allReceiptsList) {
-                    if (duplicateReceiptIdsToDelete.includes(r.id)) continue;
-                    if (updatedReceipts.find(u => u.id === r.id)) continue; // already fixed
-                    const currentStudentId = r.studentId || (r as any).student_id || '';
-                    if (!currentStudentId) continue;
-
-                    const rAmount = parseFloat(r.amountPaid || (r as any).amount_paid || r.amount || '0');
-                    const rDate = String(r.paymentDate || (r as any).payment_date || r.date || '').split('T')[0];
-                    if (!rAmount || !rDate) continue;
-
-                    // Find an invoice whose amount matches this receipt AND belongs to a different student
-                    const matchingInvoice = allInvoices.find((inv: any) => {
-                        const invStudentId = inv.studentId || inv.student_id || inv.userId || inv.user_id || '';
-                        if (!invStudentId || invStudentId === currentStudentId) return false;
-                        const invTotal = parseFloat(inv.totalAmount || inv.total_amount || inv.amount || '0');
-                        const invDue = String(inv.dueDate || inv.due_date || inv.date || '').split('T')[0];
-                        // Amount must match within KES 1, date must be same calendar month
-                        const amountMatch = Math.abs(invTotal - rAmount) <= 1;
-                        const monthMatch = rDate.slice(0, 7) === invDue.slice(0, 7);
-                        return amountMatch && monthMatch;
-                    });
-
-                    if (matchingInvoice) {
-                        const invStudentId = matchingInvoice.studentId || matchingInvoice.student_id || matchingInvoice.userId || matchingInvoice.user_id;
-                        const trueStudent = allStudentsPool.find(s => s.id === invStudentId);
-                        if (trueStudent && trueStudent.id !== currentStudentId) {
-                            const trueAdm = trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo || '';
-                            r.admissionNumber = trueAdm;
-                            r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
-                            const updated = {
-                                ...r,
-                                studentId: trueStudent.id,
-                                student_id: trueStudent.id,
-                                admissionNumber: trueAdm,
-                                admission_number: trueAdm
-                            };
-                            updatedReceipts.push(updated);
-                            fixedCount++;
-                            reallocatedToStudentCount++;
-                            reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${trueAdm}) [invoice match]`);
-                        }
-                    }
                 }
             }
             // ─────────────────────────────────────────────────────────────────────
