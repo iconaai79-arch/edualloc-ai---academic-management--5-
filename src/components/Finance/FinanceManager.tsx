@@ -2792,7 +2792,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Notifications during Excel import are OFF by default — user must opt in
     const [excelImportSendSms, setExcelImportSendSms] = useState(false);
     const [excelImportSendEmail, setExcelImportSendEmail] = useState(false);
-    const [excelImportOverrideExisting, setExcelImportOverrideExisting] = useState(true);
+    const [excelImportOverrideExisting, setExcelImportOverrideExisting] = useState(false);
 
     useEffect(() => {
         if (props.institution.id) {
@@ -3460,64 +3460,96 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return;
             }
 
-            // Helper to generate all searchable key variations for an admission number
-            const cleanAdmCandidates = (val: any): string[] => {
-                if (val === undefined || val === null) return [];
-                const str = String(val).trim().toLowerCase();
-                if (!str || str === '—' || str === 'n/a' || str === 'undefined' || str === 'null') return [];
-
-                // Detect receipt-like prefixes (BURSARY, RCPT, REC, INV, etc.) — these are NOT ADM numbers.
-                // Strip the parenthetical sequence suffix e.g. "BURSARY0125 (2)" → work only with "bursary0125"
-                // and never emit the bare parenthetical number as an ADM candidate.
-                const isReceiptLike = /^(bursary|rcpt|rec|receipt|inv|ref|bank|mpesa|pay)\d*/i.test(str);
-                // Remove trailing parenthetical sequence e.g. " (2)" or "(18)" before processing
-                const strClean = str.replace(/\s*\(\d+\)\s*$/, '').trim();
-
-                const candidates = new Set<string>();
-                candidates.add(strClean);
-                const noSpaces = strClean.replace(/\s+/g, '');
-                if (noSpaces) candidates.add(noSpaces);
-                const alnum = strClean.replace(/[^a-z0-9]/g, '');
-                if (alnum) candidates.add(alnum);
-                const digits = strClean.replace(/\D/g, '');
-                if (digits) {
-                    candidates.add(digits);
-                    const noZeros = digits.replace(/^0+/, '');
-                    if (noZeros) candidates.add(noZeros);
-                }
-
-                // Extract digit chunks ONLY for non-receipt-like values to avoid false ADM hits.
-                // e.g. "3125/2024" → "3125", "2024" is fine, but "BURSARY0125" → skip short-chunk extraction
-                if (!isReceiptLike) {
-                    const digitsMatch = strClean.match(/\d{2,10}/g);
-                    if (digitsMatch) {
-                        digitsMatch.forEach(d => {
-                            candidates.add(d);
-                            const nz = d.replace(/^0+/, '');
-                            if (nz) candidates.add(nz);
-                        });
-                    }
-                }
-
-                const strippedPrefix = strClean.replace(/^(adm|std|reg|no|num|#|\/|-|_|\s)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
-                if (strippedPrefix && !isReceiptLike) {
-                    candidates.add(strippedPrefix);
-                    const stripAlnum = strippedPrefix.replace(/[^a-z0-9]/g, '');
-                    if (stripAlnum) candidates.add(stripAlnum);
-                    const stripDigits = strippedPrefix.replace(/\D/g, '');
-                    if (stripDigits) {
-                        candidates.add(stripDigits);
-                        const stripNoZeros = stripDigits.replace(/^0+/, '');
-                        if (stripNoZeros) candidates.add(stripNoZeros);
-                    }
-                }
-                return Array.from(candidates);
-            };
-
-            // Build high-performance Maps for O(1) student reconciliation
+            // Build collision-protected Maps for O(1) student reconciliation
             const admMap = new Map<string, any>();
             const phoneMap = new Map<string, any>();
             const nameMap = new Map<string, any>();
+            const ambiguousAdms = new Set<string>();
+            const ambiguousNames = new Set<string>();
+
+            const registerAdmKey = (key: string, student: any) => {
+                const clean = key.trim().toLowerCase();
+                if (!clean || clean.length < 1) return;
+                if (ambiguousAdms.has(clean)) return;
+                if (admMap.has(clean)) {
+                    const existing = admMap.get(clean);
+                    if (existing && existing.id !== student.id) {
+                        admMap.delete(clean);
+                        ambiguousAdms.add(clean);
+                    }
+                } else {
+                    admMap.set(clean, student);
+                }
+            };
+
+            const registerStudentAdmVariants = (val: any, student: any) => {
+                if (val === undefined || val === null) return;
+                const str = String(val).trim().toLowerCase();
+                if (!str || str === '—' || str === 'n/a' || str === 'undefined' || str === 'null' || str.startsWith('usr_') || str.startsWith('user_')) return;
+
+                // 1. Exact string
+                registerAdmKey(str, student);
+
+                // 2. Whitespace-stripped
+                const noSpaces = str.replace(/\s+/g, '');
+                if (noSpaces) registerAdmKey(noSpaces, student);
+
+                // 3. Alphanumeric only
+                const alnum = str.replace(/[^a-z0-9]/g, '');
+                if (alnum) registerAdmKey(alnum, student);
+
+                // 4. Strip prefix if numeric suffix (e.g. "ADM/101" -> "101")
+                const strippedPrefix = str.replace(/^(adm|std|reg|student|upi|index)[\/\-_\s:]+/i, '').trim();
+                if (strippedPrefix && strippedPrefix !== str) {
+                    registerAdmKey(strippedPrefix, student);
+                    const stripAlnum = strippedPrefix.replace(/[^a-z0-9]/g, '');
+                    if (stripAlnum) registerAdmKey(stripAlnum, student);
+                }
+
+                // 5. If pure digits e.g. "00125" -> also index "125"
+                const digits = str.replace(/\D/g, '');
+                if (digits && digits === noSpaces) {
+                    registerAdmKey(digits, student);
+                    const noZeros = digits.replace(/^0+/, '');
+                    if (noZeros && noZeros !== digits) {
+                        registerAdmKey(noZeros, student);
+                    }
+                }
+            };
+
+            const registerStudentName = (nameVal: string, student: any) => {
+                if (!nameVal || typeof nameVal !== 'string') return;
+                const nameClean = nameVal.trim().toLowerCase();
+                const parts = nameClean.split(/\s+/).filter(Boolean);
+                if (parts.length >= 2) {
+                    if (ambiguousNames.has(nameClean)) {
+                        // ignore
+                    } else if (nameMap.has(nameClean)) {
+                        const existing = nameMap.get(nameClean);
+                        if (existing && existing.id !== student.id) {
+                            nameMap.delete(nameClean);
+                            ambiguousNames.add(nameClean);
+                        }
+                    } else {
+                        nameMap.set(nameClean, student);
+                    }
+
+                    const cleanAlpha = nameClean.replace(/[^a-z0-9]/g, '');
+                    if (cleanAlpha) {
+                        if (ambiguousNames.has(cleanAlpha)) {
+                            // ignore
+                        } else if (nameMap.has(cleanAlpha)) {
+                            const existing = nameMap.get(cleanAlpha);
+                            if (existing && existing.id !== student.id) {
+                                nameMap.delete(cleanAlpha);
+                                ambiguousNames.add(cleanAlpha);
+                            }
+                        } else {
+                            nameMap.set(cleanAlpha, student);
+                        }
+                    }
+                }
+            };
 
             // Build high-performance Maps for O(1) student reconciliation across ALL students and enrollments in the system
             const allAvailableStudents = [
@@ -3554,7 +3586,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         enr.admNo,
                         enr.adm_no,
                         enr.studentAdmissionNumber,
-                        enr.staffId,
                         enr.metadata?.admissionNumber,
                         enr.metadata?.admission_number,
                         enr.metadata?.admissionNo,
@@ -3563,9 +3594,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         enr.metadata?.studentAdmissionNumber
                     ];
                     enrAdmFields.forEach(f => {
-                        cleanAdmCandidates(f).forEach(k => {
-                            if (k && k.length >= 2) admMap.set(k, targetStudent);
-                        });
+                        registerStudentAdmVariants(f, targetStudent);
                     });
                 }
             });
@@ -3579,7 +3608,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 // Collect all possible admission number variants for this student
                 const ids = [
-                    student.id,
                     directAdm,
                     helperAdm !== '—' ? helperAdm : '',
                     student.admissionNumber,
@@ -3595,15 +3623,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     (student as any).registrationNumber,
                     (student as any).regNo,
                     (student as any).reg_no,
-                    (student as any).staffId,
-                    (student as any).staff_id,
                     (student as any).customStudentId,
                     (student as any).custom_student_id,
                     (student as any).indexNumber,
                     (student as any).index_number,
                     student.metadata?.admNo,
                     student.metadata?.adm_no,
-                    student.metadata?.staffId,
                     student.metadata?.studentAdmissionNumber
                 ];
 
@@ -3623,9 +3648,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
 
                 ids.forEach(idVal => {
-                    cleanAdmCandidates(idVal).forEach(k => {
-                        if (k && k.length >= 2) admMap.set(k, student);
-                    });
+                    registerStudentAdmVariants(idVal, student);
                 });
 
                 const phone = getStudentParentPhone(student) || student.phoneNumber || (student as any).phone || student.metadata?.parentPhone;
@@ -3636,22 +3659,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
-                const name = (student.name || '').trim().toLowerCase();
-                if (name) {
-                    nameMap.set(name, student);
-                    const cleanAlpha = name.replace(/[^a-z0-9]/g, '');
-                    if (cleanAlpha) nameMap.set(cleanAlpha, student);
-                    const parts = name.split(/\s+/).filter(Boolean);
-                    if (parts.length > 1) {
-                        nameMap.set(parts.slice().reverse().join(' '), student);
-                        // Also index first + last name
-                        nameMap.set(`${parts[0]} ${parts[parts.length - 1]}`, student);
-                        nameMap.set(`${parts[parts.length - 1]} ${parts[0]}`, student);
-                    }
-                }
+                registerStudentName(student.name || student.fullName || '', student);
             });
 
-            // Cross-index all historical Invoices to link any ADMs or names recorded on invoices
+            // Cross-index historical Invoices
             const allInvs = [...(props.invoices || []), ...(allBranchInvoices || []), ...(mappedInvoices || [])];
             allInvs.forEach((inv: any) => {
                 const invStId = inv.studentId || inv.student_id || inv.userId || inv.user_id;
@@ -3667,21 +3678,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     inv.metadata?.admissionNumber,
                     inv.metadata?.admNo
                 ].forEach(f => {
-                    cleanAdmCandidates(f).forEach(k => {
-                        if (k && k.length >= 2) admMap.set(k, student);
-                    });
+                    registerStudentAdmVariants(f, student);
                 });
-                if (inv.studentName && typeof inv.studentName === 'string') {
-                    const invName = inv.studentName.trim().toLowerCase();
-                    if (invName) {
-                        nameMap.set(invName, student);
-                        const cleanAlpha = invName.replace(/[^a-z0-9]/g, '');
-                        if (cleanAlpha) nameMap.set(cleanAlpha, student);
-                    }
-                }
             });
 
-            // Cross-index all historical Receipts to link any ADMs or names recorded on prior receipts
+            // Cross-index historical Receipts
             const allRecs = [...(props.receipts || []), ...(allBranchReceipts || []), ...(mappedReceipts || [])];
             allRecs.forEach((rec: any) => {
                 const recStId = rec.studentId || rec.student_id || rec.userId || rec.user_id;
@@ -3697,23 +3698,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     rec.metadata?.admissionNumber,
                     rec.metadata?.admNo
                 ].forEach(f => {
-                    cleanAdmCandidates(f).forEach(k => {
-                        if (k && k.length >= 2) admMap.set(k, student);
-                    });
+                    registerStudentAdmVariants(f, student);
                 });
-                if (rec.studentName && typeof rec.studentName === 'string') {
-                    const recName = rec.studentName.trim().toLowerCase();
-                    if (recName) {
-                        nameMap.set(recName, student);
-                        const cleanAlpha = recName.replace(/[^a-z0-9]/g, '');
-                        if (cleanAlpha) nameMap.set(cleanAlpha, student);
-                    }
-                }
             });
 
-            // Column resolver helper (trims keys to handle headers with extra whitespace)
+            // Column resolver helper (strictly ignores row counter headers like #, No, S/No, Index)
+            const isRowCounter = (h: string) => /^(#|no\.?|s\/?no\.?|serial(\s*no\.?)?|row|sn|index)$/i.test(h.trim());
             const resolveCol = (row: any, ...patterns: RegExp[]): string => {
-                const keys = Object.keys(row);
+                const keys = Object.keys(row).filter(k => !isRowCounter(k));
                 for (const pat of patterns) {
                     const k = keys.find(key => pat.test(key.trim()));
                     if (k && row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
@@ -3730,7 +3722,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const k = keys.find(key => pat.test(key.trim()));
                     if (k && row[k] !== undefined && row[k] !== null) {
                         const v = row[k];
-                        // Reject empty strings, but accept 0, Date objects, and real values
                         if (v instanceof Date) return v;
                         if (typeof v === 'number') return v;
                         if (String(v).trim() !== '') return String(v).trim();
@@ -3744,13 +3735,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const today = new Date().toISOString().split('T')[0];
                 if (!raw && raw !== 0) return today;
 
-                // Already a JS Date object (from cellDates: true)
                 if (raw instanceof Date) {
                     if (isNaN(raw.getTime())) return today;
                     return raw.toISOString().split('T')[0];
                 }
 
-                // Numeric serial (fallback — shouldn't fire with cellDates:true but kept for safety)
                 if (typeof raw === 'number') {
                     if (raw < 1) return today;
                     const utc = new Date(Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000);
@@ -3760,18 +3749,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const s = String(raw).trim();
                 if (!s) return today;
 
-                // Strip time portion first: "22/08/2026 14:30" → "22/08/2026"
                 const noTime = s.split(/[T ]/)[0];
 
-                // DD/MM/YYYY or DD-MM-YYYY
                 const dmy4 = noTime.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
                 if (dmy4) return `${dmy4[3]}-${dmy4[2].padStart(2,'0')}-${dmy4[1].padStart(2,'0')}`;
 
-                // YYYY/MM/DD or YYYY-MM-DD (already ISO-like)
                 const ymd = noTime.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
                 if (ymd) return `${ymd[1]}-${ymd[2].padStart(2,'0')}-${ymd[3].padStart(2,'0')}`;
 
-                // DD-Mon-YY or DD-Mon-YYYY e.g. 22-Aug-26 / 22 Aug 2026
                 const monNames: Record<string,string> = {
                     jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
                     jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'
@@ -3783,7 +3768,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (mon) return `${yr}-${mon}-${dmy_mon[1].padStart(2,'0')}`;
                 }
 
-                // Mon DD, YYYY or Mon DD YYYY e.g. "Aug 22, 2026"
                 const mon_dmy = s.match(/^([A-Za-z]{3,9})[\s,]+(\d{1,2})[\s,]+(\d{2,4})$/);
                 if (mon_dmy) {
                     const mon = monNames[mon_dmy[1].slice(0,3).toLowerCase()];
@@ -3791,48 +3775,38 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (mon) return `${yr}-${mon}-${mon_dmy[2].padStart(2,'0')}`;
                 }
 
-                // DD/MM/YY or DD-MM-YY (2-digit year)
                 const dmy2 = noTime.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})$/);
                 if (dmy2) {
                     const yr = parseInt(dmy2[3]) > 50 ? `19${dmy2[3]}` : `20${dmy2[3]}`;
                     return `${yr}-${dmy2[2].padStart(2,'0')}-${dmy2[1].padStart(2,'0')}`;
                 }
 
-                // Last resort: try native Date.parse (handles ISO and some locale strings)
                 const d = new Date(s);
                 if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
 
                 return today;
             };
 
-            // Process each payment row with O(1) matching
+            // Process each payment row with O(1) matching & exact 1-to-1 row preservation
             const processed = rawRows.map((row, idx) => {
-                // Column A: ADM — resolve admission number headers or first column containing numeric/ADM ID
+                // Column A: ADM — resolve admission number headers (strictly ignores row counters)
                 const admRaw = resolveCol(row,
                     /^adm/i,
                     /^admission/i,
                     /^reg/i,
                     /^registration/i,
-                    /^student[\s_]*(no|id|num|adm|#)?$/i,
-                    /^std/i,
-                    /^index/i,
-                    /^id$/i,
-                    /^code$/i
-                ) || (() => {
-                    const firstKey = Object.keys(row)[0];
-                    if (firstKey && row[firstKey] !== undefined && row[firstKey] !== null) {
-                        const str = String(row[firstKey]).trim();
-                        if (/^\d{2,8}$/.test(str)) return str;
-                    }
-                    return '';
-                })();
+                    /^student[\s_]*(no|id|num|adm)?$/i,
+                    /^adm[\s_]*no$/i,
+                    /^upi$/i
+                );
 
                 // Column B: Name
                 const nameRaw = resolveCol(row,
                     /^name$/i,
                     /student[\s_]*name/i,
                     /payer[\s_]*name/i,
-                    /sender[\s_]*name/i
+                    /sender[\s_]*name/i,
+                    /full[\s_]*name/i
                 );
 
                 // Column C: Amount
@@ -3861,7 +3835,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /^payment[\s_]*type$/i
                 );
 
-                // Column G: Receipt # — also matches BURSARY-style receipt columns
+                // Column G: Receipt #
                 const receiptRaw = resolveCol(row,
                     /^receipt[\s_]*(#|no|number)?$/i,
                     /^rcpt/i,
@@ -3869,7 +3843,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /^voucher/i
                 );
 
-                // Column H: Paid On — use resolveDateRaw to preserve JS Date objects from cellDates:true
+                // Column H: Paid On
                 const dateRaw = resolveDateRaw(row,
                     /^paid[\s_]*on$/i,
                     /^date$/i,
@@ -3879,13 +3853,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     /time/i
                 );
 
-                // Strip parenthetical sequence suffix from receipt/ref for use as transaction reference
-                // e.g. "BURSARY0125 (2)" → ref stored as "BURSARY0125" (sequence suffix excluded)
                 const stripSeqSuffix = (s: string) => s.replace(/\s*\(\d+\)\s*$/, '').trim();
                 const ref = stripSeqSuffix(refRaw || receiptRaw || `IMP-${Date.now()}-${idx + 1}`);
                 const amount = parseMoneyAmount(amtRaw);
                 const payer = nameRaw || 'Excel Import';
-                // dateRaw may be a JS Date object, number serial, or string — excelDateToISO handles all
                 const date = excelDateToISO(dateRaw ?? row['Paid On'] ?? row['Date'] ?? null);
 
                 // Payment method mapping
@@ -3901,37 +3872,50 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     else if (/cash/i.test(rowText)) paymentMethod = 'Cash';
                 }
 
-                // ADM No-ONLY Student Matching — no name/phone fallback
-                // A receipt with no valid ADM No stays 'unmatched' and must be manually assigned.
+                // Strict Student Matching (No False Positives)
                 let matchedStudent: any = null;
                 let matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none' = 'none';
 
                 // 1. Direct ADM match (strict, O(1))
                 if (admRaw && String(admRaw).trim().length >= 1) {
-                    const keys = cleanAdmCandidates(admRaw);
-                    for (const k of keys) {
-                        if (admMap.has(k)) {
-                            matchedStudent = admMap.get(k);
-                            matchConfidence = 'exact_adm';
-                            break;
-                        }
+                    const strAdm = String(admRaw).trim().toLowerCase();
+                    const noSpaces = strAdm.replace(/\s+/g, '');
+                    const alnum = strAdm.replace(/[^a-z0-9]/g, '');
+                    const digits = strAdm.replace(/\D/g, '');
+                    const noZeros = digits ? digits.replace(/^0+/, '') : '';
+                    const stripped = strAdm.replace(/^(adm|std|reg|student|upi|index)[\/\-_\s:]+/i, '').trim();
+
+                    if (admMap.has(strAdm)) {
+                        matchedStudent = admMap.get(strAdm);
+                        matchConfidence = 'exact_adm';
+                    } else if (noSpaces && admMap.has(noSpaces)) {
+                        matchedStudent = admMap.get(noSpaces);
+                        matchConfidence = 'exact_adm';
+                    } else if (alnum && admMap.has(alnum)) {
+                        matchedStudent = admMap.get(alnum);
+                        matchConfidence = 'exact_adm';
+                    } else if (stripped && admMap.has(stripped)) {
+                        matchedStudent = admMap.get(stripped);
+                        matchConfidence = 'exact_adm';
+                    } else if (digits && digits === noSpaces && admMap.has(digits)) {
+                        matchedStudent = admMap.get(digits);
+                        matchConfidence = 'exact_adm';
+                    } else if (noZeros && admMap.has(noZeros)) {
+                        matchedStudent = admMap.get(noZeros);
+                        matchConfidence = 'exact_adm';
                     }
                 }
 
-                // 2. High-precision full name match (fallback if ADM lookup missed, requires 2+ words)
+                // 2. High-precision full name match (fallback if ADM lookup missed, requires 2+ words, unambiguous)
                 if (!matchedStudent && nameRaw && nameRaw.trim().split(/\s+/).filter(Boolean).length >= 2) {
                     const nameKey = nameRaw.trim().toLowerCase();
                     const cleanAlpha = nameKey.replace(/[^a-z0-9]/g, '');
-                    const parts = nameKey.split(/\s+/).filter(Boolean);
-                    const reversed = parts.length > 1 ? parts.slice().reverse().join(' ') : '';
-                    const firstLast = parts.length > 2 ? `${parts[0]} ${parts[parts.length - 1]}` : '';
 
-                    matchedStudent = nameMap.get(nameKey) || 
-                        (cleanAlpha ? nameMap.get(cleanAlpha) : null) || 
-                        (reversed ? nameMap.get(reversed) : null) || 
-                        (firstLast ? nameMap.get(firstLast) : null);
-
-                    if (matchedStudent) {
+                    if (nameMap.has(nameKey)) {
+                        matchedStudent = nameMap.get(nameKey);
+                        matchConfidence = 'exact_name';
+                    } else if (cleanAlpha && nameMap.has(cleanAlpha)) {
+                        matchedStudent = nameMap.get(cleanAlpha);
                         matchConfidence = 'exact_name';
                     }
                 }
@@ -3941,7 +3925,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const effectiveAdm = admRaw || studentAdm;
 
                 return {
-                    id: `imp_row_${Date.now()}_${idx}`,
+                    id: `imp_row_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
                     ref,
                     admDisplay: effectiveAdm,
                     receiptNumber: receiptRaw,
@@ -4066,38 +4050,49 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             const newReceipts: any[] = [];
             const allExistingReceipts = [...(props.receipts || []), ...(allBranchReceipts || [])];
+            const claimedExistingReceiptIds = new Set<string>();
 
             const CHUNK_SIZE = 50;
             for (let i = 0; i < matchedItems.length; i += CHUNK_SIZE) {
                 const chunkItems = matchedItems.slice(i, i + CHUNK_SIZE);
                 const chunkReceipts: Array<{ receipt: any; originalCreatedAt: string }> = [];
 
-                for (const item of chunkItems) {
+                for (let cIdx = 0; cIdx < chunkItems.length; cIdx++) {
+                    const item = chunkItems[cIdx];
+                    const actualIdx = i + cIdx;
                     const student = mergedStudents.find(s => s.id === item.matchedStudentId) || (props.students || []).find(s => s.id === item.matchedStudentId);
-                    const receiptNum = item.receiptNumber?.trim()
-                        ? item.receiptNumber.trim()
-                        : `REC-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
                     const modeLabel = item.excelPaymentMode?.trim() || item.paymentMethod || 'Excel Bulk Import';
 
                     // Compute automatic votehead distribution for this payment
                     const voteheadAllocations = computeVoteheadDistribution(item.amount, item.matchedStudentId);
 
-                    // Match existing receipt to allow overriding
+                    // Match existing receipt to allow overriding only when explicitly requested with unique receipt number
                     let existingReceipt: any = null;
                     if (excelImportOverrideExisting) {
                         const targetReceiptNum = (item.receiptNumber || '').trim().toLowerCase();
-                        const targetRef = (item.ref || '').trim().toLowerCase();
                         
-                        existingReceipt = allExistingReceipts.find((r: any) => {
-                            const rNum = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
-                            const rRef = String(r.relatedTransactionId || r.related_transaction_id || '').trim().toLowerCase();
-                            if (targetReceiptNum && rNum && rNum === targetReceiptNum) return true;
-                            if (targetRef && rRef && rRef === targetRef) return true;
-                            return false;
-                        });
+                        if (targetReceiptNum) {
+                            existingReceipt = allExistingReceipts.find((r: any) => {
+                                if (claimedExistingReceiptIds.has(r.id)) return false;
+                                const rStudentId = r.studentId || (r as any).student_id || '';
+                                if (rStudentId !== item.matchedStudentId) return false;
+                                const rNum = String(r.receiptNumber || r.receipt_number || '').trim().toLowerCase();
+                                return rNum && rNum === targetReceiptNum;
+                            });
+                            if (existingReceipt) {
+                                claimedExistingReceiptIds.add(existingReceipt.id);
+                            }
+                        }
                     }
 
-                    const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${item.id}`;
+                    // Guaranteed 1-to-1: Each row gets a distinct ID and distinct receipt number
+                    const receiptId = existingReceipt?.id || `rec_imp_${Date.now()}_${actualIdx}_${Math.random().toString(36).substr(2, 6)}`;
+                    const receiptNum = (existingReceipt && existingReceipt.receiptNumber)
+                        ? existingReceipt.receiptNumber
+                        : item.receiptNumber?.trim()
+                            ? item.receiptNumber.trim()
+                            : `REC-${Date.now().toString().slice(-6)}-${(actualIdx + 1).toString().padStart(3, '0')}-${Math.floor(10 + Math.random() * 90)}`;
+
                     const originalCreatedAt = existingReceipt?.createdAt || existingReceipt?.created_at || new Date().toISOString();
 
                     const paidForSummary = voteheadAllocations.map(a => `${a.name}: KES ${a.amount.toLocaleString()}`).join(', ');

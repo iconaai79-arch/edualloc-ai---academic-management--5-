@@ -930,8 +930,14 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                             </h2>
                                             <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
                                                 <p><span className="font-bold text-slate-700 dark:text-slate-300">Doc Number:</span> {previewInvoice.invoiceNumber}</p>
-                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">Issue Date:</span> {new Date(previewInvoice.issueDate).toLocaleDateString()}</p>
-                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">{isQuote ? 'Valid Until:' : 'Due Date:'}</span> {new Date(previewInvoice.dueDate).toLocaleDateString()}</p>
+                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">Issue Date:</span> {(() => {
+                                                    const raw = previewInvoice.issueDate || (previewInvoice as any).issue_date || (previewInvoice as any).createdAt;
+                                                    return raw ? new Date(raw).toLocaleDateString() : 'N/A';
+                                                })()}</p>
+                                                <p><span className="font-bold text-slate-700 dark:text-slate-300">{isQuote ? 'Valid Until:' : 'Due Date:'}</span> {(() => {
+                                                    const raw = previewInvoice.dueDate || (previewInvoice as any).due_date;
+                                                    return raw ? new Date(raw).toLocaleDateString() : 'N/A';
+                                                })()}</p>
                                                 <div className="pt-1.5">
                                                     <InvoiceStatusBadge status={previewInvoice.status} />
                                                 </div>

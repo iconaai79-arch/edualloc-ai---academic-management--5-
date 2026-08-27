@@ -154,7 +154,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     // Processing state
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
-    const [overrideExisting, setOverrideExisting] = useState(true);
+    const [overrideExisting, setOverrideExisting] = useState(false);
     const [successSummary, setSuccessSummary] = useState<string | null>(null);
     // Searchable Assign Row Modal State
     const [assigningRowItem, setAssigningRowItem] = useState<ReconciledFeeItem | null>(null);
@@ -407,60 +407,68 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return map;
     }, [invoices]);
 
-    // Build ultra-fast normalized matching maps
+    // Build ultra-fast normalized matching maps with strict collision detection
     const { admMap, nameMap } = useMemo(() => {
         const aMap = new Map<string, User>();
         const nMap = new Map<string, User>();
+        const ambiguousAdms = new Set<string>();
+        const ambiguousNames = new Set<string>();
         const studentPool = allStudentsList;
 
-        const cleanAdmCandidates = (val: any): string[] => {
-            if (!val) return [];
+        const registerAdmKey = (key: string, student: User) => {
+            const clean = key.trim().toLowerCase();
+            if (!clean || clean.length < 1) return;
+            if (ambiguousAdms.has(clean)) return;
+            if (aMap.has(clean)) {
+                const existing = aMap.get(clean)!;
+                if (existing.id !== student.id) {
+                    // Collision between two different students: invalidate key to prevent false auto-match
+                    aMap.delete(clean);
+                    ambiguousAdms.add(clean);
+                }
+            } else {
+                aMap.set(clean, student);
+            }
+        };
+
+        const registerStudentAdmVariants = (val: any, student: User) => {
+            if (!val) return;
             const strClean = String(val).trim().toLowerCase();
-            if (!strClean) return [];
+            if (!strClean || strClean === '—' || strClean === 'n/a' || strClean === 'null' || strClean === 'undefined' || strClean.startsWith('usr_') || strClean.startsWith('user_')) return;
 
-            const isReceiptLike = /^(rcpt|rec|ref|inv|chq|ft|tx|mpesa)[\-_0-9]/i.test(strClean);
-            const candidates = new Set<string>();
-            candidates.add(strClean);
+            // 1. Exact string as recorded
+            registerAdmKey(strClean, student);
+
+            // 2. Whitespace-stripped
             const noSpaces = strClean.replace(/\s+/g, '');
-            if (noSpaces) candidates.add(noSpaces);
+            if (noSpaces) registerAdmKey(noSpaces, student);
+
+            // 3. Alphanumeric only (e.g. "ADM-101" -> "adm101")
             const alnum = strClean.replace(/[^a-z0-9]/g, '');
-            if (alnum) candidates.add(alnum);
-            const digits = strClean.replace(/\D/g, '');
-            if (digits) {
-                candidates.add(digits);
-                const noZeros = digits.replace(/^0+/, '');
-                if (noZeros) candidates.add(noZeros);
+            if (alnum) registerAdmKey(alnum, student);
+
+            // 4. Strip common prefix if numeric suffix (e.g. "ADM/101" or "STD-101" -> "101")
+            const strippedPrefix = strClean.replace(/^(adm|std|reg|student|upi|index)[\/\-_\s:]+/i, '').trim();
+            if (strippedPrefix && strippedPrefix !== strClean) {
+                registerAdmKey(strippedPrefix, student);
+                const stripAlnum = strippedPrefix.replace(/[^a-z0-9]/g, '');
+                if (stripAlnum) registerAdmKey(stripAlnum, student);
             }
 
-            if (!isReceiptLike) {
-                const digitsMatch = strClean.match(/\d{2,10}/g);
-                if (digitsMatch) {
-                    digitsMatch.forEach(d => {
-                        candidates.add(d);
-                        const nz = d.replace(/^0+/, '');
-                        if (nz) candidates.add(nz);
-                    });
-                }
-                const strippedPrefix = strClean.replace(/^(adm|std|reg|no|num|#|\/|-|_|\s)+/i, '').replace(/(\/|-|_)(20\d\d|[0-9]{1,2})$/i, '').trim();
-                if (strippedPrefix) {
-                    candidates.add(strippedPrefix);
-                    const stripAlnum = strippedPrefix.replace(/[^a-z0-9]/g, '');
-                    if (stripAlnum) candidates.add(stripAlnum);
-                    const stripDigits = strippedPrefix.replace(/\D/g, '');
-                    if (stripDigits) {
-                        candidates.add(stripDigits);
-                        const stripNoZeros = stripDigits.replace(/^0+/, '');
-                        if (stripNoZeros) candidates.add(stripNoZeros);
-                    }
+            // 5. If pure digits e.g. "00125" -> also index "125"
+            const digits = strClean.replace(/\D/g, '');
+            if (digits && digits === noSpaces) {
+                registerAdmKey(digits, student);
+                const noZeros = digits.replace(/^0+/, '');
+                if (noZeros && noZeros !== digits) {
+                    registerAdmKey(noZeros, student);
                 }
             }
-            return Array.from(candidates);
         };
 
         studentPool.forEach(student => {
             const rawAdm = getResolvedAdm(student);
-            const candidates = [
-                student.id,
+            const admCandidates = [
                 rawAdm,
                 student.admissionNumber,
                 (student as any).admission_number,
@@ -469,7 +477,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 (student as any).registrationNumber,
                 (student as any).regNo,
                 (student as any).reg_no,
-                (student as any).staffId,
                 student.metadata?.admissionNumber,
                 student.metadata?.admission_number,
                 student.metadata?.admNo
@@ -477,7 +484,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             const studentEnrs = enrollments.filter(e => e.userId === student.id || (e as any).studentId === student.id || e.id === student.id);
             studentEnrs.forEach(enr => {
-                candidates.push(
+                admCandidates.push(
                     enr.admissionNumber,
                     enr.admission_number,
                     enr.admissionNo,
@@ -491,19 +498,41 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 );
             });
 
-            candidates.forEach(c => {
-                cleanAdmCandidates(c).forEach(k => {
-                    if (k && k.length >= 1) aMap.set(k, student);
-                });
+            admCandidates.forEach(c => {
+                registerStudentAdmVariants(c, student);
             });
 
-            if (student.name) {
-                const nameKey = student.name.trim().toLowerCase();
-                if (nMap.has(nameKey)) {
-                    // Ambiguous name shared by multiple students: don't allow auto-matching
-                    nMap.delete(nameKey);
-                } else {
-                    nMap.set(nameKey, student);
+            // Register Full Name (Strict: at least 2 words, collision-protected)
+            if (student.name && typeof student.name === 'string') {
+                const nameClean = student.name.trim().toLowerCase();
+                const parts = nameClean.split(/\s+/).filter(Boolean);
+                if (parts.length >= 2) {
+                    if (ambiguousNames.has(nameClean)) {
+                        // ignore
+                    } else if (nMap.has(nameClean)) {
+                        const existing = nMap.get(nameClean)!;
+                        if (existing.id !== student.id) {
+                            nMap.delete(nameClean);
+                            ambiguousNames.add(nameClean);
+                        }
+                    } else {
+                        nMap.set(nameClean, student);
+                    }
+
+                    const cleanAlpha = nameClean.replace(/[^a-z0-9]/g, '');
+                    if (cleanAlpha) {
+                        if (ambiguousNames.has(cleanAlpha)) {
+                            // ignore
+                        } else if (nMap.has(cleanAlpha)) {
+                            const existing = nMap.get(cleanAlpha)!;
+                            if (existing.id !== student.id) {
+                                nMap.delete(cleanAlpha);
+                                ambiguousNames.add(cleanAlpha);
+                            }
+                        } else {
+                            nMap.set(cleanAlpha, student);
+                        }
+                    }
                 }
             }
         });
@@ -636,24 +665,28 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return { allocations, summary: summary || 'Tuition' };
     };
 
-    // Auto-detect columns from parsed headers
+    // Auto-detect columns from parsed headers (strictly ignores row counters like #, No, S/No, Index)
     const autoDetectColumns = (headers: string[]) => {
-        const findCol = (pattern: RegExp) => headers.find(h => pattern.test(h.trim())) || '';
+        const isRowCounter = (h: string) => /^(#|no\.?|s\/?no\.?|serial(\s*no\.?)?|row|sn|index)$/i.test(h.trim());
+        const candidateHeaders = headers.filter(h => !isRowCounter(h));
 
-        const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm|#)?|std|index|upi)$/i) ||
-                            headers.find(h => /adm|admission|reg/i.test(h)) || (headers.length > 0 ? headers[0] : '');
+        const findCol = (pattern: RegExp) => candidateHeaders.find(h => pattern.test(h.trim())) || '';
+
+        const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm)?|adm[\s_]*no|upi)$/i) ||
+                            candidateHeaders.find(h => /^(adm|admission|reg_no|adm_no)$/i.test(h.trim())) ||
+                            candidateHeaders.find(h => /adm|admission/i.test(h.trim())) || '';
 
         const detectedName = findCol(/^(name|student[\s_]*name|payer[\s_]*name|sender[\s_]*name|full[\s_]*name)$/i) ||
-                             headers.find(h => /name|payer|student/i.test(h) && h !== detectedAdm) || '';
+                             candidateHeaders.find(h => /name|payer|student/i.test(h) && h !== detectedAdm) || '';
 
         const detectedAmt = findCol(/^(amount|amount[\s_]*(paid|received|ksh)?|paid|credit|total|ksh)$/i) ||
-                            headers.find(h => /amount|paid|total|credit/i.test(h)) || '';
+                            candidateHeaders.find(h => /amount|paid|total|credit/i.test(h)) || '';
 
         const detectedRef = findCol(/^(reference|ref(erence)?[\s_]*(no|code|#)?|trans(action)?[\s_]*(code|id|ref)?|mpesa[\s_]*(code|ref)?|code)$/i) ||
-                            headers.find(h => /ref|trans|code|mpesa/i.test(h)) || '';
+                            candidateHeaders.find(h => /ref|trans|code|mpesa/i.test(h)) || '';
 
         const detectedDate = findCol(/^(paid[\s_]*on|date|payment[\s_]*date|trans[\s_]*date|txn[\s_]*date)$/i) ||
-                             headers.find(h => /date|paid|time/i.test(h)) || '';
+                             candidateHeaders.find(h => /date|paid|time/i.test(h)) || '';
 
         const detectedMode = findCol(/^(payment[\s_]*mode|pay[\s_]*mode|mode|payment[\s_]*type|channel|method)$/i) || '';
 
@@ -693,12 +726,12 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             const rawMode = mappings.mdCol ? String(row[mappings.mdCol] ?? '').trim() : '';
             const rawReceiptNo = mappings.rcptCol ? String(row[mappings.rcptCol] ?? '').trim() : '';
 
-            // Generate official system receipt number if not mapped from Excel
-            const systemReceiptNo = `RCPT-${Math.floor(100000 + (idx + 1) * 37 + Math.random() * 9000)}`;
+            // Generate unique official system receipt number per row if not mapped from Excel
+            const systemReceiptNo = `RCPT-${Date.now().toString().slice(-6)}-${(idx + 1).toString().padStart(3, '0')}-${Math.floor(10 + Math.random() * 90)}`;
             const finalReceiptNumber = rawReceiptNo || systemReceiptNo;
             const receiptSource: 'excel' | 'system' = rawReceiptNo ? 'excel' : 'system';
 
-            // Match student
+            // Match student strictly (No false positives)
             let matchedStudent: User | null = null;
             let matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none' = 'none';
 
@@ -724,8 +757,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 }
             }
 
-            // 2. Exact Unique Full Name Matching Fallback (if ADM was missing or unmatched in database)
-            if (!matchedStudent && rawName && rawName.trim().length >= 3) {
+            // 2. Exact Unique Full Name Matching Fallback (Requires 2+ words, unambiguous)
+            if (!matchedStudent && rawName && rawName.trim().split(/\s+/).filter(Boolean).length >= 2) {
                 const nameKey = rawName.trim().toLowerCase();
                 const cleanAlphaName = nameKey.replace(/[^a-z0-9]/g, '');
                 if (nameMap.has(nameKey)) {
@@ -765,7 +798,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             );
 
             return {
-                id: `rec_row_${idx}_${Date.now()}`,
+                id: `rec_row_${idx}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 rowIndex: idx + 1,
                 rawAdm,
                 rawName,
@@ -835,17 +868,21 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             autoDetectColumns(headers);
 
-            const findCol = (pattern: RegExp) => headers.find(h => pattern.test(h.trim())) || '';
-            const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm|#)?|std|index|upi)$/i) ||
-                                headers.find(h => /adm|admission|reg/i.test(h)) || (headers.length > 0 ? headers[0] : '');
+            const isRowCounter = (h: string) => /^(#|no\.?|s\/?no\.?|serial(\s*no\.?)?|row|sn|index)$/i.test(h.trim());
+            const candidateHeaders = headers.filter(h => !isRowCounter(h));
+
+            const findCol = (pattern: RegExp) => candidateHeaders.find(h => pattern.test(h.trim())) || '';
+            const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm)?|adm[\s_]*no|upi)$/i) ||
+                                candidateHeaders.find(h => /^(adm|admission|reg_no|adm_no)$/i.test(h.trim())) ||
+                                candidateHeaders.find(h => /adm|admission/i.test(h.trim())) || '';
             const detectedName = findCol(/^(name|student[\s_]*name|payer[\s_]*name|sender[\s_]*name|full[\s_]*name)$/i) ||
-                                 headers.find(h => /name|payer|student/i.test(h) && h !== detectedAdm) || '';
+                                 candidateHeaders.find(h => /name|payer|student/i.test(h) && h !== detectedAdm) || '';
             const detectedAmt = findCol(/^(amount|amount[\s_]*(paid|received|ksh)?|paid|credit|total|ksh)$/i) ||
-                                headers.find(h => /amount|paid|total|credit/i.test(h)) || '';
+                                candidateHeaders.find(h => /amount|paid|total|credit/i.test(h)) || '';
             const detectedRef = findCol(/^(reference|ref(erence)?[\s_]*(no|code|#)?|trans(action)?[\s_]*(code|id|ref)?|mpesa[\s_]*(code|ref)?|code)$/i) ||
-                                headers.find(h => /ref|trans|code|mpesa/i.test(h)) || '';
+                                candidateHeaders.find(h => /ref|trans|code|mpesa/i.test(h)) || '';
             const detectedDate = findCol(/^(paid[\s_]*on|date|payment[\s_]*date|trans[\s_]*date|txn[\s_]*date)$/i) ||
-                                 headers.find(h => /date|paid|time/i.test(h)) || '';
+                                 candidateHeaders.find(h => /date|paid|time/i.test(h)) || '';
             const detectedMode = findCol(/^(payment[\s_]*mode|pay[\s_]*mode|mode|payment[\s_]*type|channel|method)$/i) || '';
             const detectedReceipt = findCol(/^(receipt|receipt[\s_]*(no|number|#|id)?|rcpt|rcpt[\s_]*(no|#)?|rec[\s_]*(no|#)?)$/i) || '';
 
@@ -1034,7 +1071,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         );
     }, [manualSelectedStudent, manualAmount, voteheadPriorities, autoSplitVoteheads]);
 
-    // Ultra-Fast Parallel Bulk Posting with SMS Dispatch
+    // Ultra-Fast Parallel Bulk Posting with 1-to-1 Transaction Guarantee & SMS Dispatch
     const handleConfirmPostBulk = async () => {
         const readyItems = reconciledItems.filter(i => i.matchStatus === 'matched' && i.rawAmount > 0);
         if (readyItems.length === 0) {
@@ -1049,7 +1086,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         let postedCount = 0;
         let totalVal = 0;
         const createdReceiptIds: string[] = [];
-        const BATCH_SIZE = 25; // Concurrent batch processing for 25x faster throughput
+        const claimedExistingReceiptIds = new Set<string>();
+        const BATCH_SIZE = 25; // Concurrent batch processing for high throughput
 
         try {
             for (let i = 0; i < readyItems.length; i += BATCH_SIZE) {
@@ -1063,27 +1101,31 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                     let existingReceipt: Receipt | undefined;
                     if (overrideExisting) {
-                        // ONLY match existing receipt by exact receiptNumber (or if reference is used, it MUST belong to the exact same student).
-                        // Never match by reference alone because bursaries share the same reference across multiple students!
+                        // Match existing receipt ONLY if explicitly updating a known receipt number for this specific student
                         existingReceipt = receipts.find(r => {
+                            if (claimedExistingReceiptIds.has(r.id)) return false;
+                            const rStudentId = r.studentId || (r as any).student_id || '';
+                            if (rStudentId !== item.matchedStudentId) return false;
+
                             const rRcptNum = String(r.receiptNumber || (r as any).receipt_number || '').trim().toLowerCase();
                             const itemRcptNum = String(item.receiptNumber || item.rawReceiptNo || '').trim().toLowerCase();
-                            if (itemRcptNum && rRcptNum && itemRcptNum === rRcptNum) {
+                            if (item.receiptSource === 'excel' && itemRcptNum && rRcptNum && itemRcptNum === rRcptNum) {
                                 return true;
-                            }
-                            const rStudentId = r.studentId || (r as any).student_id || '';
-                            if (rStudentId === item.matchedStudentId && cleanRef) {
-                                const rRef = String(r.relatedTransactionId || (r as any).related_transaction_id || '').trim().toLowerCase();
-                                if (rRef && rRef === cleanRef.toLowerCase()) {
-                                    return true;
-                                }
                             }
                             return false;
                         });
+                        if (existingReceipt) {
+                            claimedExistingReceiptIds.add(existingReceipt.id);
+                        }
                     }
 
-                    const receiptId = existingReceipt ? existingReceipt.id : `rec_imp_${Date.now()}_${actualIdx}_${Math.random().toString(36).substr(2, 4)}`;
-                    const receiptNumber = item.receiptNumber || item.rawReceiptNo || existingReceipt?.receiptNumber || `RCPT-${Math.floor(100000 + Math.random() * 900000)}`;
+                    // Guaranteed 1-to-1: Each row gets a distinct, unique ID and receipt number
+                    const receiptId = existingReceipt ? existingReceipt.id : `rec_imp_${Date.now()}_${actualIdx}_${Math.random().toString(36).substr(2, 6)}`;
+                    const receiptNumber = (existingReceipt && existingReceipt.receiptNumber)
+                        ? existingReceipt.receiptNumber
+                        : (item.rawReceiptNo && item.receiptSource === 'excel')
+                            ? item.rawReceiptNo
+                            : item.receiptNumber || `RCPT-${Date.now().toString().slice(-6)}-${(actualIdx + 1).toString().padStart(3, '0')}-${Math.floor(10 + Math.random() * 90)}`;
 
                     const paidForDescription = item.voteHeadSummary ? `Fees [${item.voteHeadSummary}]` : 'School Fees — Excel Bulk Import';
 
