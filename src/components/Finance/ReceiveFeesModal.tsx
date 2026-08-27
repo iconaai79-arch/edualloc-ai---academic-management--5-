@@ -155,6 +155,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [overrideExisting, setOverrideExisting] = useState(true);
+    const [successSummary, setSuccessSummary] = useState<string | null>(null);
     // Searchable Assign Row Modal State
     const [assigningRowItem, setAssigningRowItem] = useState<ReconciledFeeItem | null>(null);
     const [assignSearchQuery, setAssignSearchQuery] = useState('');
@@ -1330,6 +1331,21 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 {/* ── TAB 1: INTERACTIVE EXCEL MAPPING ── */}
                 {activeTab === 'excel' && (
                     <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                        {successSummary && (
+                            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-2xl flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-200 text-xs font-bold animate-in fade-in">
+                                <div className="flex items-center gap-2">
+                                    <CheckBadgeIcon className="w-5 h-5 text-emerald-600 shrink-0" />
+                                    <span>{successSummary}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSuccessSummary(null)}
+                                    className="p-1 text-emerald-600 hover:text-emerald-800 dark:hover:text-white rounded-lg cursor-pointer"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        )}
                         {!excelFile ? (
                             <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-10 text-center hover:border-emerald-500 transition-colors bg-slate-50/50 dark:bg-slate-950/30 space-y-4">
                                 <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 flex items-center justify-center shadow-inner">
@@ -1972,6 +1988,21 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 {activeTab === 'manual' && (
                     <form onSubmit={handlePostManual} className="flex-1 overflow-y-auto p-6 space-y-5">
                         <div className="max-w-xl mx-auto space-y-4">
+                            {manualSuccessMsg && (
+                                <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-2xl flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-200 text-xs font-bold animate-in fade-in">
+                                    <div className="flex items-center gap-2">
+                                        <CheckBadgeIcon className="w-5 h-5 text-emerald-600 shrink-0" />
+                                        <span>{manualSuccessMsg}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setManualSuccessMsg(null)}
+                                        className="p-1 text-emerald-600 hover:text-emerald-800 dark:hover:text-white rounded-lg cursor-pointer"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            )}
                             
                             {/* Student Search */}
                             <div className="space-y-1 relative">

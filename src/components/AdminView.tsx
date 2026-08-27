@@ -432,7 +432,7 @@ export interface AdminViewProps {
     onDeleteCarPayment?: (paymentId: string) => Promise<void>;
     onUpdateCarTestDriveStatus?: (id: string, status: any) => Promise<void>;
     onAddCarAppraisal?: (data: Partial<CarAppraisal>) => Promise<void>;
-    onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string, isQuote?: boolean) => void;
+    onManualInvoice?: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string, isQuote?: boolean, issueDate?: string) => void;
     onAccessAlumnaPortal?: (school: SchoolRegistry) => void;
 }
 

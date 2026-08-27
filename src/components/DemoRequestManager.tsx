@@ -56,6 +56,8 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
     const [selectedRequestForQuote, setSelectedRequestForQuote] = useState<DemoRequest | null>(null);
     const [quoteItems, setQuoteItems] = useState<InvoiceItem[]>([]);
     const [quoteNumber, setQuoteNumber] = useState('');
+    const [quoteIssueDate, setQuoteIssueDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [quoteDueDate, setQuoteDueDate] = useState<string>(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
     const [taxRate, setTaxRate] = useState<number>(0);
     const [selectedModules, setSelectedModules] = useState<Record<string, boolean>>({
         academic: true,
@@ -153,6 +155,16 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
         } else {
             setQuoteNumber(`QT-${Date.now().toString().slice(-6)}`);
         }
+        const rawIssue = (request as any).quoteIssueDate || (request as any).issueDate || new Date().toISOString().split('T')[0];
+        setQuoteIssueDate(rawIssue.split('T')[0]);
+        const rawDue = (request as any).quoteDueDate || (request as any).dueDate;
+        if (rawDue) {
+            setQuoteDueDate(rawDue.split('T')[0]);
+        } else {
+            const d = new Date(rawIssue);
+            d.setDate(d.getDate() + 30);
+            setQuoteDueDate(d.toISOString().split('T')[0]);
+        }
     };
 
     const handleModuleToggle = (moduleKey: string) => {
@@ -249,9 +261,10 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
             id: `q_${Date.now()}`,
             invoiceNumber: quoteNumber,
             institutionId: 'platform_onboarding',
-            issueDate: new Date().toISOString().split('T')[0],
-            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            issueDate: quoteIssueDate || new Date().toISOString().split('T')[0],
+            issue_date: quoteIssueDate || new Date().toISOString().split('T')[0],
+            dueDate: quoteDueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            due_date: quoteDueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             items: quoteItems,
             subtotal: subtotal,
             taxRate: taxRate,
@@ -908,23 +921,49 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                         {/* Content */}
                         <div className="flex-grow p-6 overflow-y-auto space-y-6">
                             {/* Quote Config Header info */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Quote Ref Number</label>
                                     <input 
                                         type="text" 
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono font-bold dark:text-white"
+                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono font-bold dark:text-white text-xs"
                                         value={quoteNumber}
                                         onChange={(e) => setQuoteNumber(e.target.value)}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Recipient Delivery Email</label>
+                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Recipient Email</label>
                                     <input 
                                         type="email" 
-                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white"
+                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white text-xs"
                                         value={selectedRequestForQuote.email}
                                         disabled
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Issue Date</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white text-xs"
+                                        value={quoteIssueDate}
+                                        onChange={(e) => {
+                                            const newIssue = e.target.value;
+                                            setQuoteIssueDate(newIssue);
+                                            try {
+                                                const d = new Date(newIssue);
+                                                d.setDate(d.getDate() + 30);
+                                                setQuoteDueDate(d.toISOString().split('T')[0]);
+                                            } catch (err) {}
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Valid Until</label>
+                                    <input 
+                                        type="date" 
+                                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:text-white text-xs"
+                                        value={quoteDueDate}
+                                        onChange={(e) => setQuoteDueDate(e.target.value)}
                                     />
                                 </div>
                             </div>

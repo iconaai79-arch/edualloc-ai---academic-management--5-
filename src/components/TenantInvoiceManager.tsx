@@ -20,7 +20,7 @@ interface TenantInvoiceManagerProps {
     institutions: Institution[];
     companyDetails: CompanyDetails;
     logoUrl: string | null;
-    onCreateInvoice: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string, isQuote?: boolean) => void;
+    onCreateInvoice: (institutionId: string, items: InvoiceItem[], totalAmount: number, dueDate: string, isQuote?: boolean, issueDate?: string) => void;
     onUpdateInvoiceStatus?: (invoiceId: string, status: string) => Promise<void>;
     onUpdateInvoice?: (invoiceId: string, updates: Partial<Invoice>) => Promise<void>;
 }
@@ -58,6 +58,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     }, [isCreating]);
     const [documentType, setDocumentType] = useState<'invoice' | 'quote'>('invoice');
     const [selectedInstId, setSelectedInstId] = useState('');
+    const [issueDate, setIssueDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
     const [dueDate, setDueDate] = useState('');
     const [items, setItems] = useState<InvoiceItem[]>([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
     const [updatingStatusFor, setUpdatingStatusFor] = useState<string | null>(null);
@@ -195,6 +196,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         setEditingInvoice(null);
         setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
         setSelectedInstId('');
+        setIssueDate(new Date().toISOString().split('T')[0]);
         setDueDate('');
         setTaxRate(0);
         setDocumentType('invoice');
@@ -205,6 +207,15 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         setDocumentType(inv.status === 'quote' ? 'quote' : 'invoice');
         setSelectedInstId(inv.institutionId);
         setTaxRate((inv as any).taxRate || (inv as any).tax_rate || 0);
+
+        let formattedIssueDate = '';
+        try {
+            const rawIssue = inv.issueDate || (inv as any).issue_date || (inv as any).createdAt || new Date().toISOString();
+            formattedIssueDate = new Date(rawIssue).toISOString().split('T')[0];
+        } catch (e) {
+            formattedIssueDate = new Date().toISOString().split('T')[0];
+        }
+        setIssueDate(formattedIssueDate);
         
         let formattedDate = '';
         try {
@@ -239,7 +250,10 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             if (onUpdateInvoice) {
                 onUpdateInvoice(editingInvoice.id, {
                     institutionId: selectedInstId,
+                    issueDate: issueDate || new Date().toISOString(),
+                    issue_date: issueDate || new Date().toISOString(),
                     dueDate,
+                    due_date: dueDate,
                     items,
                     subtotal: calculateSubtotal(),
                     taxRate: taxRate,
@@ -250,11 +264,12 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             }
             setEditingInvoice(null);
         } else {
-            onCreateInvoice(selectedInstId, items, calculateTotal(), dueDate, documentType === 'quote');
+            onCreateInvoice(selectedInstId, items, calculateTotal(), dueDate, documentType === 'quote', issueDate);
         }
         setIsCreating(false);
         setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
         setSelectedInstId('');
+        setIssueDate(new Date().toISOString().split('T')[0]);
         setDueDate('');
         setTaxRate(0);
         setDocumentType('invoice');
@@ -437,7 +452,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Bill To (Institution)</label>
                                 <select
@@ -451,6 +466,18 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                         <option key={inst.id} value={inst.id}>{inst.name} ({inst.institutionCode})</option>
                                     ))}
                                 </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">
+                                    {documentType === 'quote' ? 'Quotation Issue Date' : 'Invoice Issue Date'}
+                                </label>
+                                <input
+                                    type="date"
+                                    value={issueDate}
+                                    onChange={e => setIssueDate(e.target.value)}
+                                    className="form-input w-full"
+                                    required
+                                />
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">

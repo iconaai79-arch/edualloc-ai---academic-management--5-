@@ -5082,7 +5082,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         finalTimetableUrl: null,
         themeColor: activeBranding.primaryColor,
         invoices,
-        onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string, isQuote?: boolean) => {
+        onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string, isQuote?: boolean, issueDate?: string) => {
             let invoiceNumber = '';
             const rawPrefix = isQuote 
                 ? 'QT-' 
@@ -5114,6 +5114,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 invoiceNumber = `${cleanPrefix}${Date.now().toString().slice(-6)}`;
             }
 
+            const resolvedIssueDate = issueDate ? (issueDate.includes('T') ? issueDate : new Date(issueDate).toISOString()) : new Date().toISOString();
+
             const newInvoice = {
                 id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                 invoiceNumber,
@@ -5121,9 +5123,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 items,
                 totalAmount,
                 dueDate,
-                issueDate: new Date().toISOString(),
+                due_date: dueDate,
+                issueDate: resolvedIssueDate,
+                issue_date: resolvedIssueDate,
                 status: isQuote ? 'quote' : 'pending',
-                createdAt: new Date().toISOString(),
+                createdAt: resolvedIssueDate,
             };
             await apiService.saveModuleRecord('invoices', newInvoice);
             await handleLogAction(`Super Admin generated ${isQuote ? 'quote' : 'invoice'} ${invoiceNumber} for institution ${institutionId}`);
