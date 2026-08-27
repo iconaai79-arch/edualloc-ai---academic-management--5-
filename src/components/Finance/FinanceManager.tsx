@@ -1880,16 +1880,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const strictAdmToStudent = new Map<string, any>();
 
             allStudentsPool.forEach(student => {
+                const enr = (props.enrollments || []).find(e => e.userId === student.id || (e as any).studentId === student.id);
                 const adms = [
                     student.admissionNumber,
                     (student as any).admission_number,
                     student.metadata?.admissionNumber,
                     student.metadata?.admission_number,
-                    (student as any).admNo
+                    (student as any).admNo,
+                    (student as any).adm_no,
+                    (student as any).registrationNumber,
+                    (student as any).regNo,
+                    enr?.admissionNumber,
+                    enr?.admission_number,
+                    enr?.admNo,
+                    enr?.metadata?.admissionNumber
                 ];
                 adms.forEach(a => {
                     const c = cleanAdm(a);
-                    if (c && c.length >= 2) strictAdmToStudent.set(c, student);
+                    if (c && c.length >= 1) strictAdmToStudent.set(c, student);
                 });
             });
 

@@ -483,19 +483,17 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             candidates.forEach(c => {
                 cleanAdmCandidates(c).forEach(k => {
-                    if (k && k.length >= 2) aMap.set(k, student);
+                    if (k && k.length >= 1) aMap.set(k, student);
                 });
             });
 
             if (student.name) {
                 const nameKey = student.name.trim().toLowerCase();
-                nMap.set(nameKey, student);
-                const cleanAlpha = nameKey.replace(/[^a-z0-9]/g, '');
-                if (cleanAlpha) nMap.set(cleanAlpha, student);
-                const parts = nameKey.split(/\s+/).filter(Boolean);
-                if (parts.length > 1) {
-                    nMap.set(`${parts[0]} ${parts[parts.length - 1]}`, student);
-                    nMap.set(`${parts[parts.length - 1]} ${parts[0]}`, student);
+                if (nMap.has(nameKey)) {
+                    // Ambiguous name shared by multiple students: don't allow auto-matching
+                    nMap.delete(nameKey);
+                } else {
+                    nMap.set(nameKey, student);
                 }
             }
         });
@@ -694,7 +692,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             let matchedStudent: User | null = null;
             let matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none' = 'none';
 
-            // 1. ADM matching
+            // 1. Strict Admission Number Matching First
             if (rawAdm && rawAdm.length >= 1) {
                 const normAdm = rawAdm.toLowerCase();
                 const cleanAlpha = normAdm.replace(/[^a-z0-9]/g, '');
@@ -714,17 +712,13 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     matchedStudent = admMap.get(noZeros)!;
                     matchConfidence = 'exact_adm';
                 }
-            }
-
-            // 2. Name matching fallback
-            if (!matchedStudent && rawName && rawName.split(/\s+/).filter(Boolean).length >= 2) {
-                const nameKey = rawName.toLowerCase();
-                const cleanAlpha = nameKey.replace(/[^a-z0-9]/g, '');
+                // IMPORTANT: If an Admission Number was provided in the Excel row, DO NOT fall back to loose name matching.
+                // This prevents assigning receipts of other students with similar names (e.g. Kipkoech/Brian) to the wrong student!
+            } else if (rawName && rawName.trim().length >= 3) {
+                // 2. Only if Admission column was completely blank in Excel, check strictly unique full name
+                const nameKey = rawName.trim().toLowerCase();
                 if (nameMap.has(nameKey)) {
                     matchedStudent = nameMap.get(nameKey)!;
-                    matchConfidence = 'exact_name';
-                } else if (cleanAlpha && nameMap.has(cleanAlpha)) {
-                    matchedStudent = nameMap.get(cleanAlpha)!;
                     matchConfidence = 'exact_name';
                 }
             }
@@ -1045,6 +1039,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                         institution_id: instId,
                         studentId: item.matchedStudentId,
                         student_id: item.matchedStudentId,
+                        admissionNumber: sAdm,
+                        admission_number: sAdm,
                         amountPaid: Number(item.rawAmount),
                         amount_paid: Number(item.rawAmount),
                         paymentMethod: item.paymentMethod || defaultPaymentMethod,
