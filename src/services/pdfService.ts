@@ -1205,10 +1205,12 @@ export const generateQuotePdfDataUri = async (
     doc.setFontSize(8);
     doc.setTextColor(30, 41, 59); // Slate-800
     doc.text(`Quotation Reference:  ${quote?.invoiceNumber || 'N/A'}`, margin + 6, tableStartY + 7);
-    doc.text(`Issue Date          :  ${quote?.issueDate ? new Date(quote.issueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}`, margin + 6, tableStartY + 13);
+    const issueDateVal = quote?.issueDate || (quote as any)?.issue_date || (quote as any)?.createdAt;
+    doc.text(`Issue Date          :  ${issueDateVal ? new Date(issueDateVal).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}`, margin + 6, tableStartY + 13);
     
-    const validUntil = quote?.issueDate ? new Date(quote.issueDate) : new Date();
-    if (quote?.issueDate) validUntil.setDate(validUntil.getDate() + 30);
+    const dueDateVal = quote?.dueDate || (quote as any)?.due_date;
+    const validUntil = dueDateVal ? new Date(dueDateVal) : (issueDateVal ? new Date(issueDateVal) : new Date());
+    if (!dueDateVal && issueDateVal) validUntil.setDate(validUntil.getDate() + 30);
     doc.text(`Valid Until         :  ${validUntil.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`, margin + 6, tableStartY + 19);
 
     // Column 2 Content: Payer / Bill to details

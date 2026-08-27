@@ -246,12 +246,15 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             alert('Please fill in all fields correctly.');
             return;
         }
+
+        const resolvedIssueDate = issueDate ? (issueDate.includes('T') ? issueDate : new Date(issueDate).toISOString()) : new Date().toISOString();
+
         if (editingInvoice) {
             if (onUpdateInvoice) {
                 onUpdateInvoice(editingInvoice.id, {
                     institutionId: selectedInstId,
-                    issueDate: issueDate || new Date().toISOString(),
-                    issue_date: issueDate || new Date().toISOString(),
+                    issueDate: resolvedIssueDate,
+                    issue_date: resolvedIssueDate,
                     dueDate,
                     due_date: dueDate,
                     items,
@@ -264,7 +267,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
             }
             setEditingInvoice(null);
         } else {
-            onCreateInvoice(selectedInstId, items, calculateTotal(), dueDate, documentType === 'quote', issueDate);
+            onCreateInvoice(selectedInstId, items, calculateTotal(), dueDate, documentType === 'quote', resolvedIssueDate);
         }
         setIsCreating(false);
         setItems([{ description: 'Platform Subscription', quantity: 1, unitPrice: 0, amount: 0 }]);
@@ -877,6 +880,19 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     Document Viewer — {isQuote ? 'Quotation' : 'Invoice'}
                                 </h4>
                                 <div className="flex items-center gap-3">
+                                    {onUpdateInvoice && previewInvoice.status !== 'paid' && (
+                                        <button
+                                            onClick={() => {
+                                                const target = previewInvoice;
+                                                setPreviewInvoice(null);
+                                                startEditing(target);
+                                            }}
+                                            className="btn-secondary py-1.5 px-4 text-xs flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-bold"
+                                            title={isQuote ? "Edit Quotation Details & Issue Date" : "Edit Invoice Details & Issue Date"}
+                                        >
+                                            <PencilIcon className="w-4 h-4" /> {isQuote ? 'Edit Quotation' : 'Edit Invoice'}
+                                        </button>
+                                    )}
                                     {inst && (
                                         <button
                                             onClick={() => {

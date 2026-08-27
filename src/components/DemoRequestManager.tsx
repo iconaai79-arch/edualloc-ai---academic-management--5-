@@ -370,6 +370,9 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                 status,
                 quoteAmount: quoteAmt,
                 quoteItems,
+                quoteNumber,
+                quoteIssueDate,
+                quoteDueDate,
                 quoteUrl: quoteUrl || undefined
             });
 
@@ -379,6 +382,9 @@ export const DemoRequestManager: React.FC<DemoRequestManagerProps> = ({ requests
                 status,
                 quoteAmount: quoteAmt,
                 quoteItems,
+                quoteNumber,
+                quoteIssueDate,
+                quoteDueDate,
                 quoteUrl: quoteUrl || undefined
             } : r));
 

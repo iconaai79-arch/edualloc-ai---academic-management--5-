@@ -151,11 +151,36 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [excelPage, setExcelPage] = useState(1);
     const PAGE_SIZE = 25;
     
+    // View Mode & Grouping State
+    const [excelViewMode, setExcelViewMode] = useState<'flat' | 'grouped'>('flat');
+    const [expandedGroupKeys, setExpandedGroupKeys] = useState<Record<string, boolean>>({});
+
     // Processing state
     const [isProcessingBulk, setIsProcessingBulk] = useState(false);
     const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
     const [overrideExisting, setOverrideExisting] = useState(false);
     const [successSummary, setSuccessSummary] = useState<string | null>(null);
+
+    // Post-Upload Reconciliation Audit State
+    const [uploadAuditReport, setUploadAuditReport] = useState<{
+        excelTotalRows: number;
+        excelTotalAmount: number;
+        postedReceiptsCount: number;
+        postedTotalAmount: number;
+        depositAccountName: string;
+        groups: Array<{
+            studentId: string;
+            studentName: string;
+            admNumber: string;
+            excelTxCount: number;
+            excelTotalAmount: number;
+            uploadedTxCount: number;
+            uploadedTotalAmount: number;
+            isExactMatch: boolean;
+            receiptNumbers: string[];
+        }>;
+    } | null>(null);
+
     // Searchable Assign Row Modal State
     const [assigningRowItem, setAssigningRowItem] = useState<ReconciledFeeItem | null>(null);
     const [assignSearchQuery, setAssignSearchQuery] = useState('');
@@ -1015,8 +1040,76 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         const totalAmount = reconciledItems
             .filter(i => i.matchStatus === 'matched')
             .reduce((sum, i) => sum + i.rawAmount, 0);
-        return { totalRows, matchedCount, unmatchedCount, totalAmount };
+
+        const uniqueMatchedStudents = new Set(reconciledItems.filter(i => i.matchStatus === 'matched' && i.matchedStudentId).map(i => i.matchedStudentId));
+        const multipleTxCount = Array.from(uniqueMatchedStudents).filter(sId => {
+            return reconciledItems.filter(i => i.matchStatus === 'matched' && i.matchedStudentId === sId).length > 1;
+        }).length;
+
+        return { totalRows, matchedCount, unmatchedCount, totalAmount, uniqueMatchedStudentsCount: uniqueMatchedStudents.size, multipleTxCount };
     }, [reconciledItems]);
+
+    // Group reconciled items per student (shows exact count of raw Excel transactions per student)
+    const groupedStudents = useMemo(() => {
+        const groupsMap = new Map<string, {
+            groupKey: string;
+            studentId: string;
+            studentName: string;
+            admNumber: string;
+            className?: string;
+            matchStatus: 'matched' | 'unmatched';
+            rawTxCount: number;
+            totalAmount: number;
+            items: ReconciledFeeItem[];
+        }>();
+
+        filteredItems.forEach((item) => {
+            let key = '';
+            if (item.matchStatus === 'matched' && item.matchedStudentId) {
+                key = `matched_${item.matchedStudentId}`;
+            } else {
+                key = `unmatched_${(item.rawAdm || item.rawName || item.id).trim().toLowerCase()}`;
+            }
+
+            if (!groupsMap.has(key)) {
+                const sObj = allStudentsList.find(s => s.id === item.matchedStudentId);
+                groupsMap.set(key, {
+                    groupKey: key,
+                    studentId: item.matchedStudentId || '',
+                    studentName: item.matchedStudentName || item.rawName || 'Unmatched Student',
+                    admNumber: item.matchedStudentAdm || item.rawAdm || '—',
+                    className: (sObj as any)?.className || (sObj as any)?.gradeLevel || undefined,
+                    matchStatus: item.matchStatus,
+                    rawTxCount: 0,
+                    totalAmount: 0,
+                    items: []
+                });
+            }
+
+            const grp = groupsMap.get(key)!;
+            grp.rawTxCount += 1;
+            grp.totalAmount += Number(item.rawAmount || 0);
+            grp.items.push(item);
+        });
+
+        return Array.from(groupsMap.values());
+    }, [filteredItems, allStudentsList]);
+
+    // Toggle group accordion expansion
+    const handleToggleGroup = (groupKey: string) => {
+        setExpandedGroupKeys(prev => ({
+            ...prev,
+            [groupKey]: !prev[groupKey]
+        }));
+    };
+
+    const handleToggleAllGroups = (expand: boolean) => {
+        const next: Record<string, boolean> = {};
+        groupedStudents.forEach(g => {
+            next[g.groupKey] = expand;
+        });
+        setExpandedGroupKeys(next);
+    };
 
     // Download unmatched records as Excel file
     const handleDownloadUnmatched = () => {
@@ -1060,6 +1153,40 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         XLSX.writeFile(wb, `${cleanInstName}_Unmatched_Payments_${timestamp}.xlsx`);
     };
 
+    // Download complete reconciliation audit comparison as Excel
+    const handleDownloadAuditReport = () => {
+        if (!uploadAuditReport) return;
+        const data = uploadAuditReport.groups.map((g, idx) => ({
+            '#': idx + 1,
+            'Admission Number': g.admNumber,
+            'Student Name': g.studentName,
+            'Raw Excel Tx Count': g.excelTxCount,
+            'Uploaded Receipts Count': g.uploadedTxCount,
+            'Total Amount (KES)': g.uploadedTotalAmount,
+            '1-to-1 Verification Status': g.isExactMatch ? 'EXACT MATCH (100% Verified)' : 'MISMATCH',
+            'Generated Receipt Numbers': g.receiptNumbers.join(', ')
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Reconciliation_Audit');
+
+        ws['!cols'] = [
+            { wch: 6 },
+            { wch: 20 },
+            { wch: 30 },
+            { wch: 22 },
+            { wch: 26 },
+            { wch: 20 },
+            { wch: 32 },
+            { wch: 45 }
+        ];
+
+        const cleanInstName = (institution?.name || 'School').replace(/[^a-zA-Z0-9]/g, '_');
+        const timestamp = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `${cleanInstName}_Reconciliation_Audit_${timestamp}.xlsx`);
+    };
+
     // Live preview for manual tab votehead split
     const manualSplitPreview = useMemo(() => {
         if (!manualSelectedStudent || !manualAmount || Number(manualAmount) <= 0) return null;
@@ -1081,6 +1208,39 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
         setIsProcessingBulk(true);
         setBulkProgress({ current: 0, total: readyItems.length });
+
+        // Pre-build audit map to track Raw Excel count vs Posted Receipts count for 100% audit comparison
+        const studentAuditMap = new Map<string, {
+            studentId: string;
+            studentName: string;
+            admNumber: string;
+            excelTxCount: number;
+            excelTotalAmount: number;
+            uploadedTxCount: number;
+            uploadedTotalAmount: number;
+            receiptNumbers: string[];
+        }>();
+
+        readyItems.forEach(item => {
+            const sId = item.matchedStudentId;
+            if (!studentAuditMap.has(sId)) {
+                const sObj = allStudentsList.find(s => s.id === sId);
+                const sAdm = sObj ? getResolvedAdm(sObj, item.rawAdm) : (item.matchedStudentAdm || item.rawAdm);
+                studentAuditMap.set(sId, {
+                    studentId: sId,
+                    studentName: item.matchedStudentName || sObj?.name || 'Student',
+                    admNumber: sAdm,
+                    excelTxCount: 0,
+                    excelTotalAmount: 0,
+                    uploadedTxCount: 0,
+                    uploadedTotalAmount: 0,
+                    receiptNumbers: []
+                });
+            }
+            const auditRec = studentAuditMap.get(sId)!;
+            auditRec.excelTxCount += 1;
+            auditRec.excelTotalAmount += Number(item.rawAmount);
+        });
 
         const instId = institution?.id || '';
         let postedCount = 0;
@@ -1156,6 +1316,14 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     postedCount++;
                     totalVal += Number(item.rawAmount);
 
+                    // Update student audit verification record
+                    const auditEntry = studentAuditMap.get(item.matchedStudentId);
+                    if (auditEntry) {
+                        auditEntry.uploadedTxCount += 1;
+                        auditEntry.uploadedTotalAmount += Number(item.rawAmount);
+                        auditEntry.receiptNumbers.push(receiptNumber);
+                    }
+
                     if (onReceiptCreated) onReceiptCreated(receiptRecord);
 
                     // Asynchronous SMS dispatch to Parent if enabled
@@ -1204,6 +1372,20 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             if (onRefreshData) {
                 await onRefreshData();
             }
+
+            const auditGroups = Array.from(studentAuditMap.values()).map(g => ({
+                ...g,
+                isExactMatch: g.excelTxCount === g.uploadedTxCount && g.excelTotalAmount === g.uploadedTotalAmount
+            }));
+
+            setUploadAuditReport({
+                excelTotalRows: readyItems.length,
+                excelTotalAmount: totalVal,
+                postedReceiptsCount: postedCount,
+                postedTotalAmount: totalVal,
+                depositAccountName: selectedAccount ? `${selectedAccount.bankName} - ${selectedAccount.accountName}` : 'Bank Account',
+                groups: auditGroups
+            });
 
             setSuccessSummary(`Successfully posted ${postedCount} receipts totaling KES ${totalVal.toLocaleString()} into ${selectedAccount?.accountName || 'Bank'}!${sendSmsNotification ? ' SMS notifications dispatched to parents.' : ''}`);
         } catch (err: any) {
@@ -1682,19 +1864,22 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                     </div>
                                 </div>
 
-                                {/* ── Controls & Filter Bar ── */}
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                                        <div className="relative flex-1 sm:w-64">
+                                {/* ── Controls & Filter Bar with View Mode Toggle ── */}
+                                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                    <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                                        {/* Search Filter */}
+                                        <div className="relative flex-1 sm:w-60 min-w-[200px]">
                                             <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                             <input
                                                 type="text"
-                                                placeholder="Filter rows by name, ADM, ref, receipt..."
+                                                placeholder="Filter by name, ADM, ref, receipt..."
                                                 value={searchQuery}
                                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs outline-none focus:ring-1 focus:ring-indigo-500"
+                                                className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs outline-none focus:ring-1 focus:ring-indigo-500"
                                             />
                                         </div>
+
+                                        {/* Status Filter */}
                                         <div className="flex items-center gap-1">
                                             {(['all', 'matched', 'unmatched'] as const).map(st => (
                                                 <button
@@ -1704,20 +1889,73 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                     className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                                         filterStatus === st
                                                             ? 'bg-indigo-600 text-white shadow-xs'
-                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                                     }`}
                                                 >
                                                     {st} {st === 'unmatched' && stats.unmatchedCount > 0 ? `(${stats.unmatchedCount})` : ''}
                                                 </button>
                                             ))}
                                         </div>
+
+                                        {/* View Mode Toggle: Flat vs Grouped by Student */}
+                                        <div className="flex items-center bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-300 dark:border-slate-700">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExcelViewMode('flat')}
+                                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    excelViewMode === 'flat'
+                                                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                                                }`}
+                                            >
+                                                <span>📋 Flat Rows</span>
+                                                <span className="text-[10px] font-black opacity-75">({filteredItems.length})</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setExcelViewMode('grouped')}
+                                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    excelViewMode === 'grouped'
+                                                        ? 'bg-indigo-600 text-white shadow-xs font-black'
+                                                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                                                }`}
+                                            >
+                                                <span>👥 Grouped by Student</span>
+                                                <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${excelViewMode === 'grouped' ? 'bg-white/20 text-white' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                                                    {groupedStudents.length}
+                                                </span>
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    {/* Stats Badges & Download Actions */}
-                                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                                    {/* Stats Badges & Actions */}
+                                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end w-full lg:w-auto">
+                                        {excelViewMode === 'grouped' && (
+                                            <div className="flex items-center gap-1 text-[10px] font-bold">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleAllGroups(true)}
+                                                    className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:text-indigo-600 cursor-pointer"
+                                                >
+                                                    Expand All
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleAllGroups(false)}
+                                                    className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 hover:text-indigo-600 cursor-pointer"
+                                                >
+                                                    Collapse All
+                                                </button>
+                                            </div>
+                                        )}
                                         <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-lg font-bold border border-emerald-200 dark:border-emerald-800/40 text-[10px]">
-                                            ✓ {stats.matchedCount} Matched
+                                            ✓ {stats.matchedCount} Matched ({stats.uniqueMatchedStudentsCount} Students)
                                         </span>
+                                        {stats.multipleTxCount > 0 && (
+                                            <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-lg font-bold border border-purple-200 dark:border-purple-800/40 text-[10px]">
+                                                ⚡ {stats.multipleTxCount} Students with 2+ Tx
+                                            </span>
+                                        )}
                                         {stats.unmatchedCount > 0 && (
                                             <button
                                                 type="button"
@@ -1746,201 +1984,349 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                     </div>
                                 </div>
 
-                                {/* ── Interactive Data Grid Table with Payment Mode & Votehead Breakdown ── */}
-                                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
-                                    <div className="max-h-[380px] overflow-y-auto">
-                                        <table className="w-full border-collapse text-xs">
-                                            <thead>
-                                                <tr className="bg-slate-100/80 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold sticky top-0 z-10">
-                                                    <th className="px-3 py-2.5 w-10 text-center text-slate-400">#</th>
-                                                    <th className="px-4 py-2.5 text-left">Admission</th>
-                                                    <th className="px-4 py-2.5 text-left">Name</th>
-                                                    <th className="px-4 py-2.5 text-right">Amount</th>
-                                                    <th className="px-4 py-2.5 text-left">Payment Mode</th>
-                                                    <th className="px-4 py-2.5 text-left">Receipt No</th>
-                                                    <th className="px-4 py-2.5 text-left">Reference</th>
-                                                    <th className="px-4 py-2.5 text-left">Date Paid</th>
-                                                    <th className="px-4 py-2.5 text-left">Assigned Student &amp; Voteheads</th>
-                                                    <th className="px-3 py-2.5 text-center w-24">Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                                {filteredItems.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={10} className="py-8 text-center text-slate-400 font-medium">
-                                                            No rows match your filters or mappings.
-                                                        </td>
+                                {/* ── MODE 1: FLAT TRANSACTION ROWS TABLE ── */}
+                                {excelViewMode === 'flat' && (
+                                    <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                                        <div className="max-h-[380px] overflow-y-auto">
+                                            <table className="w-full border-collapse text-xs">
+                                                <thead>
+                                                    <tr className="bg-slate-100/80 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold sticky top-0 z-10">
+                                                        <th className="px-3 py-2.5 w-10 text-center text-slate-400">#</th>
+                                                        <th className="px-4 py-2.5 text-left">Admission</th>
+                                                        <th className="px-4 py-2.5 text-left">Name</th>
+                                                        <th className="px-4 py-2.5 text-right">Amount</th>
+                                                        <th className="px-4 py-2.5 text-left">Payment Mode</th>
+                                                        <th className="px-4 py-2.5 text-left">Receipt No</th>
+                                                        <th className="px-4 py-2.5 text-left">Reference</th>
+                                                        <th className="px-4 py-2.5 text-left">Date Paid</th>
+                                                        <th className="px-4 py-2.5 text-left">Assigned Student &amp; Voteheads</th>
+                                                        <th className="px-3 py-2.5 text-center w-24">Action</th>
                                                     </tr>
-                                                ) : (
-                                                    (() => {
-                                                        const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
-                                                        const safePage = Math.min(Math.max(1, excelPage), totalPages);
-                                                        const paginated = filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {filteredItems.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={10} className="py-8 text-center text-slate-400 font-medium">
+                                                                No rows match your filters or mappings.
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        (() => {
+                                                            const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+                                                            const safePage = Math.min(Math.max(1, excelPage), totalPages);
+                                                            const paginated = filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-                                                        return paginated.map((item) => (
-                                                            <tr 
-                                                                key={item.id}
-                                                                className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors ${
-                                                                    item.matchStatus === 'unmatched' ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''
-                                                                }`}
-                                                            >
-                                                                <td className="px-3 py-2.5 text-center text-slate-400 font-mono text-[11px]">
-                                                                    {item.rowIndex}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                                    {item.rawAdm || <span className="text-slate-400 italic">—</span>}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium">
-                                                                    {item.rawName || <span className="text-slate-400 italic">—</span>}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-right font-mono font-black text-slate-900 dark:text-white">
-                                                                    KES {item.rawAmount.toLocaleString()}
-                                                                </td>
-                                                                {/* Payment Mode Selector Per-Row */}
-                                                                <td className="px-4 py-2.5">
-                                                                    <select
-                                                                        value={item.paymentMethod}
-                                                                        onChange={(e) => handleRowMethodChange(item.id, e.target.value)}
-                                                                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                                                                    >
-                                                                        <option value="Bank Transfer">🏛️ Bank Transfer</option>
-                                                                        <option value="M-Pesa">📱 M-Pesa</option>
-                                                                        <option value="Cash">💵 Cash</option>
-                                                                        <option value="Cheque">📊 Cheque</option>
-                                                                        <option value="Bursary">🎓 Bursary</option>
-                                                                        <option value="Direct Deposit">💳 Direct Deposit</option>
-                                                                    </select>
-                                                                </td>
-                                                                {/* Receipt Number Column with Source Badge */}
-                                                                <td className="px-4 py-2.5 font-mono text-[11px] font-bold">
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <span className="text-slate-800 dark:text-slate-200">
-                                                                            {item.receiptNumber}
-                                                                        </span>
-                                                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${
-                                                                            item.receiptSource === 'excel'
-                                                                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
-                                                                                : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700'
-                                                                        }`}>
-                                                                            {item.receiptSource === 'excel' ? 'Excel' : 'Auto'}
-                                                                        </span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                                                    {item.rawRef}
-                                                                </td>
-                                                                <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 text-[11px]">
-                                                                    {item.rawDate}
-                                                                </td>
-                                                                <td className="px-4 py-2.5">
-                                                                    {item.matchStatus === 'matched' ? (
-                                                                        <div className="space-y-1">
-                                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                                <CheckBadgeIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                                                                <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">
-                                                                                    {item.matchedStudentName}
-                                                                                </span>
-                                                                                {(() => {
-                                                                                    const displayAdm = (item.matchedStudentAdm && item.matchedStudentAdm !== 'N/A')
-                                                                                        ? item.matchedStudentAdm
-                                                                                        : (item.rawAdm && item.rawAdm !== 'N/A' ? item.rawAdm : '');
-                                                                                    if (!displayAdm) return null;
-                                                                                    return (
-                                                                                        <span className="font-mono text-slate-500 dark:text-slate-400 text-[10px] font-bold">
-                                                                                            ({displayAdm})
-                                                                                        </span>
-                                                                                    );
-                                                                                })()}
-                                                                            </div>
-                                                                            
-                                                                            {/* Votehead pill breakdown */}
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setInspectingItem(item)}
-                                                                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-md text-[10px] font-semibold border border-purple-200 dark:border-purple-800 transition-colors text-left"
-                                                                                title="Click to view full votehead breakdown"
-                                                                            >
-                                                                                <SparklesIcon className="w-3 h-3 text-purple-600" />
-                                                                                <span className="truncate max-w-[200px]">{item.voteHeadSummary}</span>
-                                                                            </button>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-bold">
-                                                                            <span>⚠ Unmatched</span>
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-3 py-2.5 text-center">
-                                                                    {item.matchStatus === 'unmatched' ? (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => {
-                                                                                setAssigningRowItem(item);
-                                                                                setAssignSearchQuery(item.rawName || item.rawAdm || '');
-                                                                            }}
-                                                                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
-                                                                            title="Search and assign student"
+                                                            return paginated.map((item) => (
+                                                                <tr 
+                                                                    key={item.id}
+                                                                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors ${
+                                                                        item.matchStatus === 'unmatched' ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''
+                                                                    }`}
+                                                                >
+                                                                    <td className="px-3 py-2.5 text-center text-slate-400 font-mono text-[11px]">
+                                                                        {item.rowIndex}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                                        {item.rawAdm || <span className="text-slate-400 italic">—</span>}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium">
+                                                                        {item.rawName || <span className="text-slate-400 italic">—</span>}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-right font-mono font-black text-slate-900 dark:text-white">
+                                                                        KES {item.rawAmount.toLocaleString()}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5">
+                                                                        <select
+                                                                            value={item.paymentMethod || item.rawMode || defaultPaymentMethod}
+                                                                            onChange={(e) => handleRowMethodChange(item.id, e.target.value as any)}
+                                                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
                                                                         >
-                                                                            <SearchIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                                                                            <span>Assign...</span>
-                                                                        </button>
-                                                                    ) : (
-                                                                        <div className="inline-flex items-center gap-1.5">
-                                                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                                                                                Ready
+                                                                            <option value="Bank Transfer">Bank Transfer</option>
+                                                                            <option value="M-Pesa">M-Pesa</option>
+                                                                            <option value="Cash">Cash</option>
+                                                                            <option value="Cheque">Cheque</option>
+                                                                            <option value="Bursary">Bursary</option>
+                                                                            <option value="Direct Deposit">Direct Deposit</option>
+                                                                        </select>
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                                                        {item.receiptSource === 'excel' && item.rawReceiptNo ? (
+                                                                            <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded font-bold">
+                                                                                {item.rawReceiptNo} (Excel)
                                                                             </span>
+                                                                        ) : (
+                                                                            <span className="text-slate-400 italic">
+                                                                                {item.receiptNumber || '✨ System Auto'}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 font-mono text-slate-600 dark:text-slate-400 text-[11px]">
+                                                                        {item.rawRef || <span className="text-slate-300 italic">—</span>}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                                                                        {item.rawDate || 'Today'}
+                                                                    </td>
+                                                                    <td className="px-4 py-2.5">
+                                                                        {item.matchStatus === 'matched' ? (
+                                                                            <div className="space-y-0.5">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className="font-bold text-slate-900 dark:text-white">
+                                                                                        {item.matchedStudentName}
+                                                                                    </span>
+                                                                                    <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded text-[10px] font-mono">
+                                                                                        {item.matchedStudentAdm}
+                                                                                    </span>
+                                                                                </div>
+                                                                                {item.voteHeadSummary && (
+                                                                                    <div className="text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                                                                                        ⚡ {item.voteHeadSummary}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold text-[11px]">
+                                                                                <span>⚠️ Unmatched</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-3 py-2.5 text-center">
+                                                                        {item.matchStatus === 'unmatched' ? (
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => {
                                                                                     setAssigningRowItem(item);
-                                                                                    setAssignSearchQuery(item.matchedStudentName || item.rawName || '');
+                                                                                    setAssignSearchQuery(item.rawName || item.rawAdm || '');
                                                                                 }}
-                                                                                className="text-[10px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline font-semibold cursor-pointer"
-                                                                                title="Change assigned student"
+                                                                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                                                                                title="Search and assign student"
                                                                             >
-                                                                                Change
+                                                                                <SearchIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                                                                <span>Assign...</span>
                                                                             </button>
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        ));
-                                                    })()
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Pagination Controls */}
-                                    {filteredItems.length > PAGE_SIZE && (
-                                        <div className="px-4 py-2.5 bg-slate-50/80 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 font-semibold">
-                                            <span>
-                                                Showing {((excelPage - 1) * PAGE_SIZE) + 1} - {Math.min(excelPage * PAGE_SIZE, filteredItems.length)} of {filteredItems.length} records
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setExcelPage(p => Math.max(1, p - 1))}
-                                                    disabled={excelPage <= 1}
-                                                    className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-40 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                                >
-                                                    Previous
-                                                </button>
-                                                <span className="font-mono text-slate-700 dark:text-slate-300">
-                                                    Page {excelPage} of {Math.ceil(filteredItems.length / PAGE_SIZE)}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setExcelPage(p => Math.min(Math.ceil(filteredItems.length / PAGE_SIZE), p + 1))}
-                                                    disabled={excelPage >= Math.ceil(filteredItems.length / PAGE_SIZE)}
-                                                    className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-40 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                                >
-                                                    Next
-                                                </button>
-                                            </div>
+                                                                        ) : (
+                                                                            <div className="inline-flex items-center gap-1.5">
+                                                                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                                                    Ready
+                                                                                </span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        setAssigningRowItem(item);
+                                                                                        setAssignSearchQuery(item.matchedStudentName || item.rawName || '');
+                                                                                    }}
+                                                                                    className="text-[10px] text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 underline font-semibold cursor-pointer"
+                                                                                    title="Change assigned student"
+                                                                                >
+                                                                                    Change
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ));
+                                                        })()
+                                                    )}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    )}
-                                </div>
+
+                                        {/* Pagination Controls */}
+                                        {filteredItems.length > PAGE_SIZE && (
+                                            <div className="px-4 py-2.5 bg-slate-50/80 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                                                <span>
+                                                    Showing {((excelPage - 1) * PAGE_SIZE) + 1} - {Math.min(excelPage * PAGE_SIZE, filteredItems.length)} of {filteredItems.length} records
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExcelPage(p => Math.max(1, p - 1))}
+                                                        disabled={excelPage <= 1}
+                                                        className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-40 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                    >
+                                                        Previous
+                                                    </button>
+                                                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                                                        Page {excelPage} of {Math.ceil(filteredItems.length / PAGE_SIZE)}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExcelPage(p => Math.min(Math.ceil(filteredItems.length / PAGE_SIZE), p + 1))}
+                                                        disabled={excelPage >= Math.ceil(filteredItems.length / PAGE_SIZE)}
+                                                        className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg disabled:opacity-40 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                    >
+                                                        Next
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ── MODE 2: GROUPED BY STUDENT CARDS WITH ACCORDION BREAKDOWN ── */}
+                                {excelViewMode === 'grouped' && (
+                                    <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                                        {groupedStudents.length === 0 ? (
+                                            <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-400 font-medium text-xs">
+                                                No student groups match the selected filters.
+                                            </div>
+                                        ) : (
+                                            groupedStudents.map((grp) => {
+                                                const isExpanded = expandedGroupKeys[grp.groupKey] ?? (groupedStudents.length <= 15 || grp.rawTxCount > 1);
+                                                return (
+                                                    <div 
+                                                        key={grp.groupKey}
+                                                        className={`border rounded-2xl transition-all overflow-hidden ${
+                                                            grp.matchStatus === 'matched'
+                                                                ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs'
+                                                                : 'border-amber-300 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/20'
+                                                        }`}
+                                                    >
+                                                        {/* Group Header Card */}
+                                                        <div 
+                                                            onClick={() => handleToggleGroup(grp.groupKey)}
+                                                            className="p-3.5 flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/40 select-none transition-colors"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                                                    grp.matchStatus === 'matched'
+                                                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                                                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                                                }`}>
+                                                                    <UserIcon className="w-5 h-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <h5 className="font-black text-sm text-slate-900 dark:text-white">
+                                                                            {grp.studentName}
+                                                                        </h5>
+                                                                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 font-mono font-bold text-slate-700 dark:text-slate-300 text-xs rounded-md">
+                                                                            ADM: {grp.admNumber}
+                                                                        </span>
+                                                                        {grp.className && (
+                                                                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold text-[10px] rounded-md">
+                                                                                {grp.className}
+                                                                            </span>
+                                                                        )}
+                                                                        {grp.matchStatus === 'unmatched' && (
+                                                                            <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-black text-[10px] rounded-md">
+                                                                                ⚠️ Needs Assignment
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                                                        {grp.matchStatus === 'matched' ? '✓ Student verified in database' : 'Spreadsheet record does not match existing student admission'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Right Side Badges: Raw Excel Tx Count + Total Amount */}
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="text-right">
+                                                                    <div className="flex items-center gap-1.5 justify-end">
+                                                                        <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-black text-xs rounded-lg border border-indigo-200 dark:border-indigo-800/60">
+                                                                            📊 Raw Excel: {grp.rawTxCount} {grp.rawTxCount === 1 ? 'Transaction' : 'Transactions'}
+                                                                        </span>
+                                                                        {grp.rawTxCount > 1 && (
+                                                                            <span className="px-2 py-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-extrabold text-[10px] rounded-md uppercase tracking-wider shadow-xs">
+                                                                                ⚡ Multiple Payments
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                                                        Total: KES {grp.totalAmount.toLocaleString()}
+                                                                    </div>
+                                                                </div>
+                                                                <div className={`p-1.5 rounded-lg text-slate-400 transition-transform ${isExpanded ? 'rotate-180 bg-slate-100 dark:bg-slate-800' : ''}`}>
+                                                                    <ChevronDownIcon className="w-4 h-4" />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Expanded Sub-Table of Individual Raw Excel Rows */}
+                                                        {isExpanded && (
+                                                            <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-3">
+                                                                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                                                                    <table className="w-full text-left text-xs border-collapse bg-white dark:bg-slate-900">
+                                                                        <thead>
+                                                                            <tr className="bg-slate-100/70 dark:bg-slate-950 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                                                                                <th className="py-2 px-3 text-center w-10">Row</th>
+                                                                                <th className="py-2 px-3 text-left">Date</th>
+                                                                                <th className="py-2 px-3 text-right">Amount (KES)</th>
+                                                                                <th className="py-2 px-3 text-left">Payment Mode</th>
+                                                                                <th className="py-2 px-3 text-left">Receipt No</th>
+                                                                                <th className="py-2 px-3 text-left">Reference / Code</th>
+                                                                                <th className="py-2 px-3 text-left">Fee Breakdown</th>
+                                                                                <th className="py-2 px-3 text-center w-24">Action</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                                            {grp.items.map((it, idx) => (
+                                                                                <tr key={it.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                                                                    <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">
+                                                                                        {it.rowIndex}
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
+                                                                                        {it.rawDate || 'Today'}
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3 text-right font-black font-mono text-slate-900 dark:text-white">
+                                                                                        KES {it.rawAmount.toLocaleString()}
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3">
+                                                                                        <select
+                                                                                            value={it.paymentMethod || it.rawMode || defaultPaymentMethod}
+                                                                                            onChange={(e) => handleRowMethodChange(it.id, e.target.value as any)}
+                                                                                            className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 text-[11px] font-semibold"
+                                                                                        >
+                                                                                            <option value="Bank Transfer">Bank Transfer</option>
+                                                                                            <option value="M-Pesa">M-Pesa</option>
+                                                                                            <option value="Cash">Cash</option>
+                                                                                            <option value="Cheque">Cheque</option>
+                                                                                            <option value="Bursary">Bursary</option>
+                                                                                            <option value="Direct Deposit">Direct Deposit</option>
+                                                                                        </select>
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                                                                        {it.receiptSource === 'excel' && it.rawReceiptNo ? (
+                                                                                            <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded font-bold">
+                                                                                                {it.rawReceiptNo}
+                                                                                            </span>
+                                                                                        ) : (
+                                                                                            <span className="text-slate-400 italic">
+                                                                                                {it.receiptNumber || '✨ Auto'}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                                                                        {it.rawRef || '—'}
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3 text-[11px] text-purple-700 dark:text-purple-300 font-medium">
+                                                                                        {it.voteHeadSummary || '⚡ Auto-Split'}
+                                                                                    </td>
+                                                                                    <td className="py-2 px-3 text-center">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                setAssigningRowItem(it);
+                                                                                                setAssignSearchQuery(it.matchedStudentName || it.rawName || '');
+                                                                                            }}
+                                                                                            className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer"
+                                                                                        >
+                                                                                            {it.matchStatus === 'matched' ? 'Reassign' : 'Assign'}
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Progress Bar during bulk posting */}
                                 {isProcessingBulk && bulkProgress.total > 0 && (
@@ -1962,7 +2348,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 )}
 
                                 {/* Success message */}
-                                {successSummary && (
+                                {successSummary && !uploadAuditReport && (
                                     <div className="p-4 bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 rounded-2xl font-bold text-xs flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <CheckCircleIcon className="w-5 h-5 text-emerald-600" />
@@ -2015,7 +2401,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                             ) : (
                                                 <>
                                                     <CheckBadgeIcon className="w-4 h-4" />
-                                                    <span>Confirm &amp; Post {stats.matchedCount} Payments</span>
+                                                    <span>Confirm &amp; Post {stats.matchedCount} Payments ({stats.uniqueMatchedStudentsCount} Students)</span>
                                                 </>
                                             )}
                                         </button>
@@ -2688,7 +3074,146 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 onClick={() => setAssigningRowItem(null)}
                                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                             >
-                                Cancel
+            {/* ── MODAL: POST-UPLOAD RECONCILIATION AUDIT & COMPARISON REPORT ── */}
+            {uploadAuditReport && (
+                <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full p-6 text-left space-y-5 max-h-[90vh] flex flex-col">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4 shrink-0">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-2 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                                        <CheckBadgeIcon className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                                            Reconciliation &amp; Upload Verification Audit
+                                        </h3>
+                                        <p className="text-xs text-slate-500 font-semibold">
+                                            1-to-1 comparison of Raw Excel Transactions vs Created System Receipts
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setUploadAuditReport(null);
+                                    if (onClose) onClose();
+                                }}
+                                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Top Metrics Cards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
+                            <div className="p-3.5 bg-slate-50 dark:bg-slate-950/80 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Raw Excel Tx</span>
+                                <span className="text-lg font-black text-slate-900 dark:text-white">{uploadAuditReport.excelTotalRows} Rows</span>
+                            </div>
+                            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800/60">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">Uploaded Receipts</span>
+                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{uploadAuditReport.postedReceiptsCount} Created</span>
+                            </div>
+                            <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800/60">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 block">Students Reconciled</span>
+                                <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">{uploadAuditReport.groups.length} Students</span>
+                            </div>
+                            <div className="p-3.5 bg-slate-50 dark:bg-slate-950/80 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Total Value Posted</span>
+                                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-mono">KES {uploadAuditReport.postedTotalAmount.toLocaleString()}</span>
+                            </div>
+                        </div>
+
+                        {/* Audit Comparison Table */}
+                        <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-100 dark:bg-slate-950 text-[10px] font-black text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800 z-10">
+                                    <tr>
+                                        <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                        <th className="py-2.5 px-4">Student &amp; ADM</th>
+                                        <th className="py-2.5 px-3 text-center">Raw Excel Tx</th>
+                                        <th className="py-2.5 px-3 text-center">Uploaded Receipts</th>
+                                        <th className="py-2.5 px-4 text-right">Total Amount</th>
+                                        <th className="py-2.5 px-3 text-center">Reconciliation Status</th>
+                                        <th className="py-2.5 px-4">Receipt Numbers Generated</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                                    {uploadAuditReport.groups.map((g, idx) => (
+                                        <tr key={g.studentId || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono font-bold text-[11px]">
+                                                {idx + 1}
+                                            </td>
+                                            <td className="py-2.5 px-4">
+                                                <div className="font-bold text-slate-900 dark:text-white">
+                                                    {g.studentName}
+                                                </div>
+                                                <div className="font-mono text-[10px] text-slate-400">
+                                                    ADM: {g.admNumber}
+                                                </div>
+                                            </td>
+                                            <td className="py-2.5 px-3 text-center">
+                                                <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-black font-mono rounded-lg text-xs">
+                                                    {g.excelTxCount}
+                                                </span>
+                                            </td>
+                                            <td className="py-2.5 px-3 text-center">
+                                                <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-black font-mono rounded-lg text-xs">
+                                                    {g.uploadedTxCount}
+                                                </span>
+                                            </td>
+                                            <td className="py-2.5 px-4 text-right font-black font-mono text-slate-900 dark:text-white">
+                                                KES {g.uploadedTotalAmount.toLocaleString()}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-center">
+                                                {g.isExactMatch ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 rounded-lg text-[10px] font-black border border-emerald-200 dark:border-emerald-800">
+                                                        <span>✅ Exact Match ({g.excelTxCount} = {g.uploadedTxCount})</span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 rounded-lg text-[10px] font-black border border-amber-200 dark:border-amber-800">
+                                                        <span>⚠️ Mismatch ({g.excelTxCount} vs {g.uploadedTxCount})</span>
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="py-2.5 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {g.receiptNumbers.map(rcpt => (
+                                                        <span key={rcpt} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-semibold text-[10px]">
+                                                            {rcpt}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                            <button
+                                type="button"
+                                onClick={handleDownloadAuditReport}
+                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95"
+                            >
+                                <DownloadIcon className="w-4 h-4" />
+                                <span>Export Audit Report (.xlsx)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setUploadAuditReport(null);
+                                    if (onClose) onClose();
+                                }}
+                                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                            >
+                                Done &amp; Close
                             </button>
                         </div>
                     </div>
