@@ -956,6 +956,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.issue_date === undefined) copy.issue_date = parseDate(copy.invoice_date);
                             delete copy.invoice_date;
                         }
+                        if (copy.className !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.className;
+                            delete copy.className;
+                        }
+                        if (copy.studentClass !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.studentClass;
+                            delete copy.studentClass;
+                        }
+                        if (copy.student_class !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.student_class;
+                            delete copy.student_class;
+                        }
                     }
 
                     // Strip un-cached transient fields that do not exist as physical columns
@@ -983,6 +995,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'parent_name', 'parentName', 'parent_phone', 'parentPhone', 'parent_email', 'parentEmail',
                         'recorded_by', 'recordedBy', 'created_by', 'createdBy', 'issued_by', 'issuedBy',
                         'accountant_name', 'accountantName', 'payer_name', 'payerName',
+                        'student_class', 'studentClass', 'className', 'grade', 'grade_name', 'gradeName', 'class_group', 'classGroup', 'stream_name', 'streamName',
                         'metadata'
                     ];
                     transientColumns.forEach(col => {
@@ -1168,6 +1181,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentUpdateData = copy;
                 } else if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments', 'books'].includes(moduleName) && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
+                    if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
+                        if (copy.className !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.className;
+                            delete copy.className;
+                        }
+                        if (copy.studentClass !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.studentClass;
+                            delete copy.studentClass;
+                        }
+                        if (copy.student_class !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.student_class;
+                            delete copy.student_class;
+                        }
+                    }
                     const transientColumns = [
                         'message', 'isOpeningBalance', 'is_opening_balance',
                         'notificationSent', 'notification_sent', 'phone', 'email',
@@ -1192,6 +1219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'parent_name', 'parentName', 'parent_phone', 'parentPhone', 'parent_email', 'parentEmail',
                         'recorded_by', 'recordedBy', 'created_by', 'createdBy', 'issued_by', 'issuedBy',
                         'accountant_name', 'accountantName', 'payer_name', 'payerName',
+                        'student_class', 'studentClass', 'className', 'grade', 'grade_name', 'gradeName', 'class_group', 'classGroup', 'stream_name', 'streamName',
                         'metadata'
                     ];
                     transientColumns.forEach(col => {
