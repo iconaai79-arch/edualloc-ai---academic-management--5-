@@ -481,6 +481,35 @@ const renderReceiptPageOnDoc = (
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
+    // If reprint, render a stylish diagonal watermark in the background across the receipt
+    if (isReprint) {
+        try {
+            (doc as any).saveGraphicsState?.();
+            if (typeof (doc as any).setGState === 'function') {
+                try {
+                    const gState = new (doc as any).GState({ opacity: 0.08 });
+                    (doc as any).setGState(gState);
+                } catch (_) {}
+            }
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(36);
+            doc.setTextColor(225, 29, 72); // Rose-600 with low opacity
+            doc.text('COPY BOOKMARK • OFFICIAL REPRINT', pageWidth / 2, (pageHeight / 2) + 10, {
+                align: 'center',
+                angle: 35
+            });
+            (doc as any).restoreGraphicsState?.();
+        } catch (_) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(32);
+            doc.setTextColor(245, 225, 230); // Very light fallback pastel rose
+            doc.text('COPY BOOKMARK • OFFICIAL REPRINT', pageWidth / 2, (pageHeight / 2) + 10, {
+                align: 'center',
+                angle: 35
+            });
+        }
+    }
+
     // Dynamically shift table starting position to accommodate metadata block card
     const finalTableStartY = tableStartY + 38;
 
@@ -527,22 +556,6 @@ const renderReceiptPageOnDoc = (
     doc.setFontSize(7);
     doc.setTextColor(13, 148, 136); // Teal-600
     doc.text(isReprint ? 'OFFICIAL REPRINT' : 'PAID / SECURED', badgeX + 1.5, tableStartY + 19.5);
-
-    // If reprint, render a prominent Copy Bookmark badge in the top right corner of the metadata container
-    if (isReprint) {
-        const bookmarkWidth = 46;
-        const bookmarkHeight = 5.5;
-        const bookmarkX = pageWidth - margin - bookmarkWidth - 4;
-        const bookmarkY = tableStartY - 3.5;
-        doc.setFillColor(254, 242, 242); // Rose-50
-        doc.setDrawColor(244, 63, 94); // Rose-500
-        doc.setLineWidth(0.4);
-        doc.roundedRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight, 1, 1, 'FD');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6.8);
-        doc.setTextColor(225, 29, 72); // Rose-600
-        doc.text('COPY BOOKMARK • REPRINT', bookmarkX + bookmarkWidth / 2, bookmarkY + 3.8, { align: 'center' });
-    }
 
     // Column 2 Content: Student / Payer / Transaction details
     const resolvedStudentName = studentInfo?.name || (receipt as any)?.studentName || (receipt as any)?.student_name || (receipt as any)?.payerName;
