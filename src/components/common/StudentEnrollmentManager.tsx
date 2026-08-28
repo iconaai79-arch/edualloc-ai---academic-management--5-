@@ -1552,11 +1552,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
                         const inputName = item.name ? String(item.name).trim() : '';
                         const inputAdmNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
+                        const inputEmail = item.email ? String(item.email).trim().toLowerCase() : '';
                         
-                        // 1. First check if an enrollment already exists for this admission number
-                        let existingEnrollment = inputAdmNo ? currentEnrollmentsList.find(e => 
-                            e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
-                        ) : undefined;
+                        // 1. Check if an enrollment already exists strictly by Admission Number within this institution
+                        let existingEnrollment: StudentEnrollment | undefined = undefined;
+                        if (inputAdmNo) {
+                            existingEnrollment = currentEnrollmentsList.find(e => 
+                                e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
+                            );
+                        }
 
                         let existingUser: User | undefined = undefined;
 
@@ -1575,22 +1579,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             }
                         }
 
-                        // If no enrollment matched, search user by email, phone, or name
-                        if (!existingUser) {
+                        // 2. Only match by unique student email if explicit and not a dummy/fallback domain
+                        if (!existingUser && inputEmail && !inputEmail.includes('@eduai.local') && !inputEmail.includes('student_')) {
                             existingUser = currentUsersList.find(u => 
-                                (item.email && u.email && u.email.toLowerCase() === String(item.email).trim().toLowerCase()) || 
-                                (item.phoneNumber && u.phoneNumber && String(u.phoneNumber).replace(/\D/g, '') === String(item.phoneNumber).replace(/\D/g, '')) ||
-                                (inputName && u.name && u.name.trim().toLowerCase() === inputName.toLowerCase())
+                                u.email && u.email.toLowerCase() === inputEmail && u.role === 'student'
                             );
-
-                            if (!existingUser && item.email) {
-                                const globalRecords = await apiService.fetchModuleRecords<User>('users', undefined, undefined, {
-                                    filter: { email: String(item.email).trim().toLowerCase() }
-                                });
-                                if (globalRecords && globalRecords.length > 0) {
-                                    existingUser = globalRecords[0];
-                                }
-                            }
                         }
 
                         if (existingUser) {
@@ -1607,11 +1600,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             const userIdx = currentUsersList.findIndex(u => u.id === existingUser!.id);
                             if (userIdx !== -1) currentUsersList[userIdx] = updatedUser;
                         } else {
-                            // Create new user profile
-                            const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                            const generatedEmail = item.email && String(item.email).trim()
-                                ? String(item.email).trim()
-                                : `student_${newUserId}@eduai.local`;
+                            // Create a distinct, new student user profile
+                            const newUserId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                            const generatedEmail = inputEmail || `student_${newUserId}@eduai.local`;
                             
                             const newUser: User = {
                                 id: newUserId,
@@ -1631,18 +1622,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             currentUsersList.push(newUser);
                         }
 
-                        if (!existingEnrollment) {
-                            existingEnrollment = currentEnrollmentsList.find(e => e.userId === userId);
+                        if (!existingEnrollment && inputAdmNo) {
+                            existingEnrollment = currentEnrollmentsList.find(e => 
+                                e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
+                            );
                         }
 
-                        const admissionNumberValue = item.admissionNumber 
-                            ? String(item.admissionNumber).trim() 
-                            : (existingEnrollment?.admissionNumber || `ADM-${Date.now().toString().slice(-5)}_${Math.floor(Math.random()*1000)}`);
+                        const admissionNumberValue = inputAdmNo || (existingEnrollment?.admissionNumber || `ADM-${Date.now().toString().slice(-5)}${Math.floor(100 + Math.random() * 900)}`);
  
                         const parentNameVal = item.parentName || existingEnrollment?.metadata?.parentName || '';
                         const parentPhoneVal = item.parentPhone || existingEnrollment?.metadata?.parentPhone || '';
                         const parentEmailVal = item.parentEmail || existingEnrollment?.metadata?.parentEmail || '';
-                        const parentRelationVal = item.parentRelation || existingEnrollment?.metadata?.parentRelation || 'Father';
+                        const parentRelationVal = item.parentRelation || existingEnrollment?.metadata?.parentRelation || 'Parent';
                         
                         let importedParents = existingEnrollment?.metadata?.parents || [];
                         if (!Array.isArray(importedParents) || importedParents.length === 0) {
@@ -1686,7 +1677,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             };
                             await apiService.updateModuleRecord('student_enrollments', existingEnrollment.id, updated);
                         } else {
-                            const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                            const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
                             const newEnrollment: StudentEnrollment = {
                                 id: enrollmentId,
                                 institutionId: currentInstitution.id,

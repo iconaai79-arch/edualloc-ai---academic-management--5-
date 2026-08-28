@@ -4117,6 +4117,28 @@ export const apiService = {
         
         await apiService.saveModuleRecord('users', sanitizedData);
 
+        // Also ensure matching student_enrollments records are created so they appear across student registers
+        try {
+            const enrollmentsToSave = sanitizedData.map(user => ({
+                id: `enr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: user.institutionId || institutionId,
+                userId: user.id,
+                enrollmentType: 'academic',
+                admissionNumber: user.staffId || user.admissionNumber || user.admission_number || `ADM-${Date.now().toString().slice(-5)}${Math.floor(100 + Math.random() * 900)}`,
+                status: 'Enrolled',
+                enrollmentDate: new Date().toISOString().split('T')[0],
+                metadata: {
+                    gradeLevel: user.studentClass || user.classLevel || user.gradeLevel || '',
+                    stream: user.stream || user.streamName || '',
+                    gender: user.gender || ''
+                },
+                createdAt: new Date().toISOString()
+            }));
+            await apiService.saveModuleRecord('student_enrollments', enrollmentsToSave);
+        } catch (enrErr) {
+            console.warn('[onImportStudents] Enrollment sync fallback handled:', enrErr);
+        }
+
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
             if (user.email) {

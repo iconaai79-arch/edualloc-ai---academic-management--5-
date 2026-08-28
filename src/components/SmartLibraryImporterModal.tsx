@@ -6,6 +6,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { analyzeBookSpreadsheet } from '../services/geminiService';
+import { getNextAccessionNumber, normAcc } from '../utils/accessionUtils';
 import * as XLSX from 'xlsx';
 
 type BookMappingField = 'title' | 'author' | 'isbn' | 'accessionNumber' | 'category' | 'location' | 'quantity';
@@ -16,6 +17,7 @@ interface SmartLibraryImporterModalProps {
     onClose: () => void;
     onImport: (items: any[]) => Promise<void>;
     institutionId: string;
+    existingBooks?: Book[];
 }
 
 const guessHeaderMapping = (headers: string[]): Record<BookMappingField, string | null> => {
@@ -113,6 +115,14 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
         const validItems: any[] = [];
         const invalidRows: { row: any, error: string }[] = [];
 
+        // Build a tracking set of already assigned accession numbers
+        const usedAccs = new Set<string>();
+        const currentBooksPool = [...(existingBooks || [])];
+        currentBooksPool.forEach(b => {
+            const acc = normAcc(b.accessionNumber);
+            if (acc) usedAccs.add(acc);
+        });
+
         (rawData || []).forEach((row) => {
             try {
                 const title = row[userMapping.title!];
@@ -123,8 +133,33 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                     throw new Error("Missing required fields (Title or Author).");
                 }
 
+                const rawAccNo = userMapping.accessionNumber ? String(row[userMapping.accessionNumber] || '').trim() : '';
+                let finalAccNo = normAcc(rawAccNo);
+                let wasAutoAssigned = false;
+
+                if (!finalAccNo || usedAccs.has(finalAccNo)) {
+                    // Generate a distinct unique accession number
+                    finalAccNo = getNextAccessionNumber(currentBooksPool, finalAccNo || undefined);
+                    wasAutoAssigned = true;
+                }
+
+                // Register into tracked set and pool for subsequent items in the batch
+                usedAccs.add(finalAccNo);
+                currentBooksPool.push({
+                    id: `temp_${validItems.length}`,
+                    accessionNumber: finalAccNo,
+                    title: String(title).trim(),
+                    author: String(author).trim(),
+                    isbn: '',
+                    quantity: 1,
+                    available: 1,
+                    category: '',
+                    location: '',
+                    addedDate: '',
+                    institutionId
+                });
+
                 const isbn = userMapping.isbn ? String(row[userMapping.isbn] || '') : '';
-                const accNo = userMapping.accessionNumber ? String(row[userMapping.accessionNumber] || '') : `ACC-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substr(2, 2).toUpperCase()}`;
                 const category = userMapping.category ? String(row[userMapping.category] || 'General') : 'General';
                 const location = userMapping.location ? String(row[userMapping.location] || '') : '';
 
@@ -133,13 +168,14 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                     title: String(title).trim(),
                     author: String(author).trim(),
                     isbn: String(isbn).trim(),
-                    accessionNumber: String(accNo).trim().toUpperCase(),
+                    accessionNumber: finalAccNo,
                     category: String(category).trim(),
                     location: String(location).trim(),
                     quantity: isNaN(quantity) ? 1 : quantity,
                     available: isNaN(quantity) ? 1 : quantity,
                     institutionId,
-                    addedDate: new Date().toISOString()
+                    addedDate: new Date().toISOString(),
+                    wasAutoAssigned
                 });
 
             } catch (e: any) {
@@ -229,10 +265,19 @@ export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                        {parsedData?.valid.slice(0, 15).map((v, i) => (
+                                        {parsedData?.valid.slice(0, 25).map((v, i) => (
                                             <tr key={i} className="bg-white dark:bg-slate-900">
-                                                <td className="px-4 py-3 text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
-                                                    {v.accessionNumber || 'Auto-generated'}
+                                                <td className="px-4 py-3 text-xs font-mono font-bold whitespace-nowrap">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded">
+                                                            {v.accessionNumber}
+                                                        </span>
+                                                        {v.wasAutoAssigned && (
+                                                            <span className="text-[8px] font-black uppercase tracking-tight bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded" title="Accession number was auto-generated to prevent duplicates">
+                                                                Unique ID
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-bold text-slate-900 dark:text-white">{v.title}</td>
                                                 <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{v.author}</td>

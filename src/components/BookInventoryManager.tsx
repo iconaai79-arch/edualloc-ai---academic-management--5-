@@ -15,10 +15,12 @@ import { ListIcon } from './icons/ListIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
-import { ExclamationCircleIcon } from './icons/ExclamationCircleIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 import { XIcon } from './icons/XIcon';
 import { FileTextIcon } from './icons/FileTextIcon';
+import { SparklesIcon } from './icons/SparklesIcon';
 import { apiService } from '../services/apiService';
+import { getNextAccessionNumber, isAccessionNumberUnique, getDuplicateAccessionGroups, normAcc } from '../utils/accessionUtils';
 
 import { BookQrCodeModal } from './BookQrCodeModal';
 import { SmartLibraryImporterModal } from './SmartLibraryImporterModal';
@@ -53,6 +55,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const [pdfPreviewBook, setPdfPreviewBook] = useState<Book | null>(null);
     const [isPreviewingCatalogPdf, setIsPreviewingCatalogPdf] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isResolvingDuplicates, setIsResolvingDuplicates] = useState(false);
 
     // Reset pagination to page 1 whenever filters or search change
     useEffect(() => {
@@ -69,6 +72,24 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         category: '',
         location: ''
     });
+
+    const duplicateAccessions = useMemo(() => {
+        return getDuplicateAccessionGroups(books);
+    }, [books]);
+
+    const totalDuplicateBooksCount = useMemo(() => {
+        let count = 0;
+        duplicateAccessions.forEach(list => {
+            count += list.length;
+        });
+        return count;
+    }, [duplicateAccessions]);
+
+    const accessionConflictBook = useMemo(() => {
+        const acc = normAcc(newBook.accessionNumber);
+        if (!acc) return null;
+        return books.find(b => b.id !== editingBook?.id && normAcc(b.accessionNumber) === acc) || null;
+    }, [newBook.accessionNumber, editingBook, books]);
 
     useEffect(() => {
         loadBooks();
@@ -222,10 +243,107 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const startItemIndex = filteredBooks.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
     const endItemIndex = Math.min(filteredBooks.length, currentPage * pageSize);
 
+    const handleOpenAddModal = () => {
+        setIsAddingBook(true);
+        setEditingBook(null);
+        const nextAcc = getNextAccessionNumber(books);
+        setNewBook({
+            title: '',
+            author: '',
+            isbn: '',
+            accessionNumber: nextAcc,
+            quantity: 1,
+            available: 1,
+            category: '',
+            location: ''
+        });
+    };
+
+    const handleSuggestNextAcc = () => {
+        const nextAcc = getNextAccessionNumber(books, newBook.accessionNumber);
+        setNewBook(prev => ({ ...prev, accessionNumber: nextAcc }));
+    };
+
+    const handleAutoResolveDuplicates = async () => {
+        if (duplicateAccessions.size === 0) return;
+        if (!confirm(`Found ${totalDuplicateBooksCount} books sharing ${duplicateAccessions.size} duplicate accession numbers.\n\nWould you like to automatically reassign unique, sequential accession numbers to all duplicate copies?`)) return;
+
+        setIsResolvingDuplicates(true);
+        try {
+            const updatedBooks: Book[] = [];
+            const currentPool = [...books];
+
+            for (const [acc, bookList] of duplicateAccessions.entries()) {
+                // Keep the first book as is (index 0)
+                for (let i = 1; i < bookList.length; i++) {
+                    const bookToUpdate = bookList[i];
+                    const nextAcc = getNextAccessionNumber(currentPool, acc);
+                    const modifiedBook: Book = {
+                        ...bookToUpdate,
+                        accessionNumber: nextAcc
+                    };
+                    updatedBooks.push(modifiedBook);
+
+                    const poolIdx = currentPool.findIndex(b => b.id === bookToUpdate.id);
+                    if (poolIdx !== -1) {
+                        currentPool[poolIdx] = modifiedBook;
+                    } else {
+                        currentPool.push(modifiedBook);
+                    }
+                }
+            }
+
+            for (const book of updatedBooks) {
+                await apiService.saveModuleRecord('books', {
+                    ...book,
+                    accession_number: book.accessionNumber,
+                    institution_id: book.institutionId || institutionId
+                });
+            }
+
+            await onLogAction(`Automatically resolved duplicate accession numbers for ${updatedBooks.length} books`);
+            await loadBooks();
+            onDataChange();
+            alert(`Successfully reassigned unique accession numbers to ${updatedBooks.length} books!`);
+        } catch (error: any) {
+            console.error('Error resolving duplicates:', error);
+            alert(`Failed to resolve duplicates: ${error.message || 'Database error'}`);
+        } finally {
+            setIsResolvingDuplicates(false);
+        }
+    };
+
+    const handleFixSingleDuplicate = async (book: Book) => {
+        try {
+            const nextAcc = getNextAccessionNumber(books, book.accessionNumber);
+            const updated = {
+                ...book,
+                accessionNumber: nextAcc,
+                accession_number: nextAcc,
+                institution_id: book.institutionId || institutionId
+            };
+            await apiService.saveModuleRecord('books', updated);
+            await onLogAction(`Reassigned unique accession number for "${book.title}": ${book.accessionNumber} -> ${nextAcc}`);
+            await loadBooks();
+            onDataChange();
+        } catch (error: any) {
+            console.error('Error fixing duplicate:', error);
+            alert(`Failed to reassign accession number: ${error.message}`);
+        }
+    };
+
     const handleSaveBook = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const accNo = (newBook.accessionNumber || '').trim().toUpperCase() || `ACC-${Date.now().toString().slice(-6)}`;
+            const accNo = (newBook.accessionNumber || '').trim().toUpperCase() || getNextAccessionNumber(books);
+            
+            // Check for duplicate accession number
+            const conflict = books.find(b => b.id !== editingBook?.id && normAcc(b.accessionNumber) === normAcc(accNo));
+            if (conflict) {
+                alert(`Cannot save book: Accession Number "${accNo}" is already in use by "${conflict.title}". Library standards require every book to have a unique accession number. Please click "Suggest Next ID" or enter a distinct number.`);
+                return;
+            }
+
             const qty = Math.max(1, Number(newBook.quantity || 1));
             const avail = editingBook 
                 ? (newBook.quantity !== editingBook.quantity 
@@ -346,6 +464,33 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                 </div>
             </div>
 
+            {/* Duplicate Accession Alert Banner */}
+            {totalDuplicateBooksCount > 0 && (
+                <div className="p-5 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-indigo-500/10 border-2 border-amber-400/40 dark:border-amber-500/30 rounded-[2rem] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-amber-500 text-white rounded-2xl shadow-md shadow-amber-500/20">
+                            <ExclamationTriangleIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                Duplicate Accession Numbers Detected ({totalDuplicateBooksCount} Books)
+                            </h4>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                {duplicateAccessions.size} accession numbers ({Array.from(duplicateAccessions.keys()).slice(0, 4).join(', ')}{duplicateAccessions.size > 4 ? '...' : ''}) are shared across multiple books. Every physical copy must have a unique accession number to guarantee loan and inventory integrity.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleAutoResolveDuplicates}
+                        disabled={isResolvingDuplicates}
+                        className="px-5 py-3 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-2 whitespace-nowrap cursor-pointer disabled:opacity-50"
+                    >
+                        {isResolvingDuplicates ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
+                        Auto-Resolve All Duplicates
+                    </button>
+                </div>
+            )}
+
             {/* Toolbar */}
             <div className="flex flex-col md:flex-row gap-4 justify-between bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                 <div className="flex flex-1 flex-wrap gap-3">
@@ -403,7 +548,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                         <span className="hidden sm:inline">Batch Import</span>
                     </button>
                     <button
-                        onClick={() => { setIsAddingBook(true); setEditingBook(null); setNewBook({ title: '', author: '', isbn: '', accessionNumber: '', quantity: 1, available: 1, category: '', location: '' }); }}
+                        onClick={handleOpenAddModal}
                         className="btn-primary px-6 py-2.5 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer shadow-lg shadow-indigo-200 dark:shadow-none"
                     >
                         <PlusIcon className="w-4 h-4" />
@@ -426,20 +571,32 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                            {paginatedBooks.map(book => (
-                                <tr key={book.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors group">
+                            {paginatedBooks.map(book => {
+                                const isDuplicate = duplicateAccessions.has(normAcc(book.accessionNumber));
+                                return (
+                                <tr key={book.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors group ${isDuplicate ? 'bg-amber-50/30 dark:bg-amber-950/20' : ''}`}>
                                     <td className="px-6 py-5">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-14 bg-slate-100 dark:bg-slate-900 rounded-lg flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm transition-transform group-hover:scale-105">
-                                                <BookOpenIcon className="w-5 h-5 text-slate-400" />
+                                            <div className={`w-10 h-14 rounded-lg flex items-center justify-center border shadow-sm transition-transform group-hover:scale-105 ${
+                                                isDuplicate 
+                                                    ? 'bg-amber-50 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-600'
+                                                    : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400'
+                                            }`}>
+                                                <BookOpenIcon className="w-5 h-5" />
                                             </div>
                                             <div>
                                                 <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{book.title}</p>
                                                 <p className="text-xs font-bold text-slate-500">By {book.author}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-[9px] font-black px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-md">
-                                                        {book.accessionNumber}
-                                                    </span>
+                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                    {isDuplicate ? (
+                                                        <span className="text-[9px] font-black px-2 py-0.5 bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 rounded-md border border-rose-300 dark:border-rose-800 flex items-center gap-1 font-mono" title="Duplicate Accession Number! Click the sparkle button to auto-assign a unique ID.">
+                                                            ⚠️ {book.accessionNumber} (Duplicate)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] font-black px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 rounded-md font-mono">
+                                                            {book.accessionNumber}
+                                                        </span>
+                                                    )}
                                                     <span className="text-[9px] font-bold text-slate-400">ISBN: {book.isbn}</span>
                                                 </div>
                                             </div>
@@ -488,6 +645,15 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                     </td>
                                     <td className="px-6 py-5">
                                         <div className="flex items-center justify-end gap-2">
+                                            {isDuplicate && (
+                                                <button
+                                                    onClick={() => handleFixSingleDuplicate(book)}
+                                                    className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/40 rounded-xl transition-all cursor-pointer"
+                                                    title="Auto-Assign Unique Accession Number"
+                                                >
+                                                    <SparklesIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setPdfPreviewBook(book)}
                                                 className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-xl transition-all cursor-pointer"
@@ -519,7 +685,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                             {filteredBooks.length === 0 && !loading && (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-20 text-center">
@@ -685,15 +852,40 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Accession Number (Unique ID)</label>
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Accession Number (Unique ID)</label>
+                                            <button
+                                                type="button"
+                                                onClick={handleSuggestNextAcc}
+                                                className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 flex items-center gap-1 hover:underline cursor-pointer"
+                                                title="Generate next available sequential unique ID"
+                                            >
+                                                <SparklesIcon className="w-3 h-3" />
+                                                Suggest Next
+                                            </button>
+                                        </div>
                                         <input
                                             type="text"
                                             required
-                                            value={newBook.accessionNumber}
+                                            value={newBook.accessionNumber || ''}
                                             onChange={(e) => setNewBook({ ...newBook, accessionNumber: e.target.value.toUpperCase() })}
-                                            className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-sm font-bold transition-all"
-                                            placeholder="e.g. LIB-2024-001"
+                                            className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border-2 rounded-2xl text-sm font-bold font-mono transition-all ${
+                                                accessionConflictBook
+                                                    ? 'border-rose-500 focus:border-rose-600 dark:border-rose-600'
+                                                    : 'border-transparent focus:border-indigo-500'
+                                            }`}
+                                            placeholder="e.g. 04428 or LIB-001"
                                         />
+                                        {accessionConflictBook && (
+                                            <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
+                                                ⚠️ Already in use by &quot;{accessionConflictBook.title}&quot;. Each book must have a unique ID.
+                                            </p>
+                                        )}
+                                        {!accessionConflictBook && newBook.accessionNumber && (
+                                            <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                                                ✓ Unique & Available Accession Number
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Standard Reference (ISBN)</label>
@@ -750,8 +942,12 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                 </div>
                             </div>
                             <div className="pt-6 flex gap-3">
-                                <button type="button" onClick={() => setIsAddingBook(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase tracking-widest text-xs transition-all">Discard</button>
-                                <button type="submit" className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-100 dark:shadow-none hover:translate-y-[-2px] active:translate-y-0">
+                                <button type="button" onClick={() => setIsAddingBook(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase tracking-widest text-xs transition-all cursor-pointer">Discard</button>
+                                <button 
+                                    type="submit" 
+                                    disabled={Boolean(accessionConflictBook)}
+                                    className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-100 dark:shadow-none hover:translate-y-[-2px] active:translate-y-0 cursor-pointer"
+                                >
                                     {editingBook ? 'Update Registry' : 'Commit Entry'}
                                 </button>
                             </div>
@@ -787,6 +983,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     onClose={() => setIsImportModalOpen(false)}
                     onImport={handleImportBooks}
                     institutionId={institutionId}
+                    existingBooks={books}
                 />
             )}
         </div>

@@ -1018,6 +1018,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBookRecord) : cleanBookRecord(currentPayload);
+            } else if (moduleName === 'visitors') {
+                const cleanVisitorRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (copy.host_id === '' || copy.host_id === undefined) {
+                        copy.host_id = null;
+                    }
+                    if (copy.hostId === '' || copy.hostId === undefined) {
+                        copy.hostId = null;
+                    }
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVisitorRecord) : cleanVisitorRecord(currentPayload);
             }
 
             let data: any = null;
@@ -1052,7 +1065,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id'].forEach(k => {
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by'].forEach(k => {
                             if (k in copy) copy[k] = null;
                         });
                         return copy;

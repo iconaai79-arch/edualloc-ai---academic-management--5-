@@ -4483,7 +4483,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Class Receipts Reprint State & Handler
     const [isClassReceiptReprintModalOpen, setIsClassReceiptReprintModalOpen] = useState(false);
     const [reprintSelectedClass, setReprintSelectedClass] = useState<string>('All');
+    const [reprintSelectedStream, setReprintSelectedStream] = useState<string>('All');
     const [isReprintingClass, setIsReprintingClass] = useState(false);
+
+    const availableStreamsForReprint = useMemo(() => {
+        const streamSet = new Set<string>();
+        props.students.forEach(s => {
+            const studentClass = studentClassGroup(s);
+            if (reprintSelectedClass === 'All' || studentClass === reprintSelectedClass) {
+                const stStream = getStudentStream(s);
+                if (stStream && stStream !== '—' && stStream.toLowerCase() !== 'all' && stStream.toLowerCase() !== 'unassigned') {
+                    streamSet.add(stStream);
+                }
+            }
+        });
+        return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }, [props.students, reprintSelectedClass, enrollments]);
 
     const handleReprintClassReceipts = async () => {
         setIsReprintingClass(true);
@@ -4494,11 +4509,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!student) return false;
                 const studentClass = studentClassGroup(student);
                 if (reprintSelectedClass !== 'All' && studentClass !== reprintSelectedClass) return false;
+                const studentStream = getStudentStream(student);
+                if (reprintSelectedStream !== 'All' && studentStream.toLowerCase() !== reprintSelectedStream.toLowerCase()) return false;
                 return true;
             });
 
             if (classFilteredReceipts.length === 0) {
-                alert(`No receipts found for ${reprintSelectedClass === 'All' ? 'any class' : 'class ' + reprintSelectedClass}.`);
+                const classLabel = `${reprintSelectedClass === 'All' ? 'any class' : 'class ' + reprintSelectedClass}${reprintSelectedStream !== 'All' ? ` (${reprintSelectedStream} stream)` : ''}`;
+                alert(`No receipts found for ${classLabel}.`);
                 return;
             }
 
@@ -4537,7 +4555,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 };
             });
 
-            const fileName = `Receipts-Class-${reprintSelectedClass.replace(/[^a-zA-Z0-9_-]/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`;
+            const streamSuffix = reprintSelectedStream !== 'All' ? `-${reprintSelectedStream.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '';
+            const fileName = `Receipts-Class-${reprintSelectedClass.replace(/[^a-zA-Z0-9_-]/g, '_')}${streamSuffix}-${new Date().toISOString().split('T')[0]}.pdf`;
 
             const dataUri = await pdfService.generateCombinedReceiptsPdfDataUri(
                 receiptEntries,
@@ -4550,9 +4569,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             setOnScreenReceiptModal({
                 dataUri,
-                title: `Class ${reprintSelectedClass} Batch Receipts Preview`,
+                title: `Class ${reprintSelectedClass}${reprintSelectedStream !== 'All' ? ` (${reprintSelectedStream})` : ''} Batch Receipts Preview`,
                 studentName: `Batch Bundle (${classFilteredReceipts.length} Receipts)`,
-                admNo: `Class: ${reprintSelectedClass}`,
+                admNo: `Class: ${reprintSelectedClass}${reprintSelectedStream !== 'All' ? ` • Stream: ${reprintSelectedStream}` : ''}`,
                 fileName
             });
 
@@ -9411,10 +9430,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     onClick={handleReprintSelectedReceipts}
                                                     disabled={isReprintingSelected}
                                                     className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50 animate-in fade-in duration-200"
-                                                    title="Combine and download selected receipts into a single PDF document"
+                                                    title="Combine and preview selected receipts in a PDF modal with print/download"
                                                 >
-                                                    <PrinterIcon className="w-3.5 h-3.5" />
-                                                    {isReprintingSelected ? 'Generating PDF...' : `Reprint Selected (${selectedReceiptIds.size})`}
+                                                    <EyeIcon className="w-3.5 h-3.5" />
+                                                    {isReprintingSelected ? 'Preparing Preview...' : `Preview Selected (${selectedReceiptIds.size})`}
                                                 </button>
                                                 <button
                                                     onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected receipt(s)` })}
@@ -9451,10 +9470,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     onClick={handleReprintSelectedReceipts}
                                                     disabled={isReprintingSelected}
                                                     className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50 animate-in fade-in duration-200"
-                                                    title="Combine and download selected receipts into a single PDF document"
+                                                    title="Combine and preview selected receipts in a PDF modal with print/download"
                                                 >
-                                                    <PrinterIcon className="w-3.5 h-3.5" />
-                                                    {isReprintingSelected ? 'Generating...' : `Reprint Selected (${selectedReceiptIds.size})`}
+                                                    <EyeIcon className="w-3.5 h-3.5" />
+                                                    {isReprintingSelected ? 'Preparing...' : `Preview Selected (${selectedReceiptIds.size})`}
                                                 </button>
                                                 <button
                                                     onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected record(s)` })}
@@ -9546,10 +9565,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             onClick={handleReprintSelectedReceipts}
                                             disabled={isReprintingSelected}
                                             className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm shadow-purple-500/20 disabled:opacity-50"
-                                            title="Combine and download selected receipts into a single PDF document"
+                                            title="Combine and preview selected receipts in a PDF modal with print/download"
                                         >
-                                            <PrinterIcon className="w-3 h-3" />
-                                            {isReprintingSelected ? 'Generating...' : `Reprint Selected (${selectedReceiptIds.size})`}
+                                            <EyeIcon className="w-3 h-3" />
+                                            {isReprintingSelected ? 'Preparing...' : `Preview Selected (${selectedReceiptIds.size})`}
                                         </button>
                                         <button
                                             type="button"
@@ -21234,33 +21253,61 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
-                                    Select Target Class / Grade:
-                                </label>
-                                <select
-                                    value={reprintSelectedClass}
-                                    onChange={(e) => setReprintSelectedClass(e.target.value)}
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
-                                >
-                                    <option value="All">All Classes / Entire School</option>
-                                    {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).filter(Boolean).sort().map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                                        Select Target Class / Grade:
+                                    </label>
+                                    <select
+                                        value={reprintSelectedClass}
+                                        onChange={(e) => {
+                                            setReprintSelectedClass(e.target.value);
+                                            setReprintSelectedStream('All');
+                                        }}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                                    >
+                                        <option value="All">All Classes / Entire School</option>
+                                        {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).filter(Boolean).sort().map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
+                                        Select Stream / Section:
+                                    </label>
+                                    <select
+                                        value={reprintSelectedStream}
+                                        onChange={(e) => setReprintSelectedStream(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                                    >
+                                        <option value="All">All Streams</option>
+                                        {availableStreamsForReprint.map(st => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-100 dark:border-purple-900/40 text-xs text-purple-900 dark:text-purple-200 space-y-1">
                                 <p className="font-bold">Summary of Selection:</p>
                                 <p>• Class: <span className="font-black">{reprintSelectedClass}</span></p>
+                                {reprintSelectedStream !== 'All' && (
+                                    <p>• Stream: <span className="font-black">{reprintSelectedStream}</span></p>
+                                )}
                                 <p>• Total Matching Receipts: <span className="font-black">
                                     {mappedReceipts.filter(rec => {
                                         if (!rec.studentId) return false;
                                         const s = props.students.find(st => st.id === rec.studentId);
                                         if (!s) return false;
-                                        return reprintSelectedClass === 'All' || studentClassGroup(s) === reprintSelectedClass;
+                                        const matchClass = reprintSelectedClass === 'All' || studentClassGroup(s) === reprintSelectedClass;
+                                        const matchStream = reprintSelectedStream === 'All' || getStudentStream(s).toLowerCase() === reprintSelectedStream.toLowerCase();
+                                        return matchClass && matchStream;
                                     }).length}
                                 </span> receipts</p>
+                                <p className="text-[10px] text-purple-700 dark:text-purple-300 italic pt-1">
+                                    Includes official Copy Bookmark stamps & document bookmarks for each student record.
+                                </p>
                             </div>
                         </div>
 
@@ -21281,12 +21328,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 {isReprintingClass ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        <span>Generating PDFs...</span>
+                                        <span>Preparing Preview...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <PrinterIcon className="w-4 h-4" />
-                                        <span>Download Class PDF Bundle</span>
+                                        <EyeIcon className="w-4 h-4" />
+                                        <span>Preview Class Receipts</span>
                                     </>
                                 )}
                             </button>

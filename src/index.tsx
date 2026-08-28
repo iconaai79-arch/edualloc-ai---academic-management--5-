@@ -67,12 +67,16 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("DEBUG: Top-level crash caught:", error, errorInfo);
     
-    // Handle Vite/Webpack chunk loading errors & stale cached chunk mismatches
+    // Handle Vite/Webpack chunk loading errors & stale cached chunk mismatches (including React Error #300 / hook mismatches)
     const isChunkLoadFailed = 
       /Failed to fetch dynamically imported module/i.test(error.message) || 
       /Loading chunk/i.test(error.message) ||
       /before initialization/i.test(error.message) ||
-      /ReferenceError/i.test(error.message);
+      /ReferenceError/i.test(error.message) ||
+      /Minified React error #(300|301|310|418|423)/i.test(error.message) ||
+      /Rendered more hooks/i.test(error.message) ||
+      /Rendered fewer hooks/i.test(error.message);
+      
     if (isChunkLoadFailed) {
       if ('caches' in window) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
@@ -81,7 +85,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
         navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
       }
       const reloadCount = parseInt(sessionStorage.getItem('eduai_chunk_reload_count') || '0', 10);
-      if (reloadCount < 3) {
+      if (reloadCount < 2) {
         sessionStorage.setItem('eduai_chunk_reload_count', String(reloadCount + 1));
         window.location.href = window.location.origin + window.location.pathname + '?v=' + Date.now();
         return;
@@ -93,10 +97,24 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
     if (this.state.hasError) {
       return (
         <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
-          <h1 style={{ color: '#ef4444' }}>Something went wrong.</h1>
-          <p>{this.state.error?.message}</p>
-          <button onClick={() => window.location.reload()} style={{ padding: '10px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-            Reload Application
+          <h1 style={{ color: '#ef4444' }}>Application Refresh Required</h1>
+          <p style={{ color: '#64748b', fontSize: '14px', maxWidth: '500px', margin: '10px auto 20px' }}>
+            A newer application bundle has been loaded or a temporary script synchronization occurred ({this.state.error?.message}).
+          </p>
+          <button 
+            onClick={() => {
+              if ('caches' in window) {
+                caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+              }
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+              }
+              sessionStorage.clear();
+              window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
+            }} 
+            style={{ padding: '12px 24px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)' }}
+          >
+            Clear Cache & Reload
           </button>
         </div>
       );

@@ -37,6 +37,149 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
     const [isLoading, setIsLoading] = useState(false);
     const [fileName, setFileName] = useState('');
     const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [selectedSheet, setSelectedSheet] = useState<string>('');
+
+    const autoMapHeaders = (headers: string[]) => {
+        const initialMapping: Record<string, string> = {};
+        const lowerHeaders = headers.map(h => ({ raw: h, low: h.toLowerCase().trim() }));
+
+        fields.forEach(f => {
+            const fKey = f.key;
+            const fLabel = f.label.toLowerCase();
+
+            // 1. Exact or strict keyword matching
+            let matchedHeader: string | undefined;
+
+            if (fKey === 'name') {
+                // Must be student name, avoid parent/father/mother/guardian/teacher/staff
+                const match = lowerHeaders.find(h => 
+                    !/(parent|father|mother|guardian|teacher|officer|staff|contact\s*person)/i.test(h.low) &&
+                    (
+                        /^(student|learner|pupil|candidate|full|official)?\s*(name|names)$/i.test(h.low) ||
+                        h.low.includes('student name') ||
+                        h.low.includes('learner name') ||
+                        h.low.includes('pupil name') ||
+                        h.low.includes('candidate name') ||
+                        h.low.includes('full name') ||
+                        h.low === 'name' ||
+                        h.low === 'names' ||
+                        h.low === 'student' ||
+                        h.low === 'learner'
+                    )
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'parentName') {
+                const match = lowerHeaders.find(h => 
+                    /(parent|father|mother|guardian|sponsor|contact\s*person)/i.test(h.low) &&
+                    (h.low.includes('name') || h.low.includes('guardian') || h.low.includes('parent'))
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'admissionNumber') {
+                const match = lowerHeaders.find(h => 
+                    /^(adm|admission|reg|registration|student\s*id|index|roll|matric)[\s_.-]*(no|number|num|code)?$/i.test(h.low) ||
+                    h.low.includes('adm no') ||
+                    h.low.includes('adm number') ||
+                    h.low.includes('admission no') ||
+                    h.low.includes('admission number') ||
+                    h.low.includes('reg no') ||
+                    h.low.includes('registration no') ||
+                    h.low.includes('index no') ||
+                    h.low.includes('student id') ||
+                    h.low === 'adm' ||
+                    h.low === 'reg'
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'assessmentNo') {
+                const match = lowerHeaders.find(h => 
+                    h.low.includes('assess') || 
+                    h.low.includes('knec') || 
+                    h.low.includes('kpsea') || 
+                    h.low.includes('cbe') || 
+                    h.low.includes('upi') || 
+                    h.low.includes('nemis') || 
+                    h.low.includes('nemba')
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'gradeLevel') {
+                const match = lowerHeaders.find(h => 
+                    /^(grade|class|level|form|standard|cohort)[\s_.-]*(level|name|no)?$/i.test(h.low) ||
+                    h.low.includes('grade level') ||
+                    h.low.includes('class level') ||
+                    h.low === 'grade' ||
+                    h.low === 'class' ||
+                    h.low === 'form' ||
+                    h.low === 'level'
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'stream') {
+                const match = lowerHeaders.find(h => 
+                    h.low.includes('stream') || 
+                    h.low.includes('section') || 
+                    h.low.includes('arm') || 
+                    h.low.includes('track')
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'gender') {
+                const match = lowerHeaders.find(h => 
+                    h.low === 'gender' || 
+                    h.low === 'sex' || 
+                    h.low.includes('gender') || 
+                    h.low.includes('sex')
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'parentPhone') {
+                const match = lowerHeaders.find(h => 
+                    /(parent|father|mother|guardian|sponsor)/i.test(h.low) && 
+                    /(phone|mobile|contact|tel|cell|number)/i.test(h.low)
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'secondaryPhone') {
+                const match = lowerHeaders.find(h => 
+                    h.low.includes('secondary') || 
+                    h.low.includes('alt') || 
+                    h.low.includes('phone 2') || 
+                    h.low.includes('phone2') || 
+                    h.low.includes('mobile 2') || 
+                    h.low.includes('other phone') || 
+                    h.low.includes('emergency')
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'phoneNumber' || fKey === 'studentPhone') {
+                const match = lowerHeaders.find(h => 
+                    !/(parent|father|mother|guardian|secondary|alt|phone\s*2)/i.test(h.low) &&
+                    (
+                        h.low.includes('student phone') ||
+                        h.low.includes('mobile') ||
+                        h.low.includes('phone') ||
+                        h.low.includes('contact') ||
+                        h.low.includes('tel')
+                    )
+                );
+                matchedHeader = match?.raw;
+            } else if (fKey === 'email') {
+                const match = lowerHeaders.find(h => 
+                    !/(parent|guardian)/i.test(h.low) && 
+                    (h.low.includes('email') || h.low.includes('mail'))
+                );
+                matchedHeader = match?.raw;
+            } else {
+                // Generic fallback
+                const match = lowerHeaders.find(h => 
+                    h.low.includes(fLabel) || 
+                    h.low.includes(fKey.toLowerCase()) || 
+                    fLabel.includes(h.low)
+                );
+                matchedHeader = match?.raw;
+            }
+
+            if (matchedHeader) {
+                initialMapping[fKey] = matchedHeader;
+            }
+        });
+
+        return initialMapping;
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -51,41 +194,20 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
             const wb = XLSX.read(bstr, { type: 'binary' });
             setWorkbook(wb);
             
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
+            const sheets = wb.SheetNames || [];
+            setAvailableSheets(sheets);
+            const defaultSheet = sheets.length > 1 ? 'ALL_SHEETS' : (sheets[0] || '');
+            setSelectedSheet(defaultSheet);
+
+            const activeWsName = sheets[0];
+            const ws = wb.Sheets[activeWsName];
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
             if (data.length > 0) {
-                const headers = data[0].filter(h => !!h).map(h => String(h));
+                const headers = data[0].filter(h => !!h).map(h => String(h).trim());
                 setRawHeaders(headers);
-                
-                // Auto-map based on similar names and common aliases
-                const initialMapping: Record<string, string> = {};
-                fields.forEach(f => {
-                    const match = headers.find(h => {
-                        const hLow = h.toLowerCase();
-                        const fLabelLow = f.label.toLowerCase();
-                        const fKeyLow = f.key.toLowerCase();
-
-                        if (hLow.includes(fLabelLow) || hLow.includes(fKeyLow) || fLabelLow.includes(hLow)) return true;
-
-                        if (f.key === 'name') {
-                            return hLow.includes('name') || hLow.includes('student') || hLow.includes('learner') || hLow.includes('candidate');
-                        }
-                        if (f.key === 'secondaryPhone') {
-                            return hLow.includes('secondary') || hLow.includes('alt') || hLow.includes('phone 2') || hLow.includes('phone2') || hLow.includes('mobile 2') || hLow.includes('contact 2') || hLow.includes('other phone') || hLow.includes('guardian 2') || hLow.includes('parent 2') || hLow.includes('parent2') || hLow.includes('guardian2');
-                        }
-                        if (f.key === 'admissionNumber') {
-                            return hLow.includes('adm') || hLow.includes('reg') || hLow.includes('student id') || hLow.includes('index');
-                        }
-                        if (f.key === 'assessmentNo') {
-                            return hLow.includes('assess') || hLow.includes('knec') || hLow.includes('cbe') || hLow.includes('kpsea') || hLow.includes('upi') || hLow.includes('nemis') || hLow.includes('nemba');
-                        }
-                        return false;
-                    });
-                    if (match) initialMapping[f.key] = match;
-                });
-                setHeaderMapping(initialMapping);
+                const mapping = autoMapHeaders(headers);
+                setHeaderMapping(mapping);
                 setStep(2);
             }
             setIsLoading(false);
@@ -93,33 +215,88 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
         reader.readAsBinaryString(file);
     };
 
+    const handleSheetChange = (sheetName: string) => {
+        setSelectedSheet(sheetName);
+        if (!workbook) return;
+
+        const targetWsName = sheetName === 'ALL_SHEETS' ? workbook.SheetNames[0] : sheetName;
+        const ws = workbook.Sheets[targetWsName];
+        if (ws) {
+            const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+            if (data.length > 0) {
+                const headers = data[0].filter(h => !!h).map(h => String(h).trim());
+                setRawHeaders(headers);
+                const mapping = autoMapHeaders(headers);
+                setHeaderMapping(mapping);
+            }
+        }
+    };
+
     const processData = () => {
         if (!workbook) return;
         setIsLoading(true);
 
-        const wsname = workbook.SheetNames[0];
-        const ws = workbook.Sheets[wsname];
-        const allData = XLSX.utils.sheet_to_json(ws) as any[];
+        // Determine sheets to read
+        const sheetsToRead = selectedSheet === 'ALL_SHEETS' || !selectedSheet
+            ? workbook.SheetNames
+            : [selectedSheet];
 
-        const finalData = allData
-            .map(row => {
+        const allRows: any[] = [];
+
+        sheetsToRead.forEach(wsname => {
+            const ws = workbook.Sheets[wsname];
+            if (!ws) return;
+            const sheetRows = XLSX.utils.sheet_to_json(ws) as any[];
+
+            sheetRows.forEach(row => {
                 const obj: any = {};
                 fields.forEach(f => {
                     const mappedHeader = headerMapping[f.key];
                     if (mappedHeader) {
                         const val = row[mappedHeader];
-                        // Sanitize: ensure no undefined, and stringify if needed
                         obj[f.key] = val !== undefined && val !== null ? String(val).trim() : '';
+                    } else {
+                        obj[f.key] = '';
                     }
                 });
 
-                // Validation: Skip if both name and admissionNumber are missing/empty
-                const hasName = obj.name && obj.name.trim() !== '';
-                const hasAdmNo = obj.admissionNumber && obj.admissionNumber.trim() !== '';
-                if (!hasName && !hasAdmNo) return null;
+                // Check for split name columns (First Name, Middle Name, Last Name / Surname) if name is empty
+                if (!obj.name) {
+                    const rowKeys = Object.keys(row);
+                    const firstKey = rowKeys.find(k => /^(first[\s_.-]*name|fname)$/i.test(k.trim()));
+                    const middleKey = rowKeys.find(k => /^(middle[\s_.-]*name|mname)$/i.test(k.trim()));
+                    const lastKey = rowKeys.find(k => /^(last[\s_.-]*name|surname|lname)$/i.test(k.trim()));
+
+                    if (firstKey || lastKey) {
+                        const parts = [
+                            firstKey ? String(row[firstKey] || '').trim() : '',
+                            middleKey ? String(row[middleKey] || '').trim() : '',
+                            lastKey ? String(row[lastKey] || '').trim() : ''
+                        ].filter(Boolean);
+                        if (parts.length > 0) {
+                            obj.name = parts.join(' ');
+                        }
+                    }
+                }
+
+                // If gradeLevel is empty and sheet name looks like a grade (e.g. "Grade 4", "Form 2", "PP1"), infer it
+                if (!obj.gradeLevel && sheetsToRead.length > 1 && wsname) {
+                    const cleanSheetName = wsname.trim();
+                    if (/^(grade|class|form|standard|pp|playgroup)/i.test(cleanSheetName)) {
+                        obj.gradeLevel = cleanSheetName;
+                    }
+                }
+
+                // Validation: Skip row only if completely blank (no name, no admission number, no phone)
+                const hasName = Boolean(obj.name && obj.name.trim() !== '');
+                const hasAdmNo = Boolean(obj.admissionNumber && obj.admissionNumber.trim() !== '');
+                const hasContact = Boolean(obj.phoneNumber || obj.parentPhone || obj.email);
+
+                if (!hasName && !hasAdmNo && !hasContact) {
+                    return; // Skip genuinely empty rows
+                }
 
                 // Stable ID: If KNEC or UIC exists, use it to allow UPSERT (update existing)
-                // Otherwise use a random ID. This prevents "Registry Conflict" on re-imports.
                 let baseId = `sch_${Math.random().toString(36).substr(2, 5)}_${Date.now()}`;
                 if (obj.knecCode && obj.knecCode.trim()) baseId = `sch_knec_${slugify(obj.knecCode)}`;
                 else if (obj.uic && obj.uic.trim()) baseId = `sch_uic_${slugify(obj.uic)}`;
@@ -133,11 +310,11 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                 obj.createdAt = new Date().toISOString();
                 obj.updatedAt = new Date().toISOString();
 
-                return obj;
-            })
-            .filter(item => item !== null);
+                allRows.push(obj);
+            });
+        });
 
-        onComplete(finalData);
+        onComplete(allRows);
         setIsLoading(false);
     };
 
@@ -207,6 +384,25 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                                 <h4 className="text-3xl font-black uppercase tracking-tighter text-slate-800 dark:text-white italic">Map Your <span className="text-emerald-600">Columns</span></h4>
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">{fileName} • {rawHeaders.length} Columns detected</p>
                             </div>
+
+                            {availableSheets.length > 1 && (
+                                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                                    <div className="text-left">
+                                        <p className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Multiple Worksheets Detected ({availableSheets.length} Sheets)</p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Select a single sheet or import all sheets together.</p>
+                                    </div>
+                                    <select
+                                        value={selectedSheet}
+                                        onChange={(e) => handleSheetChange(e.target.value)}
+                                        className="bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 text-xs font-bold px-4 py-2 rounded-xl text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                                    >
+                                        <option value="ALL_SHEETS">✨ Import All {availableSheets.length} Sheets</option>
+                                        {availableSheets.map(sh => (
+                                            <option key={sh} value={sh}>Sheet: {sh}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                                 {fields.map(f => (

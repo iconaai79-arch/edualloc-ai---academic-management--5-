@@ -528,6 +528,22 @@ const renderReceiptPageOnDoc = (
     doc.setTextColor(13, 148, 136); // Teal-600
     doc.text(isReprint ? 'OFFICIAL REPRINT' : 'PAID / SECURED', badgeX + 1.5, tableStartY + 19.5);
 
+    // If reprint, render a prominent Copy Bookmark badge in the top right corner of the metadata container
+    if (isReprint) {
+        const bookmarkWidth = 46;
+        const bookmarkHeight = 5.5;
+        const bookmarkX = pageWidth - margin - bookmarkWidth - 4;
+        const bookmarkY = tableStartY - 3.5;
+        doc.setFillColor(254, 242, 242); // Rose-50
+        doc.setDrawColor(244, 63, 94); // Rose-500
+        doc.setLineWidth(0.4);
+        doc.roundedRect(bookmarkX, bookmarkY, bookmarkWidth, bookmarkHeight, 1, 1, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.8);
+        doc.setTextColor(225, 29, 72); // Rose-600
+        doc.text('COPY BOOKMARK • REPRINT', bookmarkX + bookmarkWidth / 2, bookmarkY + 3.8, { align: 'center' });
+    }
+
     // Column 2 Content: Student / Payer / Transaction details
     const resolvedStudentName = studentInfo?.name || (receipt as any)?.studentName || (receipt as any)?.student_name || (receipt as any)?.payerName;
     const resolvedAdmNo = studentInfo?.admNo || (receipt as any)?.admissionNumber || (receipt as any)?.admission_number || (receipt as any)?.admNo || (receipt as any)?.studentAdmissionNumber;
@@ -776,6 +792,17 @@ export const generateCombinedReceiptsPdfDataUri = async (
             entry.studentInfo,
             isReprint
         );
+
+        // Add document bookmark / outline for each student's receipt in PDF viewer
+        try {
+            if ((doc as any).outline && typeof (doc as any).outline.add === 'function') {
+                const sName = entry.studentInfo?.name || (entry.receipt as any)?.studentName || 'Student';
+                const sAdm = entry.studentInfo?.admNo || (entry.receipt as any)?.admissionNumber || '';
+                const rNum = entry.receipt?.receiptNumber || `Receipt ${i + 1}`;
+                const label = `${sName}${sAdm ? ` (${sAdm})` : ''} - #${rNum}`;
+                (doc as any).outline.add(null, label, { pageNumber: i + 1 });
+            }
+        } catch (_) {}
     }
 
     return doc.output('datauristring');
@@ -1819,7 +1846,7 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     if (extraMeta?.isReprint) {
-        centerText("*** REPRINT ***", yPos);
+        centerText("*** REPRINT • COPY BOOKMARK ***", yPos);
         yPos += 4;
     }
     centerText("EPOS OFFICIAL FEE RECEIPT", yPos);
