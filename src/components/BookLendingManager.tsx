@@ -624,7 +624,11 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
         }
     };
 
-    const handleIssueBook = async () => {
+    const handleIssueBook = async (e?: React.FormEvent) => {
+        if (e) {
+            e.preventDefault();
+        }
+
         if (!newLoan.userId || !newLoan.bookId || !newLoan.dueDate) {
             alert('Please select a member, book, and due date.');
             return;

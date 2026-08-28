@@ -4477,6 +4477,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSuspenseModalOpen, setIsSuspenseModalOpen] = useState(false);
     const [suspenseFilter, setSuspenseFilter] = useState<'All' | 'Unmatched' | 'Resolved' | 'M-Pesa' | 'Bank'>('Unmatched');
 
+    // On-screen Receipt & Batch Modal Preview State
+    const [onScreenReceiptModal, setOnScreenReceiptModal] = useState<{ receipt?: Receipt; dataUri: string; studentName?: string; admNo?: string; title?: string; fileName?: string } | null>(null);
+
     // Class Receipts Reprint State & Handler
     const [isClassReceiptReprintModalOpen, setIsClassReceiptReprintModalOpen] = useState(false);
     const [reprintSelectedClass, setReprintSelectedClass] = useState<string>('All');
@@ -4499,28 +4502,140 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return;
             }
 
-            for (const receipt of classFilteredReceipts) {
-                await pdfService.downloadReceiptPdf(
-                    receipt,
-                    receipt.relatedTransactionId ? {
-                        transactionId: receipt.relatedTransactionId,
-                        amount: receipt.amountPaid,
-                        provider: receipt.paymentMethod,
-                        description: receipt.paidFor || 'Fees Payment'
-                    } as any : null,
-                    props.institution,
-                    props.companyDetails || {} as any,
-                    props.institution.logoUrl || null
-                ).catch(() => {});
-            }
+            const receiptEntries = classFilteredReceipts.map(receipt => {
+                const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
+                const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
+                const admNo = (student ? studentAdmissionNumber(student) : '') || (receipt as any).admissionNumber || (receipt as any).studentAdmissionNumber || (receipt as any).admNo || '—';
+                const studentClass = student ? studentClassGroup(student) : ((receipt as any).studentClass || (receipt as any).grade || undefined);
+                const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
+                const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
 
-            alert(`Generated receipt PDF bundle for ${classFilteredReceipts.length} receipts in ${reprintSelectedClass}!`);
+                const existingBreakdown = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items;
+                const enrichedReceipt: any = {
+                    ...receipt,
+                    items: existingBreakdown 
+                        ? (typeof existingBreakdown === 'string' ? JSON.parse(existingBreakdown) : existingBreakdown) 
+                        : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
+                };
+
+                const relatedTx = receipt.relatedTransactionId ? {
+                    transactionId: receipt.relatedTransactionId,
+                    amount: receipt.amountPaid,
+                    provider: receipt.paymentMethod,
+                    description: receipt.paidFor || 'Fees Payment'
+                } as any : null;
+
+                return {
+                    receipt: enrichedReceipt,
+                    transaction: relatedTx,
+                    invoiceBalance,
+                    studentInfo: {
+                        name: studentName,
+                        admNo,
+                        studentClass
+                    }
+                };
+            });
+
+            const fileName = `Receipts-Class-${reprintSelectedClass.replace(/[^a-zA-Z0-9_-]/g, '_')}-${new Date().toISOString().split('T')[0]}.pdf`;
+
+            const dataUri = await pdfService.generateCombinedReceiptsPdfDataUri(
+                receiptEntries,
+                props.institution,
+                props.companyDetails || {} as any,
+                props.institution.logoUrl || null,
+                props.currentUser?.name || 'Chief Accountant',
+                true
+            );
+
+            setOnScreenReceiptModal({
+                dataUri,
+                title: `Class ${reprintSelectedClass} Batch Receipts Preview`,
+                studentName: `Batch Bundle (${classFilteredReceipts.length} Receipts)`,
+                admNo: `Class: ${reprintSelectedClass}`,
+                fileName
+            });
+
             setIsClassReceiptReprintModalOpen(false);
         } catch (err: any) {
             console.error("Failed to reprint class receipts:", err);
-            alert("Failed to reprint receipts.");
+            alert("Failed to reprint receipts: " + (err.message || err));
         } finally {
             setIsReprintingClass(false);
+        }
+    };
+
+    // Selected Receipts Combined Reprint State & Handler
+    const [isReprintingSelected, setIsReprintingSelected] = useState(false);
+
+    const handleReprintSelectedReceipts = async () => {
+        if (selectedReceiptIds.size === 0) return;
+        setIsReprintingSelected(true);
+        try {
+            const selectedReceiptsList = mappedReceipts.filter(r => selectedReceiptIds.has(r.id));
+            if (selectedReceiptsList.length === 0) {
+                alert("No valid receipts found in current selection.");
+                return;
+            }
+
+            const receiptEntries = selectedReceiptsList.map(receipt => {
+                const student = receipt.studentId ? mergedStudents.find(s => s.id === receipt.studentId) : null;
+                const studentName = student?.name || (receipt as any).studentName || (receipt as any).payerName || 'Walk-in / Student';
+                const admNo = (student ? studentAdmissionNumber(student) : '') || (receipt as any).admissionNumber || (receipt as any).studentAdmissionNumber || (receipt as any).admNo || '—';
+                const studentClass = student ? studentClassGroup(student) : ((receipt as any).studentClass || (receipt as any).grade || undefined);
+                const studentFinanceRecord = student ? studentFinanceData.find(s => s.id === student.id) : null;
+                const invoiceBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
+
+                const existingBreakdown = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items;
+                const enrichedReceipt: any = {
+                    ...receipt,
+                    items: existingBreakdown 
+                        ? (typeof existingBreakdown === 'string' ? JSON.parse(existingBreakdown) : existingBreakdown) 
+                        : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
+                };
+
+                const relatedTx = receipt.relatedTransactionId ? {
+                    transactionId: receipt.relatedTransactionId,
+                    amount: receipt.amountPaid,
+                    provider: receipt.paymentMethod,
+                    description: receipt.paidFor || 'Fees Payment'
+                } as any : null;
+
+                return {
+                    receipt: enrichedReceipt,
+                    transaction: relatedTx,
+                    invoiceBalance,
+                    studentInfo: {
+                        name: studentName,
+                        admNo,
+                        studentClass
+                    }
+                };
+            });
+
+            const fileName = `Combined-Receipts-${selectedReceiptsList.length}-Items-${new Date().toISOString().split('T')[0]}.pdf`;
+
+            const dataUri = await pdfService.generateCombinedReceiptsPdfDataUri(
+                receiptEntries,
+                props.institution,
+                props.companyDetails || {} as any,
+                props.institution.logoUrl || null,
+                props.currentUser?.name || 'Chief Accountant',
+                true
+            );
+
+            setOnScreenReceiptModal({
+                dataUri,
+                title: `Combined Multi-Page Receipts Preview`,
+                studentName: `Batch Selection (${selectedReceiptsList.length} Receipts)`,
+                admNo: `${selectedReceiptsList.length} Items`,
+                fileName
+            });
+        } catch (err: any) {
+            console.error("Failed to reprint selected receipts:", err);
+            alert("Failed to reprint selected receipts: " + (err.message || err));
+        } finally {
+            setIsReprintingSelected(false);
         }
     };
 
@@ -5851,8 +5966,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to generate PDF: " + (err.message || err));
         }
     };
-
-    const [onScreenReceiptModal, setOnScreenReceiptModal] = useState<{ receipt: Receipt; dataUri: string; studentName: string; admNo: string } | null>(null);
 
     const handlePreviewOnScreenReceipt = async (receipt: Receipt) => {
         try {
@@ -9293,13 +9406,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </button>
                                         )}
                                         {selectedReceiptIds.size > 0 && (
-                                            <button
-                                                onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected receipt(s)` })}
-                                                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-in fade-in duration-200"
-                                            >
-                                                <Trash2Icon className="w-3.5 h-3.5" />
-                                                Delete Selected ({selectedReceiptIds.size})
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={handleReprintSelectedReceipts}
+                                                    disabled={isReprintingSelected}
+                                                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50 animate-in fade-in duration-200"
+                                                    title="Combine and download selected receipts into a single PDF document"
+                                                >
+                                                    <PrinterIcon className="w-3.5 h-3.5" />
+                                                    {isReprintingSelected ? 'Generating PDF...' : `Reprint Selected (${selectedReceiptIds.size})`}
+                                                </button>
+                                                <button
+                                                    onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected receipt(s)` })}
+                                                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-in fade-in duration-200"
+                                                >
+                                                    <Trash2Icon className="w-3.5 h-3.5" />
+                                                    Delete Selected ({selectedReceiptIds.size})
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 ) : (
@@ -9322,13 +9446,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </button>
                                         )}
                                         {selectedReceiptIds.size > 0 && (
-                                            <button
-                                                onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected record(s)` })}
-                                                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-in fade-in duration-200"
-                                            >
-                                                <Trash2Icon className="w-3.5 h-3.5" />
-                                                Delete Selected ({selectedReceiptIds.size})
-                                            </button>
+                                            <>
+                                                <button
+                                                    onClick={handleReprintSelectedReceipts}
+                                                    disabled={isReprintingSelected}
+                                                    className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50 animate-in fade-in duration-200"
+                                                    title="Combine and download selected receipts into a single PDF document"
+                                                >
+                                                    <PrinterIcon className="w-3.5 h-3.5" />
+                                                    {isReprintingSelected ? 'Generating...' : `Reprint Selected (${selectedReceiptIds.size})`}
+                                                </button>
+                                                <button
+                                                    onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} selected record(s)` })}
+                                                    className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md flex items-center gap-1.5 transition-all active:scale-95 hover:shadow-lg cursor-pointer whitespace-nowrap shrink-0 animate-in fade-in duration-200"
+                                                >
+                                                    <Trash2Icon className="w-3.5 h-3.5" />
+                                                    Delete Selected ({selectedReceiptIds.size})
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 )}
@@ -9406,6 +9541,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 Clear selection
                                             </button>
                                         )}
+                                        <button
+                                            type="button"
+                                            onClick={handleReprintSelectedReceipts}
+                                            disabled={isReprintingSelected}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer shadow-sm shadow-purple-500/20 disabled:opacity-50"
+                                            title="Combine and download selected receipts into a single PDF document"
+                                        >
+                                            <PrinterIcon className="w-3 h-3" />
+                                            {isReprintingSelected ? 'Generating...' : `Reprint Selected (${selectedReceiptIds.size})`}
+                                        </button>
                                         <button
                                             type="button"
                                             onClick={() => setReceiptDeleteConfirm({ ids: Array.from(selectedReceiptIds), label: `${selectedReceiptIds.size} transaction(s)` })}
@@ -21456,9 +21601,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <BanknotesIcon className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-black uppercase tracking-tight text-white">Official Receipt On-Screen Document Preview</h3>
+                                    <h3 className="text-sm font-black uppercase tracking-tight text-white">
+                                        {onScreenReceiptModal.title || 'Official Receipt Document Preview'}
+                                    </h3>
                                     <p className="text-[10px] font-bold text-indigo-400">
-                                        Receipt #{onScreenReceiptModal.receipt.receiptNumber || onScreenReceiptModal.receipt.id} — {onScreenReceiptModal.studentName} ({onScreenReceiptModal.admNo})
+                                        {onScreenReceiptModal.receipt 
+                                            ? `Receipt #${onScreenReceiptModal.receipt.receiptNumber || onScreenReceiptModal.receipt.id} — ${onScreenReceiptModal.studentName} (${onScreenReceiptModal.admNo})`
+                                            : `${onScreenReceiptModal.studentName || 'Batch Bundle'} — ${onScreenReceiptModal.admNo || ''}`
+                                        }
                                     </p>
                                 </div>
                             </div>
@@ -21481,21 +21631,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         <div className="p-6 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handleDownloadReceipt(onScreenReceiptModal.receipt)}
+                                    onClick={() => {
+                                        if (onScreenReceiptModal.receipt) {
+                                            handleDownloadReceipt(onScreenReceiptModal.receipt);
+                                        } else {
+                                            const link = document.createElement('a');
+                                            link.href = onScreenReceiptModal.dataUri;
+                                            link.download = onScreenReceiptModal.fileName || 'Combined-Receipts.pdf';
+                                            link.click();
+                                        }
+                                    }}
                                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-lg shadow-indigo-600/30"
                                 >
-                                    <span>📥 Download A4 PDF</span>
+                                    <span>📥 Download PDF</span>
                                 </button>
-                                <button
-                                    onClick={() => {
-                                        handlePrintEposThermalReceipt(onScreenReceiptModal.receipt);
-                                        setOnScreenReceiptModal(null);
-                                    }}
-                                    className="px-4 py-2.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border border-emerald-500/30 flex items-center gap-2"
-                                >
-                                    <PrinterIcon className="w-4 h-4" />
-                                    <span>🖨️ EPOS (80mm)</span>
-                                </button>
+                                {onScreenReceiptModal.receipt && (
+                                    <button
+                                        onClick={() => {
+                                            handlePrintEposThermalReceipt(onScreenReceiptModal.receipt);
+                                            setOnScreenReceiptModal(null);
+                                        }}
+                                        className="px-4 py-2.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border border-emerald-500/30 flex items-center gap-2"
+                                    >
+                                        <PrinterIcon className="w-4 h-4" />
+                                        <span>🖨️ EPOS (80mm)</span>
+                                    </button>
+                                )}
                             </div>
                             <div className="flex items-center gap-3">
                                 <button

@@ -455,32 +455,26 @@ export const generateInvoicePdfDataUri = async (
     return doc.output('datauristring');
 };
 
-export const generateReceiptPdfDataUri = async (
+const renderReceiptPageOnDoc = (
+    doc: any,
     receipt: Receipt,
-    transaction: MpesaTransaction,
+    transaction: MpesaTransaction | null | undefined,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null,
+    logoImg: any,
+    headerImg: any,
+    footerImg: any,
+    stampImg: any,
+    footerText: string,
     invoiceBalance?: number,
     accountantName?: string,
     studentInfo?: {
         name?: string;
         admNo?: string;
         studentClass?: string;
-    }
-): Promise<string> => {
-    const lib = getJsPdf();
-    if (!lib) throw new Error("jsPDF library not available.");
-    const doc = new lib.jsPDF();
-
-    // Load branding configurations
-    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
-    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
-    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
-    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
-    const footerText = letterConfig?.footerText || '';
-    const logoImg = await loadImage(logoUrl);
-
+    },
+    isReprint: boolean = false
+) => {
     // Create Page Header with Letterhead Cascade
     const tableStartY = createPdfWithLetterhead(doc, 'PAYMENT RECEIPT', companyDetails, institution, logoImg, headerImg);
     const margin = 14;
@@ -528,11 +522,11 @@ export const generateReceiptPdfDataUri = async (
     doc.text('Payment Status    :  ', margin + 6, tableStartY + 19);
     const badgeX = margin + 31;
     doc.setFillColor(240, 253, 250); // Teal-50
-    doc.roundedRect(badgeX, tableStartY + 16, 22, 4.5, 0.8, 0.8, 'F');
+    doc.roundedRect(badgeX, tableStartY + 16, 24, 4.5, 0.8, 0.8, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setTextColor(13, 148, 136); // Teal-600
-    doc.text('PAID / SECURED', badgeX + 2, tableStartY + 19.5);
+    doc.text(isReprint ? 'OFFICIAL REPRINT' : 'PAID / SECURED', badgeX + 1.5, tableStartY + 19.5);
 
     // Column 2 Content: Student / Payer / Transaction details
     const resolvedStudentName = studentInfo?.name || (receipt as any)?.studentName || (receipt as any)?.student_name || (receipt as any)?.payerName;
@@ -599,10 +593,10 @@ export const generateReceiptPdfDataUri = async (
         body: body,
         startY: finalTableStartY,
         theme: 'striped',
-        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 5.5, valign: 'top' },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 3.5, right: 3.5 } },
+        styles: { fontSize: 8, cellPadding: { top: 1.8, bottom: 1.8, left: 3.5, right: 3.5 }, valign: 'top' },
         columnStyles: {
-            0: { cellWidth: 18, halign: 'center' },
+            0: { cellWidth: 14, halign: 'center' },
             1: { fontStyle: 'bold' },
             3: { halign: 'right', fontStyle: 'bold' }
         }
@@ -613,43 +607,43 @@ export const generateReceiptPdfDataUri = async (
     // Financial totals summary section
     doc.setDrawColor(226, 232, 240); // Slate-200
     doc.setLineWidth(0.3);
-    doc.line(margin, finalY + 5, pageWidth - margin, finalY + 5);
+    doc.line(margin, finalY + 4, pageWidth - margin, finalY + 4);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(100, 116, 139); // Slate-500
-    doc.text('SUBTOTAL:', pageWidth - margin - 75, finalY + 12);
+    doc.text('SUBTOTAL:', pageWidth - margin - 75, finalY + 10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+    doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, finalY + 10, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text('VAT / TAX (0%):', pageWidth - margin - 75, finalY + 17);
+    doc.text('VAT / TAX (0%):', pageWidth - margin - 75, finalY + 15);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text('KES 0.00', pageWidth - margin, finalY + 17, { align: 'right' });
+    doc.text('KES 0.00', pageWidth - margin, finalY + 15, { align: 'right' });
 
     // Net total paid amount container box
-    const totalBoxY = finalY + 21;
+    const totalBoxY = finalY + 18;
     doc.setFillColor(240, 253, 250); // Teal-50
-    doc.roundedRect(pageWidth - margin - 80, totalBoxY, 80, 11, 1, 1, 'F');
+    doc.roundedRect(pageWidth - margin - 80, totalBoxY, 80, 10, 1, 1, 'F');
     
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
+    doc.setFontSize(9);
     doc.setTextColor(13, 148, 136); // Teal-600
-    doc.text('TOTAL AMOUNT PAID:', pageWidth - margin - 75, totalBoxY + 7);
-    doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+    doc.text('TOTAL AMOUNT PAID:', pageWidth - margin - 75, totalBoxY + 6.5);
+    doc.text(`KES ${(receipt?.amountPaid || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 6.5, { align: 'right' });
 
     // Render Outstanding Balance if present
     if (invoiceBalance !== undefined) {
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8.5);
+        doc.setFontSize(8);
         doc.setTextColor(100, 116, 139); // Slate-500
-        doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 75, totalBoxY + 16);
+        doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 75, totalBoxY + 15);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(220, 38, 38); // Red-600
-        doc.text(`KES ${invoiceBalance.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 16, { align: 'right' });
+        doc.text(`KES ${invoiceBalance.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 15, { align: 'right' });
     }
 
     // Professional Stamp & Authorized Signature section (Bottom Left)
@@ -683,8 +677,140 @@ export const generateReceiptPdfDataUri = async (
 
     // Process footers on all pages
     setupPdfFooter(doc, footerImg, footerText);
+};
+
+export const generateReceiptPdfDataUri = async (
+    receipt: Receipt,
+    transaction: MpesaTransaction,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    invoiceBalance?: number,
+    accountantName?: string,
+    studentInfo?: {
+        name?: string;
+        admNo?: string;
+        studentClass?: string;
+    },
+    isReprint: boolean = false
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    // Load branding configurations
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
+    const logoImg = await loadImage(logoUrl);
+
+    renderReceiptPageOnDoc(
+        doc,
+        receipt,
+        transaction,
+        institution,
+        companyDetails,
+        logoImg,
+        headerImg,
+        footerImg,
+        stampImg,
+        footerText,
+        invoiceBalance,
+        accountantName,
+        studentInfo,
+        isReprint
+    );
 
     return doc.output('datauristring');
+};
+
+export const generateCombinedReceiptsPdfDataUri = async (
+    receiptEntries: Array<{
+        receipt: Receipt;
+        transaction?: MpesaTransaction | null;
+        invoiceBalance?: number;
+        studentInfo?: {
+            name?: string;
+            admNo?: string;
+            studentClass?: string;
+        };
+    }>,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    accountantName?: string,
+    isReprint: boolean = true
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+
+    // Load branding configurations once for the entire batch
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
+    const footerText = letterConfig?.footerText || '';
+    const logoImg = await loadImage(logoUrl);
+
+    for (let i = 0; i < receiptEntries.length; i++) {
+        if (i > 0) {
+            doc.addPage();
+        }
+        const entry = receiptEntries[i];
+        renderReceiptPageOnDoc(
+            doc,
+            entry.receipt,
+            entry.transaction,
+            institution,
+            companyDetails,
+            logoImg,
+            headerImg,
+            footerImg,
+            stampImg,
+            footerText,
+            entry.invoiceBalance,
+            accountantName,
+            entry.studentInfo,
+            isReprint
+        );
+    }
+
+    return doc.output('datauristring');
+};
+
+export const downloadCombinedReceiptsPdf = async (
+    receiptEntries: Array<{
+        receipt: Receipt;
+        transaction?: MpesaTransaction | null;
+        invoiceBalance?: number;
+        studentInfo?: {
+            name?: string;
+            admNo?: string;
+            studentClass?: string;
+        };
+    }>,
+    institution: Institution,
+    companyDetails: CompanyDetails,
+    logoUrl: string | null,
+    accountantName?: string,
+    filename: string = 'Combined-Receipts.pdf',
+    isReprint: boolean = true
+) => {
+    const dataUri = await generateCombinedReceiptsPdfDataUri(
+        receiptEntries,
+        institution,
+        companyDetails,
+        logoUrl,
+        accountantName,
+        isReprint
+    );
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = filename;
+    link.click();
 };
 
 export const generateCarInvoicePdfDataUri = async (
@@ -1859,7 +1985,7 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     // QR Code for Parents Portal Access
     const portalOrigin = typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost') && !window.location.origin.includes('127.0.0.1')
         ? window.location.origin
-        : (institution?.portalUrl || institution?.website || 'https://portal.eduai.co.ke');
+        : ((institution as any)?.portalUrl || (institution as any)?.website || 'https://portal.eduai.co.ke');
 
     const parentPortalUrl = extraMeta?.parentPortalUrl || 
                             extraMeta?.portalUrl || 
