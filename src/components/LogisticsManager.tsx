@@ -191,11 +191,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     };
     // ── TRANSPORT BILLING STATE ────────────────────────────────────────────────
     const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>(() => {
-        const saved = localStorage.getItem('eduai_transport_route_fee_settings');
-        if (saved) {
+        const key = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_transport_route_fee_settings');
+        if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             } catch (e) {
                 console.error('Error parsing route settings:', e);
             }
@@ -208,12 +209,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
+        const key = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
+        localStorage.setItem(key, JSON.stringify(routeFeeSetting));
         localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(routeFeeSetting));
-    }, [routeFeeSetting]);
+    }, [routeFeeSetting, currentInstitution?.id]);
 
     const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
-        const saved = localStorage.getItem('eduai_transport_fee_invoices');
-        if (saved) {
+        const key = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : 'eduai_transport_fee_invoices';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_transport_fee_invoices');
+        if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed)) return parsed;
@@ -225,12 +229,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
+        const key = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : 'eduai_transport_fee_invoices';
+        localStorage.setItem(key, JSON.stringify(transportInvoices));
         localStorage.setItem('eduai_transport_fee_invoices', JSON.stringify(transportInvoices));
-    }, [transportInvoices]);
+    }, [transportInvoices, currentInstitution?.id]);
 
     const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
-        const saved = localStorage.getItem('eduai_student_commute_prefs');
-        if (saved) {
+        const key = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_student_commute_prefs');
+        if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
                 if (parsed && typeof parsed === 'object') return parsed;
@@ -242,8 +249,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
+        const key = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
+        localStorage.setItem(key, JSON.stringify(studentCommutePrefs));
         localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(studentCommutePrefs));
-    }, [studentCommutePrefs]);
+    }, [studentCommutePrefs, currentInstitution?.id]);
 
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
@@ -338,11 +347,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         driver: string;
         attendant: string;
     }>>(() => {
-        const saved = localStorage.getItem('eduai_transport_bus_routes');
-        if (saved) {
+        const key = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_transport_bus_routes');
+        if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed)) return parsed;
             } catch (e) {
                 console.error('Error parsing bus routes from localStorage:', e);
             }
@@ -355,8 +365,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
+        const key = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
+        localStorage.setItem(key, JSON.stringify(busRoutes));
         localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(busRoutes));
-    }, [busRoutes]);
+    }, [busRoutes, currentInstitution?.id]);
 
     // Route Registration & Editing Modal States
     const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
@@ -479,46 +491,27 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     const students = useMemo(() => users.filter(u => u.role === 'student'), [users]);
 
-    // Automatically map existing students to demo routes to populate initial dashboard tables
+    // Automatically map existing students to initial routes ONLY on first-ever load if nothing has been saved yet
     React.useEffect(() => {
         if (!isEduTransport) return;
-        const saved = localStorage.getItem('eduai_student_commute_prefs');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed && Object.keys(parsed).length > 0) {
-                    setStudentCommutePrefs(parsed);
-                    return;
-                }
-            } catch (e) {}
+        const key = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_student_commute_prefs');
+        if (saved !== null) {
+            // User already has saved preferences (even if empty after deleting routes), do NOT overwrite!
+            return;
         }
+        if (busRoutes.length === 0) return;
         const initialPrefs: typeof studentCommutePrefs = {};
         students.forEach((student, index) => {
-            const routes = ['route_1', 'route_2', 'route_3'];
+            const routes = busRoutes.map(r => r.id);
             const prefs: ('round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none')[] = ['round_trip', 'one_way_pickup', 'one_way_drop'];
             initialPrefs[student.id] = {
                 routeId: routes[index % routes.length],
                 preference: prefs[index % prefs.length]
             };
         });
-        // Add a few fallback students if registry is empty so it looks full for demonstration
-        if (students.length === 0 || Object.keys(initialPrefs).length === 0) {
-            const demoStudents = [
-                { id: 'st_1', name: 'Kelvin Kiprop', admissionNumber: 'ADM/8821/24' },
-                { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24' },
-                { id: 'st_3', name: 'Liam Otieno', admissionNumber: 'ADM/8774/24' },
-                { id: 'st_4', name: 'Chloe Kamau', admissionNumber: 'ADM/9331/25' },
-                { id: 'st_5', name: 'Ethan Ndwiga', admissionNumber: 'ADM/8109/23' },
-            ];
-            demoStudents.forEach((ds, index) => {
-                initialPrefs[ds.id] = {
-                    routeId: ['route_1', 'route_2', 'route_3'][index % 3],
-                    preference: ['round_trip', 'one_way_pickup', 'one_way_drop'][index % 3] as any
-                };
-            });
-        }
         setStudentCommutePrefs(initialPrefs);
-    }, [students, isEduTransport]);
+    }, [students, isEduTransport, busRoutes, currentInstitution?.id]);
 
     const [schoolTrips, setSchoolTrips] = useState([
         { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' },
@@ -1009,50 +1002,62 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                        {busRoutes.map(route => (
-                                            <tr key={route.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors group">
-                                                <td className="px-8 py-6">
-                                                    <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{route.name}</p>
-                                                </td>
-                                                <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
-                                                    {route.startPoint}
-                                                </td>
-                                                <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
-                                                    {route.endPoint}
-                                                </td>
-                                                <td className="px-8 py-6 font-black text-indigo-650 dark:text-indigo-400">
-                                                    {route.bus}
-                                                </td>
-                                                <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
-                                                    {route.driver}
-                                                </td>
-                                                <td className="px-8 py-6 font-bold text-slate-500">
-                                                    {route.attendant}
-                                                </td>
-                                                <td className="px-8 py-6 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleOpenEditRoute(route)}
-                                                            className="p-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
-                                                            title="Edit Route"
-                                                        >
-                                                            <Edit3 className="w-3.5 h-3.5" />
-                                                            <span className="text-[9px] font-black uppercase tracking-wider">Edit</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteRoute(route.id)}
-                                                            className="p-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
-                                                            title="Delete Route"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                            <span className="text-[9px] font-black uppercase tracking-wider">Delete</span>
-                                                        </button>
+                                        {busRoutes.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="px-8 py-16 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-2">
+                                                        <Navigation className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                                                        <p className="font-black text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">No Registered Bus Routes</p>
+                                                        <p className="text-[11px] text-slate-400 font-medium">Click &quot;+ Register Route&quot; above to add a new route.</p>
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            busRoutes.map(route => (
+                                                <tr key={route.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors group">
+                                                    <td className="px-8 py-6">
+                                                        <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{route.name}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
+                                                        {route.startPoint}
+                                                    </td>
+                                                    <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
+                                                        {route.endPoint}
+                                                    </td>
+                                                    <td className="px-8 py-6 font-black text-indigo-650 dark:text-indigo-400">
+                                                        {route.bus}
+                                                    </td>
+                                                    <td className="px-8 py-6 font-bold text-slate-700 dark:text-slate-200">
+                                                        {route.driver}
+                                                    </td>
+                                                    <td className="px-8 py-6 font-bold text-slate-500">
+                                                        {route.attendant}
+                                                    </td>
+                                                    <td className="px-8 py-6 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditRoute(route)}
+                                                                className="p-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                                                                title="Edit Route"
+                                                            >
+                                                                <Edit3 className="w-3.5 h-3.5" />
+                                                                <span className="text-[9px] font-black uppercase tracking-wider">Edit</span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteRoute(route.id)}
+                                                                className="p-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 rounded-xl transition-all font-bold text-xs flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-sm"
+                                                                title="Delete Route"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                <span className="text-[9px] font-black uppercase tracking-wider">Delete</span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>

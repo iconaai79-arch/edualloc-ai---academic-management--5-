@@ -274,7 +274,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     const routeFeeSettings = useMemo(() => {
         const saved = localStorage.getItem('eduai_transport_route_fee_settings');
-        return saved ? JSON.parse(saved) : [
+        if (saved !== null) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {}
+        }
+        return [
             { routeId: 'route_1', routeName: 'Route A - Kilimani & Hurlingham', termFee: 8500, monthlyFee: 3000 },
             { routeId: 'route_2', routeName: 'Route B - Langata & Karen', termFee: 12000, monthlyFee: 4200 },
             { routeId: 'route_3', routeName: 'Route C - Westlands & Spring Valley', termFee: 6000, monthlyFee: 2200 },
@@ -283,7 +289,12 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     const studentCommutePrefs = useMemo(() => {
         const saved = localStorage.getItem('eduai_student_commute_prefs');
-        if (saved) return JSON.parse(saved);
+        if (saved !== null) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            } catch (e) {}
+        }
         const initialPrefs: Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }> = {};
         students.forEach((student, index) => {
             const routes = ['route_1', 'route_2', 'route_3'];

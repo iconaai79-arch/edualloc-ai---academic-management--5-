@@ -192,7 +192,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'uninvoiced' | 'history' | 'wizard'>('ledger');
-    const [homeSubTab, setHomeSubTab] = useState<'dashboard' | 'registry' | 'communication' | 'reports'>('dashboard');
+    const [homeSubTab, setHomeSubTab] = useState<'registry' | 'dashboard' | 'communication' | 'reports'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
     const [outstandingSubTab, setOutstandingSubTab] = useState<'balance_slip' | 'all_balances' | 'student_summary' | 'class_summary' | 'term_summary' | 'voteheads_summary' | 'votehead_distribution' | 'household_balances' | 'promissory_commitments'>('all_balances');
@@ -9073,8 +9073,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     })).sort((a, b) => b.amount - a.amount);
 
                     const homeSubTabs = [
-                        { id: 'dashboard', label: 'Financial Analytics & Insights', icon: ChartPieIcon },
                         { id: 'registry', label: 'Students Registry', icon: UserGroupIcon },
+                        { id: 'dashboard', label: 'Financial Analytics & Insights', icon: ChartPieIcon },
                         { id: 'communication', label: 'Communication Hub', icon: PaperAirplaneIcon },
                         { id: 'reports', label: 'Financial Reports', icon: FileTextIcon },
                     ] as const;
