@@ -4479,6 +4479,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     // On-screen Receipt & Batch Modal Preview State
     const [onScreenReceiptModal, setOnScreenReceiptModal] = useState<{ receipt?: Receipt; dataUri: string; studentName?: string; admNo?: string; title?: string; fileName?: string } | null>(null);
+    const [previewIframeLoading, setPreviewIframeLoading] = useState<boolean>(true);
+    const [reprintProgressText, setReprintProgressText] = useState<string>('');
+
+    const closeReceiptPreview = () => {
+        if (onScreenReceiptModal?.dataUri && onScreenReceiptModal.dataUri.startsWith('blob:')) {
+            try { URL.revokeObjectURL(onScreenReceiptModal.dataUri); } catch (_) {}
+        }
+        setOnScreenReceiptModal(null);
+        setPreviewIframeLoading(true);
+    };
 
     // Class Receipts Reprint State & Handler
     const [isClassReceiptReprintModalOpen, setIsClassReceiptReprintModalOpen] = useState(false);
@@ -4502,6 +4512,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const handleReprintClassReceipts = async () => {
         setIsReprintingClass(true);
+        setReprintProgressText('Preparing student records...');
         try {
             const classFilteredReceipts = mappedReceipts.filter(rec => {
                 if (!rec.studentId) return false;
@@ -4564,9 +4575,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
                 props.currentUser?.name || 'Chief Accountant',
-                true
+                true,
+                (current, total) => {
+                    setReprintProgressText(`Rendering receipt ${current} of ${total} (${Math.round((current / total) * 100)}%)...`);
+                }
             );
 
+            setPreviewIframeLoading(true);
             setOnScreenReceiptModal({
                 dataUri,
                 title: `Class ${reprintSelectedClass}${reprintSelectedStream !== 'All' ? ` (${reprintSelectedStream})` : ''} Batch Receipts Preview`,
@@ -4581,6 +4596,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to reprint receipts: " + (err.message || err));
         } finally {
             setIsReprintingClass(false);
+            setReprintProgressText('');
         }
     };
 
@@ -4590,6 +4606,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handleReprintSelectedReceipts = async () => {
         if (selectedReceiptIds.size === 0) return;
         setIsReprintingSelected(true);
+        setReprintProgressText('Preparing selected records...');
         try {
             const selectedReceiptsList = mappedReceipts.filter(r => selectedReceiptIds.has(r.id));
             if (selectedReceiptsList.length === 0) {
@@ -4640,9 +4657,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 props.companyDetails || {} as any,
                 props.institution.logoUrl || null,
                 props.currentUser?.name || 'Chief Accountant',
-                true
+                true,
+                (current, total) => {
+                    setReprintProgressText(`Rendering receipt ${current} of ${total} (${Math.round((current / total) * 100)}%)...`);
+                }
             );
 
+            setPreviewIframeLoading(true);
             setOnScreenReceiptModal({
                 dataUri,
                 title: `Combined Multi-Page Receipts Preview`,
@@ -4655,6 +4676,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to reprint selected receipts: " + (err.message || err));
         } finally {
             setIsReprintingSelected(false);
+            setReprintProgressText('');
         }
     };
 
@@ -21328,7 +21350,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 {isReprintingClass ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        <span>Preparing Preview...</span>
+                                        <span>{reprintProgressText || 'Preparing Preview...'}</span>
                                     </>
                                 ) : (
                                     <>
@@ -21659,19 +21681,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </p>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setOnScreenReceiptModal(null)}
-                                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl transition-all cursor-pointer"
-                            >
-                                <XIcon className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => window.open(onScreenReceiptModal.dataUri, '_blank')}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-slate-700"
+                                    title="Open PDF in a new browser window"
+                                >
+                                    <span>↗ Open Full Window</span>
+                                </button>
+                                <button
+                                    onClick={closeReceiptPreview}
+                                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl transition-all cursor-pointer"
+                                >
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-950/60 flex justify-center">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/70 flex justify-center items-center relative min-h-[500px]">
+                            {previewIframeLoading && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 z-10 backdrop-blur-sm gap-3">
+                                    <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                                    <p className="text-xs font-bold text-slate-300">Rendering PDF Document Preview...</p>
+                                </div>
+                            )}
                             <iframe
                                 src={onScreenReceiptModal.dataUri}
-                                className="w-full h-[650px] bg-white rounded-2xl shadow-2xl border border-slate-200"
+                                className="w-full h-[650px] bg-white rounded-2xl shadow-2xl border border-slate-700"
                                 title="On-Screen Receipt Preview"
+                                onLoad={() => setPreviewIframeLoading(false)}
                             />
                         </div>
 
@@ -21696,7 +21734,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <button
                                         onClick={() => {
                                             handlePrintEposThermalReceipt(onScreenReceiptModal.receipt);
-                                            setOnScreenReceiptModal(null);
+                                            closeReceiptPreview();
                                         }}
                                         className="px-4 py-2.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border border-emerald-500/30 flex items-center gap-2"
                                     >
@@ -21711,7 +21749,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         const win = window.open(onScreenReceiptModal.dataUri);
                                         if (win) {
                                             win.focus();
-                                            win.print();
                                         }
                                     }}
                                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-95 flex items-center gap-2"
@@ -21720,7 +21757,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <span>Print Document</span>
                                 </button>
                                 <button
-                                    onClick={() => setOnScreenReceiptModal(null)}
+                                    onClick={closeReceiptPreview}
                                     className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
                                 >
                                     Close Preview

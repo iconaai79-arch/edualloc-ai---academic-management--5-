@@ -739,7 +739,8 @@ export const generateReceiptPdfDataUri = async (
         isReprint
     );
 
-    return doc.output('datauristring');
+    const blob = doc.output('blob');
+    return URL.createObjectURL(blob);
 };
 
 export const generateCombinedReceiptsPdfDataUri = async (
@@ -757,7 +758,8 @@ export const generateCombinedReceiptsPdfDataUri = async (
     companyDetails: CompanyDetails,
     logoUrl: string | null,
     accountantName?: string,
-    isReprint: boolean = true
+    isReprint: boolean = true,
+    onProgress?: (current: number, total: number) => void
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -771,7 +773,9 @@ export const generateCombinedReceiptsPdfDataUri = async (
     const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
 
-    for (let i = 0; i < receiptEntries.length; i++) {
+    const total = receiptEntries.length;
+
+    for (let i = 0; i < total; i++) {
         if (i > 0) {
             doc.addPage();
         }
@@ -803,9 +807,19 @@ export const generateCombinedReceiptsPdfDataUri = async (
                 (doc as any).outline.add(null, label, { pageNumber: i + 1 });
             }
         } catch (_) {}
+
+        if (onProgress) {
+            onProgress(i + 1, total);
+        }
+
+        // Cooperatively yield event loop every 4 pages so the browser UI stays responsive
+        if (i > 0 && i % 4 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
     }
 
-    return doc.output('datauristring');
+    const blob = doc.output('blob');
+    return URL.createObjectURL(blob);
 };
 
 export const downloadCombinedReceiptsPdf = async (
@@ -824,20 +838,25 @@ export const downloadCombinedReceiptsPdf = async (
     logoUrl: string | null,
     accountantName?: string,
     filename: string = 'Combined-Receipts.pdf',
-    isReprint: boolean = true
+    isReprint: boolean = true,
+    onProgress?: (current: number, total: number) => void
 ) => {
-    const dataUri = await generateCombinedReceiptsPdfDataUri(
+    const blobUrl = await generateCombinedReceiptsPdfDataUri(
         receiptEntries,
         institution,
         companyDetails,
         logoUrl,
         accountantName,
-        isReprint
+        isReprint,
+        onProgress
     );
     const link = document.createElement('a');
-    link.href = dataUri;
+    link.href = blobUrl;
     link.download = filename;
     link.click();
+    setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+    }, 60000);
 };
 
 export const generateCarInvoicePdfDataUri = async (
