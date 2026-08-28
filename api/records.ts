@@ -982,7 +982,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'fee_structure_id', 'feeStructureId', 'curriculum', 'program', 'grade_level', 'gradeLevel', 'stream',
                         'parent_name', 'parentName', 'parent_phone', 'parentPhone', 'parent_email', 'parentEmail',
                         'recorded_by', 'recordedBy', 'created_by', 'createdBy', 'issued_by', 'issuedBy',
-                        'accountant_name', 'accountantName', 'payer_name', 'payerName'
+                        'accountant_name', 'accountantName', 'payer_name', 'payerName',
+                        'metadata'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {
@@ -1190,7 +1191,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'fee_structure_id', 'feeStructureId', 'curriculum', 'program', 'grade_level', 'gradeLevel', 'stream',
                         'parent_name', 'parentName', 'parent_phone', 'parentPhone', 'parent_email', 'parentEmail',
                         'recorded_by', 'recordedBy', 'created_by', 'createdBy', 'issued_by', 'issuedBy',
-                        'accountant_name', 'accountantName', 'payer_name', 'payerName'
+                        'accountant_name', 'accountantName', 'payer_name', 'payerName',
+                        'metadata'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {
