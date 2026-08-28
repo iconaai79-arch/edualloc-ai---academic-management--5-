@@ -191,8 +191,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     };
     // ── TRANSPORT BILLING STATE ────────────────────────────────────────────────
     const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>(() => {
-        const key = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_transport_route_fee_settings');
+        const instKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_route_fee_settings');
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -201,11 +201,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 console.error('Error parsing route settings:', e);
             }
         }
-        return [
+        const defaultFees = [
             { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
             { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
             { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
         ];
+        if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultFees));
+        localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(defaultFees));
+        return defaultFees;
     });
 
     React.useEffect(() => {
@@ -235,8 +238,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     }, [transportInvoices, currentInstitution?.id]);
 
     const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
-        const key = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_student_commute_prefs');
+        const instKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_student_commute_prefs');
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -347,8 +350,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         driver: string;
         attendant: string;
     }>>(() => {
-        const key = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_transport_bus_routes');
+        const instKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_bus_routes');
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -357,11 +360,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 console.error('Error parsing bus routes from localStorage:', e);
             }
         }
-        return [
+        const defaultRoutes = [
             { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: 'Westlands School Gate', bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
             { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: 'Westlands School Gate', bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
             { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: 'Westlands School Gate', bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
         ];
+        if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultRoutes));
+        localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(defaultRoutes));
+        return defaultRoutes;
     });
 
     React.useEffect(() => {
@@ -474,8 +480,18 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             return;
         }
 
-        setBusRoutes(prev => prev.filter(r => r.id !== routeId));
-        setRouteFeeSetting(prev => prev.filter(rf => rf.routeId !== routeId));
+        const nextRoutes = busRoutes.filter(r => r.id !== routeId);
+        const nextFees = routeFeeSetting.filter(rf => rf.routeId !== routeId);
+
+        setBusRoutes(nextRoutes);
+        setRouteFeeSetting(nextFees);
+
+        const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
+        const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
+        localStorage.setItem(routeKey, JSON.stringify(nextRoutes));
+        localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(nextRoutes));
+        localStorage.setItem(feeKey, JSON.stringify(nextFees));
+        localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(nextFees));
 
         // Clean up student preferences assigned to this route
         setStudentCommutePrefs(prev => {
@@ -485,6 +501,9 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     delete next[stId];
                 }
             });
+            const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
+            localStorage.setItem(prefKey, JSON.stringify(next));
+            localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(next));
             return next;
         });
     };
@@ -627,11 +646,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     ];
 
     const renderStudentCommute = () => {
-        const schoolRuns = [
-            { id: 'run_1', routeName: 'Route A - Kilimani & Hurlingham', runType: 'Morning Pick-up', driver: 'Douglas Omwamba', vehicle: 'KDC 992P (Bus 04)', attendant: 'Sarah Wanjiku', status: 'boarding', students: '24/30', startTime: '06:15 AM' },
-            { id: 'run_2', routeName: 'Route B - Langata & Karen', runType: 'Morning Pick-up', driver: 'James Kamau', vehicle: 'KBB 120Z (Bus 02)', attendant: 'Mercy Nyambura', status: 'in_transit', students: '28/35', startTime: '06:30 AM' },
-            { id: 'run_3', routeName: 'Route C - Westlands & Spring Valley', runType: 'Afternoon Drop-off', driver: 'Douglas Omwamba', vehicle: 'KDC 992P (Bus 04)', attendant: 'Sarah Wanjiku', status: 'completed', students: '30/30', startTime: '03:30 PM' },
-        ];
+        const schoolRuns = busRoutes.map((r, idx) => ({
+            id: `run_${r.id}`,
+            routeName: r.name,
+            runType: idx % 2 === 0 ? 'Morning Pick-up' : 'Afternoon Drop-off',
+            driver: r.driver || 'Douglas Omwamba',
+            vehicle: r.bus || 'KDC 992P (Bus 04)',
+            attendant: r.attendant || 'Sarah Wanjiku',
+            status: idx === 0 ? 'boarding' : idx === 1 ? 'in_transit' : 'completed',
+            students: '24/30',
+            startTime: idx % 2 === 0 ? '06:15 AM' : '03:30 PM'
+        }));
 
         const filteredRuns = schoolRuns.filter(r => 
             r.routeName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -652,9 +677,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 return;
             }
 
+            let nextRoutes: typeof busRoutes;
+            let nextFees: typeof routeFeeSetting;
+
             if (editingRoute) {
                 // Updating existing route
-                const updatedRoutes = busRoutes.map(r => r.id === editingRoute.id ? {
+                nextRoutes = busRoutes.map(r => r.id === editingRoute.id ? {
                     ...r,
                     name: newRouteName.trim(),
                     startPoint: newRouteStart.trim(),
@@ -663,13 +691,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     driver: newRouteDriver.trim() || 'TBD',
                     attendant: newRouteAttendant.trim() || 'TBD'
                 } : r);
-                setBusRoutes(updatedRoutes);
-                
-                // Sync route name in billing route settings
-                setRouteFeeSetting(prev => prev.map(rf => rf.routeId === editingRoute.id ? {
+                nextFees = routeFeeSetting.map(rf => rf.routeId === editingRoute.id ? {
                     ...rf,
                     routeName: newRouteName.trim()
-                } : rf));
+                } : rf);
             } else {
                 // Adding new route
                 const routeId = `route_${Date.now()}`;
@@ -682,11 +707,9 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     driver: newRouteDriver.trim() || 'TBD',
                     attendant: newRouteAttendant.trim() || 'TBD'
                 };
-                setBusRoutes(prev => [...prev, newRoute]);
-                
-                // Automatically register in billing settings
-                setRouteFeeSetting(prev => [
-                    ...prev,
+                nextRoutes = [...busRoutes, newRoute];
+                nextFees = [
+                    ...routeFeeSetting,
                     {
                         routeId,
                         routeName: newRouteName.trim(),
@@ -694,8 +717,18 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         monthlyFee: 3000,
                         currency: 'KES'
                     }
-                ]);
+                ];
             }
+
+            setBusRoutes(nextRoutes);
+            setRouteFeeSetting(nextFees);
+
+            const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
+            const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
+            localStorage.setItem(routeKey, JSON.stringify(nextRoutes));
+            localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(nextRoutes));
+            localStorage.setItem(feeKey, JSON.stringify(nextFees));
+            localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(nextFees));
 
             setIsAddRouteModalOpen(false);
             setEditingRoute(null);
@@ -929,41 +962,49 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                        {filteredRuns.map(run => (
-                                            <tr key={run.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-all cursor-pointer group">
-                                                <td className="px-8 py-6">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`p-3 rounded-2xl ${run.status === 'in_transit' ? 'bg-indigo-100 text-indigo-600' : run.status === 'boarding' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
-                                                            <Navigation className="w-5 h-5" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{run.routeName}</p>
-                                                            <p className="text-[10px] font-black text-slate-400 tracking-widest">{run.runType} • Starts: {run.startTime}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <p className="font-bold text-slate-700 dark:text-slate-200">{run.driver}</p>
-                                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Attendant: {run.attendant}</p>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <p className="font-bold text-slate-650 dark:text-slate-350">{run.vehicle}</p>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Enabled Tablet</p>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <span className="font-black text-slate-800 dark:text-white">{run.students}</span>
-                                                    <span className="text-[10px] text-slate-400 block tracking-wider font-bold">Students Checked-in</span>
-                                                </td>
-                                                <td className="px-8 py-6">
-                                                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                                        run.status === 'in_transit' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 
-                                                        run.status === 'boarding' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-green-50 text-green-650 border-green-100'
-                                                    }`}>
-                                                        {run.status.replace('_', ' ')}
-                                                    </span>
+                                        {filteredRuns.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-8 py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                    No active school commute runs. Register routes in the &quot;Register Routes&quot; tab.
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            filteredRuns.map(run => (
+                                                <tr key={run.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-all cursor-pointer group">
+                                                    <td className="px-8 py-6">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className={`p-3 rounded-2xl ${run.status === 'in_transit' ? 'bg-indigo-100 text-indigo-600' : run.status === 'boarding' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
+                                                                <Navigation className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight">{run.routeName}</p>
+                                                                <p className="text-[10px] font-black text-slate-400 tracking-widest">{run.runType} • Starts: {run.startTime}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <p className="font-bold text-slate-700 dark:text-slate-200">{run.driver}</p>
+                                                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Attendant: {run.attendant}</p>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <p className="font-bold text-slate-650 dark:text-slate-350">{run.vehicle}</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GPS Enabled Tablet</p>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className="font-black text-slate-800 dark:text-white">{run.students}</span>
+                                                        <span className="text-[10px] text-slate-400 block tracking-wider font-bold">Students Checked-in</span>
+                                                    </td>
+                                                    <td className="px-8 py-6">
+                                                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                                            run.status === 'in_transit' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 
+                                                            run.status === 'boarding' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-green-50 text-green-650 border-green-100'
+                                                        }`}>
+                                                            {run.status.replace('_', ' ')}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
