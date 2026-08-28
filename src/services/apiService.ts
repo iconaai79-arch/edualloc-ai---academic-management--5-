@@ -1759,6 +1759,17 @@ export const apiService = {
                 }
             }
 
+            // Student enrollments normalization
+            if (module === 'student_enrollments') {
+                if (item.assessmentNo || item.assessment_no) {
+                    const assVal = item.assessmentNo || item.assessment_no;
+                    item.metadata = {
+                        ...(item.metadata || {}),
+                        assessmentNo: assVal
+                    };
+                }
+            }
+
             // Commission withdrawal requests normalization
             if (module === 'commission_withdrawal_requests') {
                 if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;
