@@ -346,20 +346,13 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
                     const dueDateRaw = parseExcelDateString(rawDue, batchDueDate);
                     const customInvNo = idxCustomInvNo !== -1 ? String(row[idxCustomInvNo] || '').trim() : undefined;
 
-                    // Match student (exact and normalized)
+                    // Match student strictly by Admission Number ONLY
                     let matchedStudent: User | undefined = undefined;
                     if (admRaw) {
                         matchedStudent = studentAdmMap.get(admRaw.toUpperCase());
                         if (!matchedStudent) {
                             const normAdm = admRaw.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
                             if (normAdm) matchedStudent = studentNormalizedAdmMap.get(normAdm);
-                        }
-                    }
-                    if (!matchedStudent && nameRaw) {
-                        matchedStudent = studentNameMap.get(nameRaw.toUpperCase());
-                        if (!matchedStudent) {
-                            const normName = nameRaw.toUpperCase().replace(/\s+/g, ' ').trim();
-                            if (normName) matchedStudent = studentNormalizedNameMap.get(normName);
                         }
                     }
 

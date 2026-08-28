@@ -756,11 +756,11 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             const finalReceiptNumber = rawReceiptNo || systemReceiptNo;
             const receiptSource: 'excel' | 'system' = rawReceiptNo ? 'excel' : 'system';
 
-            // Match student strictly (No false positives)
+            // Match student strictly by Admission Number ONLY (No false positives, No name fallback)
             let matchedStudent: User | null = null;
             let matchConfidence: 'exact_adm' | 'exact_name' | 'manual' | 'none' = 'none';
 
-            // 1. Strict Admission Number Matching First
+            // Strict Admission Number Matching ONLY
             if (rawAdm && rawAdm.length >= 1) {
                 const normAdm = rawAdm.toLowerCase();
                 const cleanAlpha = normAdm.replace(/[^a-z0-9]/g, '');
@@ -779,19 +779,6 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 } else if (noZeros && admMap.has(noZeros)) {
                     matchedStudent = admMap.get(noZeros)!;
                     matchConfidence = 'exact_adm';
-                }
-            }
-
-            // 2. Exact Unique Full Name Matching Fallback (Requires 2+ words, unambiguous)
-            if (!matchedStudent && rawName && rawName.trim().split(/\s+/).filter(Boolean).length >= 2) {
-                const nameKey = rawName.trim().toLowerCase();
-                const cleanAlphaName = nameKey.replace(/[^a-z0-9]/g, '');
-                if (nameMap.has(nameKey)) {
-                    matchedStudent = nameMap.get(nameKey)!;
-                    matchConfidence = 'exact_name';
-                } else if (cleanAlphaName && nameMap.has(cleanAlphaName)) {
-                    matchedStudent = nameMap.get(cleanAlphaName)!;
-                    matchConfidence = 'exact_name';
                 }
             }
 

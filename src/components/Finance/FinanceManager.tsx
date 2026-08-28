@@ -1145,14 +1145,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (stripped) studentIds.add(stripped);
                 }
             });
-            if (s.name && typeof s.name === 'string') {
-                const sNameClean = String(s.name).trim().toLowerCase();
-                const nameParts = sNameClean.split(/\s+/).filter(Boolean);
-                if (nameParts.length >= 2) {
-                    studentIds.add(sNameClean);
-                }
-            }
-
             studentIds.forEach(idKey => {
                 if (idKey && !identifierToStudentMap.has(idKey)) {
                     identifierToStudentMap.set(idKey, s);
@@ -1173,10 +1165,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 record.admNo,
                 record.adm_no,
                 record.metadata?.admissionNumber,
-                record.metadata?.admNo,
-                record.studentName,
-                record.student_name,
-                record.name
+                record.metadata?.admNo
             ];
             for (const key of possibleKeys) {
                 if (key !== undefined && key !== null && String(key).trim() !== '' && String(key).trim() !== '—') {
@@ -2136,15 +2125,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
                     const currentStudentName = currentStudent?.name || currentStudent?.fullName || '';
                     
-                    // If receipt has an explicit Adm No or receipt number or payer/student name containing another student that differs from currentStudent:
-                    const trueStudent = findStudentByAdmOrFullName(r, rNum, currentAdmClean, currentStudentName);
-                    if (trueStudent && trueStudent.id !== currentStudentId) {
-                        const trueAdm = cleanAdm(trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo);
-                        targetStudentId = trueStudent.id;
-                        r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
-                        r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                    // 1. Strict Admission Number check
+                    const trueStudentByAdm = findStudentByAdm(r, rNum, currentAdmClean);
+                    if (trueStudentByAdm && trueStudentByAdm.id !== currentStudentId) {
+                        targetStudentId = trueStudentByAdm.id;
+                        r.admissionNumber = trueStudentByAdm.admissionNumber || trueStudentByAdm.admission_number || (trueStudentByAdm as any).admNo;
+                        r.branchId = trueStudentByAdm.branchId || (trueStudentByAdm as any).branch_id || r.branchId;
                         reallocatedToStudentCount++;
-                        reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${r.admissionNumber})`);
+                        reallocatedStudentNames.push(`${trueStudentByAdm.name || trueStudentByAdm.fullName} (Adm ${r.admissionNumber})`);
+                        isModified = true;
+                    } else if (explicitAdm && currentAdmClean && explicitAdm !== currentAdmClean) {
+                        // The receipt explicitly belongs to another Adm No which was not found in student list -> move to Suspense
+                        targetStudentId = null as any;
+                        r.admissionNumber = '';
+                        r.notes = (r.notes ? r.notes + ' | ' : '') + `Re-assigned to Suspense from ${currentStudentName} (Adm mismatch: ${explicitAdm})`;
+                        suspenseCount++;
                         isModified = true;
                     } else {
                         // Check if receipt has an explicit name with a different surname (first-name only collision on this student)
@@ -2157,7 +2152,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             const curSurname = curTokens[curTokens.length - 1];
                             const isDifferentPerson = recSurname !== curSurname && !curTokens.includes(recSurname);
 
-                            if (isDifferentPerson && explicitAdm !== currentAdmClean) {
+                            if (isDifferentPerson) {
                                 // Mismatched person on this account - move to suspense
                                 targetStudentId = null as any;
                                 r.admissionNumber = '';
@@ -2984,13 +2979,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             const studentInvoicesRaw = mappedInvoices.filter(inv => {
                 if (inv.status === 'cancelled' || inv.status === 'quote') return false;
+                const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim().toLowerCase();
+                const cleanInvAdm = invAdm.replace(/^0+/, '');
+                
+                // If invoice explicitly specifies an admission number that does not match this student, reject
+                if (invAdm && invAdm !== '—' && !studentIds.has(invAdm) && !studentIds.has(cleanInvAdm)) {
+                    return false;
+                }
+
                 const invStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
                 if (invStudentId && studentIds.has(invStudentId)) return true;
-                const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim().toLowerCase();
-                if (invAdm && (studentIds.has(invAdm) || (invAdm.replace(/^0+/, '') && studentIds.has(invAdm.replace(/^0+/, ''))))) return true;
-                if (isMultiWordName && (inv as any).studentName && String((inv as any).studentName).trim().toLowerCase() === studentNameLower) {
-                    if (!invStudentId && !invAdm) return true;
-                }
+                if (invAdm && (studentIds.has(invAdm) || (cleanInvAdm && studentIds.has(cleanInvAdm)))) return true;
                 return false;
             });
             const studentInvoices = Array.from(new Map(studentInvoicesRaw.map(i => [String(i.id), i])).values());
@@ -3006,15 +3005,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             };
 
             const allStudentReceiptsRaw = mappedReceipts.filter(rec => {
+                const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
+                const cleanRecAdm = recAdm.replace(/^0+/, '');
+
+                // Strict Admission Number Check: If receipt explicitly specifies an admission number that doesn't match this student, reject
+                if (recAdm && recAdm !== '—' && !studentIds.has(recAdm) && !studentIds.has(cleanRecAdm)) {
+                    return false;
+                }
+
                 const recStudentId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
                 if (recStudentId && studentIds.has(recStudentId)) return true;
-                const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
-                if (recAdm && (studentIds.has(recAdm) || (recAdm.replace(/^0+/, '') && studentIds.has(recAdm.replace(/^0+/, ''))))) return true;
+                if (recAdm && (studentIds.has(recAdm) || (cleanRecAdm && studentIds.has(cleanRecAdm)))) return true;
                 const recInvId = rec.invoiceId || (rec as any).invoice_id;
                 if (recInvId && studentInvoices.some(i => i.id === recInvId || String(i.id) === String(recInvId))) return true;
-                if (isMultiWordName && (rec as any).studentName && String((rec as any).studentName).trim().toLowerCase() === studentNameLower) {
-                    if (!recStudentId && !recAdm) return true;
-                }
                 return false;
             });
             const allStudentReceipts = Array.from(new Map(allStudentReceiptsRaw.map(r => [String(r.id), r])).values());
@@ -3997,19 +4000,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     }
                 }
 
-                // 2. High-precision full name match (fallback if ADM lookup missed, requires 2+ words, unambiguous)
-                if (!matchedStudent && nameRaw && nameRaw.trim().split(/\s+/).filter(Boolean).length >= 2) {
-                    const nameKey = nameRaw.trim().toLowerCase();
-                    const cleanAlpha = nameKey.replace(/[^a-z0-9]/g, '');
-
-                    if (nameMap.has(nameKey)) {
-                        matchedStudent = nameMap.get(nameKey);
-                        matchConfidence = 'exact_name';
-                    } else if (cleanAlpha && nameMap.has(cleanAlpha)) {
-                        matchedStudent = nameMap.get(cleanAlpha);
-                        matchConfidence = 'exact_name';
-                    }
-                }
+                // Match strictly by Admission Number ONLY (No name fallback)
 
                 // Effective admission number: from Excel or from matched student
                 const studentAdm = matchedStudent ? (matchedStudent.admissionNumber || (matchedStudent as any).admission_number || '') : '';
