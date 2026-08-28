@@ -2980,6 +2980,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const studentNameWords = studentNameLower.split(/\s+/).filter(Boolean);
             const isMultiWordName = studentNameWords.length >= 2;
 
+            const rawOpeningBal = parseMoneyAmount(openingBalancesMap[s.id] ?? extractStudentOpeningBalance(s));
+
             const studentInvoicesRaw = mappedInvoices.filter(inv => {
                 if (inv.status === 'cancelled' || inv.status === 'quote') return false;
                 const invStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
