@@ -975,7 +975,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
                         'updated_at', 'updatedAt', 'created_at', 'createdAt',
                         'subtotal', 'sub_total', 'tax', 'tax_amount', 'taxAmount', 'discount', 'discount_amount', 'discountAmount',
-                        'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance'
+                        'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance',
+                        'available_copies', 'availableCopies', 'total_copies', 'totalCopies'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {
@@ -986,6 +987,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBillingRecord) : cleanBillingRecord(currentPayload);
+            } else if (moduleName === 'books') {
+                const cleanBookRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    delete copy.available_copies;
+                    delete copy.availableCopies;
+                    delete copy.total_copies;
+                    delete copy.totalCopies;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBookRecord) : cleanBookRecord(currentPayload);
             }
 
             let data: any = null;
@@ -1147,7 +1159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.preferred_lesson_hours;
                     delete copy.preferredLessonHours;
                     currentUpdateData = copy;
-                } else if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments'].includes(moduleName) && currentUpdateData && typeof currentUpdateData === 'object') {
+                } else if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments', 'books'].includes(moduleName) && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
                     const transientColumns = [
                         'message', 'isOpeningBalance', 'is_opening_balance',
@@ -1165,7 +1177,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
                         'updated_at', 'updatedAt', 'created_at', 'createdAt',
                         'subtotal', 'sub_total', 'tax', 'tax_amount', 'taxAmount', 'discount', 'discount_amount', 'discountAmount',
-                        'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance'
+                        'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance',
+                        'available_copies', 'availableCopies', 'total_copies', 'totalCopies'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {

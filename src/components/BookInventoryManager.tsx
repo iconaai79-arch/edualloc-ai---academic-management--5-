@@ -245,9 +245,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     category: (newBook.category || 'General').trim(),
                     location: (newBook.location || '').trim(),
                     quantity: qty,
-                    total_copies: qty,
                     available: Math.min(qty, Math.max(0, avail)),
-                    available_copies: Math.min(qty, Math.max(0, avail)),
                     institutionId,
                     institution_id: institutionId
                 }
@@ -262,9 +260,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     category: (newBook.category || 'General').trim(),
                     location: (newBook.location || '').trim(),
                     quantity: qty,
-                    total_copies: qty,
                     available: qty,
-                    available_copies: qty,
                     institutionId,
                     institution_id: institutionId,
                     addedDate: new Date().toISOString(),
@@ -291,8 +287,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     ...item,
                     accession_number: item.accessionNumber || item.accession_number,
                     institution_id: item.institutionId || item.institution_id || institutionId,
-                    total_copies: item.quantity,
-                    available_copies: item.available ?? item.quantity
+                    quantity: item.quantity || 1,
+                    available: item.available ?? item.quantity ?? 1
                 };
                 await apiService.saveModuleRecord('books', normalizedItem);
             }

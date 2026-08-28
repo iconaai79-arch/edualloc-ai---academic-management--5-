@@ -599,8 +599,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 const newAvail = Math.max(0, (copy.available || 1) - 1);
                 await apiService.saveModuleRecord('books', {
                     ...copy,
-                    available: newAvail,
-                    available_copies: newAvail
+                    available: newAvail
                 });
             }
 
@@ -665,8 +664,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
             const newAvail = Math.max(0, (book.available || 1) - 1);
             await apiService.saveModuleRecord('books', {
                 ...book,
-                available: newAvail,
-                available_copies: newAvail
+                available: newAvail
             });
 
             const patronObj = getUserObject(newLoan.userId) || allMembersList.find(m => m.id === newLoan.userId || m.userId === newLoan.userId);
@@ -823,8 +821,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                 const restoredAvail = Math.min(book.quantity, (book.available || 0) + 1);
                 await apiService.saveModuleRecord('books', {
                     ...book,
-                    available: restoredAvail,
-                    available_copies: restoredAvail
+                    available: restoredAvail
                 });
             }
             await apiService.saveModuleRecord('library_transactions', {
