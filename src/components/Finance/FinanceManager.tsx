@@ -191,7 +191,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
     const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
-    const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'history' | 'wizard'>('ledger');
+    const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'uninvoiced' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'dashboard' | 'registry' | 'communication' | 'reports'>('dashboard');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
     const [reportsSubTab, setReportsSubTab] = useState<'collection' | 'outstanding' | 'ledger' | 'expenses' | 'payroll_summary' | 'annual' | 'student_statement' | 'activity_logs' | 'household_balances' | 'promissory_commitments' | 'revenue_warroom' | 'exam_permits' | 'annual_wizard'>('collection');
@@ -433,6 +433,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         return 'Unclassified';
     }, [enrollments, allBranchEnrollments, props.invoices]);
+
+    const studentClassGroup = useCallback((s: any): string => {
+        return getStudentClassName(s);
+    }, [getStudentClassName]);
+
+    const getStudentStream = useCallback((s: any): string => {
+        if (!s) return '—';
+        const sId = s.id || s.userId;
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.id === sId));
+        const stream = enr?.metadata?.stream || enr?.stream || s?.stream || s?.metadata?.stream || '';
+        return stream || '—';
+    }, [enrollments, allBranchEnrollments]);
+
+    const isStudentBoarder = useCallback((s: any): boolean => {
+        if (!s) return false;
+        const sId = s.id || s.userId;
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.id === sId));
+        const enrResidence = (enr?.metadata?.boardingStatus || enr?.metadata?.residenceType || '').toLowerCase();
+        if (enrResidence === 'boarder' || enrResidence === 'boarding') return true;
+        const sResidence = (s?.metadata?.boardingStatus || s?.metadata?.residenceType || '').toLowerCase();
+        if (sResidence === 'boarder' || sResidence === 'boarding') return true;
+        return false;
+    }, [enrollments, allBranchEnrollments]);
 
     const getAllDistinctClasses = useCallback((): string[] => {
         const set = new Set<string>();
@@ -2669,23 +2694,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
-    // Financial calculations for students grouped by class
-    function studentClassGroup(student: User) {
-        if (!student) return 'Unassigned Class';
-        const enrollment = enrollments.find(e => e.userId === student.id);
-        const metaGrade = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || 
-                          student.metadata?.gradeLevel || student.metadata?.stream ||
-                          (student as any).className || (student as any).gradeLevel || (student as any).class || (student as any).grade || (student as any).stream;
-        if (metaGrade) return metaGrade;
-        
-        const invClass = mappedInvoices.find(i => (i as any).studentId === student.id && (i as any).className) as any;
-        if (invClass && invClass.className) return invClass.className;
-        
-        const courseName = props.courses?.find(c => c.id === student.courseId)?.name;
-        if (courseName) return courseName;
-        
-        return 'Unassigned Class';
-    }
+
 
     function studentAdmissionNumber(student: any): string {
         if (!student) return '—';
@@ -3084,27 +3093,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
     }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch, getStudentAdmNumber, cleanId]);
 
-    function getStudentStream(student: any): string {
-        if (!student) return '';
-        const enrollment = enrollments.find(e => 
-            e.userId === student.id || 
-            (e as any).user_id === student.id || 
-            e.studentId === student.id || 
-            (e as any).student_id === student.id ||
-            (e.metadata && (e.metadata.userId === student.id || e.metadata.studentId === student.id))
-        );
-        const raw = enrollment?.metadata?.stream || 
-                    enrollment?.metadata?.streamName || 
-                    (enrollment as any)?.stream || 
-                    (enrollment as any)?.streamName || 
-                    student.metadata?.stream || 
-                    student.metadata?.streamName || 
-                    (student as any)?.stream || 
-                    (student as any)?.streamName || 
-                    (student as any)?.stream_name || 
-                    '';
-        return String(raw || '').trim();
-    }
+
 
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
@@ -5583,6 +5572,258 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     useEffect(() => {
         setInvoiceCurrentPage(1);
     }, [searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
+
+    const resolveApplicableFeeStructuresForStudent = useCallback((student: any) => {
+        const sClass = studentClassGroup(student);
+        const boarder = isStudentBoarder(student);
+        const feeStructures = props.feeStructures || [];
+        
+        return feeStructures.filter((fs: any) => {
+            const fsAppTo = (fs.applicableTo || fs.applicable_to || 'all').toLowerCase();
+            if (fsAppTo === 'boarder' && !boarder) return false;
+            if (fsAppTo === 'day_scholar' && boarder) return false;
+            
+            const fsClass = fs.gradeLevel || fs.className || fs.class_name || fs.name || '';
+            if (fsClass && sClass && sClass !== 'Unclassified') {
+                const normFs = fsClass.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const normSt = sClass.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (normFs && normSt && !normFs.includes(normSt) && !normSt.includes(normFs)) {
+                    if (fs.gradeLevel || (fs as any).courseId) return false;
+                }
+            }
+            return true;
+        });
+    }, [studentClassGroup, isStudentBoarder, props.feeStructures]);
+
+    // Un-invoiced students identification, filtering, and grouped data
+    const [uninvoicedSearchQuery, setUninvoicedSearchQuery] = useState('');
+    const [uninvoicedClassFilter, setUninvoicedClassFilter] = useState('All');
+    const [uninvoicedStreamFilter, setUninvoicedStreamFilter] = useState('All');
+    const [selectedUninvoicedIds, setSelectedUninvoicedIds] = useState<Set<string>>(new Set());
+    const [isAutoInvoicing, setIsAutoInvoicing] = useState(false);
+    const [autoInvoiceProgressText, setAutoInvoiceProgressText] = useState('');
+    const [collapsedUninvoicedClasses, setCollapsedUninvoicedClasses] = useState<Set<string>>(new Set());
+
+    const rawUninvoicedStudents = useMemo(() => {
+        const studentsPool = (mergedStudents && mergedStudents.length > 0) ? mergedStudents : (props.students || []);
+        const invoicedStudentIdSet = new Set<string>();
+        const invoicedAdmSet = new Set<string>();
+
+        mappedInvoices.forEach((inv: any) => {
+            const sId = inv.studentId || inv.student_id || inv.userId;
+            if (sId) invoicedStudentIdSet.add(String(sId));
+            const adm = inv.admissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).metadata?.admissionNumber;
+            if (adm) invoicedAdmSet.add(String(adm).trim().toLowerCase());
+        });
+
+        return studentsPool.filter((s: any) => {
+            if (!s || !s.id) return false;
+            const role = (s.role || '').toLowerCase();
+            if (role && role !== 'student') return false;
+            if (invoicedStudentIdSet.has(String(s.id))) return false;
+            const adm = getStudentAdmNumber(s);
+            if (adm && invoicedAdmSet.has(String(adm).trim().toLowerCase())) return false;
+            return true;
+        }).map((s: any) => {
+            const applicableFs = resolveApplicableFeeStructuresForStudent(s);
+            const estAmount = applicableFs.reduce((sum: number, fs: any) => {
+                const amt = parseMoneyAmount(fs.amount || (fs as any).allocatedAmount || 0);
+                return sum + amt;
+            }, 0);
+            return {
+                student: s,
+                id: s.id,
+                name: s.name || (s as any).fullName || 'Student',
+                admNo: getStudentAdmNumber(s) || '—',
+                className: studentClassGroup(s),
+                stream: getStudentStream(s),
+                isBoarder: isStudentBoarder(s),
+                gender: s.gender || '—',
+                applicableFeeStructures: applicableFs,
+                estimatedAmount: estAmount
+            };
+        });
+    }, [mergedStudents, props.students, mappedInvoices, getStudentAdmNumber, studentClassGroup, getStudentStream, isStudentBoarder, resolveApplicableFeeStructuresForStudent]);
+
+    const filteredUninvoicedStudents = useMemo(() => {
+        return rawUninvoicedStudents.filter(item => {
+            let matchesQuery = true;
+            if (uninvoicedSearchQuery) {
+                const q = uninvoicedSearchQuery.toLowerCase();
+                matchesQuery = item.name.toLowerCase().includes(q) || item.admNo.toLowerCase().includes(q) || item.className.toLowerCase().includes(q);
+            }
+            let matchesClass = true;
+            if (uninvoicedClassFilter !== 'All') {
+                matchesClass = item.className === uninvoicedClassFilter;
+            }
+            let matchesStream = true;
+            if (uninvoicedStreamFilter !== 'All') {
+                matchesStream = item.stream.toLowerCase() === uninvoicedStreamFilter.toLowerCase();
+            }
+            return matchesQuery && matchesClass && matchesStream;
+        });
+    }, [rawUninvoicedStudents, uninvoicedSearchQuery, uninvoicedClassFilter, uninvoicedStreamFilter]);
+
+    const groupedUninvoicedByClass = useMemo(() => {
+        const groups: Record<string, typeof filteredUninvoicedStudents> = {};
+        filteredUninvoicedStudents.forEach(item => {
+            const key = item.className || 'Unclassified';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(item);
+        });
+        return groups;
+    }, [filteredUninvoicedStudents]);
+
+    const availableUninvoicedStreams = useMemo(() => {
+        const set = new Set<string>();
+        rawUninvoicedStudents.forEach(s => {
+            if (uninvoicedClassFilter === 'All' || s.className === uninvoicedClassFilter) {
+                if (s.stream && s.stream !== '—' && s.stream.toLowerCase() !== 'all') {
+                    set.add(s.stream);
+                }
+            }
+        });
+        return Array.from(set).sort();
+    }, [rawUninvoicedStudents, uninvoicedClassFilter]);
+
+    const handleAutoInvoiceStudents = async (targetStudentIds?: string[]) => {
+        const idsToInvoice = targetStudentIds && targetStudentIds.length > 0 
+            ? targetStudentIds 
+            : (selectedUninvoicedIds.size > 0 ? Array.from(selectedUninvoicedIds) : filteredUninvoicedStudents.map(s => s.id));
+        
+        if (idsToInvoice.length === 0) {
+            alert("No un-invoiced students selected to bill.");
+            return;
+        }
+
+        const selectedList = rawUninvoicedStudents.filter(s => idsToInvoice.includes(s.id));
+        const totalEst = selectedList.reduce((acc, s) => acc + s.estimatedAmount, 0);
+
+        const confirmMsg = `Ready to auto-invoice ${selectedList.length} student(s)?\n\nTotal Estimated Invoicing: KES ${totalEst.toLocaleString()}\n\nEach student will be billed based on their applicable fee structures and sequential invoice numbers will be generated automatically.`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsAutoInvoicing(true);
+        setAutoInvoiceProgressText('Initializing invoice numbering...');
+
+        try {
+            const instId = props.institution.id;
+            let invoicePrefix = (props.companyDetails?.globalInvoicePrefix || 'INV-').trim();
+            let nextInvoiceNumber = 1001;
+
+            try {
+                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                const configRecord = configs.find((c: any) => c.documentType === 'invoice' || c.document_type === 'invoice');
+                if (configRecord) {
+                    invoicePrefix = configRecord.prefix || 'INV-';
+                    nextInvoiceNumber = Number(configRecord.nextNumber || configRecord.next_number || 1001);
+                }
+            } catch (_) {}
+
+            const newInvoices: any[] = [];
+            let curNum = nextInvoiceNumber;
+            const nowIso = new Date().toISOString();
+            const issueDate = nowIso.split('T')[0];
+            const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+            const activeAY = props.academicYears.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears[0];
+            const activeSem = props.semesters.find(s => s.status === 'Active' || s.isCurrent) || props.semesters[0];
+
+            for (let i = 0; i < selectedList.length; i++) {
+                const item = selectedList[i];
+                setAutoInvoiceProgressText(`Generating invoice ${i + 1} of ${selectedList.length} for ${item.name}...`);
+
+                const invoiceNo = `${invoicePrefix}${curNum}`;
+                curNum++;
+
+                const invoiceItems = item.applicableFeeStructures.map((fs: any) => {
+                    const amt = parseMoneyAmount(fs.amount || (fs as any).allocatedAmount || 0);
+                    return {
+                        name: fs.name || fs.voteHeadName || 'Fee Apportionment',
+                        description: fs.name || 'Fee Item',
+                        voteheadName: fs.name || 'Tuition',
+                        quantity: 1,
+                        unitPrice: amt,
+                        amount: amt,
+                        priority: fs.priority || 1
+                    };
+                });
+
+                const totalAmount = invoiceItems.reduce((sum: number, it: any) => sum + it.amount, 0);
+
+                const invPayload = {
+                    id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${i}`,
+                    institutionId: instId,
+                    studentId: item.id,
+                    student_id: item.id,
+                    userId: item.id,
+                    invoiceNumber: invoiceNo,
+                    invoice_number: invoiceNo,
+                    admissionNumber: item.admNo !== '—' ? item.admNo : '',
+                    admission_number: item.admNo !== '—' ? item.admNo : '',
+                    studentName: item.name,
+                    student_name: item.name,
+                    studentClass: item.className,
+                    gradeLevel: item.className,
+                    stream: item.stream !== '—' ? item.stream : '',
+                    issueDate: issueDate,
+                    issue_date: issueDate,
+                    dueDate: dueDate,
+                    due_date: dueDate,
+                    academicYearId: activeAY?.id || '',
+                    semesterId: activeSem?.id || '',
+                    term: activeSem?.name || 'Term 1',
+                    items: invoiceItems,
+                    totalAmount: totalAmount,
+                    total_amount: totalAmount,
+                    status: 'pending' as const,
+                    notes: `Auto-generated invoice for ${item.className} ${item.stream !== '—' ? `(${item.stream})` : ''}`,
+                    createdAt: nowIso,
+                    updatedAt: nowIso
+                };
+
+                newInvoices.push(invPayload);
+            }
+
+            // Save batch
+            if (props.onGenerateInvoices) {
+                await props.onGenerateInvoices(newInvoices);
+            } else {
+                await apiService.saveModuleRecords('invoices', newInvoices);
+            }
+
+            // Update numbering config
+            try {
+                const configs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId);
+                const configRecord = configs.find((c: any) => c.documentType === 'invoice' || c.document_type === 'invoice');
+                if (configRecord) {
+                    await apiService.updateModuleRecord('finance_numbering_configs', configRecord.id, {
+                        ...configRecord,
+                        nextNumber: curNum,
+                        next_number: curNum,
+                        updatedAt: nowIso
+                    });
+                }
+            } catch (_) {}
+
+            // Log action
+            if (props.onLogAction) {
+                props.onLogAction(`Auto-invoiced ${newInvoices.length} un-invoiced students for total KES ${totalEst.toLocaleString()}`);
+            }
+
+            setSelectedUninvoicedIds(new Set());
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+
+            alert(`✓ Successfully generated ${newInvoices.length} student invoice(s)!\nTotal Invoiced: KES ${totalEst.toLocaleString()}`);
+            setInvoicesMainTab('ledger');
+        } catch (err: any) {
+            console.error("Auto-invoicing failed:", err);
+            alert("Failed to auto-invoice students: " + (err.message || err));
+        } finally {
+            setIsAutoInvoicing(false);
+            setAutoInvoiceProgressText('');
+        }
+    };
 
     const fetchBankFeeds = async () => {
         try {
@@ -10761,6 +11002,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             <div className="flex items-center gap-1.5">
                                 {[
                                     { id: 'ledger', label: 'Invoices Ledger', icon: ClipboardListIcon, count: filteredStudentInvoices.length },
+                                    { id: 'uninvoiced', label: 'Un-invoiced Students', icon: UserGroupIcon, count: rawUninvoicedStudents.length, isWarning: rawUninvoicedStudents.length > 0 },
                                     { id: 'history', label: 'Batch History & Undo', icon: ClockIcon },
                                     { id: 'wizard', label: 'Billing Wizard', icon: SparklesIcon },
                                 ].map(tab => (
@@ -10770,7 +11012,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         onClick={() => setInvoicesMainTab(tab.id as any)}
                                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all duration-200 cursor-pointer ${
                                             invoicesMainTab === tab.id
-                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                ? (tab.id === 'uninvoiced' ? 'bg-amber-600 text-white shadow-md' : 'bg-indigo-600 text-white shadow-md')
                                                 : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                                         }`}
                                     >
@@ -10778,7 +11020,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <span>{tab.label}</span>
                                         {(tab as any).count !== undefined && (tab as any).count > 0 && (
                                             <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none ${
-                                                invoicesMainTab === tab.id ? 'bg-white/25 text-white' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300'
+                                                invoicesMainTab === tab.id 
+                                                    ? 'bg-white/25 text-white' 
+                                                    : (tab.id === 'uninvoiced' ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-300 border border-amber-300 dark:border-amber-800' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300')
                                             }`}>
                                                 {(tab as any).count}
                                             </span>
@@ -10787,6 +11031,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 ))}
                             </div>
                             <div className="flex items-center gap-2">
+                                {invoicesMainTab === 'uninvoiced' && rawUninvoicedStudents.length > 0 && (
+                                    <button
+                                        onClick={() => handleAutoInvoiceStudents()}
+                                        disabled={isAutoInvoicing}
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                    >
+                                        <ZapIcon className="w-3.5 h-3.5" />
+                                        <span>{selectedUninvoicedIds.size > 0 ? `⚡ Invoice Selected (${selectedUninvoicedIds.size})` : `⚡ Invoice All Unbilled (${rawUninvoicedStudents.length})`}</span>
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setShowExcelInvoiceModal(true)}
                                     className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
@@ -10820,6 +11074,323 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 onOpenWizard={() => setInvoicesMainTab('wizard')}
                                 onOpenExcelImporter={() => setShowExcelInvoiceModal(true)}
                             />
+                        ) : invoicesMainTab === 'uninvoiced' ? (
+                        <div className="space-y-6 text-left animate-in fade-in duration-300">
+                            {/* Header stats block for Un-invoiced students */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-amber-200 dark:border-amber-900/50 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl -mr-6 -mt-6"></div>
+                                    <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">Un-invoiced Students</span>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{rawUninvoicedStudents.length}</h3>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-1">Students missing billing invoices</p>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider">Estimated Unbilled Fees</span>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                        KES {rawUninvoicedStudents.reduce((sum, s) => sum + s.estimatedAmount, 0).toLocaleString()}
+                                    </h3>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-1">Based on applicable fee structures</p>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-wider">Affected Classes</span>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{Object.keys(groupedUninvoicedByClass).length}</h3>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-1">Classes containing unbilled students</p>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm">
+                                    <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Selected For Invoicing</span>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                                        {selectedUninvoicedIds.size > 0 ? selectedUninvoicedIds.size : 'All'}
+                                    </h3>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-1">
+                                        KES {(selectedUninvoicedIds.size > 0 
+                                            ? rawUninvoicedStudents.filter(s => selectedUninvoicedIds.has(s.id)).reduce((sum, s) => sum + s.estimatedAmount, 0)
+                                            : rawUninvoicedStudents.reduce((sum, s) => sum + s.estimatedAmount, 0)
+                                        ).toLocaleString()} total value
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Un-invoiced Filter & Controls */}
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Un-invoiced Students Audit & Auto-Invoicing</h3>
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                                {filteredUninvoicedStudents.length} Students
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                                            Grouped by Class & Stream. Select any group of students or click Auto-Invoice to bill all missing students instantly.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2.5">
+                                        {filteredUninvoicedStudents.length > 0 && (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        if (selectedUninvoicedIds.size === filteredUninvoicedStudents.length) {
+                                                            setSelectedUninvoicedIds(new Set());
+                                                        } else {
+                                                            setSelectedUninvoicedIds(new Set(filteredUninvoicedStudents.map(s => s.id)));
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-2xl text-xs font-bold transition-all cursor-pointer"
+                                                >
+                                                    {selectedUninvoicedIds.size === filteredUninvoicedStudents.length ? 'Deselect All' : `Select All (${filteredUninvoicedStudents.length})`}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleAutoInvoiceStudents()}
+                                                    disabled={isAutoInvoicing}
+                                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 active:scale-95 cursor-pointer disabled:opacity-50"
+                                                >
+                                                    {isAutoInvoicing ? (
+                                                        <>
+                                                            <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                                                            <span>{autoInvoiceProgressText || 'Processing Batch Invoices...'}</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <ZapIcon className="w-4 h-4" />
+                                                            <span>{selectedUninvoicedIds.size > 0 ? `⚡ Auto-Invoice Selected (${selectedUninvoicedIds.size})` : `⚡ Auto-Invoice All Filtered (${filteredUninvoicedStudents.length})`}</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Filter Controls Bar */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="relative">
+                                        <SearchIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={uninvoicedSearchQuery}
+                                            onChange={(e) => setUninvoicedSearchQuery(e.target.value)}
+                                            placeholder="Search by student name or admission number..."
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-amber-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <select
+                                            value={uninvoicedClassFilter}
+                                            onChange={(e) => {
+                                                setUninvoicedClassFilter(e.target.value);
+                                                setUninvoicedStreamFilter('All');
+                                            }}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-amber-500 cursor-pointer"
+                                        >
+                                            <option value="All">All Classes / Grades ({rawUninvoicedStudents.length})</option>
+                                            {Array.from(new Set(rawUninvoicedStudents.map(s => s.className))).sort().map(cls => (
+                                                <option key={cls} value={cls}>
+                                                    {cls} ({rawUninvoicedStudents.filter(s => s.className === cls).length})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select
+                                            value={uninvoicedStreamFilter}
+                                            onChange={(e) => setUninvoicedStreamFilter(e.target.value)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-amber-500 cursor-pointer"
+                                        >
+                                            <option value="All">All Streams ({availableUninvoicedStreams.length} available)</option>
+                                            {availableUninvoicedStreams.map(st => (
+                                                <option key={st} value={st}>{st}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Class-Grouped Tables List */}
+                                {Object.keys(groupedUninvoicedByClass).length === 0 ? (
+                                    <div className="py-16 text-center bg-slate-50 dark:bg-slate-950/40 rounded-3xl border border-slate-100 dark:border-slate-800/80">
+                                        <CheckBadgeIcon className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                                        <h4 className="text-base font-black text-slate-800 dark:text-white">All Students Invoiced!</h4>
+                                        <p className="text-xs text-slate-500 font-semibold max-w-md mx-auto mt-1">
+                                            No un-invoiced student records found matching the active filters. All students have invoices issued in the ledger.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {Object.entries(groupedUninvoicedByClass).map(([className, classStudents]) => {
+                                            const classTotalEst = classStudents.reduce((sum, s) => sum + s.estimatedAmount, 0);
+                                            const classStudentIds = classStudents.map(s => s.id);
+                                            const isAllClassSelected = classStudentIds.every(id => selectedUninvoicedIds.has(id));
+                                            const isCollapsed = collapsedUninvoicedClasses.has(className);
+
+                                            return (
+                                                <div key={className} className="bg-slate-50/50 dark:bg-slate-950/40 rounded-3xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+                                                    {/* Class Banner Header */}
+                                                    <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setCollapsedUninvoicedClasses(prev => {
+                                                                        const next = new Set(prev);
+                                                                        if (next.has(className)) next.delete(className);
+                                                                        else next.add(className);
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-slate-500"
+                                                            >
+                                                                <ChevronRightIcon className={`w-4 h-4 transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
+                                                            </button>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isAllClassSelected}
+                                                                onChange={() => {
+                                                                    setSelectedUninvoicedIds(prev => {
+                                                                        const next = new Set(prev);
+                                                                        if (isAllClassSelected) {
+                                                                            classStudentIds.forEach(id => next.delete(id));
+                                                                        } else {
+                                                                            classStudentIds.forEach(id => next.add(id));
+                                                                        }
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                                                            />
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                                        {className}
+                                                                    </h4>
+                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                                                        {classStudents.length} Unbilled
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[10px] text-slate-500 font-semibold">
+                                                                    Class estimated billing: <span className="font-bold text-slate-700 dark:text-slate-300">KES {classTotalEst.toLocaleString()}</span>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleAutoInvoiceStudents(classStudentIds)}
+                                                                disabled={isAutoInvoicing}
+                                                                className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                                                            >
+                                                                ⚡ Invoice {className} ({classStudents.length})
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Students Table */}
+                                                    {!isCollapsed && (
+                                                        <div className="overflow-x-auto">
+                                                            <table className="w-full text-left text-xs border-collapse">
+                                                                <thead>
+                                                                    <tr className="bg-slate-100/50 dark:bg-slate-900/50 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-200/60 dark:border-slate-800/60">
+                                                                        <th className="p-3.5 pl-6 w-10"></th>
+                                                                        <th className="p-3.5">Adm No</th>
+                                                                        <th className="p-3.5">Student Name</th>
+                                                                        <th className="p-3.5">Stream</th>
+                                                                        <th className="p-3.5">Residence</th>
+                                                                        <th className="p-3.5">Applicable Fees Breakdown</th>
+                                                                        <th className="p-3.5 text-right">Est. Total</th>
+                                                                        <th className="p-3.5 pr-6 text-right">Action</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody className="divide-y divide-slate-200/50 dark:divide-slate-800/50">
+                                                                    {classStudents.map(studentItem => {
+                                                                        const isSelected = selectedUninvoicedIds.has(studentItem.id);
+                                                                        return (
+                                                                            <tr
+                                                                                key={studentItem.id}
+                                                                                className={`hover:bg-white/80 dark:hover:bg-slate-900/80 transition-colors ${
+                                                                                    isSelected ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''
+                                                                                }`}
+                                                                            >
+                                                                                <td className="p-3.5 pl-6">
+                                                                                    <input
+                                                                                        type="checkbox"
+                                                                                        checked={isSelected}
+                                                                                        onChange={() => {
+                                                                                            setSelectedUninvoicedIds(prev => {
+                                                                                                const next = new Set(prev);
+                                                                                                if (next.has(studentItem.id)) next.delete(studentItem.id);
+                                                                                                else next.add(studentItem.id);
+                                                                                                return next;
+                                                                                            });
+                                                                                        }}
+                                                                                        className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                                                                                    />
+                                                                                </td>
+                                                                                <td className="p-3.5 font-bold font-mono text-slate-600 dark:text-slate-400">
+                                                                                    {studentItem.admNo}
+                                                                                </td>
+                                                                                <td className="p-3.5 font-bold text-slate-900 dark:text-white">
+                                                                                    {studentItem.name}
+                                                                                </td>
+                                                                                <td className="p-3.5 font-semibold text-slate-600 dark:text-slate-400">
+                                                                                    {studentItem.stream !== '—' ? (
+                                                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                                                                            {studentItem.stream}
+                                                                                        </span>
+                                                                                    ) : '—'}
+                                                                                </td>
+                                                                                <td className="p-3.5">
+                                                                                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
+                                                                                        studentItem.isBoarder 
+                                                                                            ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300' 
+                                                                                            : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                                                                                    }`}>
+                                                                                        {studentItem.isBoarder ? 'Boarder' : 'Day Scholar'}
+                                                                                    </span>
+                                                                                </td>
+                                                                                <td className="p-3.5 max-w-xs">
+                                                                                    <div className="flex flex-wrap gap-1">
+                                                                                        {studentItem.applicableFeeStructures.length > 0 ? (
+                                                                                            studentItem.applicableFeeStructures.slice(0, 3).map((fs: any, idx: number) => (
+                                                                                                <span key={idx} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[9px] font-medium text-slate-600 dark:text-slate-400">
+                                                                                                    {fs.name || 'Fee'}: KES {parseMoneyAmount(fs.amount || (fs as any).allocatedAmount || 0).toLocaleString()}
+                                                                                                </span>
+                                                                                            ))
+                                                                                        ) : (
+                                                                                            <span className="text-[10px] text-slate-400 italic">General structure</span>
+                                                                                        )}
+                                                                                        {studentItem.applicableFeeStructures.length > 3 && (
+                                                                                            <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[9px] font-medium text-slate-500">
+                                                                                                +{studentItem.applicableFeeStructures.length - 3} more
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td className="p-3.5 text-right font-black text-slate-900 dark:text-white">
+                                                                                    KES {studentItem.estimatedAmount.toLocaleString()}
+                                                                                </td>
+                                                                                <td className="p-3.5 pr-6 text-right">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleAutoInvoiceStudents([studentItem.id])}
+                                                                                        disabled={isAutoInvoicing}
+                                                                                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold uppercase transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-50"
+                                                                                    >
+                                                                                        ⚡ Invoice
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         ) : (
                         <div className="space-y-6 text-left animate-in fade-in duration-300">
                         {/* Header stats block */}

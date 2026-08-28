@@ -82,7 +82,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     });
 
     // Selection criteria states
-    const [targetType, setTargetType] = useState<'all' | 'individual' | 'class' | 'course' | 'excel'>('all');
+    const [targetType, setTargetType] = useState<'all' | 'uninvoiced' | 'individual' | 'class' | 'course' | 'excel'>('all');
     const [showExcelInvoiceModal, setShowExcelInvoiceModal] = useState(false);
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [selectedClass, setSelectedClass] = useState('');
@@ -182,6 +182,15 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return map;
     }, [enrollments]);
 
+    // Invoices list for unbilled reconciliation
+    const [existingInvoices, setExistingInvoices] = useState<any[]>([]);
+
+    useEffect(() => {
+        apiService.fetchModuleRecords('invoices', institution.id)
+            .then(res => setExistingInvoices(res || []))
+            .catch(() => {});
+    }, [institution.id]);
+
     // Extract unique classes/grade levels from student registry
     const classes = useMemo(() => {
         const set = new Set<string>();
@@ -191,6 +200,13 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         });
         return Array.from(set);
     }, [enrollments]);
+
+    // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
+    const selectedSemName = useMemo(() => {
+        if (selectedSem === 'annual') return 'Entire Academic Year (Annual)';
+        const sem = semesters.find(s => s.id === selectedSem);
+        return sem ? sem.name : selectedSem;
+    }, [semesters, selectedSem]);
 
     // Filter students target pool based on target selection
     const billingStudents = useMemo(() => {
@@ -203,15 +219,29 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         if (targetType === 'course') {
             return students.filter(s => getStudentCourseId(s) === selectedCourseId);
         }
-        return students;
-    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId, studentClassMap, studentEnrollmentMap]);
+        if (targetType === 'uninvoiced') {
+            const termInvoicedStudentIds = new Set<string>();
+            const termInvoicedAdms = new Set<string>();
+            existingInvoices.forEach((inv: any) => {
+                const matchAY = !selectedAY || inv.academicYearId === selectedAY || inv.academic_year_id === selectedAY;
+                const matchSem = !selectedSem || selectedSem === 'annual' || inv.semesterId === selectedSem || inv.semester_id === selectedSem || String(inv.term || '').toLowerCase() === String(selectedSemName || selectedSem).toLowerCase();
+                if (matchAY && matchSem) {
+                    const sId = inv.studentId || inv.student_id || inv.userId;
+                    if (sId) termInvoicedStudentIds.add(String(sId));
+                    const adm = inv.admissionNumber || inv.admission_number || inv.admNo;
+                    if (adm) termInvoicedAdms.add(String(adm).trim().toLowerCase());
+                }
+            });
 
-    // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
-    const selectedSemName = useMemo(() => {
-        if (selectedSem === 'annual') return 'Entire Academic Year (Annual)';
-        const sem = semesters.find(s => s.id === selectedSem);
-        return sem ? sem.name : selectedSem;
-    }, [semesters, selectedSem]);
+            return students.filter(s => {
+                if (termInvoicedStudentIds.has(String(s.id))) return false;
+                const adm = s.admissionNumber || s.admission_number || admissionNumberMap.get(s.id);
+                if (adm && termInvoicedAdms.has(String(adm).trim().toLowerCase())) return false;
+                return true;
+            });
+        }
+        return students;
+    }, [students, targetType, selectedStudentId, selectedClass, selectedCourseId, selectedAY, selectedSem, selectedSemName, existingInvoices, admissionNumberMap, studentClassMap, studentEnrollmentMap]);
 
     const activeFeeStructures = useMemo(() => {
         return feeStructures.filter(f =>
@@ -665,9 +695,10 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                     {/* Target Selector */}
                     <div className="space-y-4 pt-6 border-t border-slate-100 text-left">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Billing Target</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                             {[
                                 { id: 'all', label: 'All Students', desc: 'Invoices entire registry', icon: UsersIcon },
+                                { id: 'uninvoiced', label: 'Unbilled Only', desc: 'Skip already invoiced', icon: SparklesIcon },
                                 { id: 'individual', label: 'Single Student', desc: 'Invoices one account', icon: UserIcon },
                                 { id: 'class', label: 'Class Group', desc: 'Filter by grade/stream', icon: UserGroupIcon },
                                 { id: 'course', label: 'By Course', desc: 'Filter by program', icon: AcademicCapIcon },
