@@ -492,20 +492,20 @@ const renderReceiptPageOnDoc = (
                 } catch (_) {}
             }
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(36);
+            doc.setFontSize(60);
             doc.setTextColor(225, 29, 72); // Rose-600 with low opacity
-            doc.text('COPY BOOKMARK • OFFICIAL REPRINT', pageWidth / 2, (pageHeight / 2) + 10, {
+            doc.text('COPY', pageWidth / 2, (pageHeight / 2) + 10, {
                 align: 'center',
-                angle: 35
+                angle: 40
             });
             (doc as any).restoreGraphicsState?.();
         } catch (_) {
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(32);
+            doc.setFontSize(54);
             doc.setTextColor(245, 225, 230); // Very light fallback pastel rose
-            doc.text('COPY BOOKMARK • OFFICIAL REPRINT', pageWidth / 2, (pageHeight / 2) + 10, {
+            doc.text('COPY', pageWidth / 2, (pageHeight / 2) + 10, {
                 align: 'center',
-                angle: 35
+                angle: 40
             });
         }
     }
@@ -1878,7 +1878,7 @@ export const generateFinanceEposThermalReceiptPdfDataUri = async (
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     if (extraMeta?.isReprint) {
-        centerText("*** REPRINT • COPY BOOKMARK ***", yPos);
+        centerText("*** COPY ***", yPos);
         yPos += 4;
     }
     centerText("EPOS OFFICIAL FEE RECEIPT", yPos);
