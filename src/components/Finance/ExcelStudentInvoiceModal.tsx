@@ -135,6 +135,8 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
         const normalizeAdm = (val: string) => String(val || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
         const normalizeName = (val: string) => String(val || '').toUpperCase().replace(/\s+/g, ' ').trim();
 
+        const ambiguousNames = new Set<string>();
+
         students.forEach(s => {
             let meta = s.metadata || {};
             if (typeof meta === 'string') {
@@ -148,10 +150,25 @@ export const ExcelStudentInvoiceModal: React.FC<ExcelStudentInvoiceModalProps> =
             }
 
             const name = (s.name || '').toUpperCase().trim();
-            if (name) {
-                nameMap.set(name, s);
+            const nameWords = name.split(/\s+/).filter(Boolean);
+            if (nameWords.length >= 2) {
                 const normName = normalizeName(name);
-                if (normName) normNameMap.set(normName, s);
+                if (ambiguousNames.has(name)) {
+                    // ignore
+                } else if (nameMap.has(name)) {
+                    const existing = nameMap.get(name)!;
+                    if (existing.id !== s.id) {
+                        nameMap.delete(name);
+                        normNameMap.delete(normName);
+                        ambiguousNames.add(name);
+                        ambiguousNames.add(normName);
+                    }
+                } else {
+                    nameMap.set(name, s);
+                    if (normName && !ambiguousNames.has(normName)) {
+                        normNameMap.set(normName, s);
+                    }
+                }
             }
         });
 

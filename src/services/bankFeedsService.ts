@@ -198,15 +198,28 @@ export class BankFeedsService {
             }
         }
 
-        // 4. Fallback: Match by Name Substring
-        if (!matchedStudent && payerName.length >= 4) {
-            const nameLower = payerName.toLowerCase();
-            matchedStudent = students.find(s => {
-                const sName = (s.name || s.fullName || '').toLowerCase();
-                return sName && (nameLower.includes(sName) || sName.includes(nameLower));
-            });
-            if (matchedStudent) {
-                confidence = 'NAME_MATCH';
+        // 4. Fallback: Match by Strict Multi-Word Full Name (Requires at least 2 distinct words and 0 ambiguity)
+        if (!matchedStudent && payerName.length >= 5) {
+            const cleanPayer = payerName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+            const payerTokens = cleanPayer.split(/\s+/).filter((t: string) => t.length >= 2);
+
+            if (payerTokens.length >= 2) {
+                const candidateMatches = students.filter(s => {
+                    const sName = (s.name || s.fullName || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+                    const sTokens = sName.split(/\s+/).filter((t: string) => t.length >= 2);
+                    if (sTokens.length < 2) return false;
+
+                    // Match if full cleaned names match exactly, or all payer tokens are found in student name tokens
+                    const isExactMatch = sName === cleanPayer;
+                    const allTokensMatch = payerTokens.every((pt: string) => sTokens.includes(pt));
+                    return isExactMatch || allTokensMatch;
+                });
+
+                // ONLY match if exactly ONE student in the entire school matches (no ambiguity / collision)
+                if (candidateMatches.length === 1) {
+                    matchedStudent = candidateMatches[0];
+                    confidence = 'NAME_MATCH';
+                }
             }
         }
 

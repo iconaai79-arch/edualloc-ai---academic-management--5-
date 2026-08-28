@@ -375,14 +375,14 @@ export const generateInvoicePdfDataUri = async (
         body: body,
         startY: finalTableStartY,
         theme: 'striped',
-        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 5.5, valign: 'top' },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 3, right: 3 }, minCellHeight: 5.5 },
+        styles: { fontSize: 7.5, cellPadding: { top: 1.6, bottom: 1.6, left: 3, right: 3 }, valign: 'middle', minCellHeight: 5 },
         columnStyles: {
-            0: { cellWidth: 18, halign: 'center' },
-            1: { fontStyle: 'bold' },
-            2: { halign: 'center' },
-            3: { halign: 'right' },
-            4: { halign: 'right', fontStyle: 'bold' }
+            0: { cellWidth: 14, halign: 'center', fontSize: 7.5 },
+            1: { fontStyle: 'bold', fontSize: 8 },
+            2: { halign: 'center', cellWidth: 14, fontSize: 7.5 },
+            3: { halign: 'right', fontSize: 7.5 },
+            4: { halign: 'right', fontStyle: 'bold', fontSize: 8 }
         }
     });
 
@@ -1241,14 +1241,14 @@ export const generateQuotePdfDataUri = async (
         body: body,
         startY: finalTableStartY,
         theme: 'striped',
-        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 5.5, valign: 'top' },
+        headStyles: { fillColor: primaryColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 3, right: 3 }, minCellHeight: 5.5 },
+        styles: { fontSize: 7.5, cellPadding: { top: 1.6, bottom: 1.6, left: 3, right: 3 }, valign: 'middle', minCellHeight: 5 },
         columnStyles: {
-            0: { cellWidth: 18, halign: 'center' },
-            1: { fontStyle: 'bold' },
-            2: { halign: 'center' },
-            3: { halign: 'right' },
-            4: { halign: 'right', fontStyle: 'bold' }
+            0: { cellWidth: 14, halign: 'center', fontSize: 7.5 },
+            1: { fontStyle: 'bold', fontSize: 8 },
+            2: { halign: 'center', cellWidth: 14, fontSize: 7.5 },
+            3: { halign: 'right', fontSize: 7.5 },
+            4: { halign: 'right', fontStyle: 'bold', fontSize: 8 }
         }
     });
 

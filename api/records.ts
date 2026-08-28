@@ -973,7 +973,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'studentName', 'student_name',
                         'bank_account_id', 'bankAccountId', 'votehead_id', 'voteheadId',
                         'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
-                        'updated_at', 'updatedAt', 'created_at', 'createdAt'
+                        'updated_at', 'updatedAt', 'created_at', 'createdAt',
+                        'subtotal', 'sub_total', 'tax', 'tax_amount', 'taxAmount', 'discount', 'discount_amount', 'discountAmount',
+                        'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {
@@ -1154,7 +1156,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'transferReason', 'transfer_reason', 'deletionReason', 'deletion_reason',
                         'deletionRequestedBy', 'deletion_requested_by', 'auditedBy', 'audited_by',
                         'auditedAt', 'audited_at', 'previousStudentId', 'previous_student_id',
-                        'offline_fallback', 'offlineFallback', 'offline', 'success', 'error'
+                        'offline_fallback', 'offlineFallback', 'offline', 'success', 'error',
+                        'excelPaymentMode', 'excel_payment_mode', 'matchStatus', 'match_status',
+                        'matchConfidence', 'match_confidence', 'matchedStudentId', 'matched_student_id',
+                        'notes', 'receiptSource', 'receipt_source', 'voteHeadAllocations', 'vote_head_allocations',
+                        'studentName', 'student_name',
+                        'bank_account_id', 'bankAccountId', 'votehead_id', 'voteheadId',
+                        'admDisplay', 'adm_display', 'admissionNumber', 'admission_number',
+                        'updated_at', 'updatedAt', 'created_at', 'createdAt',
+                        'subtotal', 'sub_total', 'tax', 'tax_amount', 'taxAmount', 'discount', 'discount_amount', 'discountAmount',
+                        'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {

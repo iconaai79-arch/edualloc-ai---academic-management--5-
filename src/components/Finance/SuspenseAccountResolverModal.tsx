@@ -56,21 +56,54 @@ export function SuspenseAccountResolverModal({
     const suggestedStudents = useMemo(() => {
         if (!transaction || !students.length) return [];
         const ref = (transaction.accountReferenceEntered || '').toLowerCase().trim();
+        const refClean = ref.replace(/[^a-z0-9]/g, '');
+        const refDigits = ref.replace(/\D/g, '');
         const payer = (transaction.payerName || '').toLowerCase().trim();
-        const phone = (transaction.payerPhone || '').trim();
+        const payerClean = payer.replace(/[^a-z0-9\s]/g, '').trim();
+        const payerTokens = payerClean.split(/\s+/).filter((t: string) => t.length >= 2);
+        const phone = (transaction.payerPhone || '').replace(/\D/g, '').slice(-9);
 
         return students.map(s => {
             let score = 0;
-            const adm = (s.admissionNumber || s.admission_number || '').toLowerCase();
-            const name = (s.fullName || s.name || '').toLowerCase();
-            const parentPhone = (s.parentPhone || s.emergencyContactPhone || s.phone || '').trim();
+            let matchReason = '';
+            const adm = (s.admissionNumber || s.admission_number || '').toLowerCase().trim();
+            const admClean = adm.replace(/[^a-z0-9]/g, '');
+            const admDigits = adm.replace(/\D/g, '');
+            const name = (s.fullName || s.name || '').toLowerCase().trim();
+            const nameClean = name.replace(/[^a-z0-9\s]/g, '').trim();
+            const nameTokens = nameClean.split(/\s+/).filter((t: string) => t.length >= 2);
+            const parentPhone = (s.parentPhone || s.emergencyContactPhone || s.phone || '').replace(/\D/g, '').slice(-9);
 
-            if (ref && adm && adm.includes(ref)) score += 60;
-            if (ref && ref.length > 2 && adm.includes(ref.slice(-4))) score += 40;
-            if (payer && name && name.includes(payer.split(' ')[0])) score += 35;
-            if (phone && parentPhone && phone === parentPhone) score += 50;
+            // 1. Direct Admission Number Match (Highest Priority)
+            if (refClean && (admClean === refClean || (refDigits.length >= 2 && admDigits === refDigits))) {
+                score += 85;
+                matchReason = 'Exact Admission Number Match';
+            } else if (refDigits.length >= 3 && admDigits.includes(refDigits)) {
+                score += 55;
+                matchReason = 'Partial Adm Number Match';
+            }
 
-            return { student: s, score };
+            // 2. Parent Phone Number Match
+            if (phone.length >= 9 && parentPhone.length >= 9 && phone === parentPhone) {
+                score += 65;
+                matchReason = matchReason ? `${matchReason} + Parent Phone` : 'Verified Parent Phone Match';
+            }
+
+            // 3. Multi-word Full Name Match (Collision safe)
+            if (payerTokens.length >= 2 && nameTokens.length >= 2) {
+                const isExactName = nameClean === payerClean;
+                const allTokensMatch = payerTokens.every((pt: string) => nameTokens.includes(pt));
+                if (isExactName || allTokensMatch) {
+                    score += 45;
+                    matchReason = matchReason ? `${matchReason} + Full Name` : 'Full Name Match';
+                }
+            } else if (payerTokens.length >= 1 && nameTokens.length >= 1 && payerTokens[0] === nameTokens[0]) {
+                // First name match ONLY - give very low weight and clear warning
+                score += 10;
+                if (!matchReason) matchReason = 'First Name Only (Check Adm No!)';
+            }
+
+            return { student: s, score, matchReason };
         })
         .filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -231,7 +264,7 @@ export function SuspenseAccountResolverModal({
                                 <span>Smart System Matching Suggestions ({suggestedStudents.length})</span>
                             </label>
                             <div className="space-y-2">
-                                {suggestedStudents.map(({ student, score }) => (
+                                {suggestedStudents.map(({ student, score, matchReason }) => (
                                     <div
                                         key={student.id}
                                         onClick={() => setSelectedStudentId(student.id)}
@@ -254,14 +287,19 @@ export function SuspenseAccountResolverModal({
                                                 <p className="text-[10px] text-slate-400 font-bold">
                                                     Adm: <span className="text-emerald-300 font-mono">{student.admissionNumber || student.admission_number || 'N/A'}</span> • Class: {student.gradeLevel || student.studentClass || 'N/A'}
                                                 </p>
+                                                {matchReason && (
+                                                    <p className={`text-[9px] font-bold mt-0.5 ${score >= 60 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                                        💡 {matchReason}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="text-right">
+                                        <div className="text-right shrink-0">
                                             <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
                                                 score >= 60 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                             }`}>
-                                                {score >= 60 ? '🎯 High Confidence' : '🔍 Partial Match'}
+                                                {score >= 60 ? '🎯 High Confidence' : '🔍 Review Match'}
                                             </span>
                                         </div>
                                     </div>

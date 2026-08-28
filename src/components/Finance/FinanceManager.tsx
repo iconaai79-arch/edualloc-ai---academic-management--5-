@@ -1145,8 +1145,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (stripped) studentIds.add(stripped);
                 }
             });
-            if (s.name) {
-                studentIds.add(String(s.name).trim().toLowerCase());
+            if (s.name && typeof s.name === 'string') {
+                const sNameClean = String(s.name).trim().toLowerCase();
+                const nameParts = sNameClean.split(/\s+/).filter(Boolean);
+                if (nameParts.length >= 2) {
+                    studentIds.add(sNameClean);
+                }
             }
 
             studentIds.forEach(idKey => {
@@ -1917,6 +1921,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             allExistingReceipts.forEach(r => { if (r && r.id) uniqueReceiptsMap.set(r.id, r); });
             const allReceiptsList = Array.from(uniqueReceiptsMap.values());
 
+            // Map of unique 2+ word full names for collision-free identification
+            const uniqueFullNameToStudent = new Map<string, any>();
+            const ambiguousNamesSet = new Set<string>();
+
+            allStudentsPool.forEach(student => {
+                const rawName = student.name || student.fullName || '';
+                if (rawName && typeof rawName === 'string') {
+                    const sNameClean = rawName.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+                    const tokens = sNameClean.split(/\s+/).filter(Boolean);
+                    if (tokens.length >= 2) {
+                        if (ambiguousNamesSet.has(sNameClean)) {
+                            // already ambiguous
+                        } else if (uniqueFullNameToStudent.has(sNameClean)) {
+                            uniqueFullNameToStudent.delete(sNameClean);
+                            ambiguousNamesSet.add(sNameClean);
+                        } else {
+                            uniqueFullNameToStudent.set(sNameClean, student);
+                        }
+                    }
+                }
+            });
+
             // Helper to find true student strictly by explicit admission number properties or receipt number ONLY
             // (Never use transaction reference, notes, or raw details because in bursary cases the reference is shared across many students)
             const findStudentByAdm = (r: any, receiptNum: string, excludeAdm: string = ''): any | null => {
@@ -1967,6 +1993,46 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const pattern = new RegExp(`(^|[^a-z0-9])${admKey}([^a-z0-9]|$)`, 'i');
                         if (pattern.test(cleanRcpt)) {
                             return st;
+                        }
+                    }
+                }
+
+                return null;
+            };
+
+            const findStudentByAdmOrFullName = (r: any, receiptNum: string, excludeAdm: string = '', currentStudentName: string = ''): any | null => {
+                const admMatch = findStudentByAdm(r, receiptNum, excludeAdm);
+                if (admMatch) return admMatch;
+
+                const candidateTexts = [
+                    r.studentName,
+                    (r as any).student_name,
+                    r.payerName,
+                    (r as any).payer_name,
+                    r.receivedFrom,
+                    (r as any).received_from
+                ];
+
+                const currentClean = currentStudentName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+                for (const text of candidateTexts) {
+                    if (!text || typeof text !== 'string') continue;
+                    const cleanText = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+                    const tokens = cleanText.split(/\s+/).filter(Boolean);
+                    if (tokens.length < 2) continue;
+
+                    if (uniqueFullNameToStudent.has(cleanText)) {
+                        const matchedSt = uniqueFullNameToStudent.get(cleanText);
+                        if (cleanAdm(matchedSt.admissionNumber) !== excludeAdm && cleanText !== currentClean) {
+                            return matchedSt;
+                        }
+                    }
+
+                    for (const [stName, stObj] of uniqueFullNameToStudent.entries()) {
+                        if (cleanAdm(stObj.admissionNumber) === excludeAdm || stName === currentClean) continue;
+                        const stTokens = stName.split(/\s+/);
+                        if (stTokens.every(stToken => tokens.includes(stToken))) {
+                            return stObj;
                         }
                     }
                 }
@@ -2054,7 +2120,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 } 
                 // Case 2: Unallocated / Suspense receipts (attempt to link them strictly by Receipt Number / Adm No)
                 else if (!currentStudentId || currentStudentId === '' || currentStudentId === 'null' || rNotes.includes('Suspense') || rNotes.includes('Victor Kipchumba')) {
-                    const trueStudent = findStudentByAdm(r, rNum, '2364');
+                    const trueStudent = findStudentByAdmOrFullName(r, rNum, '2364', '');
                     if (trueStudent) {
                         targetStudentId = trueStudent.id;
                         r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
@@ -2068,18 +2134,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 else if (currentStudentId) {
                     const currentStudent = allStudentsPool.find(s => s.id === currentStudentId);
                     const currentAdmClean = currentStudent ? cleanAdm(currentStudent.admissionNumber || (currentStudent as any).admission_number || (currentStudent as any).admNo) : '';
+                    const currentStudentName = currentStudent?.name || currentStudent?.fullName || '';
                     
-                    // If receipt has an explicit Adm No or receipt number containing another Adm No that differs from currentStudent's Adm No:
-                    const trueStudent = findStudentByAdm(r, rNum, currentAdmClean);
+                    // If receipt has an explicit Adm No or receipt number or payer/student name containing another student that differs from currentStudent:
+                    const trueStudent = findStudentByAdmOrFullName(r, rNum, currentAdmClean, currentStudentName);
                     if (trueStudent && trueStudent.id !== currentStudentId) {
                         const trueAdm = cleanAdm(trueStudent.admissionNumber || (trueStudent as any).admission_number || (trueStudent as any).admNo);
-                        if (trueAdm && trueAdm !== currentAdmClean) {
-                            targetStudentId = trueStudent.id;
-                            r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
-                            r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
-                            reallocatedToStudentCount++;
-                            reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${r.admissionNumber})`);
-                            isModified = true;
+                        targetStudentId = trueStudent.id;
+                        r.admissionNumber = trueStudent.admissionNumber || trueStudent.admission_number || (trueStudent as any).admNo;
+                        r.branchId = trueStudent.branchId || (trueStudent as any).branch_id || r.branchId;
+                        reallocatedToStudentCount++;
+                        reallocatedStudentNames.push(`${trueStudent.name || trueStudent.fullName} (Adm ${r.admissionNumber})`);
+                        isModified = true;
+                    } else {
+                        // Check if receipt has an explicit name with a different surname (first-name only collision on this student)
+                        const recName = (r.studentName || (r as any).student_name || r.payerName || '').trim().toLowerCase();
+                        const recTokens = recName.split(/\s+/).filter(Boolean);
+                        const curTokens = currentStudentName.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+                        if (recTokens.length >= 2 && curTokens.length >= 2) {
+                            const recSurname = recTokens[recTokens.length - 1];
+                            const curSurname = curTokens[curTokens.length - 1];
+                            const isDifferentPerson = recSurname !== curSurname && !curTokens.includes(recSurname);
+
+                            if (isDifferentPerson && explicitAdm !== currentAdmClean) {
+                                // Mismatched person on this account - move to suspense
+                                targetStudentId = null as any;
+                                r.admissionNumber = '';
+                                r.notes = (r.notes ? r.notes + ' | ' : '') + `Re-assigned to Suspense from ${currentStudentName} (Name mismatch: ${recName})`;
+                                suspenseCount++;
+                                isModified = true;
+                            }
                         }
                     }
                 }
@@ -2892,8 +2977,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             });
 
             const studentNameLower = s.name ? String(s.name).trim().toLowerCase() : '';
-
-            const rawOpeningBal = parseMoneyAmount(openingBalancesMap[s.id] ?? extractStudentOpeningBalance(s));
+            const studentNameWords = studentNameLower.split(/\s+/).filter(Boolean);
+            const isMultiWordName = studentNameWords.length >= 2;
 
             const studentInvoicesRaw = mappedInvoices.filter(inv => {
                 if (inv.status === 'cancelled' || inv.status === 'quote') return false;
@@ -2901,7 +2986,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (invStudentId && studentIds.has(invStudentId)) return true;
                 const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim().toLowerCase();
                 if (invAdm && (studentIds.has(invAdm) || (invAdm.replace(/^0+/, '') && studentIds.has(invAdm.replace(/^0+/, ''))))) return true;
-                if ((inv as any).studentName && studentNameLower && String((inv as any).studentName).trim().toLowerCase() === studentNameLower) return true;
+                if (isMultiWordName && (inv as any).studentName && String((inv as any).studentName).trim().toLowerCase() === studentNameLower) {
+                    if (!invStudentId && !invAdm) return true;
+                }
                 return false;
             });
             const studentInvoices = Array.from(new Map(studentInvoicesRaw.map(i => [String(i.id), i])).values());
@@ -2923,7 +3010,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (recAdm && (studentIds.has(recAdm) || (recAdm.replace(/^0+/, '') && studentIds.has(recAdm.replace(/^0+/, ''))))) return true;
                 const recInvId = rec.invoiceId || (rec as any).invoice_id;
                 if (recInvId && studentInvoices.some(i => i.id === recInvId || String(i.id) === String(recInvId))) return true;
-                if ((rec as any).studentName && studentNameLower && String((rec as any).studentName).trim().toLowerCase() === studentNameLower) return true;
+                if (isMultiWordName && (rec as any).studentName && String((rec as any).studentName).trim().toLowerCase() === studentNameLower) {
+                    if (!recStudentId && !recAdm) return true;
+                }
                 return false;
             });
             const allStudentReceipts = Array.from(new Map(allStudentReceiptsRaw.map(r => [String(r.id), r])).values());
@@ -7200,13 +7289,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         if (!isAllowed) return false;
                     }
 
+                    // Strict Collision Protection: If receipt explicitly has another student's admission number, reject
+                    const rAdm = String(r.admissionNumber || (r as any).admission_number || (r as any).admNo || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const curAdm = String(balPrevResolvedAdmNo || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (rAdm && curAdm && rAdm !== curAdm && rAdm !== '—') {
+                        return false;
+                    }
+
+                    // Strict Name Collision Protection: If receipt has a multi-word name with a different surname, and is not linked to this student's invoice, reject
+                    const recName = String(r.studentName || (r as any).student_name || (r as any).payerName || '').trim().toLowerCase();
+                    const curName = String(balPrevStudentRaw?.name || '').trim().toLowerCase();
+                    const recTokens = recName.split(/\s+/).filter(Boolean);
+                    const curTokens = curName.split(/\s+/).filter(Boolean);
+                    const isInvoiceLinked = balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id);
+
+                    if (!isInvoiceLinked && recTokens.length >= 2 && curTokens.length >= 2) {
+                        const recSurname = recTokens[recTokens.length - 1];
+                        const curSurname = curTokens[curTokens.length - 1];
+                        if (recSurname !== curSurname && !curTokens.includes(recSurname)) {
+                            return false;
+                        }
+                    }
+
                     return (
                         r.studentId === balPreviewStudentId ||
                         (r as any).student_id === balPreviewStudentId ||
                         String(r.studentId) === String(balPreviewStudentId) ||
                         String((r as any).student_id) === String(balPreviewStudentId) ||
                         (balPrevResolvedAdmNo && balPrevResolvedAdmNo !== '—' && (r.admissionNumber === balPrevResolvedAdmNo || (r as any).admission_number === balPrevResolvedAdmNo)) ||
-                        balPrevInvoices.some((i: any) => i.id === r.invoiceId || i.id === (r as any).invoice_id)
+                        isInvoiceLinked
                     );
                 });
                 // Deduplicate by receipt ID — prevents double-entry from multiple OR match conditions
