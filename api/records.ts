@@ -976,7 +976,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'updated_at', 'updatedAt', 'created_at', 'createdAt',
                         'subtotal', 'sub_total', 'tax', 'tax_amount', 'taxAmount', 'discount', 'discount_amount', 'discountAmount',
                         'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance',
-                        'available_copies', 'availableCopies', 'total_copies', 'totalCopies'
+                        'available_copies', 'availableCopies', 'total_copies', 'totalCopies',
+                        'academic_year', 'academicYear', 'academic_term', 'academicTerm', 'term', 'semester',
+                        'academic_year_id', 'academicYearId', 'term_id', 'termId', 'semester_id', 'semesterId',
+                        'fee_structure_id', 'feeStructureId', 'curriculum', 'program', 'grade_level', 'gradeLevel', 'stream',
+                        'parent_name', 'parentName', 'parent_phone', 'parentPhone', 'parent_email', 'parentEmail',
+                        'recorded_by', 'recordedBy', 'created_by', 'createdBy', 'issued_by', 'issuedBy',
+                        'accountant_name', 'accountantName', 'payer_name', 'payerName'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {
@@ -1178,7 +1184,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'updated_at', 'updatedAt', 'created_at', 'createdAt',
                         'subtotal', 'sub_total', 'tax', 'tax_amount', 'taxAmount', 'discount', 'discount_amount', 'discountAmount',
                         'paidAmount', 'paid_amount', 'balanceDue', 'balance_due', 'netBalance', 'net_balance',
-                        'available_copies', 'availableCopies', 'total_copies', 'totalCopies'
+                        'available_copies', 'availableCopies', 'total_copies', 'totalCopies',
+                        'academic_year', 'academicYear', 'academic_term', 'academicTerm', 'term', 'semester',
+                        'academic_year_id', 'academicYearId', 'term_id', 'termId', 'semester_id', 'semesterId',
+                        'fee_structure_id', 'feeStructureId', 'curriculum', 'program', 'grade_level', 'gradeLevel', 'stream',
+                        'parent_name', 'parentName', 'parent_phone', 'parentPhone', 'parent_email', 'parentEmail',
+                        'recorded_by', 'recordedBy', 'created_by', 'createdBy', 'issued_by', 'issuedBy',
+                        'accountant_name', 'accountantName', 'payer_name', 'payerName'
                     ];
                     transientColumns.forEach(col => {
                         if (col in copy) {
