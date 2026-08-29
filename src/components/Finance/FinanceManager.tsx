@@ -5573,27 +5573,257 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setInvoiceCurrentPage(1);
     }, [searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
 
-    const resolveApplicableFeeStructuresForStudent = useCallback((student: any) => {
+    // Un-invoiced students billing scope, periods, and fee structure resolution
+    const [uninvoicedBillingScope, setUninvoicedBillingScope] = useState<'term' | 'annual'>('term');
+    const [uninvoicedAcademicYearId, setUninvoicedAcademicYearId] = useState<string>(() => {
+        const activeAY = props.academicYears?.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears?.[0];
+        return activeAY?.id || '';
+    });
+    const [uninvoicedSemesterId, setUninvoicedSemesterId] = useState<string>(() => {
+        const activeSem = props.semesters?.find(s => s.status === 'Active' || s.isCurrent) || props.semesters?.[0];
+        return activeSem?.id || '';
+    });
+    const [uninvoicedIncludeTransport, setUninvoicedIncludeTransport] = useState(true);
+
+    useEffect(() => {
+        if (!uninvoicedAcademicYearId && props.academicYears && props.academicYears.length > 0) {
+            const active = props.academicYears.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears[0];
+            if (active?.id) setUninvoicedAcademicYearId(active.id);
+        }
+    }, [props.academicYears, uninvoicedAcademicYearId]);
+
+    useEffect(() => {
+        if (!uninvoicedSemesterId && props.semesters && props.semesters.length > 0) {
+            const active = props.semesters.find(s => s.status === 'Active' || s.isCurrent) || props.semesters[0];
+            if (active?.id) setUninvoicedSemesterId(active.id);
+        }
+    }, [props.semesters, uninvoicedSemesterId]);
+
+    const uninvoicedSelectedSemName = useMemo(() => {
+        if (uninvoicedBillingScope === 'annual') return 'Entire Academic Year (Annual)';
+        const sem = props.semesters?.find(s => s.id === uninvoicedSemesterId);
+        return sem ? sem.name : (uninvoicedSemesterId || 'Term 1');
+    }, [props.semesters, uninvoicedSemesterId, uninvoicedBillingScope]);
+
+    const uninvoicedSelectedAYName = useMemo(() => {
+        const ay = props.academicYears?.find(a => a.id === uninvoicedAcademicYearId);
+        return ay ? ay.name : (uninvoicedAcademicYearId || 'Active Year');
+    }, [props.academicYears, uninvoicedAcademicYearId]);
+
+    const allAvailableFeeStructures = useMemo(() => {
+        if (props.feeStructures && props.feeStructures.length > 0) {
+            return props.feeStructures;
+        }
+        const instKey = props.institution?.id ? `eduai_fee_structures_${props.institution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_fee_structures');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch (_) {}
+        }
+        return [];
+    }, [props.feeStructures, props.institution?.id]);
+
+    const studentEnrollmentMap = useMemo(() => {
+        const map = new Map<string, any>();
+        (enrollments || []).forEach(enr => {
+            const uid = enr.userId || enr.user_id || enr.studentId || enr.student_id;
+            if (uid) map.set(uid, enr);
+        });
+        return map;
+    }, [enrollments]);
+
+    const getStudentCourseOrClassId = useCallback((student: any) => {
+        const enr = studentEnrollmentMap.get(student.id);
+        const raw = student.courseId || student.course_id || student.classId || student.class_id || enr?.courseId || enr?.course_id || enr?.metadata?.gradeLevel || enr?.metadata?.stream || student.gradeLevel || (student as any).className;
+        if (!raw) return undefined;
+        const courses = props.courses || [];
+        const matched = courses.find(c =>
+            c.id === raw ||
+            (c.name && c.name.toLowerCase() === String(raw).toLowerCase()) ||
+            (c.code && c.code.toLowerCase() === String(raw).toLowerCase())
+        );
+        return matched ? matched.id : String(raw);
+    }, [studentEnrollmentMap, props.courses]);
+
+    const studentCommutePrefs = useMemo(() => {
+        const instKey = props.institution?.id ? `eduai_student_commute_prefs_${props.institution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_student_commute_prefs');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            } catch (_) {}
+        }
+        return {};
+    }, [props.institution?.id]);
+
+    const routeFeeSettings = useMemo(() => {
+        const instKey = props.institution?.id ? `eduai_transport_route_fee_settings_${props.institution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_route_fee_settings');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch (_) {}
+        }
+        return [];
+    }, [props.institution?.id]);
+
+    const transportOneWayPct = useMemo(() => {
+        const instKey = props.institution?.id ? `eduai_transport_oneway_pct_${props.institution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_oneway_pct');
+        if (saved) {
+            const val = Number(saved);
+            if (!isNaN(val) && val >= 1 && val <= 100) return val;
+        }
+        return 60;
+    }, [props.institution?.id]);
+
+    const resolveApplicableFeeStructuresForStudent = useCallback((student: any, isAnnual: boolean = false, targetAY?: string, targetSemName?: string) => {
         const sClass = studentClassGroup(student);
+        const studentCourseId = getStudentCourseOrClassId(student);
         const boarder = isStudentBoarder(student);
-        const feeStructures = props.feeStructures || [];
-        
-        return feeStructures.filter((fs: any) => {
-            const fsAppTo = (fs.applicableTo || fs.applicable_to || 'all').toLowerCase();
-            if (fsAppTo === 'boarder' && !boarder) return false;
-            if (fsAppTo === 'day_scholar' && boarder) return false;
-            
-            const fsClass = fs.gradeLevel || fs.className || fs.class_name || fs.name || '';
-            if (fsClass && sClass && sClass !== 'Unclassified') {
-                const normFs = fsClass.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const normSt = sClass.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (normFs && normSt && !normFs.includes(normSt) && !normSt.includes(normFs)) {
-                    if (fs.gradeLevel || (fs as any).courseId) return false;
-                }
+        const feeStructures = allAvailableFeeStructures;
+
+        const effectiveAY = targetAY || uninvoicedAcademicYearId;
+        const effectiveSemName = targetSemName || uninvoicedSelectedSemName;
+
+        // 1. Filter by Academic Year (if fee structure specifies one)
+        let candidateStructures = feeStructures.filter((fs: any) => {
+            const fsAY = fs.academicYearId || fs.academic_year_id;
+            if (effectiveAY && fsAY && fsAY !== 'all' && fsAY !== 'ALL' && fsAY !== effectiveAY) {
+                return false;
             }
             return true;
         });
-    }, [studentClassGroup, isStudentBoarder, props.feeStructures]);
+
+        // 2. Filter by boarding status
+        candidateStructures = candidateStructures.filter((fs: any) => {
+            const fsAppTo = (fs.applicableTo || fs.applicable_to || 'all').toLowerCase();
+            if (fsAppTo === 'boarder' && !boarder) return false;
+            if (fsAppTo === 'day_scholar' && boarder) return false;
+            return true;
+        });
+
+        // 3. Filter by Term if single-term mode
+        if (!isAnnual) {
+            candidateStructures = candidateStructures.filter((fs: any) => {
+                if (!fs.term || fs.term === 'all' || fs.term === 'ALL' || fs.term === 'general' || fs.term === 'all_terms') return true;
+                const normFsTerm = String(fs.term).trim().toLowerCase();
+                const normTargetTerm = String(effectiveSemName).trim().toLowerCase();
+                if (normFsTerm === normTargetTerm) return true;
+                if (normFsTerm.includes(normTargetTerm) || normTargetTerm.includes(normFsTerm)) return true;
+                if (uninvoicedSemesterId && String(fs.term).toLowerCase() === String(uninvoicedSemesterId).toLowerCase()) return true;
+                return false;
+            });
+        }
+
+        // Helper to get normalized votehead key
+        const getVoteheadKey = (f: any) => {
+            if (f.voteHeadId || f.vote_head_id) return String(f.voteHeadId || f.vote_head_id).trim();
+            return (f.name || f.voteheadName || f.voteHeadName || 'tuition').trim().toLowerCase();
+        };
+
+        // Match student's specific class/course vs general
+        const matchedSpecific: any[] = [];
+        const generalStructures: any[] = [];
+
+        candidateStructures.forEach((f: any) => {
+            const fCourse = f.courseId || f.course_id || '';
+            const fGrade = f.gradeLevel || f.grade_level || f.className || f.class_name || '';
+
+            const isGeneral = (!fCourse || fCourse === 'all' || fCourse === 'ALL' || fCourse === 'general') &&
+                              (!fGrade || fGrade === 'all' || fGrade === 'ALL' || fGrade === 'general');
+
+            if (isGeneral) {
+                generalStructures.push(f);
+                return;
+            }
+
+            const matchesCourse = studentCourseId && fCourse && (
+                fCourse === studentCourseId ||
+                String(fCourse).toLowerCase() === String(studentCourseId).toLowerCase()
+            );
+
+            const normFsGrade = String(fGrade || fCourse).toLowerCase().replace(/[^a-z0-9]/g, '');
+            const normStClass = String(sClass || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const matchesGrade = normFsGrade && normStClass && (
+                normFsGrade === normStClass ||
+                normFsGrade.includes(normStClass) ||
+                normStClass.includes(normFsGrade)
+            );
+
+            if (matchesCourse || matchesGrade) {
+                matchedSpecific.push(f);
+            }
+        });
+
+        let effectivePool: any[] = [];
+        if (matchedSpecific.length > 0) {
+            const specificKeys = new Set(matchedSpecific.map(getVoteheadKey));
+            effectivePool = [
+                ...matchedSpecific,
+                ...generalStructures.filter(g => !specificKeys.has(getVoteheadKey(g)))
+            ];
+        } else {
+            effectivePool = generalStructures.length > 0 ? generalStructures : candidateStructures;
+        }
+
+        // Safe fallback if zero structures matched
+        if (effectivePool.length === 0 && feeStructures.length > 0) {
+            effectivePool = feeStructures.filter((fs: any) => {
+                const fsAppTo = (fs.applicableTo || fs.applicable_to || 'all').toLowerCase();
+                if (fsAppTo === 'boarder' && !boarder) return false;
+                if (fsAppTo === 'day_scholar' && boarder) return false;
+                return true;
+            });
+        }
+
+        if (isAnnual) {
+            const termVoteheadMap = new Map<string, any>();
+            effectivePool.forEach(f => {
+                const vKey = getVoteheadKey(f);
+                const termKey = String(f.term || 'general').trim().toLowerCase();
+                const comboKey = `${vKey}___${termKey}`;
+                if (!termVoteheadMap.has(comboKey)) {
+                    termVoteheadMap.set(comboKey, f);
+                }
+            });
+
+            const aggregatedMap = new Map<string, any>();
+            termVoteheadMap.forEach((f) => {
+                const vKey = getVoteheadKey(f);
+                const amt = parseMoneyAmount(f.amount || f.allocatedAmount || f.totalAmount || f.feeAmount || 0);
+                const existing = aggregatedMap.get(vKey);
+                if (existing) {
+                    const existingAmt = parseMoneyAmount(existing.amount || existing.allocatedAmount || 0);
+                    aggregatedMap.set(vKey, {
+                        ...existing,
+                        amount: existingAmt + amt
+                    });
+                } else {
+                    aggregatedMap.set(vKey, { ...f, amount: amt });
+                }
+            });
+
+            return Array.from(aggregatedMap.values());
+        }
+
+        const singleTermMap = new Map<string, any>();
+        effectivePool.forEach(f => {
+            const vKey = getVoteheadKey(f);
+            if (!singleTermMap.has(vKey)) {
+                singleTermMap.set(vKey, {
+                    ...f,
+                    amount: parseMoneyAmount(f.amount || f.allocatedAmount || f.totalAmount || f.feeAmount || 0)
+                });
+            }
+        });
+
+        return Array.from(singleTermMap.values());
+    }, [allAvailableFeeStructures, getStudentCourseOrClassId, isStudentBoarder, studentClassGroup, uninvoicedAcademicYearId, uninvoicedSelectedSemName, uninvoicedSemesterId]);
 
     // Un-invoiced students identification, filtering, and grouped data
     const [uninvoicedSearchQuery, setUninvoicedSearchQuery] = useState('');
@@ -5609,11 +5839,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const invoicedStudentIdSet = new Set<string>();
         const invoicedAdmSet = new Set<string>();
 
+        const isAnnual = uninvoicedBillingScope === 'annual';
+        const targetAY = uninvoicedAcademicYearId;
+        const targetSem = uninvoicedSemesterId;
+        const targetSemName = uninvoicedSelectedSemName;
+
         mappedInvoices.forEach((inv: any) => {
-            const sId = inv.studentId || inv.student_id || inv.userId;
-            if (sId) invoicedStudentIdSet.add(String(sId));
-            const adm = inv.admissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).metadata?.admissionNumber;
-            if (adm) invoicedAdmSet.add(String(adm).trim().toLowerCase());
+            const invAY = inv.academicYearId || inv.academic_year_id;
+            const invSem = inv.semesterId || inv.semester_id;
+            const invTerm = String(inv.term || '').trim().toLowerCase();
+
+            const matchAY = !targetAY || !invAY || invAY === targetAY;
+            let matchPeriod = false;
+            if (isAnnual) {
+                matchPeriod = inv.isAnnual || inv.is_annual || invTerm.includes('annual') || matchAY;
+            } else {
+                matchPeriod = matchAY && (
+                    !targetSem || 
+                    invSem === targetSem || 
+                    invTerm === String(targetSemName).trim().toLowerCase() ||
+                    invTerm.includes(String(targetSemName).trim().toLowerCase())
+                );
+            }
+
+            if (matchPeriod) {
+                const sId = inv.studentId || inv.student_id || inv.userId;
+                if (sId) invoicedStudentIdSet.add(String(sId));
+                const adm = inv.admissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).metadata?.admissionNumber;
+                if (adm) invoicedAdmSet.add(String(adm).trim().toLowerCase());
+            }
         });
 
         return studentsPool.filter((s: any) => {
@@ -5625,11 +5879,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (adm && invoicedAdmSet.has(String(adm).trim().toLowerCase())) return false;
             return true;
         }).map((s: any) => {
-            const applicableFs = resolveApplicableFeeStructuresForStudent(s);
-            const estAmount = applicableFs.reduce((sum: number, fs: any) => {
+            const applicableFs = resolveApplicableFeeStructuresForStudent(s, isAnnual, targetAY, targetSemName);
+            let baseAmount = applicableFs.reduce((sum: number, fs: any) => {
                 const amt = parseMoneyAmount(fs.amount || (fs as any).allocatedAmount || 0);
                 return sum + amt;
             }, 0);
+
+            let transportAmount = 0;
+            if (uninvoicedIncludeTransport) {
+                const pref = studentCommutePrefs[s.id];
+                if (pref && pref.preference !== 'none' && routeFeeSettings.length > 0) {
+                    const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
+                    if (route) {
+                        const oneWayRate = (route.oneWayPercentage ?? transportOneWayPct) / 100;
+                        const multiplier = pref.preference === 'round_trip' ? 1.0 : oneWayRate;
+                        let tFee = Math.round((route.termFee || 0) * multiplier);
+                        if (isAnnual) {
+                            const numTerms = (props.semesters && props.semesters.length > 0) ? props.semesters.length : 3;
+                            tFee *= numTerms;
+                        }
+                        transportAmount = tFee;
+                    }
+                }
+            }
+
             return {
                 student: s,
                 id: s.id,
@@ -5640,10 +5913,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 isBoarder: isStudentBoarder(s),
                 gender: s.gender || '—',
                 applicableFeeStructures: applicableFs,
-                estimatedAmount: estAmount
+                transportAmount,
+                estimatedAmount: baseAmount + transportAmount
             };
         });
-    }, [mergedStudents, props.students, mappedInvoices, getStudentAdmNumber, studentClassGroup, getStudentStream, isStudentBoarder, resolveApplicableFeeStructuresForStudent]);
+    }, [mergedStudents, props.students, mappedInvoices, uninvoicedBillingScope, uninvoicedAcademicYearId, uninvoicedSemesterId, uninvoicedSelectedSemName, uninvoicedIncludeTransport, studentCommutePrefs, routeFeeSettings, transportOneWayPct, getStudentAdmNumber, studentClassGroup, getStudentStream, isStudentBoarder, resolveApplicableFeeStructuresForStudent, props.semesters]);
 
     const filteredUninvoicedStudents = useMemo(() => {
         return rawUninvoicedStudents.filter(item => {
@@ -5696,10 +5970,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             return;
         }
 
+        const isAnnual = uninvoicedBillingScope === 'annual';
+        const scopeLabel = isAnnual ? `Annual (Full Year ${uninvoicedSelectedAYName})` : `${uninvoicedSelectedSemName} · ${uninvoicedSelectedAYName}`;
         const selectedList = rawUninvoicedStudents.filter(s => idsToInvoice.includes(s.id));
         const totalEst = selectedList.reduce((acc, s) => acc + s.estimatedAmount, 0);
 
-        const confirmMsg = `Ready to auto-invoice ${selectedList.length} student(s)?\n\nTotal Estimated Invoicing: KES ${totalEst.toLocaleString()}\n\nEach student will be billed based on their applicable fee structures and sequential invoice numbers will be generated automatically.`;
+        const confirmMsg = `Ready to auto-invoice ${selectedList.length} student(s) for ${scopeLabel}?\n\nTotal Estimated Invoicing: KES ${totalEst.toLocaleString()}\n\nEach student will be billed based on their applicable fee structures and sequential invoice numbers will be generated automatically.`;
         if (!window.confirm(confirmMsg)) return;
 
         setIsAutoInvoicing(true);
@@ -5724,8 +6000,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const nowIso = new Date().toISOString();
             const issueDate = nowIso.split('T')[0];
             const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-            const activeAY = props.academicYears.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears[0];
-            const activeSem = props.semesters.find(s => s.status === 'Active' || s.isCurrent) || props.semesters[0];
+            const activeAY = props.academicYears.find(ay => ay.id === uninvoicedAcademicYearId || ay.status === 'Active' || ay.isCurrent) || props.academicYears[0];
+            const activeSem = props.semesters.find(s => s.id === uninvoicedSemesterId || s.status === 'Active' || s.isCurrent) || props.semesters[0];
 
             for (let i = 0; i < selectedList.length; i++) {
                 const item = selectedList[i];
@@ -5746,6 +6022,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         priority: fs.priority || 1
                     };
                 });
+
+                // Include transport line item if available
+                if (item.transportAmount > 0) {
+                    invoiceItems.push({
+                        name: 'Transport Fee',
+                        description: `Transport Fee (${scopeLabel})`,
+                        voteheadName: 'Transport',
+                        quantity: 1,
+                        unitPrice: item.transportAmount,
+                        amount: item.transportAmount,
+                        priority: 99
+                    });
+                }
 
                 const totalAmount = invoiceItems.reduce((sum: number, it: any) => sum + it.amount, 0);
 
@@ -5768,14 +6057,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     issue_date: issueDate,
                     dueDate: dueDate,
                     due_date: dueDate,
-                    academicYearId: activeAY?.id || '',
-                    semesterId: activeSem?.id || '',
-                    term: activeSem?.name || 'Term 1',
+                    academicYearId: activeAY?.id || uninvoicedAcademicYearId || '',
+                    semesterId: isAnnual ? '' : (activeSem?.id || uninvoicedSemesterId || ''),
+                    term: isAnnual ? 'Annual (Full Year)' : (uninvoicedSelectedSemName || activeSem?.name || 'Term 1'),
+                    isAnnual: isAnnual,
+                    is_annual: isAnnual,
                     items: invoiceItems,
                     totalAmount: totalAmount,
                     total_amount: totalAmount,
                     status: 'pending' as const,
-                    notes: `Auto-generated invoice for ${item.className} ${item.stream !== '—' ? `(${item.stream})` : ''}`,
+                    notes: `Auto-generated invoice (${scopeLabel}) for ${item.className} ${item.stream !== '—' ? `(${item.stream})` : ''}`,
                     createdAt: nowIso,
                     updatedAt: nowIso
                 };
@@ -5806,7 +6097,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             // Log action
             if (props.onLogAction) {
-                props.onLogAction(`Auto-invoiced ${newInvoices.length} un-invoiced students for total KES ${totalEst.toLocaleString()}`);
+                props.onLogAction(`Auto-invoiced ${newInvoices.length} un-invoiced students for ${scopeLabel} (Total KES ${totalEst.toLocaleString()})`);
             }
 
             setSelectedUninvoicedIds(new Set());
@@ -5814,7 +6105,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 await props.onRefreshData();
             }
 
-            alert(`✓ Successfully generated ${newInvoices.length} student invoice(s)!\nTotal Invoiced: KES ${totalEst.toLocaleString()}`);
+            alert(`✓ Successfully generated ${newInvoices.length} student invoice(s) for ${scopeLabel}!\nTotal Invoiced: KES ${totalEst.toLocaleString()}`);
             setInvoicesMainTab('ledger');
         } catch (err: any) {
             console.error("Auto-invoicing failed:", err);
@@ -11110,6 +11401,109 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             </div>
 
+                            {/* Billing Scope & Period Selection Bar */}
+                            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[2.5rem] p-6 lg:p-7 text-white shadow-xl border border-indigo-900/40 relative overflow-hidden">
+                                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                                    <div className="space-y-2">
+                                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 border border-amber-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-300">
+                                            <span>⚡</span> Invoicing Target & Scope
+                                        </div>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Select Billing Period & Scope</h3>
+                                        <p className="text-xs text-indigo-200 max-w-xl font-medium leading-relaxed">
+                                            Choose between <strong className="text-white font-black">Term Invoicing</strong> (bills fee structures for a specific term) or <strong className="text-white font-black">Annual Invoicing</strong> (aggregates all terms for the entire academic year).
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white/10 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/15 flex flex-col gap-3 min-w-[320px]">
+                                        {/* Scope Toggle: Term vs Annual */}
+                                        <div className="flex items-center gap-2 bg-black/30 p-1.5 rounded-xl border border-white/10">
+                                            <button
+                                                type="button"
+                                                onClick={() => setUninvoicedBillingScope('term')}
+                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                    uninvoicedBillingScope === 'term'
+                                                        ? 'bg-indigo-600 text-white shadow-md'
+                                                        : 'text-indigo-200 hover:text-white'
+                                                }`}
+                                            >
+                                                📅 Term Invoicing
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setUninvoicedBillingScope('annual')}
+                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                    uninvoicedBillingScope === 'annual'
+                                                        ? 'bg-amber-600 text-white shadow-md'
+                                                        : 'text-indigo-200 hover:text-white'
+                                                }`}
+                                            >
+                                                📆 Annual (Full Year)
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                            {/* Academic Year Dropdown */}
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-indigo-200">Academic Year</label>
+                                                <select
+                                                    value={uninvoicedAcademicYearId}
+                                                    onChange={(e) => setUninvoicedAcademicYearId(e.target.value)}
+                                                    className="w-full px-3 py-2 bg-slate-900/90 text-white rounded-xl border border-white/20 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                                                >
+                                                    {(props.academicYears && props.academicYears.length > 0 ? props.academicYears : [{ id: 'ay_2026', name: '2026' }]).map(ay => (
+                                                        <option key={ay.id} value={ay.id}>
+                                                            {ay.name || ay.id} {ay.status === 'Active' || ay.isCurrent ? '• Active' : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Term Dropdown (Active when in Term mode) */}
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-indigo-200">
+                                                    {uninvoicedBillingScope === 'annual' ? 'Billing Mode' : 'Select Term'}
+                                                </label>
+                                                {uninvoicedBillingScope === 'annual' ? (
+                                                    <div className="px-3 py-2 bg-amber-500/20 text-amber-200 border border-amber-400/30 rounded-xl text-xs font-bold flex items-center justify-between">
+                                                        <span>All Terms Combined</span>
+                                                        <span className="text-[10px]">✨ Full Year</span>
+                                                    </div>
+                                                ) : (
+                                                    <select
+                                                        value={uninvoicedSemesterId}
+                                                        onChange={(e) => setUninvoicedSemesterId(e.target.value)}
+                                                        className="w-full px-3 py-2 bg-slate-900/90 text-white rounded-xl border border-white/20 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                                                    >
+                                                        {(props.semesters && props.semesters.length > 0 ? props.semesters : [{ id: 'sem_1', name: 'Term 1' }, { id: 'sem_2', name: 'Term 2' }, { id: 'sem_3', name: 'Term 3' }]).map(sem => (
+                                                            <option key={sem.id} value={sem.id}>
+                                                                {sem.name || sem.id} {sem.status === 'Active' || sem.isCurrent ? '• Current' : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Transport fee toggle */}
+                                        <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                                            <label className="flex items-center gap-2 text-xs font-bold text-indigo-100 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={uninvoicedIncludeTransport}
+                                                    onChange={(e) => setUninvoicedIncludeTransport(e.target.checked)}
+                                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                />
+                                                <span>Include Transport Fee</span>
+                                            </label>
+                                            <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">
+                                                {uninvoicedBillingScope === 'annual' ? 'Annual Aggregate' : 'Term Tariff'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Un-invoiced Filter & Controls */}
                             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6">
                                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
@@ -11351,15 +11745,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                         {studentItem.applicableFeeStructures.length > 0 ? (
                                                                                             studentItem.applicableFeeStructures.slice(0, 3).map((fs: any, idx: number) => (
                                                                                                 <span key={idx} className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[9px] font-medium text-slate-600 dark:text-slate-400">
-                                                                                                    {fs.name || 'Fee'}: KES {parseMoneyAmount(fs.amount || (fs as any).allocatedAmount || 0).toLocaleString()}
+                                                                                                    {fs.name || fs.voteHeadName || 'Fee'}: KES {parseMoneyAmount(fs.amount || (fs as any).allocatedAmount || 0).toLocaleString()}
                                                                                                 </span>
                                                                                             ))
                                                                                         ) : (
-                                                                                            <span className="text-[10px] text-slate-400 italic">General structure</span>
+                                                                                            <span className="text-[10px] text-amber-500 font-medium italic">Standard fee structure</span>
                                                                                         )}
                                                                                         {studentItem.applicableFeeStructures.length > 3 && (
                                                                                             <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[9px] font-medium text-slate-500">
                                                                                                 +{studentItem.applicableFeeStructures.length - 3} more
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {studentItem.transportAmount > 0 && (
+                                                                                            <span className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded text-[9px] font-bold">
+                                                                                                🚌 Transport: KES {studentItem.transportAmount.toLocaleString()}
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
