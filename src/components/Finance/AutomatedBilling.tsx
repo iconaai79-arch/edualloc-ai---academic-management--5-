@@ -272,6 +272,15 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
         return Object.values(grouped);
     }, [activeFeeStructures]);
 
+    const defaultOneWayPercentage = useMemo(() => {
+        const saved = localStorage.getItem('eduai_transport_oneway_pct');
+        if (saved !== null) {
+            const val = Number(saved);
+            if (!isNaN(val) && val >= 1 && val <= 100) return val;
+        }
+        return 60;
+    }, []);
+
     const routeFeeSettings = useMemo(() => {
         const saved = localStorage.getItem('eduai_transport_route_fee_settings');
         if (saved !== null) {
@@ -410,7 +419,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             if (pref && pref.preference !== 'none') {
                 const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
                 if (route) {
-                    const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
+                    const oneWayPct = (route.oneWayPercentage ?? defaultOneWayPercentage ?? 60) / 100;
+                    const multiplier = pref.preference === 'round_trip' ? 1.0 : oneWayPct;
                     let transportFee = Math.round(route.termFee * multiplier);
                     if (selectedSem === 'annual') {
                         const numTerms = semesters.length || 3;
@@ -496,14 +506,15 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                 if (pref && pref.preference !== 'none') {
                     const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
                     if (route) {
-                        const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
+                        const oneWayPct = (route.oneWayPercentage ?? defaultOneWayPercentage ?? 60) / 100;
+                        const multiplier = pref.preference === 'round_trip' ? 1.0 : oneWayPct;
                         let transportFee = Math.round(route.termFee * multiplier);
                         if (selectedSem === 'annual') {
                             const numTerms = semesters.length || 3;
                             transportFee *= numTerms;
                         }
                         transportAmount = transportFee;
-                        const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
+                        const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : `One Way (${Math.round(oneWayPct * 100)}%)`;
                         invoiceItems.push({
                             name: 'Transport Fee',
                             description: `Transport Fee: ${route.routeName} (${prefLabel})${selectedSem === 'annual' ? ' - Annual' : ''}`,
@@ -1006,14 +1017,15 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                     if (pref && pref.preference !== 'none') {
                                         const route = routeFeeSettings.find((r: any) => r.routeId === pref.routeId);
                                         if (route) {
-                                            const multiplier = pref.preference === 'round_trip' ? 1.0 : 0.6;
+                                            const oneWayPct = (route.oneWayPercentage ?? defaultOneWayPercentage ?? 60) / 100;
+                                            const multiplier = pref.preference === 'round_trip' ? 1.0 : oneWayPct;
                                             let transportFee = Math.round(route.termFee * multiplier);
                                             if (selectedSem === 'annual') {
                                                 const numTerms = semesters.length || 3;
                                                 transportFee *= numTerms;
                                             }
                                             transportAmount = transportFee;
-                                            const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : 'One Way';
+                                            const prefLabel = pref.preference === 'round_trip' ? 'Round Trip' : `One Way (${Math.round(oneWayPct * 100)}%)`;
                                             items.push({
                                                 name: `Transport Fee: ${route.routeName} (${prefLabel})${selectedSem === 'annual' ? ' - Annual' : ''}`,
                                                 amount: transportAmount,

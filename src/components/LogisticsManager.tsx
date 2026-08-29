@@ -313,14 +313,31 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(studentCommutePrefs));
     }, [studentCommutePrefs, currentInstitution?.id]);
 
+    const [defaultOneWayPercentage, setDefaultOneWayPercentage] = useState<number>(() => {
+        const instKey = currentInstitution?.id ? `eduai_transport_oneway_pct_${currentInstitution.id}` : null;
+        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_oneway_pct');
+        if (saved !== null) {
+            const val = Number(saved);
+            if (!isNaN(val) && val >= 1 && val <= 100) return val;
+        }
+        return 60;
+    });
+
+    React.useEffect(() => {
+        const key = currentInstitution?.id ? `eduai_transport_oneway_pct_${currentInstitution.id}` : 'eduai_transport_oneway_pct';
+        localStorage.setItem(key, String(defaultOneWayPercentage));
+        localStorage.setItem('eduai_transport_oneway_pct', String(defaultOneWayPercentage));
+    }, [defaultOneWayPercentage, currentInstitution?.id]);
+
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
-    const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => {
+    const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number, routeName?: string, oneWayPercentage?: number) => {
         setRouteFeeSetting(prev => prev.map(r => r.routeId === routeId ? {
             ...r,
             termFee,
             monthlyFee,
-            ...(routeName ? { routeName } : {})
+            ...(routeName ? { routeName } : {}),
+            ...(oneWayPercentage !== undefined ? { oneWayPercentage } : {})
         } : r));
         if (routeName) {
             setBusRoutes(prev => prev.map(br => br.id === routeId ? { ...br, name: routeName } : br));
@@ -347,7 +364,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             if (!pref || pref.preference === 'none') return;
             const route = routeFeeSetting.find(r => r.routeId === (pref?.routeId || ['route_1','route_2','route_3'][idx % 3]));
             if (!route) return;
-            const multiplier = PREF_MULTIPLIER[pref.preference] ?? 1.0;
+            const oneWayPct = (route.oneWayPercentage ?? defaultOneWayPercentage ?? 60) / 100;
+            const multiplier = pref.preference === 'round_trip' ? 1.0 : oneWayPct;
             const base = cycle === 'term' ? route.termFee : route.monthlyFee;
             const finalAmt = Math.round(base * multiplier);
             if (finalAmt === 0) return;
@@ -2579,6 +2597,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         onGenerateInvoices={handleGenerateInvoices}
                         onMarkPaid={handleMarkPaid}
                         onWaive={handleWaiveFee}
+                        defaultOneWayPercentage={defaultOneWayPercentage}
+                        onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
                     />
                 )}
             </div>

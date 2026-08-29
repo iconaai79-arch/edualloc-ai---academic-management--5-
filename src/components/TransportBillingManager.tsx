@@ -18,6 +18,7 @@ export interface RouteFeeSetting {
     termFee: number;        // Full round-trip fee per term
     monthlyFee: number;     // Full round-trip fee per month
     currency: string;
+    oneWayPercentage?: number; // Custom percentage for one-way (e.g. 60 for 60%)
 }
 
 export interface TransportFeeInvoice {
@@ -44,11 +45,13 @@ export interface TransportFeeInvoice {
 interface TransportBillingProps {
     routeSettings: RouteFeeSetting[];
     invoices: TransportFeeInvoice[];
-    onUpdateRouteFee: (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => void;
+    onUpdateRouteFee: (routeId: string, termFee: number, monthlyFee: number, routeName?: string, oneWayPercentage?: number) => void;
     onDeleteRoute?: (routeId: string) => void;
     onGenerateInvoices: (cycle: BillingCycle, period: string) => void;
     onMarkPaid: (invoiceId: string, method: string) => void;
     onWaive: (invoiceId: string, reason: string) => void;
+    defaultOneWayPercentage?: number;
+    onUpdateDefaultOneWayPercentage?: (pct: number) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -75,136 +78,223 @@ const fmt = (n: number, currency = 'KES') =>
 
 const RouteFeeSettings: React.FC<{
     routes: RouteFeeSetting[];
-    onUpdate: (routeId: string, termFee: number, monthlyFee: number, routeName?: string) => void;
+    onUpdate: (routeId: string, termFee: number, monthlyFee: number, routeName?: string, oneWayPercentage?: number) => void;
     onDelete?: (routeId: string) => void;
-}> = ({ routes, onUpdate, onDelete }) => {
+    defaultOneWayPercentage?: number;
+    onUpdateDefaultOneWayPercentage?: (pct: number) => void;
+}> = ({ routes, onUpdate, onDelete, defaultOneWayPercentage = 60, onUpdateDefaultOneWayPercentage }) => {
     const [editing, setEditing] = useState<string | null>(null);
     const [nameVal, setNameVal] = useState('');
     const [termVal, setTermVal] = useState('');
     const [monthVal, setMonthVal] = useState('');
+    const [oneWayVal, setOneWayVal] = useState('');
 
     const startEdit = (r: RouteFeeSetting) => {
         setEditing(r.routeId);
         setNameVal(r.routeName);
         setTermVal(String(r.termFee));
         setMonthVal(String(r.monthlyFee));
+        setOneWayVal(String(r.oneWayPercentage ?? defaultOneWayPercentage));
     };
 
     const save = (routeId: string) => {
-        onUpdate(routeId, Number(termVal), Number(monthVal), nameVal.trim());
+        const pctNum = oneWayVal !== '' ? Number(oneWayVal) : undefined;
+        onUpdate(routeId, Number(termVal), Number(monthVal), nameVal.trim(), pctNum);
         setEditing(null);
     };
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
-                <h4 className="text-sm font-black uppercase tracking-tight">Route Fee Configuration</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Set transport fees per route. One-way is automatically charged at 60% of the full fare.
-                </p>
-            </div>
-            <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                {routes.map(r => (
-                    <div key={r.routeId} className="p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl flex items-center justify-center flex-shrink-0">
-                                <Bus className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                {editing === r.routeId ? (
-                                    <div className="flex flex-col gap-1 pr-4">
-                                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Route Name</label>
-                                        <input
-                                            type="text"
-                                            value={nameVal}
-                                            onChange={e => setNameVal(e.target.value)}
-                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
-                                        />
-                                    </div>
-                                ) : (
-                                    <>
-                                        <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{r.routeName}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Round-trip base rate</p>
-                                    </>
-                                )}
+        <div className="space-y-6">
+            {/* Global One-Way Percentage Policy Card */}
+            <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-[2.5rem] p-6 lg:p-8 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                    <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-200">
+                            <span>⚡</span> Tariff Policy
+                        </div>
+                        <h3 className="text-xl font-black uppercase tracking-tight">One-Way Transport Tariff Rate</h3>
+                        <p className="text-xs text-indigo-200 max-w-xl font-medium leading-relaxed">
+                            Specify what percentage of the full round-trip route fee is charged for one-way students (Morning Pick-up only or Afternoon Drop-off only).
+                        </p>
+                    </div>
+
+                    <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/15 flex flex-col gap-3 min-w-[280px]">
+                        <div className="flex items-center justify-between gap-4">
+                            <span className="text-xs font-black uppercase tracking-wider text-indigo-100">Global Rate:</span>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    value={defaultOneWayPercentage}
+                                    onChange={e => onUpdateDefaultOneWayPercentage && onUpdateDefaultOneWayPercentage(Math.max(1, Math.min(100, Number(e.target.value) || 0)))}
+                                    className="w-20 px-3 py-1.5 bg-white text-slate-900 font-black rounded-xl text-center text-sm outline-none focus:ring-2 focus:ring-indigo-300"
+                                />
+                                <span className="font-black text-sm text-white">%</span>
                             </div>
                         </div>
 
-                        {editing === r.routeId ? (
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Term (KES)</label>
-                                    <input
-                                        type="number"
-                                        value={termVal}
-                                        onChange={e => setTermVal(e.target.value)}
-                                        className="w-32 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Month (KES)</label>
-                                    <input
-                                        type="number"
-                                        value={monthVal}
-                                        onChange={e => setMonthVal(e.target.value)}
-                                        className="w-32 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
-                                    />
-                                </div>
-                                <div className="flex items-end gap-2 pb-0.5">
-                                    <button onClick={() => save(r.routeId)} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
-                                        Save
-                                    </button>
-                                    <button onClick={() => setEditing(null)} className="px-5 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-4 flex-wrap">
-                                <div className="text-center">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Term</p>
-                                    <p className="text-lg font-black text-indigo-600">{fmt(r.termFee)}</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Month</p>
-                                    <p className="text-lg font-black text-violet-600">{fmt(r.monthlyFee)}</p>
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">One-Way</p>
-                                    <p className="text-lg font-black text-emerald-600">{fmt(Math.round(r.termFee * 0.6))}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => startEdit(r)}
-                                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
-                                    >
-                                        Edit
-                                    </button>
-                                    {onDelete && (
-                                        <button
-                                            onClick={() => onDelete(r.routeId)}
-                                            className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
-                                            title="Delete Route"
-                                        >
-                                            Delete
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                        {/* Quick preset badges */}
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-white/10">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-200 mr-1">Presets:</span>
+                            {[50, 60, 65, 70, 75].map(pct => (
+                                <button
+                                    key={pct}
+                                    type="button"
+                                    onClick={() => onUpdateDefaultOneWayPercentage && onUpdateDefaultOneWayPercentage(pct)}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                        defaultOneWayPercentage === pct
+                                            ? 'bg-white text-indigo-900 shadow-md font-black'
+                                            : 'bg-white/10 text-white hover:bg-white/20'
+                                    }`}
+                                >
+                                    {pct}%
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                ))}
+                </div>
             </div>
-            {/* Legend */}
-            <div className="p-5 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-50 dark:border-slate-700 flex flex-wrap gap-4">
-                {Object.entries(PREFERENCE_LABELS).filter(([k]) => k !== 'none').map(([, v]) => (
-                    <div key={v.label} className="flex items-center gap-2">
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${v.color}`}>
-                            {v.label}
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400">→ {(v.multiplier * 100).toFixed(0)}% of base</span>
+
+            {/* Route Fee Table Card */}
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-50 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h4 className="text-sm font-black uppercase tracking-tight">Route Fee Configuration</h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                            Set transport fees per route. One-way rates automatically compute using the active percentage.
+                        </p>
                     </div>
-                ))}
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider border border-emerald-200 dark:border-emerald-800 w-fit">
+                        Current Rate: {defaultOneWayPercentage}%
+                    </span>
+                </div>
+                <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                    {routes.map(r => {
+                        const effectiveOneWayPct = r.oneWayPercentage ?? defaultOneWayPercentage;
+                        const oneWayTerm = Math.round(r.termFee * (effectiveOneWayPct / 100));
+
+                        return (
+                            <div key={r.routeId} className="p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+                                        <Bus className="w-5 h-5 text-indigo-600" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        {editing === r.routeId ? (
+                                            <div className="flex flex-col gap-1 pr-4">
+                                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Route Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={nameVal}
+                                                    onChange={e => setNameVal(e.target.value)}
+                                                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight truncate">{r.routeName}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    Round-trip base rate • One-Way: {effectiveOneWayPct}%
+                                                </p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {editing === r.routeId ? (
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Term (KES)</label>
+                                            <input
+                                                type="number"
+                                                value={termVal}
+                                                onChange={e => setTermVal(e.target.value)}
+                                                className="w-28 px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Month (KES)</label>
+                                            <input
+                                                type="number"
+                                                value={monthVal}
+                                                onChange={e => setMonthVal(e.target.value)}
+                                                className="w-28 px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">One-Way (%)</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max="100"
+                                                value={oneWayVal}
+                                                onChange={e => setOneWayVal(e.target.value)}
+                                                placeholder={String(defaultOneWayPercentage)}
+                                                className="w-24 px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                            />
+                                        </div>
+                                        <div className="flex items-end gap-2 pb-0.5">
+                                            <button onClick={() => save(r.routeId)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                                                Save
+                                            </button>
+                                            <button onClick={() => setEditing(null)} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-4 flex-wrap">
+                                        <div className="text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Term</p>
+                                            <p className="text-lg font-black text-indigo-600">{fmt(r.termFee)}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Per Month</p>
+                                            <p className="text-lg font-black text-violet-600">{fmt(r.monthlyFee)}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">One-Way ({effectiveOneWayPct}%)</p>
+                                            <p className="text-lg font-black text-emerald-600">{fmt(oneWayTerm)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => startEdit(r)}
+                                                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                            >
+                                                Edit
+                                            </button>
+                                            {onDelete && (
+                                                <button
+                                                    onClick={() => onDelete(r.routeId)}
+                                                    className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                    title="Delete Route"
+                                                >
+                                                    Delete
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+                {/* Legend */}
+                <div className="p-5 bg-slate-50/50 dark:bg-slate-900/20 border-t border-slate-50 dark:border-slate-700 flex flex-wrap gap-4">
+                    {Object.entries(PREFERENCE_LABELS).filter(([k]) => k !== 'none').map(([k, v]) => {
+                        const pctDisplay = k === 'round_trip' ? '100%' : `${defaultOneWayPercentage}%`;
+                        return (
+                            <div key={v.label} className="flex items-center gap-2">
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${v.color}`}>
+                                    {v.label}
+                                </span>
+                                <span className="text-[9px] font-bold text-slate-400">→ {pctDisplay} of base route fee</span>
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -427,6 +517,8 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
     onGenerateInvoices,
     onMarkPaid,
     onWaive,
+    defaultOneWayPercentage = 60,
+    onUpdateDefaultOneWayPercentage,
 }) => {
     const [activeSection, setActiveSection] = useState<'overview' | 'fees' | 'invoices'>('overview');
     const [billingCycle, setBillingCycle] = useState<BillingCycle>('term');
@@ -619,7 +711,13 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
 
             {/* Fees Section */}
             {activeSection === 'fees' && (
-                <RouteFeeSettings routes={routeSettings} onUpdate={onUpdateRouteFee} onDelete={onDeleteRoute} />
+                <RouteFeeSettings
+                    routes={routeSettings}
+                    onUpdate={onUpdateRouteFee}
+                    onDelete={onDeleteRoute}
+                    defaultOneWayPercentage={defaultOneWayPercentage}
+                    onUpdateDefaultOneWayPercentage={onUpdateDefaultOneWayPercentage}
+                />
             )}
 
             {/* Invoices Section */}
