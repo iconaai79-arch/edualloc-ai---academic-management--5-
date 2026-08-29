@@ -2774,9 +2774,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balancesPerPage, setBalancesPerPage] = useState<number | 'All'>(15);
     const [isFeeBalancesHeaderCollapsed, setIsFeeBalancesHeaderCollapsed] = useState<boolean>(() => {
         try {
-            return localStorage.getItem('eduai_fee_balances_header_collapsed') === 'true';
+            const saved = localStorage.getItem('eduai_fee_balances_header_collapsed');
+            if (saved !== null) {
+                return saved === 'true';
+            }
+            return true; // Hidden by default
         } catch {
-            return false;
+            return true; // Hidden by default
         }
     });
 
