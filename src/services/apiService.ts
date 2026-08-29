@@ -1688,7 +1688,7 @@ export const apiService = {
                 delete item.institutionId;
             }
 
-            // Safety net for users table to strip non-existent top-level columns (e.g. parent_phone2) that cause PGRST204 PostgREST errors
+            // Safety net for users table to strip non-existent top-level columns (e.g. parent_phone2, vehicle_id) that cause PGRST204 PostgREST errors
             if (module === 'users') {
                 const parentPhone2Val = item.parent_phone2 || item.parentPhone2 || item.secondary_phone || item.secondaryPhone || item.guardian_phone2 || item.guardianPhone2;
                 if (parentPhone2Val) {
@@ -1698,6 +1698,26 @@ export const apiService = {
                         secondaryPhone: parentPhone2Val
                     };
                 }
+                const vehicleIdVal = item.vehicle_id || item.vehicleId || item.assigned_vehicle_id || item.assignedVehicleId;
+                if (vehicleIdVal) {
+                    item.metadata = {
+                        ...(item.metadata || {}),
+                        vehicleId: vehicleIdVal
+                    };
+                }
+                const driverTypeVal = item.driver_type || item.driverType;
+                if (driverTypeVal) {
+                    item.metadata = {
+                        ...(item.metadata || {}),
+                        driverType: driverTypeVal
+                    };
+                }
+                delete item.vehicle_id;
+                delete item.vehicleId;
+                delete item.assigned_vehicle_id;
+                delete item.assignedVehicleId;
+                delete item.driver_type;
+                delete item.driverType;
                 delete item.parent_phone2;
                 delete item.parentPhone2;
                 delete item.secondary_phone;
