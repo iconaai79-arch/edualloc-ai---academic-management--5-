@@ -924,7 +924,7 @@ export const App: React.FC = () => {
             setIsBootstrapped(true);
 
             // ── PHASE 1: Health check + identity (blocks UI or uses offline cache) ──────────────────
-            const isOffline = !navigator.onLine;
+            let isOffline = !navigator.onLine;
             let insts: any[] = [];
             let cnts: any[] = [];
             let sett: any = null;
@@ -934,6 +934,31 @@ export const App: React.FC = () => {
             let evts: any[] = [];
             let consts: any[] = [];
             let brs: any[] = [];
+
+            if (!isOffline) {
+                if (!silent) setLoadStatus("Connecting...");
+                try {
+                    const healthPromise = apiService.testDatabaseConnection().catch(() => ({ status: 'offline' }));
+                    const timeoutPromise = new Promise<{ status: string }>((resolve) =>
+                        setTimeout(() => resolve({ status: 'offline' }), 2500)
+                    );
+                    const health = await Promise.race([healthPromise, timeoutPromise]);
+                    if (health.status === 'setup_required') {
+                        setIsSchemaInitializationRequired(true);
+                        setIsApiOnline(true);
+                        setAppInitializing(false);
+                        return;
+                    }
+                    if (health.status === 'offline') {
+                        isOffline = true;
+                    } else {
+                        setIsApiOnline(true);
+                        setIsSchemaInitializationRequired(false);
+                    }
+                } catch (e) {
+                    isOffline = true;
+                }
+            }
 
             if (isOffline) {
                 if (!silent) setLoadStatus("Offline Mode Active...");
@@ -947,22 +972,14 @@ export const App: React.FC = () => {
                 consts = await localDb.getAll('constituencies').catch(() => []);
                 brs = await localDb.getAll('branches').catch(() => []);
 
+                if (!insts || insts.length === 0) insts = INITIAL_INSTITUTIONS;
+                if (!u || u.length === 0) u = INITIAL_USERS;
+                if (!sett) sett = INITIAL_COMPANY_DETAILS;
+
                 setIsApiOnline(false);
                 setIsSchemaInitializationRequired(false);
             } else {
-                if (!silent) setLoadStatus("Connecting...");
-                const health = await apiService.testDatabaseConnection().catch(() => ({ status: 'offline' }));
-                if (health.status === 'setup_required') {
-                    setIsSchemaInitializationRequired(true);
-                    setIsApiOnline(true);
-                    setAppInitializing(false);
-                    return;
-                }
-
-                setIsApiOnline(health.status !== 'offline');
-                setIsSchemaInitializationRequired(false);
-
-                if (health.status !== 'offline') {
+                if (isApiOnline) {
                     // Idempotent setup of PM subscription bonus trigger
                     apiService.runMigration(`
 CREATE OR REPLACE FUNCTION public.allocate_tenant_sms_bonus()
@@ -1219,6 +1236,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     });
                     return combined;
                 });
+            } else if (isOffline) {
+                setInstitutions(prev => (prev && prev.length > 0 ? prev : INITIAL_INSTITUTIONS));
             }
             if (cnts && cnts.length > 0) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
@@ -1232,9 +1251,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         }
                     } catch (e) { console.warn("Invalid marketplace URL:", e); }
                 }
+            } else if (isOffline) {
+                setCompanyDetails(prev => ({ ...INITIAL_COMPANY_DETAILS, ...prev }));
             }
 
             let finalUsers: User[] = u || [];
+            if (finalUsers.length === 0 && isOffline) {
+                finalUsers = INITIAL_USERS;
+            }
             const systemSuperAdmin = INITIAL_USERS.find(iu => iu.role === 'super_admin');
             if (systemSuperAdmin && !finalUsers.some((existing: User) => existing.email === systemSuperAdmin.email)) {
                 finalUsers = [...finalUsers, systemSuperAdmin];
@@ -7924,9 +7948,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 };
 
                                 const normE = normalizePhoneForCheck(e);
+                                const isClientOffline = !navigator.onLine || !isApiOnline;
                                 let discovered: any[] = [];
 
-                                // Discovery Phase: Search for user directly in DB if not in local cache
+                                // Discovery Phase: Search for user directly in local state first
                                 let matchedUsers = (users || []).filter(u => {
                                     if (!u) return false;
                                     const emailMatch = u.email?.trim().toLowerCase() === e.trim().toLowerCase();
@@ -7935,7 +7960,41 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     return (emailMatch || phoneMatch) && passMatch;
                                 });
                                 
+                                // Fallback to localDb indexedDB cache if not matched in memory
                                 if (matchedUsers.length === 0) {
+                                    try {
+                                        const localCachedUsers = await localDb.getAll('users');
+                                        if (Array.isArray(localCachedUsers) && localCachedUsers.length > 0) {
+                                            matchedUsers = localCachedUsers.filter(u => {
+                                                if (!u) return false;
+                                                const emailMatch = u.email?.trim().toLowerCase() === e.trim().toLowerCase();
+                                                const phoneMatch = u.phoneNumber && normE && normalizePhoneForCheck(u.phoneNumber) === normE;
+                                                const passMatch = u.password === p || (!u.password && p === 'password123');
+                                                return (emailMatch || phoneMatch) && passMatch;
+                                            });
+                                            if (matchedUsers.length > 0) {
+                                                setUsers(prev => {
+                                                    const existingIds = new Set((prev || []).map(u => u?.id));
+                                                    const newUsers = localCachedUsers.filter(u => u && !existingIds.has(u.id));
+                                                    return [...(prev || []), ...newUsers];
+                                                });
+                                            }
+                                        }
+                                    } catch (err) {}
+                                }
+
+                                // Fallback to initial demo users list
+                                if (matchedUsers.length === 0) {
+                                    matchedUsers = INITIAL_USERS.filter(u => {
+                                        if (!u) return false;
+                                        const emailMatch = u.email?.trim().toLowerCase() === e.trim().toLowerCase();
+                                        const phoneMatch = u.phoneNumber && normE && normalizePhoneForCheck(u.phoneNumber) === normE;
+                                        const passMatch = u.password === p || (!u.password && p === 'password123');
+                                        return (emailMatch || phoneMatch) && passMatch;
+                                    });
+                                }
+
+                                if (matchedUsers.length === 0 && !isClientOffline) {
                                     console.log(`[Login Discovery] No local match for "${e}". Attempting API discovery...`);
                                     
                                     if (e.includes('@')) {
@@ -8001,7 +8060,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     let inst = institutions.find(i => i.id === u.institutionId);
                                     
                                     // Institutional Discovery: If institution not in local cache, fetch it
-                                    if (!inst && u.institutionId) {
+                                    if (!inst && u.institutionId && !isClientOffline) {
                                         console.log(`[Login Discovery] Institution ${u.institutionId} not in local state. Fetching...`);
                                         try {
                                             const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: u.institutionId } });
@@ -8020,7 +8079,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         return 'suspended';
                                     }
 
-                                    const isOtpRequired = inst?.isOtpEnabled || companyDetails.enforceGlobalOtp;
+                                    // When client is offline, bypass OTP verification so login does not require internet connectivity
+                                    const isOtpRequired = !isClientOffline && (inst?.isOtpEnabled || companyDetails.enforceGlobalOtp);
 
                                     if (isOtpRequired) {
                                         // Generate and Send OTP

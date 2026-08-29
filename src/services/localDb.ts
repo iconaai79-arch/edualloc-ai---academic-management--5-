@@ -26,7 +26,8 @@ const STORE_NAMES = [
     'his_nbu_admissions', 'his_patient_id_config', 'his_audit_logs', 'his_queue_calls',
     'health_vital_statistics', 'health_prescriptions', 'health_clinical_events', 'health_patients', 'health_appointments',
     // Driving School & Extended stores
-    'ds_settings', 'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_invoices', 'ds_payments', 'ds_votes', 'ds_license_categories', 'ds_leads', 'ds_expenditures', 'ncba_transactions', 'mpesa_transactions', 'bank_transactions', 'transport_bills', 'fee_promises', 'app_notifications'
+    'ds_settings', 'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_invoices', 'ds_payments', 'ds_votes', 'ds_license_categories', 'ds_leads', 'ds_expenditures', 'ncba_transactions', 'mpesa_transactions', 'bank_transactions', 'transport_bills', 'fee_promises', 'app_notifications',
+    'alumnae_members', 'campaign_members'
 ];
 
 class LocalDb {
