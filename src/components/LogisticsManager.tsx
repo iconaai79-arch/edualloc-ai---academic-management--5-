@@ -532,11 +532,62 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setStudentCommutePrefs(initialPrefs);
     }, [students, isEduTransport, busRoutes, currentInstitution?.id]);
 
-    const [schoolTrips, setSchoolTrips] = useState([
-        { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' },
-        { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' },
-        { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' },
-    ]);
+    const [schoolTrips, setSchoolTrips] = useState<Array<{
+        id: string;
+        name: string;
+        destination: string;
+        date: string;
+        time: string;
+        leadTeacher: string;
+        vehicle: string;
+        passengers: string;
+        status: 'approved' | 'pending' | 'completed' | 'cancelled';
+    }>>(() => {
+        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_school_trips');
+        if (saved !== null) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error('Failed to parse saved school trips', e);
+            }
+        }
+        // Only seed initial demo trips for demo institutions
+        if (currentInstitution?.id?.startsWith('demo_')) {
+            const initialDemoTrips = [
+                { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' as const },
+                { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
+                { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
+            ];
+            localStorage.setItem(key, JSON.stringify(initialDemoTrips));
+            localStorage.setItem('eduai_school_trips', JSON.stringify(initialDemoTrips));
+            return initialDemoTrips;
+        }
+        // Fresh accounts start with an empty trips list
+        return [];
+    });
+
+    React.useEffect(() => {
+        if (!isEduTransport) return;
+        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_school_trips');
+        if (saved !== null) {
+            try {
+                setSchoolTrips(JSON.parse(saved));
+            } catch (e) {}
+        } else if (currentInstitution?.id?.startsWith('demo_')) {
+            const initialDemoTrips = [
+                { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' as const },
+                { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
+                { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
+            ];
+            setSchoolTrips(initialDemoTrips);
+            localStorage.setItem(key, JSON.stringify(initialDemoTrips));
+            localStorage.setItem('eduai_school_trips', JSON.stringify(initialDemoTrips));
+        } else {
+            setSchoolTrips([]);
+        }
+    }, [currentInstitution?.id, isEduTransport]);
 
     // Modal state for adding a new trip
     const [isAddTripModalOpen, setIsAddTripModalOpen] = useState(false);
@@ -1443,22 +1494,27 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
         const handleAddTrip = (e: React.FormEvent) => {
             e.preventDefault();
-            if (!newTripName || !newTripDestination || !newTripDate || !newTripTime || !newTripTeacher) {
+            if (!newTripName.trim() || !newTripDestination.trim() || !newTripDate || !newTripTime.trim() || !newTripTeacher.trim()) {
                 alert('Please fill in all required fields');
                 return;
             }
             const newTrip = {
                 id: `trip_${Date.now()}`,
-                name: newTripName,
-                destination: newTripDestination,
+                name: newTripName.trim(),
+                destination: newTripDestination.trim(),
                 date: newTripDate,
-                time: newTripTime,
-                leadTeacher: newTripTeacher,
-                vehicle: newTripVehicle || 'TBD',
-                passengers: newTripPassengers || 'TBD',
+                time: newTripTime.trim(),
+                leadTeacher: newTripTeacher.trim(),
+                vehicle: newTripVehicle.trim() || 'TBD',
+                passengers: newTripPassengers.trim() || 'TBD',
                 status: 'pending' as const
             };
-            setSchoolTrips([...schoolTrips, newTrip]);
+            const nextTrips = [...schoolTrips, newTrip];
+            setSchoolTrips(nextTrips);
+            const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
+            localStorage.setItem(tripKey, JSON.stringify(nextTrips));
+            localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+
             setIsAddTripModalOpen(false);
             // Reset fields
             setNewTripName('');
@@ -1468,6 +1524,27 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setNewTripTeacher('');
             setNewTripVehicle('');
             setNewTripPassengers('');
+        };
+
+        const handleDeleteTrip = (tripId: string) => {
+            if (!window.confirm('Are you sure you want to delete this trip schedule?')) return;
+            const nextTrips = schoolTrips.filter(t => t.id !== tripId);
+            setSchoolTrips(nextTrips);
+            const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
+            localStorage.setItem(tripKey, JSON.stringify(nextTrips));
+            localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+        };
+
+        const handleToggleTripStatus = (tripId: string) => {
+            const nextTrips = schoolTrips.map(t => {
+                if (t.id !== tripId) return t;
+                const nextStatus: typeof t.status = t.status === 'approved' ? 'pending' : 'approved';
+                return { ...t, status: nextStatus };
+            });
+            setSchoolTrips(nextTrips);
+            const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
+            localStorage.setItem(tripKey, JSON.stringify(nextTrips));
+            localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
         };
 
         return (
@@ -1491,7 +1568,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             </div>
                             <button 
                                 onClick={() => setIsAddTripModalOpen(true)}
-                                className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
                             >
                                 <Plus className="w-4 h-4" />
                                 Schedule Trip
@@ -1510,46 +1587,90 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Assigned Bus</th>
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Capacity</th>
                                     <th className="px-8 py-6 text-left text-[10px] font-black uppercase text-slate-400 tracking-widest">Approval</th>
+                                    <th className="px-8 py-6 text-right text-[10px] font-black uppercase text-slate-400 tracking-widest">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                {filteredTrips.map(trip => (
-                                    <tr key={trip.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
-                                        <td className="px-8 py-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-3 bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 rounded-xl">
-                                                    <Calendar className="w-5 h-5" />
+                                {filteredTrips.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="p-16 text-center">
+                                            <div className="max-w-sm mx-auto space-y-4">
+                                                <div className="w-16 h-16 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-3xl flex items-center justify-center mx-auto shadow-sm">
+                                                    <Calendar className="w-8 h-8" />
                                                 </div>
-                                                <p className="font-bold text-slate-800 dark:text-white tracking-tight">{trip.name}</p>
+                                                <div>
+                                                    <p className="font-black text-sm text-slate-800 dark:text-white uppercase tracking-tight">No Scheduled Trips Found</p>
+                                                    <p className="text-xs text-slate-400 font-medium mt-1">
+                                                        {searchTerm ? "No trips matched your search filter." : "No school trips scheduled yet. Click below to schedule a new educational trip."}
+                                                    </p>
+                                                </div>
+                                                {!searchTerm && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsAddTripModalOpen(true)}
+                                                        className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md cursor-pointer"
+                                                    >
+                                                        Schedule First Trip
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="px-8 py-6">
-                                            <p className="font-bold text-slate-700 dark:text-slate-200">{trip.destination}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <p className="font-bold text-slate-650 dark:text-slate-350">{trip.date}</p>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{trip.time}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <p className="font-bold text-slate-700 dark:text-slate-200">{trip.leadTeacher}</p>
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <p className="font-bold text-indigo-600 dark:text-indigo-400">{trip.vehicle}</p>
-                                        </td>
-                                        <td className="px-8 py-6 font-bold text-slate-600 dark:text-slate-300">
-                                            {trip.passengers}
-                                        </td>
-                                        <td className="px-8 py-6">
-                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${
-                                                trip.status === 'approved' 
-                                                    ? 'bg-green-50 text-green-750 border-green-150 dark:bg-green-950/20 dark:text-green-400' 
-                                                    : 'bg-amber-50 text-amber-750 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400'
-                                            }`}>
-                                                {trip.status}
-                                            </span>
-                                        </td>
                                     </tr>
-                                ))}
+                                ) : (
+                                    filteredTrips.map(trip => (
+                                        <tr key={trip.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                            <td className="px-8 py-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-3 bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400 rounded-xl">
+                                                        <Calendar className="w-5 h-5" />
+                                                    </div>
+                                                    <p className="font-bold text-slate-800 dark:text-white tracking-tight">{trip.name}</p>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <p className="font-bold text-slate-700 dark:text-slate-200">{trip.destination}</p>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <p className="font-bold text-slate-650 dark:text-slate-350">{trip.date}</p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{trip.time}</p>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <p className="font-bold text-slate-700 dark:text-slate-200">{trip.leadTeacher}</p>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <p className="font-bold text-indigo-600 dark:text-indigo-400">{trip.vehicle}</p>
+                                            </td>
+                                            <td className="px-8 py-6 font-bold text-slate-600 dark:text-slate-300">
+                                                {trip.passengers}
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleTripStatus(trip.id)}
+                                                    className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all cursor-pointer ${
+                                                        trip.status === 'approved' 
+                                                            ? 'bg-green-50 text-green-750 border-green-150 dark:bg-green-950/20 dark:text-green-400 hover:opacity-80' 
+                                                            : 'bg-amber-50 text-amber-750 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 hover:opacity-80'
+                                                    }`}
+                                                >
+                                                    {trip.status}
+                                                </button>
+                                            </td>
+                                            <td className="px-8 py-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteTrip(trip.id)}
+                                                        title="Delete Trip"
+                                                        className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
