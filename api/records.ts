@@ -1031,6 +1031,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVisitorRecord) : cleanVisitorRecord(currentPayload);
+            } else if (moduleName === 'users') {
+                const cleanUserRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const meta = { ...(copy.metadata || {}) };
+
+                    const vehicleIdVal = copy.vehicle_id || copy.vehicleId || copy.assigned_vehicle_id || copy.assignedVehicleId;
+                    if (vehicleIdVal) {
+                        meta.vehicleId = vehicleIdVal;
+                    }
+                    const driverTypeVal = copy.driver_type || copy.driverType;
+                    if (driverTypeVal) {
+                        meta.driverType = driverTypeVal;
+                    }
+                    const p2 = copy.parent_phone2 || copy.parentPhone2 || copy.secondary_phone || copy.secondaryPhone || copy.guardian_phone2 || copy.guardianPhone2;
+                    if (p2) {
+                        meta.parentPhone2 = p2;
+                        meta.secondaryPhone = p2;
+                    }
+                    const pName = copy.parent_name || copy.parentName || copy.guardian_name || copy.guardianName;
+                    if (pName) {
+                        meta.parentName = pName;
+                    }
+                    const pPhone = copy.parent_phone || copy.parentPhone;
+                    if (pPhone) {
+                        meta.parentPhone = pPhone;
+                    }
+                    const sPhone = copy.student_phone || copy.studentPhone;
+                    if (sPhone) {
+                        meta.studentPhone = sPhone;
+                    }
+                    copy.metadata = meta;
+
+                    delete copy.vehicle_id;
+                    delete copy.vehicleId;
+                    delete copy.assigned_vehicle_id;
+                    delete copy.assignedVehicleId;
+                    delete copy.driver_type;
+                    delete copy.driverType;
+                    delete copy.parent_phone2;
+                    delete copy.parentPhone2;
+                    delete copy.secondary_phone;
+                    delete copy.secondaryPhone;
+                    delete copy.guardian_phone2;
+                    delete copy.guardianPhone2;
+                    delete copy.parent_phone_number2;
+                    delete copy.secondary_parent_phone;
+                    delete copy.student_phone;
+                    delete copy.studentPhone;
+                    delete copy.parent_name;
+                    delete copy.parentName;
+                    delete copy.guardian_name;
+                    delete copy.guardianName;
+                    delete copy.parent_phone;
+                    delete copy.parentPhone;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanUserRecord) : cleanUserRecord(currentPayload);
             }
 
             let data: any = null;
@@ -1240,6 +1299,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete copy[col];
                         }
                     });
+                    currentUpdateData = copy;
+                } else if (moduleName === 'users') {
+                    const copy = { ...currentUpdateData };
+                    const meta = { ...(copy.metadata || {}) };
+
+                    const vehicleIdVal = copy.vehicle_id || copy.vehicleId || copy.assigned_vehicle_id || copy.assignedVehicleId;
+                    if (vehicleIdVal) {
+                        meta.vehicleId = vehicleIdVal;
+                    }
+                    const driverTypeVal = copy.driver_type || copy.driverType;
+                    if (driverTypeVal) {
+                        meta.driverType = driverTypeVal;
+                    }
+                    const p2 = copy.parent_phone2 || copy.parentPhone2 || copy.secondary_phone || copy.secondaryPhone || copy.guardian_phone2 || copy.guardianPhone2;
+                    if (p2) {
+                        meta.parentPhone2 = p2;
+                        meta.secondaryPhone = p2;
+                    }
+                    const pName = copy.parent_name || copy.parentName || copy.guardian_name || copy.guardianName;
+                    if (pName) {
+                        meta.parentName = pName;
+                    }
+                    const pPhone = copy.parent_phone || copy.parentPhone;
+                    if (pPhone) {
+                        meta.parentPhone = pPhone;
+                    }
+                    const sPhone = copy.student_phone || copy.studentPhone;
+                    if (sPhone) {
+                        meta.studentPhone = sPhone;
+                    }
+                    copy.metadata = meta;
+
+                    delete copy.vehicle_id;
+                    delete copy.vehicleId;
+                    delete copy.assigned_vehicle_id;
+                    delete copy.assignedVehicleId;
+                    delete copy.driver_type;
+                    delete copy.driverType;
+                    delete copy.parent_phone2;
+                    delete copy.parentPhone2;
+                    delete copy.secondary_phone;
+                    delete copy.secondaryPhone;
+                    delete copy.guardian_phone2;
+                    delete copy.guardianPhone2;
+                    delete copy.parent_phone_number2;
+                    delete copy.secondary_parent_phone;
+                    delete copy.student_phone;
+                    delete copy.studentPhone;
+                    delete copy.parent_name;
+                    delete copy.parentName;
+                    delete copy.guardian_name;
+                    delete copy.guardianName;
+                    delete copy.parent_phone;
+                    delete copy.parentPhone;
+
                     currentUpdateData = copy;
                 }
                 let data: any = null;
