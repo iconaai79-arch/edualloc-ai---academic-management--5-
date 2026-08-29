@@ -578,6 +578,77 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
 
+    const displayStudents = useMemo(() => {
+        const rawStudents = students.length > 0 ? students : [
+            { id: 'st_1', name: 'Kelvin Kiprop', role: 'student', studentClass: 'Grade 4', stream: 'North', metadata: { admissionNumber: 'ADM/8821/24', studentClass: 'Grade 4', stream: 'North' } },
+            { id: 'st_2', name: 'Alisha Wanjiku', role: 'student', studentClass: 'Grade 3', stream: 'East', metadata: { admissionNumber: 'ADM/9012/24', studentClass: 'Grade 3', stream: 'East' } },
+            { id: 'st_3', name: 'Liam Otieno', role: 'student', studentClass: 'Grade 5', stream: 'West', metadata: { admissionNumber: 'ADM/8774/24', studentClass: 'Grade 5', stream: 'West' } },
+            { id: 'st_4', name: 'Chloe Kamau', role: 'student', studentClass: 'Grade 2', stream: 'Blue', metadata: { admissionNumber: 'ADM/9331/25', studentClass: 'Grade 2', stream: 'Blue' } },
+            { id: 'st_5', name: 'Ethan Ndwiga', role: 'student', studentClass: 'Grade 6', stream: 'Gold', metadata: { admissionNumber: 'ADM/8109/23', studentClass: 'Grade 6', stream: 'Gold' } },
+        ];
+
+        return rawStudents.map(s => {
+            const resolvedAdm = getStudentResolvedAdm(s, true);
+            const resolvedClass = getStudentResolvedClass(s) || 'Unassigned Class';
+            const baseClass = getStudentBaseClass(s);
+            const stream = getStudentResolvedStream(s) || (s.metadata?.stream || (s as any).stream || '');
+
+            return {
+                ...s,
+                id: s.id,
+                name: s.name,
+                admissionNumber: resolvedAdm,
+                studentClass: resolvedClass,
+                baseClass: baseClass || 'Unassigned',
+                stream: stream || ''
+            };
+        });
+    }, [students]);
+
+    // Dynamic list of unique classes for filtering
+    const availableClasses = useMemo(() => {
+        const set = new Set<string>();
+        displayStudents.forEach(s => {
+            if (s.baseClass && s.baseClass !== 'Unassigned') {
+                set.add(s.baseClass);
+            }
+        });
+        return Array.from(set).sort();
+    }, [displayStudents]);
+
+    // Dynamic list of unique streams for filtering
+    const availableStreams = useMemo(() => {
+        const set = new Set<string>();
+        displayStudents.forEach(s => {
+            if (s.stream) {
+                set.add(s.stream);
+            }
+        });
+        return Array.from(set).sort();
+    }, [displayStudents]);
+
+    const filteredStudents = useMemo(() => {
+        return displayStudents.filter(s => {
+            const searchLower = searchTerm.toLowerCase().trim();
+            const matchesSearch = !searchLower || 
+                s.name.toLowerCase().includes(searchLower) || 
+                s.admissionNumber.toLowerCase().includes(searchLower) ||
+                s.studentClass.toLowerCase().includes(searchLower) ||
+                s.stream.toLowerCase().includes(searchLower);
+
+            const matchesClass = 
+                selectedClassFilter === 'ALL' || 
+                s.baseClass.toLowerCase() === selectedClassFilter.toLowerCase() ||
+                s.studentClass.toLowerCase().includes(selectedClassFilter.toLowerCase());
+
+            const matchesStream = 
+                selectedStreamFilter === 'ALL' || 
+                s.stream.toLowerCase() === selectedStreamFilter.toLowerCase();
+
+            return matchesSearch && matchesClass && matchesStream;
+        });
+    }, [displayStudents, searchTerm, selectedClassFilter, selectedStreamFilter]);
+
     const shipments: Shipment[] = [
         { 
             id: '1', 
@@ -738,77 +809,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setNewRouteDriver('');
             setNewRouteAttendant('');
         };
-
-        const displayStudents = useMemo(() => {
-            const rawStudents = students.length > 0 ? students : [
-                { id: 'st_1', name: 'Kelvin Kiprop', role: 'student', studentClass: 'Grade 4', stream: 'North', metadata: { admissionNumber: 'ADM/8821/24', studentClass: 'Grade 4', stream: 'North' } },
-                { id: 'st_2', name: 'Alisha Wanjiku', role: 'student', studentClass: 'Grade 3', stream: 'East', metadata: { admissionNumber: 'ADM/9012/24', studentClass: 'Grade 3', stream: 'East' } },
-                { id: 'st_3', name: 'Liam Otieno', role: 'student', studentClass: 'Grade 5', stream: 'West', metadata: { admissionNumber: 'ADM/8774/24', studentClass: 'Grade 5', stream: 'West' } },
-                { id: 'st_4', name: 'Chloe Kamau', role: 'student', studentClass: 'Grade 2', stream: 'Blue', metadata: { admissionNumber: 'ADM/9331/25', studentClass: 'Grade 2', stream: 'Blue' } },
-                { id: 'st_5', name: 'Ethan Ndwiga', role: 'student', studentClass: 'Grade 6', stream: 'Gold', metadata: { admissionNumber: 'ADM/8109/23', studentClass: 'Grade 6', stream: 'Gold' } },
-            ];
-
-            return rawStudents.map(s => {
-                const resolvedAdm = getStudentResolvedAdm(s, true);
-                const resolvedClass = getStudentResolvedClass(s) || 'Unassigned Class';
-                const baseClass = getStudentBaseClass(s);
-                const stream = getStudentResolvedStream(s) || (s.metadata?.stream || (s as any).stream || '');
-
-                return {
-                    ...s,
-                    id: s.id,
-                    name: s.name,
-                    admissionNumber: resolvedAdm,
-                    studentClass: resolvedClass,
-                    baseClass: baseClass || 'Unassigned',
-                    stream: stream || ''
-                };
-            });
-        }, [students]);
-
-        // Dynamic list of unique classes for filtering
-        const availableClasses = useMemo(() => {
-            const set = new Set<string>();
-            displayStudents.forEach(s => {
-                if (s.baseClass && s.baseClass !== 'Unassigned') {
-                    set.add(s.baseClass);
-                }
-            });
-            return Array.from(set).sort();
-        }, [displayStudents]);
-
-        // Dynamic list of unique streams for filtering
-        const availableStreams = useMemo(() => {
-            const set = new Set<string>();
-            displayStudents.forEach(s => {
-                if (s.stream) {
-                    set.add(s.stream);
-                }
-            });
-            return Array.from(set).sort();
-        }, [displayStudents]);
-
-        const filteredStudents = useMemo(() => {
-            return displayStudents.filter(s => {
-                const searchLower = searchTerm.toLowerCase().trim();
-                const matchesSearch = !searchLower || 
-                    s.name.toLowerCase().includes(searchLower) || 
-                    s.admissionNumber.toLowerCase().includes(searchLower) ||
-                    s.studentClass.toLowerCase().includes(searchLower) ||
-                    s.stream.toLowerCase().includes(searchLower);
-
-                const matchesClass = 
-                    selectedClassFilter === 'ALL' || 
-                    s.baseClass.toLowerCase() === selectedClassFilter.toLowerCase() ||
-                    s.studentClass.toLowerCase().includes(selectedClassFilter.toLowerCase());
-
-                const matchesStream = 
-                    selectedStreamFilter === 'ALL' || 
-                    s.stream.toLowerCase() === selectedStreamFilter.toLowerCase();
-
-                return matchesSearch && matchesClass && matchesStream;
-            });
-        }, [displayStudents, searchTerm, selectedClassFilter, selectedStreamFilter]);
 
         return (
             <div className="animate-fade-in-up space-y-8">
