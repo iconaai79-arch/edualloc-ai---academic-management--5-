@@ -80,15 +80,61 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     );
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Vehicles state & API operations for Vehicle Registration tab
-    const [dbVehicles, setDbVehicles] = useState<any[]>([]);
+    // Vehicles state & API operations for Vehicle Registration tab & fleet selections
+    const [dbVehicles, setDbVehicles] = useState<any[]>(() => {
+        const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_vehicles');
+        if (saved !== null) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.error('Failed to parse saved vehicles from localStorage:', e);
+            }
+        }
+        if (currentInstitution?.id?.startsWith('demo_')) {
+            const demo = [
+                { id: 'vh_demo_1', plateNumber: 'KDC 992P', model: 'Bus 04', vehicleType: 'bus', capacity: 51, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
+                { id: 'vh_demo_2', plateNumber: 'KBB 120Z', model: 'Bus 02', vehicleType: 'bus', capacity: 33, status: 'active', institutionId: currentInstitution?.id, driverName: 'James Kamau' },
+                { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
+            ];
+            localStorage.setItem(key, JSON.stringify(demo));
+            localStorage.setItem('eduai_vehicles', JSON.stringify(demo));
+            return demo;
+        }
+        return [];
+    });
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
     const fetchVehiclesList = async () => {
         setIsLoadingVehicles(true);
         try {
-            const records = await apiService.fetchModuleRecords('vehicles', currentInstitution.id);
-            setDbVehicles(records || []);
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
+            const apiRecords = await apiService.fetchModuleRecords('vehicles', currentInstitution.id).catch(() => []);
+            if (Array.isArray(apiRecords) && apiRecords.length > 0) {
+                setDbVehicles(apiRecords);
+                localStorage.setItem(key, JSON.stringify(apiRecords));
+                localStorage.setItem('eduai_vehicles', JSON.stringify(apiRecords));
+            } else {
+                const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_vehicles');
+                if (saved !== null) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) setDbVehicles(parsed);
+                    } catch (e) {}
+                } else if (currentInstitution?.id?.startsWith('demo_')) {
+                    const demo = [
+                        { id: 'vh_demo_1', plateNumber: 'KDC 992P', model: 'Bus 04', vehicleType: 'bus', capacity: 51, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
+                        { id: 'vh_demo_2', plateNumber: 'KBB 120Z', model: 'Bus 02', vehicleType: 'bus', capacity: 33, status: 'active', institutionId: currentInstitution?.id, driverName: 'James Kamau' },
+                        { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
+                    ];
+                    setDbVehicles(demo);
+                    localStorage.setItem(key, JSON.stringify(demo));
+                    localStorage.setItem('eduai_vehicles', JSON.stringify(demo));
+                } else {
+                    setDbVehicles([]);
+                }
+            }
         } catch (err) {
             console.error('Error fetching vehicles:', err);
         } finally {
@@ -97,10 +143,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     };
 
     React.useEffect(() => {
-        if (activeTab === 'vehicle_reg') {
-            fetchVehiclesList();
-        }
-    }, [activeTab, currentInstitution.id]);
+        fetchVehiclesList();
+    }, [currentInstitution.id]);
 
     const handleAddVehicle = async (vehicleData: any) => {
         try {
@@ -109,8 +153,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 id: `vh_${Date.now()}`,
                 institutionId: currentInstitution.id
             };
-            await apiService.saveModuleRecord('vehicles', newVehicle);
-            await fetchVehiclesList();
+            const next = [newVehicle, ...dbVehicles];
+            setDbVehicles(next);
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
+            localStorage.setItem(key, JSON.stringify(next));
+            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+
+            await apiService.saveModuleRecord('vehicles', newVehicle).catch(() => {});
         } catch (err: any) {
             alert('Failed to add vehicle: ' + (err.message || err));
         }
@@ -118,14 +167,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     const handleUpdateVehicle = async (id: string, updates: any) => {
         try {
-            const existing = dbVehicles.find(v => v.id === id);
-            const updated = {
-                ...existing,
-                ...updates,
-                id
-            };
-            await apiService.saveModuleRecord('vehicles', updated);
-            await fetchVehiclesList();
+            const next = dbVehicles.map(v => v.id === id ? { ...v, ...updates } : v);
+            setDbVehicles(next);
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
+            localStorage.setItem(key, JSON.stringify(next));
+            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+
+            const updatedVehicle = next.find(v => v.id === id);
+            if (updatedVehicle) {
+                await apiService.saveModuleRecord('vehicles', updatedVehicle).catch(() => {});
+            }
         } catch (err: any) {
             alert('Failed to update vehicle: ' + (err.message || err));
         }
@@ -133,8 +184,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     const handleDeleteVehicle = async (id: string) => {
         try {
-            await apiService.deleteModuleRecord('vehicles', id);
-            await fetchVehiclesList();
+            const next = dbVehicles.filter(v => v.id !== id);
+            setDbVehicles(next);
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
+            localStorage.setItem(key, JSON.stringify(next));
+            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+
+            await apiService.deleteModuleRecord('vehicles', id).catch(() => {});
         } catch (err: any) {
             alert('Failed to delete vehicle: ' + (err.message || err));
         }
@@ -447,10 +503,11 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setEditingRoute(null);
         setNewRouteName('');
         setNewRouteStart('');
-        setNewRouteEnd('Westlands School Gate');
-        setNewRouteBus('Bus 04 (KDC 992P)');
-        setNewRouteDriver('');
-        setNewRouteAttendant('');
+        setNewRouteEnd(currentInstitution.name ? `${currentInstitution.name} Main Gate` : 'School Main Gate');
+        const defaultVehicle = availableVehicleOptions[0];
+        setNewRouteBus(defaultVehicle?.label || '');
+        setNewRouteDriver(defaultVehicle?.driver || drivers[0]?.name || '');
+        setNewRouteAttendant(assistants[0]?.name || '');
         setIsAddRouteModalOpen(true);
     };
 
@@ -467,7 +524,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setNewRouteName(route.name);
         setNewRouteStart(route.startPoint);
         setNewRouteEnd(route.endPoint);
-        setNewRouteBus(route.bus || 'Bus 04 (KDC 992P)');
+        setNewRouteBus(route.bus || availableVehicleOptions[0]?.label || '');
         setNewRouteDriver(route.driver || '');
         setNewRouteAttendant(route.attendant || '');
         setIsAddRouteModalOpen(true);
@@ -627,7 +684,34 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         return () => clearInterval(interval);
     }, [isEduTransport]);
 
-    const drivers = useMemo(() => users.filter(u => u.role === 'driver'), [users]);
+    const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.roles?.includes('driver')), [users]);
+    const assistants = useMemo(() => users.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant') || u.role === 'staff'), [users]);
+
+    const availableVehicleOptions = useMemo(() => {
+        if (dbVehicles && dbVehicles.length > 0) {
+            return dbVehicles.map(v => {
+                const plate = (v.plateNumber || v.registrationNumber || v.plate || '').trim();
+                const modelOrName = (v.model || v.name || 'Vehicle').trim();
+                const label = plate ? (modelOrName ? `${modelOrName} (${plate})` : plate) : modelOrName;
+                return {
+                    id: v.id,
+                    label,
+                    plate,
+                    model: v.model || '',
+                    driver: v.driverName || v.driver || '',
+                    capacity: v.capacity || v.seats || ''
+                };
+            });
+        }
+        if (currentInstitution?.id?.startsWith('demo_')) {
+            return [
+                { id: 'vh_demo_1', label: 'Bus 04 (KDC 992P)', plate: 'KDC 992P', model: 'Bus 04', driver: 'Douglas Omwamba', capacity: '51' },
+                { id: 'vh_demo_2', label: 'Bus 02 (KBB 120Z)', plate: 'KBB 120Z', model: 'Bus 02', driver: 'James Kamau', capacity: '33' },
+                { id: 'vh_demo_3', label: 'Bus 07 (KDM 441X)', plate: 'KDM 441X', model: 'Bus 07', driver: 'Douglas Omwamba', capacity: '25' },
+            ];
+        }
+        return [];
+    }, [dbVehicles, currentInstitution?.id]);
 
     const displayStudents = useMemo(() => {
         const rawStudents = students.length > 0 ? students : [
@@ -773,7 +857,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             routeName: r.name,
             runType: idx % 2 === 0 ? 'Morning Pick-up' : 'Afternoon Drop-off',
             driver: r.driver || 'Douglas Omwamba',
-            vehicle: r.bus || 'KDC 992P (Bus 04)',
+            vehicle: r.bus || (availableVehicleOptions[0]?.label || 'Unassigned Vehicle'),
             attendant: r.attendant || 'Sarah Wanjiku',
             status: idx === 0 ? 'boarding' : idx === 1 ? 'in_transit' : 'completed',
             students: '24/30',
@@ -1204,16 +1288,37 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         </div>
                                         <div className="grid grid-cols-3 gap-4">
                                             <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Bus</label>
-                                                <select 
-                                                    value={newRouteBus}
-                                                    onChange={e => setNewRouteBus(e.target.value)}
-                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                                >
-                                                    <option value="Bus 04 (KDC 992P)">Bus 04 (KDC 992P)</option>
-                                                    <option value="Bus 02 (KBB 120Z)">Bus 02 (KBB 120Z)</option>
-                                                    <option value="Bus 07 (KDM 441X)">Bus 07 (KDM 441X)</option>
-                                                </select>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Bus / Vehicle *</label>
+                                                {availableVehicleOptions.length > 0 ? (
+                                                    <select 
+                                                        value={newRouteBus}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setNewRouteBus(val);
+                                                            const matched = availableVehicleOptions.find(o => o.label === val || o.plate === val);
+                                                            if (matched?.driver && !newRouteDriver) {
+                                                                setNewRouteDriver(matched.driver);
+                                                            }
+                                                        }}
+                                                        className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                    >
+                                                        <option value="">Select registered vehicle...</option>
+                                                        {availableVehicleOptions.map(opt => (
+                                                            <option key={opt.id} value={opt.label}>{opt.label}</option>
+                                                        ))}
+                                                        {newRouteBus && !availableVehicleOptions.some(o => o.label === newRouteBus) && (
+                                                            <option value={newRouteBus}>{newRouteBus}</option>
+                                                        )}
+                                                    </select>
+                                                ) : (
+                                                    <input 
+                                                        type="text"
+                                                        value={newRouteBus}
+                                                        onChange={e => setNewRouteBus(e.target.value)}
+                                                        placeholder="e.g. Bus 01 (KDA 123X)"
+                                                        className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                    />
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Driver</label>
@@ -1745,13 +1850,29 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Vehicle</label>
-                                        <input 
-                                            type="text" 
-                                            value={newTripVehicle}
-                                            onChange={e => setNewTripVehicle(e.target.value)}
-                                            placeholder="e.g. KDC 992P (Bus 04)"
-                                            className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                        />
+                                        {availableVehicleOptions.length > 0 ? (
+                                            <select
+                                                value={newTripVehicle}
+                                                onChange={e => setNewTripVehicle(e.target.value)}
+                                                className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                            >
+                                                <option value="">Select registered vehicle...</option>
+                                                {availableVehicleOptions.map(opt => (
+                                                    <option key={opt.id} value={opt.label}>{opt.label}</option>
+                                                ))}
+                                                {newTripVehicle && !availableVehicleOptions.some(o => o.label === newTripVehicle) && (
+                                                    <option value={newTripVehicle}>{newTripVehicle}</option>
+                                                )}
+                                            </select>
+                                        ) : (
+                                            <input 
+                                                type="text" 
+                                                value={newTripVehicle}
+                                                onChange={e => setNewTripVehicle(e.target.value)}
+                                                placeholder="e.g. KDC 992P (Bus 04)"
+                                                className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                            />
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimated Capacity / Passengers</label>
@@ -1921,11 +2042,38 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         </button>
                     </div>
                     <div className="space-y-4">
-                        {[
-                            { plate: 'KDC 992P', fuel: 45, status: 'Healthy', health: 92, label: 'Bus 04 (51 Seater)' },
-                            { plate: 'KBB 120Z', fuel: 90, status: 'Maintenance Due', health: 65, alert: true, label: 'Bus 02 (33 Seater)' },
-                            { plate: 'KDM 441X', fuel: 12, status: 'Healthy', health: 88, lowFuel: true, label: 'Bus 07 (25 Seater)' },
-                        ].map((v, i) => (
+                        {(dbVehicles.length > 0 ? dbVehicles.map((v, i) => ({
+                            plate: v.plateNumber || v.registrationNumber || v.plate || `Vehicle #${i + 1}`,
+                            fuel: v.fuelLevel || (v.capacity ? Math.min(95, Math.max(25, Number(v.capacity) * 2)) : 60),
+                            status: v.status === 'active' || v.status === 'Healthy' ? 'Healthy' : (v.status || 'Active'),
+                            health: v.healthScore || 92,
+                            label: v.model ? `${v.model} (${v.capacity || 30} Seater)` : (v.name || 'School Fleet'),
+                            alert: v.status === 'maintenance' || v.status === 'Maintenance Due',
+                            lowFuel: false
+                        })) : (currentInstitution?.id?.startsWith('demo_') ? [
+                            { plate: 'KDC 992P', fuel: 45, status: 'Healthy', health: 92, label: 'Bus 04 (51 Seater)', alert: false, lowFuel: false },
+                            { plate: 'KBB 120Z', fuel: 90, status: 'Maintenance Due', health: 65, alert: true, lowFuel: false },
+                            { plate: 'KDM 441X', fuel: 12, status: 'Healthy', health: 88, lowFuel: true, alert: false },
+                        ] : [])).length === 0 ? (
+                            <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
+                                <Truck className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                                <p className="text-xs font-black uppercase tracking-widest text-slate-400">No Vehicles Registered</p>
+                                <p className="text-[11px] text-slate-400 font-medium mt-1">Register school fleet vehicles in the Vehicle Registration tab.</p>
+                            </div>
+                        ) : (
+                            (dbVehicles.length > 0 ? dbVehicles.map((v, i) => ({
+                                plate: v.plateNumber || v.registrationNumber || v.plate || `Vehicle #${i + 1}`,
+                                fuel: v.fuelLevel || (v.capacity ? Math.min(95, Math.max(25, Number(v.capacity) * 2)) : 60),
+                                status: v.status === 'active' || v.status === 'Healthy' ? 'Healthy' : (v.status || 'Active'),
+                                health: v.healthScore || 92,
+                                label: v.model ? `${v.model} (${v.capacity || 30} Seater)` : (v.name || 'School Fleet'),
+                                alert: v.status === 'maintenance' || v.status === 'Maintenance Due',
+                                lowFuel: false
+                            })) : [
+                                { plate: 'KDC 992P', fuel: 45, status: 'Healthy', health: 92, label: 'Bus 04 (51 Seater)', alert: false, lowFuel: false },
+                                { plate: 'KBB 120Z', fuel: 90, status: 'Maintenance Due', health: 65, alert: true, lowFuel: false },
+                                { plate: 'KDM 441X', fuel: 12, status: 'Healthy', health: 88, lowFuel: true, alert: false },
+                            ]).map((v, i) => (
                             <div key={i} className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-transparent hover:border-indigo-100 transition-all">
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
@@ -1961,7 +2109,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        )))}
                     </div>
                 </div>
 
