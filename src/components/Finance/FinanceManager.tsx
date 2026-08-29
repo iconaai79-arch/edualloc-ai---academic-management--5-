@@ -9021,7 +9021,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         { id: 'balances', label: 'Fee Balances', icon: WalletIcon },
                         { id: 'receipts', label: 'Receipts & Income', icon: BanknotesIcon },
                         { id: 'student_invoices', label: 'Student Invoices', icon: ClipboardListIcon },
-                        { id: 'student_subscriptions', label: 'Student Subscriptions', icon: CreditCardIcon },
                         { id: 'gok_capitation', label: 'GoK Capitation', icon: ScaleIcon },
                         { id: 'bursaries', label: 'Bursaries & Grants', icon: CreditCardIcon },
                         { id: 'expenses', label: 'Expenses & Payments', icon: CreditCardIcon },
