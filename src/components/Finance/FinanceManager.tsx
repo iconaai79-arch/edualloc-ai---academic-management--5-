@@ -5574,7 +5574,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [searchInvoiceQuery, invoiceStatusFilter, invoiceClassFilter]);
 
     // Un-invoiced students billing scope, periods, and fee structure resolution
-    const [uninvoicedBillingScope, setUninvoicedBillingScope] = useState<'term' | 'annual'>('term');
+    const [uninvoicedBillingScope, setUninvoicedBillingScope] = useState<'all_time' | 'term' | 'annual'>('all_time');
     const [uninvoicedAcademicYearId, setUninvoicedAcademicYearId] = useState<string>(() => {
         const activeAY = props.academicYears?.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears?.[0];
         return activeAY?.id || '';
@@ -5838,35 +5838,84 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const studentsPool = (mergedStudents && mergedStudents.length > 0) ? mergedStudents : (props.students || []);
         const invoicedStudentIdSet = new Set<string>();
         const invoicedAdmSet = new Set<string>();
+        const invoicedNameSet = new Set<string>();
 
         const isAnnual = uninvoicedBillingScope === 'annual';
+        const isAllTime = uninvoicedBillingScope === 'all_time';
         const targetAY = uninvoicedAcademicYearId;
+        const targetAYName = uninvoicedSelectedAYName;
         const targetSem = uninvoicedSemesterId;
         const targetSemName = uninvoicedSelectedSemName;
 
-        mappedInvoices.forEach((inv: any) => {
-            const invAY = inv.academicYearId || inv.academic_year_id;
-            const invSem = inv.semesterId || inv.semester_id;
-            const invTerm = String(inv.term || '').trim().toLowerCase();
+        // Multi-source invoice collection for complete visibility
+        const allInvoices = [
+            ...(mappedInvoices || []),
+            ...(mergedInvoices || []),
+            ...(props.invoices || [])
+        ];
+        const uniqueInvoices = new Map<string, any>();
+        allInvoices.forEach(inv => {
+            if (inv) {
+                const key = inv.id || inv.invoiceNumber || inv.invoice_number || `${inv.studentId}_${inv.totalAmount}`;
+                if (!uniqueInvoices.has(key)) uniqueInvoices.set(key, inv);
+            }
+        });
 
-            const matchAY = !targetAY || !invAY || invAY === targetAY;
+        uniqueInvoices.forEach((inv: any) => {
             let matchPeriod = false;
-            if (isAnnual) {
-                matchPeriod = inv.isAnnual || inv.is_annual || invTerm.includes('annual') || matchAY;
+
+            if (isAllTime) {
+                // In all-time mode, ANY recorded invoice marks the student as already invoiced
+                matchPeriod = true;
+            } else if (isAnnual) {
+                const invAY = inv.academicYearId || inv.academic_year_id || inv.academicYear || inv.academic_year;
+                const invTerm = String(inv.term || '').trim().toLowerCase();
+                const matchAY = !targetAY || !invAY || invAY === targetAY || invAY === targetAYName;
+                matchPeriod = inv.isAnnual || inv.is_annual || invTerm.includes('annual') || invTerm.includes('full year') || matchAY;
             } else {
-                matchPeriod = matchAY && (
-                    !targetSem || 
-                    invSem === targetSem || 
-                    invTerm === String(targetSemName).trim().toLowerCase() ||
-                    invTerm.includes(String(targetSemName).trim().toLowerCase())
-                );
+                // Term-specific mode
+                const invAY = inv.academicYearId || inv.academic_year_id || inv.academicYear || inv.academic_year;
+                const invSem = inv.semesterId || inv.semester_id;
+                const invTerm = String(inv.term || '').trim().toLowerCase();
+                const normTargetTerm = String(targetSemName || '').trim().toLowerCase();
+
+                const matchAY = !targetAY || !invAY || invAY === targetAY || invAY === targetAYName;
+
+                let matchSem = false;
+                if (!targetSem && !normTargetTerm) {
+                    matchSem = true;
+                } else {
+                    if (invSem && (invSem === targetSem || String(invSem).toLowerCase() === String(targetSem).toLowerCase())) {
+                        matchSem = true;
+                    } else if (invTerm) {
+                        if (invTerm === normTargetTerm || invTerm.includes(normTargetTerm) || normTargetTerm.includes(invTerm)) {
+                            matchSem = true;
+                        } else if (normTargetTerm.includes('1') && (invTerm.includes('1') || invTerm.includes('one') || invTerm.includes('first'))) {
+                            matchSem = true;
+                        } else if (normTargetTerm.includes('2') && (invTerm.includes('2') || invTerm.includes('two') || invTerm.includes('second'))) {
+                            matchSem = true;
+                        } else if (normTargetTerm.includes('3') && (invTerm.includes('3') || invTerm.includes('three') || invTerm.includes('third'))) {
+                            matchSem = true;
+                        }
+                    } else if (inv.isAnnual || inv.is_annual) {
+                        matchSem = true;
+                    } else if (!invSem && !invTerm) {
+                        matchSem = true;
+                    }
+                }
+
+                matchPeriod = matchAY && matchSem;
             }
 
             if (matchPeriod) {
-                const sId = inv.studentId || inv.student_id || inv.userId;
+                const sId = inv.studentId || inv.student_id || inv.userId || inv.user_id || inv.metadata?.studentId || inv.metadata?.student_id;
                 if (sId) invoicedStudentIdSet.add(String(sId));
-                const adm = inv.admissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).metadata?.admissionNumber;
+
+                const adm = inv.admissionNumber || inv.admission_number || inv.admNo || inv.adm_no || inv.studentAdmNo || inv.metadata?.admissionNumber;
                 if (adm) invoicedAdmSet.add(String(adm).trim().toLowerCase());
+
+                const sName = inv.studentName || inv.student_name || inv.name;
+                if (sName) invoicedNameSet.add(String(sName).trim().toLowerCase());
             }
         });
 
@@ -5874,9 +5923,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             if (!s || !s.id) return false;
             const role = (s.role || '').toLowerCase();
             if (role && role !== 'student') return false;
-            if (invoicedStudentIdSet.has(String(s.id))) return false;
+
+            const sId = String(s.id);
+            if (invoicedStudentIdSet.has(sId)) return false;
+
             const adm = getStudentAdmNumber(s);
             if (adm && invoicedAdmSet.has(String(adm).trim().toLowerCase())) return false;
+
+            const sAdmDirect = s.admissionNumber || s.admission_number || s.admNo;
+            if (sAdmDirect && invoicedAdmSet.has(String(sAdmDirect).trim().toLowerCase())) return false;
+
+            const sName = (s.name || s.fullName || '').trim().toLowerCase();
+            if (sName && invoicedNameSet.has(sName)) return false;
+
             return true;
         }).map((s: any) => {
             const applicableFs = resolveApplicableFeeStructuresForStudent(s, isAnnual, targetAY, targetSemName);
@@ -5917,7 +5976,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 estimatedAmount: baseAmount + transportAmount
             };
         });
-    }, [mergedStudents, props.students, mappedInvoices, uninvoicedBillingScope, uninvoicedAcademicYearId, uninvoicedSemesterId, uninvoicedSelectedSemName, uninvoicedIncludeTransport, studentCommutePrefs, routeFeeSettings, transportOneWayPct, getStudentAdmNumber, studentClassGroup, getStudentStream, isStudentBoarder, resolveApplicableFeeStructuresForStudent, props.semesters]);
+    }, [mergedStudents, props.students, mappedInvoices, mergedInvoices, props.invoices, uninvoicedBillingScope, uninvoicedAcademicYearId, uninvoicedSemesterId, uninvoicedSelectedSemName, uninvoicedSelectedAYName, uninvoicedIncludeTransport, studentCommutePrefs, routeFeeSettings, transportOneWayPct, getStudentAdmNumber, studentClassGroup, getStudentStream, isStudentBoarder, resolveApplicableFeeStructuresForStudent, props.semesters]);
 
     const filteredUninvoicedStudents = useMemo(() => {
         return rawUninvoicedStudents.filter(item => {
@@ -11407,21 +11466,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
                                     <div className="space-y-2">
                                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/20 border border-amber-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-amber-300">
-                                            <span>⚡</span> Invoicing Target & Scope
+                                            <span>⚡</span> Invoicing Target & Audit Scope
                                         </div>
-                                        <h3 className="text-xl font-black uppercase tracking-tight">Select Billing Period & Scope</h3>
+                                        <h3 className="text-xl font-black uppercase tracking-tight">Select Audit Scope & Billing Period</h3>
                                         <p className="text-xs text-indigo-200 max-w-xl font-medium leading-relaxed">
-                                            Choose between <strong className="text-white font-black">Term Invoicing</strong> (bills fee structures for a specific term) or <strong className="text-white font-black">Annual Invoicing</strong> (aggregates all terms for the entire academic year).
+                                            {uninvoicedBillingScope === 'all_time' && 'Showing students who have NO invoices at all in the system. Use this to catch any unbilled student.'}
+                                            {uninvoicedBillingScope === 'term' && `Showing students missing invoices specifically for ${uninvoicedSelectedSemName} (${uninvoicedSelectedAYName}).`}
+                                            {uninvoicedBillingScope === 'annual' && `Showing students missing annual full-year billing for ${uninvoicedSelectedAYName}.`}
                                         </p>
                                     </div>
 
                                     <div className="bg-white/10 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-white/15 flex flex-col gap-3 min-w-[320px]">
-                                        {/* Scope Toggle: Term vs Annual */}
-                                        <div className="flex items-center gap-2 bg-black/30 p-1.5 rounded-xl border border-white/10">
+                                        {/* Scope Toggle: All-Time vs Term vs Annual */}
+                                        <div className="flex items-center gap-1.5 bg-black/30 p-1.5 rounded-xl border border-white/10 overflow-x-auto">
+                                            <button
+                                                type="button"
+                                                onClick={() => setUninvoicedBillingScope('all_time')}
+                                                className={`flex-1 py-2 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                                                    uninvoicedBillingScope === 'all_time'
+                                                        ? 'bg-amber-600 text-white shadow-md'
+                                                        : 'text-indigo-200 hover:text-white'
+                                                }`}
+                                            >
+                                                🌐 All-Time Unbilled
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setUninvoicedBillingScope('term')}
-                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                className={`flex-1 py-2 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
                                                     uninvoicedBillingScope === 'term'
                                                         ? 'bg-indigo-600 text-white shadow-md'
                                                         : 'text-indigo-200 hover:text-white'
@@ -11432,13 +11504,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setUninvoicedBillingScope('annual')}
-                                                className={`flex-1 py-2 px-3 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                                className={`flex-1 py-2 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
                                                     uninvoicedBillingScope === 'annual'
-                                                        ? 'bg-amber-600 text-white shadow-md'
+                                                        ? 'bg-purple-600 text-white shadow-md'
                                                         : 'text-indigo-200 hover:text-white'
                                                 }`}
                                             >
-                                                📆 Annual (Full Year)
+                                                📆 Annual Billing
                                             </button>
                                         </div>
 
