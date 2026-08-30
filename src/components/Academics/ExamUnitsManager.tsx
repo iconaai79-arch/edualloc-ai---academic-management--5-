@@ -16,7 +16,6 @@ import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
 import { UploadIcon } from '../icons/UploadIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
-import { isSubjectApplicableToClass } from '../ClassSubjectAllocationModal';
 
 export interface ExamUnitRecord {
     id: string;

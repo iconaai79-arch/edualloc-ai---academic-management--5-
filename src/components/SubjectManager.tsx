@@ -20,7 +20,7 @@ import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
 import { isSchoolInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
-import { isSubjectApplicableToClass } from './ClassSubjectAllocationModal';
+import { isSubjectApplicableToClass } from '../utils/academicSubjectUtils';
 
 import * as XLSX from 'xlsx';
 

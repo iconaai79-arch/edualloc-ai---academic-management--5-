@@ -6,7 +6,7 @@ import { CheckIcon } from './icons/CheckIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { apiService } from '../services/apiService';
-import { isSubjectAssignedToClassStream } from './ClassSubjectAllocationModal';
+import { isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
 
 interface GradingSystemManagerProps {
     currentInstitution?: Institution | null;

@@ -13,7 +13,7 @@ import { SparklesIcon } from './icons/SparklesIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
-import { isSubjectAssignedToClassStream } from './ClassSubjectAllocationModal';
+import { isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
 import { apiService } from '../services/apiService';
 
 export interface ClassSubjectPaper {

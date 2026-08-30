@@ -13,7 +13,7 @@ import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
-import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../ClassSubjectAllocationModal';
+import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../../utils/academicSubjectUtils';
 
 export interface SubjectAllocationRecord {
     id: string;
