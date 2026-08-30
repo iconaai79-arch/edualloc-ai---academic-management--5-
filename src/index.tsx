@@ -13,8 +13,30 @@ declare global {
 }
 
 if (typeof window !== 'undefined') {
+  // Vite event fired when a dynamic import fails due to a new deployment hash mismatch
+  window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+    console.warn('[Vite Deployment Sync] Preload error detected. Reloading for latest assets...');
+    if ('caches' in window) {
+      caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+    }
+    window.location.reload();
+  });
+
   window.addEventListener('unhandledrejection', (event) => {
     const msg = String(event.reason?.message || event.reason || '');
+    if (
+      msg.includes('error loading dynamically imported module') ||
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('dynamically imported module')
+    ) {
+      event.preventDefault();
+      window.location.reload();
+      return;
+    }
     if (
       msg.includes('message channel closed') || 
       msg.includes('asynchronous response') || 
@@ -77,6 +99,8 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
     // Handle Vite/Webpack chunk loading errors & stale cached chunk mismatches (including React Error #300 / hook mismatches)
     const isChunkLoadFailed = 
       /Failed to fetch dynamically imported module/i.test(error.message) || 
+      /error loading dynamically imported module/i.test(error.message) ||
+      /dynamically imported module/i.test(error.message) ||
       /Loading chunk/i.test(error.message) ||
       /before initialization/i.test(error.message) ||
       /ReferenceError/i.test(error.message) ||
