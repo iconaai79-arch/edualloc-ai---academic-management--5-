@@ -4719,23 +4719,50 @@ export const apiService = {
         }
     },
     async fetchFullRegistry(): Promise<SchoolRegistry[]> {
-        let allRecords: SchoolRegistry[] = [];
-        let offset = 0;
-        const limit = 1000;
-        let hasMore = true;
-
-        while (hasMore) {
-            const batch = await apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit, offset });
-            if (!batch || batch.length === 0) {
-                hasMore = false;
-            } else {
-                allRecords = [...allRecords, ...batch];
-                offset += limit;
-                if (batch.length < limit) hasMore = false;
-                if (allRecords.length > 50000) hasMore = false;
+        try {
+            // 1. Return cached records immediately if available
+            const cached = await localDb.getAll<SchoolRegistry>('school_registry').catch(() => []);
+            if (cached && cached.length > 0) {
+                // Background refresh without blocking UI startup
+                setTimeout(async () => {
+                    try {
+                        const fresh = await apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit: 1000, offset: 0 });
+                        if (fresh && fresh.length > 0) {
+                            localDb.bulkPut('school_registry', fresh).catch(() => {});
+                        }
+                    } catch (e) {}
+                }, 1500);
+                return cached;
             }
+
+            let allRecords: SchoolRegistry[] = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMore = true;
+            let batchCount = 0;
+
+            while (hasMore && batchCount < 5) {
+                const batchPromise = apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit, offset });
+                const timeoutPromise = new Promise<SchoolRegistry[]>((resolve) => setTimeout(() => resolve([]), 3500));
+                const batch = await Promise.race([batchPromise, timeoutPromise]);
+                batchCount++;
+                if (!batch || batch.length === 0) {
+                    hasMore = false;
+                } else {
+                    allRecords = [...allRecords, ...batch];
+                    offset += limit;
+                    if (batch.length < limit) hasMore = false;
+                }
+            }
+
+            if (allRecords.length > 0) {
+                localDb.bulkPut('school_registry', allRecords).catch(() => {});
+            }
+            return allRecords;
+        } catch (e) {
+            console.warn("[apiService] fetchFullRegistry fallback:", e);
+            return [];
         }
-        return allRecords;
     },
     async fetchCarListings(institutionId?: string, status: string = 'active', options: any = {}): Promise<CarListing[]> {
         return apiService.fetchModuleRecords('car_sales_listings', institutionId, undefined, { 

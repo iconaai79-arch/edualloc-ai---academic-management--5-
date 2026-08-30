@@ -694,11 +694,17 @@ export const App: React.FC = () => {
 
         if (currentUser) {
             const normUserInstId = cleanId(currentUser.institutionId);
-            const found = institutions.find(i => i && (
+            const found = (institutions || []).find(i => i && (
                 i.id === currentUser.institutionId || 
                 (normUserInstId && cleanId(i.id) === normUserInstId)
             ));
             if (found) return mergeModules(found);
+
+            const initialFound = INITIAL_INSTITUTIONS.find(i => i && (
+                i.id === currentUser.institutionId ||
+                (normUserInstId && cleanId(i.id) === normUserInstId)
+            ));
+            if (initialFound) return mergeModules(initialFound);
 
             const foundCounty = (counties || []).find(c => c && (
                 c.id === currentUser.institutionId || 
@@ -716,6 +722,31 @@ export const App: React.FC = () => {
                     category: 'County Government',
                     status: foundCounty.status || 'active',
                     countyId: foundCounty.id
+                } as any);
+            }
+
+            const regFound = (schoolRegistry || []).find(s => s && (
+                s.id === currentUser.institutionId ||
+                s.institutionId === currentUser.institutionId ||
+                (normUserInstId && (cleanId(s.id) === normUserInstId || cleanId(s.institutionId) === normUserInstId))
+            ));
+            if (regFound) {
+                return mergeModules({
+                    id: regFound.id,
+                    name: regFound.name,
+                    institutionType: (regFound.institutionType || 'Education') as any,
+                    status: 'active'
+                } as any);
+            }
+
+            // Fallback synthesis for authenticated user with an institutionId to prevent loading lock
+            if (currentUser.institutionId) {
+                return mergeModules({
+                    id: currentUser.institutionId,
+                    name: (currentUser as any).institutionName || (currentUser as any).schoolName || 'Institutional Workspace',
+                    institutionType: (currentUser.role === 'pharmacist' || currentUser.role === 'pharmacy_admin') ? 'Pharmacy' : 
+                                     (currentUser.role?.includes('his') || currentUser.role === 'nurse' || currentUser.role === 'doctor') ? 'HIS' : 'Education',
+                    status: 'active'
                 } as any);
             }
         }
@@ -1118,18 +1149,25 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                 if (!silent) setLoadStatus("Synchronizing Identity...");
                 
-                // High-speed parallelized identity fetch
+                // High-speed parallelized identity fetch with timeout protections
+                const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+                    return Promise.race([
+                        promise,
+                        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
+                    ]);
+                };
+
                 const isGuestMode = !currentUser;
                 const results = await Promise.all([
-                    apiService.fetchInstitutions().catch(() => []),
-                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
-                    apiService.fetchCompanySettings().catch(() => null),
-                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? apiService.fetchModuleRecords<User>('users').catch(() => []) : apiService.fetchUsers(currentUser?.institutionId).catch(() => []),
-                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
-                    !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
-                    isGuestMode ? Promise.resolve([]) : apiService.fetchModuleRecords<any>('events').catch(() => []),
-                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []) : Promise.resolve([]),
-                    isGuestMode ? Promise.resolve([]) : apiService.fetchModuleRecords<Branch>('branches').catch(() => []),
+                    withTimeout(apiService.fetchInstitutions().catch(() => []), 3500, []),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<County>('counties').catch(() => []), 3000, []),
+                    withTimeout(apiService.fetchCompanySettings().catch(() => null), 3000, null),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? withTimeout(apiService.fetchModuleRecords<User>('users').catch(() => []), 3500, []) : withTimeout(apiService.fetchUsers(currentUser?.institutionId).catch(() => []), 3500, []),
+                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchFullRegistry().catch(() => []), 4000, []) : Promise.resolve([]),
+                    !currentUser ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []), 3000, []),
+                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<any>('events').catch(() => []), 3000, []),
+                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []), 3000, []) : Promise.resolve([]),
+                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<Branch>('branches').catch(() => []), 3000, []),
                 ]);
                 insts = results[0];
                 cnts = results[1];
@@ -1140,6 +1178,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 evts = results[6];
                 consts = results[7];
                 brs = results[8];
+
+                if (!insts || insts.length === 0) {
+                    const localInsts = await localDb.getAll<Institution>('institutions').catch(() => []);
+                    insts = (localInsts && localInsts.length > 0) ? localInsts : INITIAL_INSTITUTIONS;
+                }
+                if (!u || u.length === 0) {
+                    const localU = await localDb.getAll<User>('users').catch(() => []);
+                    u = (localU && localU.length > 0) ? localU : INITIAL_USERS;
+                }
+                if (!reg || reg.length === 0) {
+                    const localReg = await localDb.getAll<SchoolRegistry>('school_registry').catch(() => []);
+                    if (localReg && localReg.length > 0) reg = localReg;
+                }
             }
 
             // Sync identity state immediately so we can use activeInstitution in Phase 2
@@ -6405,7 +6456,25 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }
     
     if (isInstitutionRole && !activeInstitution) {
-        return <SystemPulseLoader message="Workspace Synchronizing..." status="Fetching Registry Identity from Cloud Hub" />;
+        return (
+            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+                <SystemPulseLoader message="Workspace Synchronizing..." status="Fetching Registry Identity from Cloud Hub" />
+                <div className="mt-8 flex flex-col items-center gap-3">
+                    <button 
+                        onClick={() => loadData(true)} 
+                        className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider cursor-pointer shadow-lg"
+                    >
+                        Retry Synchronization
+                    </button>
+                    <button 
+                        onClick={handleLogout} 
+                        className="text-xs text-slate-500 hover:text-slate-400 font-medium cursor-pointer underline"
+                    >
+                        Sign Out / Switch Account
+                    </button>
+                </div>
+            </div>
+        );
     }
 
 
