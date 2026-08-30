@@ -144,9 +144,9 @@ export const Header: React.FC<HeaderProps> = ({
                                 <h1 className="text-xl font-extrabold text-slate-900 dark:text-white leading-tight">
                                     {String(applicationTitle || 'EduAi')}
                                 </h1>
-                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all duration-500 ${isApiOnline ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${isApiOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse' : 'bg-slate-400'}`}></span>
-                                    {isApiOnline ? 'Live' : 'Offline'}
+                                <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all duration-500 ${isApiOnline || (typeof navigator !== 'undefined' && navigator.onLine) ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20'}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isApiOnline || (typeof navigator !== 'undefined' && navigator.onLine) ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse' : 'bg-rose-400'}`}></span>
+                                    {isApiOnline || (typeof navigator !== 'undefined' && navigator.onLine) ? 'Live' : 'Offline'}
                                 </div>
                             </div>
                         </div>

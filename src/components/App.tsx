@@ -292,7 +292,7 @@ export const App: React.FC = () => {
     const [userTasks, setUserTasks] = useState<UserTask[]>([]);
     const [transactions, setTransactions] = useState<MpesaTransaction[]>([]);
     const [receipts, setReceipts] = useState<Receipt[]>([]);
-    const [isApiOnline, setIsApiOnline] = useState(false);
+    const [isApiOnline, setIsApiOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
     const [isSchemaInitializationRequired, setIsSchemaInitializationRequired] = useState(false);
     const [isBootstrapped, setIsBootstrapped] = useState(false);
     const isRefreshingRef = React.useRef(false);
@@ -303,6 +303,22 @@ export const App: React.FC = () => {
     const [loadStatus, setLoadStatus] = useState<string>("");
     const [loadError, setLoadError] = useState<string>("");
     const [isTransitioning, setIsTransitioning] = useState(false);
+
+    // Dynamic browser online/offline event listeners
+    React.useEffect(() => {
+        const handleOnline = () => {
+            setIsApiOnline(true);
+        };
+        const handleOffline = () => {
+            setIsApiOnline(false);
+        };
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
@@ -969,9 +985,9 @@ export const App: React.FC = () => {
             if (!isOffline) {
                 if (!silent) setLoadStatus("Connecting...");
                 try {
-                    const healthPromise = apiService.testDatabaseConnection().catch(() => ({ status: 'offline' }));
+                    const healthPromise = apiService.testDatabaseConnection().catch(() => ({ status: (typeof navigator !== 'undefined' && navigator.onLine) ? 'online' : 'offline' }));
                     const timeoutPromise = new Promise<{ status: string }>((resolve) =>
-                        setTimeout(() => resolve({ status: 'offline' }), 800)
+                        setTimeout(() => resolve({ status: (typeof navigator !== 'undefined' && navigator.onLine) ? 'online' : 'offline' }), 4000)
                     );
                     const health = await Promise.race([healthPromise, timeoutPromise]);
                     if (health.status === 'setup_required') {
@@ -980,14 +996,22 @@ export const App: React.FC = () => {
                         setAppInitializing(false);
                         return;
                     }
-                    if (health.status === 'offline') {
+                    if (health.status === 'offline' && (!navigator.onLine || !apiService.isConfigured())) {
                         isOffline = true;
+                        setIsApiOnline(false);
                     } else {
+                        isOffline = false;
                         setIsApiOnline(true);
                         setIsSchemaInitializationRequired(false);
                     }
                 } catch (e) {
-                    isOffline = true;
+                    if (!navigator.onLine || !apiService.isConfigured()) {
+                        isOffline = true;
+                        setIsApiOnline(false);
+                    } else {
+                        isOffline = false;
+                        setIsApiOnline(true);
+                    }
                 }
             }
 
