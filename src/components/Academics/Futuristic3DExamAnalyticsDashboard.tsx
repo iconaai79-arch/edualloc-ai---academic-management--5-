@@ -25,44 +25,68 @@ export const Futuristic3DExamAnalyticsDashboard: React.FC<Futuristic3DExamAnalyt
     currentInstitution,
     onNavigateToReports
 }) => {
-    const [selectedExamTitle, setSelectedExamTitle] = useState('END OF TERM TWO EXAMS 2026 (TERM 2 2026)');
+    const schoolName = currentInstitution?.name || 'Academic Institution';
+
+    // ── DYNAMIC EXAM TITLES FROM ASSESSMENTS OR INSTITUTION ──
+    const availableExamOptions = useMemo(() => {
+        if (assessments && assessments.length > 0) {
+            return assessments.map(a => a.name || a.title || 'Assessment').filter(Boolean);
+        }
+        return [
+            'END OF TERM TWO EXAMS 2026 (TERM 2 2026)',
+            `${schoolName.toUpperCase()} MID TERM BREAK EXAMS`,
+            'END OF MAY EXAMS 2026'
+        ];
+    }, [assessments, schoolName]);
+
+    const [selectedExamTitle, setSelectedExamTitle] = useState(() => availableExamOptions[0] || 'RECENT EXAM EVALUATION');
     const [hoveredPoint, setHoveredPoint] = useState<{ series: string; label: string; val: number } | null>(null);
     const [hoveredGrade, setHoveredGrade] = useState<{ grade: string; count: number } | null>(null);
     const [viewMode, setViewMode] = useState<'3d_isometric' | 'cyber_glow'>('3d_isometric');
 
     // ── DATA FOR CHART 1: LAST 3 EXAMS CLASS MEAN SCORES ──
-    const seriesData = useMemo(() => [
-        {
-            name: 'END OF MAY EXAMS',
-            color: '#3b82f6', // Cyan/Blue
-            glowColor: 'rgba(59, 130, 246, 0.4)',
-            points: [
-                { label: 'Form 3', val: 39 },
-                { label: 'Form 4', val: 30 },
-                { label: 'GRADE 10', val: -1 }
-            ]
-        },
-        {
-            name: 'IHM DONBOSCO SENIOR SCHOOL MID TERM BREAK EXAMS',
-            color: '#ef4444', // Red/Crimson
-            glowColor: 'rgba(239, 68, 68, 0.4)',
-            points: [
-                { label: 'Form 3', val: 40 },
-                { label: 'Form 4', val: 34 },
-                { label: 'GRADE 10', val: 48 }
-            ]
-        },
-        {
-            name: 'END OF TERM TWO EXAMS 2026',
-            color: '#10b981', // Emerald Green
-            glowColor: 'rgba(16, 185, 129, 0.4)',
-            points: [
-                { label: 'Form 3', val: 38 },
-                { label: 'Form 4', val: 33 },
-                { label: 'GRADE 10', val: 38 }
-            ]
-        }
-    ], []);
+    const seriesData = useMemo(() => {
+        const examNames = assessments && assessments.length >= 3
+            ? assessments.slice(-3).map(a => a.name || a.title)
+            : [];
+
+        const series1Name = examNames[0] || 'END OF MAY EXAMS';
+        const series2Name = examNames[1] || `${schoolName.toUpperCase()} MID TERM BREAK EXAMS`;
+        const series3Name = examNames[2] || 'END OF TERM TWO EXAMS 2026';
+
+        return [
+            {
+                name: series1Name,
+                color: '#3b82f6', // Cyan/Blue
+                glowColor: 'rgba(59, 130, 246, 0.4)',
+                points: [
+                    { label: 'Form 3', val: 39 },
+                    { label: 'Form 4', val: 30 },
+                    { label: 'GRADE 10', val: -1 }
+                ]
+            },
+            {
+                name: series2Name,
+                color: '#ef4444', // Red/Crimson
+                glowColor: 'rgba(239, 68, 68, 0.4)',
+                points: [
+                    { label: 'Form 3', val: 40 },
+                    { label: 'Form 4', val: 34 },
+                    { label: 'GRADE 10', val: 48 }
+                ]
+            },
+            {
+                name: series3Name,
+                color: '#10b981', // Emerald Green
+                glowColor: 'rgba(16, 185, 129, 0.4)',
+                points: [
+                    { label: 'Form 3', val: 38 },
+                    { label: 'Form 4', val: 33 },
+                    { label: 'GRADE 10', val: 38 }
+                ]
+            }
+        ];
+    }, [assessments, schoolName]);
 
     // ── DATA FOR CHART 2: SHARE OF STUDENTS BY IMPROVEMENT RANGE ──
     const improvementRanges = useMemo(() => [
@@ -141,11 +165,11 @@ export const Futuristic3DExamAnalyticsDashboard: React.FC<Futuristic3DExamAnalyt
                         <select
                             value={selectedExamTitle}
                             onChange={(e) => setSelectedExamTitle(e.target.value)}
-                            className="bg-slate-900/90 text-xs font-bold text-slate-200 border border-slate-700/80 rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-500 outline-none cursor-pointer"
+                            className="bg-slate-900/90 text-xs font-bold text-slate-200 border border-slate-700/80 rounded-xl px-3 py-2 focus:ring-2 focus:ring-cyan-500 outline-none cursor-pointer max-w-xs truncate"
                         >
-                            <option value="END OF TERM TWO EXAMS 2026 (TERM 2 2026)">END OF TERM TWO EXAMS 2026</option>
-                            <option value="MID TERM BREAK EXAMS 2026">MID TERM BREAK EXAMS 2026</option>
-                            <option value="END OF MAY EXAMS 2026">END OF MAY EXAMS 2026</option>
+                            {availableExamOptions.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                            ))}
                         </select>
 
                         <button

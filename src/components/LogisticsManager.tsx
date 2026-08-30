@@ -34,8 +34,16 @@ import {
     Filter,
     GraduationCap,
     Layers,
-    X
+    X,
+    FileText,
+    Printer,
+    Download,
+    DollarSign,
+    CheckCircle,
+    TrendingUp,
+    Briefcase
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import type { Institution, User as UserType } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
@@ -75,10 +83,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing' | 'reports'>(
         isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
     const [searchTerm, setSearchTerm] = useState('');
+    const [reportSubTab, setReportSubTab] = useState<'billing' | 'routes' | 'fleet' | 'trips' | 'alerts'>('billing');
+    const [reportSearch, setReportSearch] = useState('');
+    const [reportStatusFilter, setReportStatusFilter] = useState('ALL');
 
     // Vehicles state & API operations for Vehicle Registration tab & fleet selections
     const [dbVehicles, setDbVehicles] = useState<any[]>(() => {
@@ -2453,6 +2464,533 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         </div>
     );
 
+    const renderReports = () => {
+        const totalBilled = transportInvoices.reduce((acc, inv) => acc + (inv.amount || inv.finalAmount || 0), 0);
+        const totalPaid = transportInvoices.reduce((acc, inv) => acc + (inv.paidAmount || (inv.status === 'paid' ? (inv.amount || inv.finalAmount || 0) : 0) || 0), 0);
+        const totalOutstanding = Math.max(0, totalBilled - totalPaid);
+        const collectionRate = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
+
+        const filteredInvoices = transportInvoices.filter(inv => {
+            const sName = inv.studentName || '';
+            const adm = inv.admissionNumber || '';
+            const rName = inv.routeName || '';
+            const invNo = inv.invoiceNumber || inv.id || '';
+            const matchesSearch = !reportSearch || 
+                sName.toLowerCase().includes(reportSearch.toLowerCase()) || 
+                adm.toLowerCase().includes(reportSearch.toLowerCase()) || 
+                rName.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                invNo.toLowerCase().includes(reportSearch.toLowerCase());
+            const matchesStatus = reportStatusFilter === 'ALL' || inv.status === reportStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+
+        const filteredRoutes = busRoutes.filter(r => {
+            return !reportSearch || r.name.toLowerCase().includes(reportSearch.toLowerCase()) || (r.bus || '').toLowerCase().includes(reportSearch.toLowerCase()) || (r.driver || '').toLowerCase().includes(reportSearch.toLowerCase());
+        });
+
+        const filteredVehicles = dbVehicles.filter(v => {
+            return !reportSearch || 
+                (v.plateNumber || '').toLowerCase().includes(reportSearch.toLowerCase()) || 
+                (v.model || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (v.driverName || '').toLowerCase().includes(reportSearch.toLowerCase());
+        });
+
+        const filteredTrips = schoolTrips.filter(t => {
+            return !reportSearch || 
+                t.name.toLowerCase().includes(reportSearch.toLowerCase()) || 
+                t.destination.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (t.leadTeacher || '').toLowerCase().includes(reportSearch.toLowerCase());
+        });
+
+        const filteredAlerts = transportAlerts.filter(a => {
+            return !reportSearch ||
+                (a.message || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (a.route || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (a.vehiclePlate || '').toLowerCase().includes(reportSearch.toLowerCase());
+        });
+
+        const handleExportExcel = () => {
+            if (reportSubTab === 'billing') {
+                const data = filteredInvoices.map((inv, idx) => ({
+                    '#': idx + 1,
+                    'Invoice No': inv.invoiceNumber || inv.id,
+                    'Student Name': inv.studentName,
+                    'Admission No': inv.admissionNumber,
+                    'Route': inv.routeName,
+                    'Commute Mode': inv.preference || (inv as any).commutePreference || 'Round Trip',
+                    'Billing Period': inv.period,
+                    'Amount (KES)': inv.amount || inv.finalAmount || 0,
+                    'Paid (KES)': inv.paidAmount || (inv.status === 'paid' ? (inv.amount || inv.finalAmount || 0) : 0),
+                    'Balance (KES)': inv.balance !== undefined ? inv.balance : ((inv.amount || inv.finalAmount || 0) - (inv.paidAmount || (inv.status === 'paid' ? (inv.amount || inv.finalAmount || 0) : 0))),
+                    'Status': (inv.status || 'Pending').toUpperCase(),
+                    'Due Date': inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'N/A'
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Transport Billing');
+                XLSX.writeFile(wb, `Transport_Billing_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'routes') {
+                const data = filteredRoutes.map((r, idx) => {
+                    const studentCount = Object.values(studentCommutePrefs).filter(p => p.routeId === r.id && p.preference !== 'none').length;
+                    return {
+                        '#': idx + 1,
+                        'Route Name': r.name,
+                        'Start Point': r.startPoint,
+                        'End Point': r.endPoint,
+                        'Assigned Bus': r.bus,
+                        'Driver': r.driver,
+                        'Attendant': r.attendant,
+                        'Enrolled Students': studentCount
+                    };
+                });
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Route Manifest');
+                XLSX.writeFile(wb, `Transport_Route_Manifest_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'fleet') {
+                const data = filteredVehicles.map((v, idx) => ({
+                    '#': idx + 1,
+                    'Plate Number': v.plateNumber,
+                    'Model': v.model,
+                    'Vehicle Type': v.vehicleType || 'Bus',
+                    'Seating Capacity': v.capacity,
+                    'Assigned Driver': v.driverName || 'Unassigned',
+                    'Status': (v.status || 'Active').toUpperCase()
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Vehicle Fleet');
+                XLSX.writeFile(wb, `Transport_Fleet_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'trips') {
+                const data = filteredTrips.map((t, idx) => ({
+                    '#': idx + 1,
+                    'Trip Name': t.name,
+                    'Destination': t.destination,
+                    'Date': t.date,
+                    'Time': t.time,
+                    'Lead Teacher': t.leadTeacher,
+                    'Vehicle Assigned': t.vehicle,
+                    'Passengers': t.passengers,
+                    'Status': t.status.toUpperCase()
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'School Trips');
+                XLSX.writeFile(wb, `School_Trips_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'alerts') {
+                const data = filteredAlerts.map((a, idx) => ({
+                    '#': idx + 1,
+                    'Severity': (a.severity || 'Normal').toUpperCase(),
+                    'Category': (a.type || 'Notice').toUpperCase(),
+                    'Route': a.route || 'All Routes',
+                    'Vehicle Plate': a.vehiclePlate || 'N/A',
+                    'Driver': a.driverName || 'N/A',
+                    'Message': a.message,
+                    'Status': (a.status || 'Active').toUpperCase(),
+                    'Created At': a.createdAt ? new Date(a.createdAt).toLocaleString() : 'N/A'
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Disruptions');
+                XLSX.writeFile(wb, `Transport_Disruptions_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+            }
+        };
+
+        const activeCommutersCount = Object.values(studentCommutePrefs).filter(p => p.preference !== 'none').length;
+
+        return (
+            <div className="space-y-8 animate-in fade-in duration-300">
+                {/* Reports Header & KPI Strip */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-gradient-to-br from-indigo-650 via-indigo-700 to-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-1">Total Transport Invoiced</p>
+                        <h3 className="text-3xl font-black tracking-tight">KES {totalBilled.toLocaleString()}</h3>
+                        <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-indigo-200">
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>{transportInvoices.length} Total Invoices</span>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex justify-between items-start mb-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Collected</p>
+                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                {collectionRate}% Rate
+                            </span>
+                        </div>
+                        <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">KES {totalPaid.toLocaleString()}</h3>
+                        <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Net verified revenue</span>
+                        </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Outstanding Balance</p>
+                        <h3 className="text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">KES {totalOutstanding.toLocaleString()}</h3>
+                        <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Pending fee settlements</span>
+                        </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Fleet & Commuters</p>
+                        <div className="flex items-baseline gap-2">
+                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{dbVehicles.length}</h3>
+                            <span className="text-xs font-bold text-slate-400">Buses / {busRoutes.length} Routes</span>
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-indigo-500" />
+                            <span>{activeCommutersCount} Active Commuters</span>
+                        </p>
+                    </div>
+                </div>
+
+                {/* Sub-Tabs & Action Bar */}
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
+                        {/* Sub-tab Pills */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {[
+                                { id: 'billing', label: 'Billing & Fee Balances', icon: Receipt, count: filteredInvoices.length },
+                                { id: 'routes', label: 'Route Manifests', icon: MapPin, count: filteredRoutes.length },
+                                { id: 'fleet', label: 'Fleet & Drivers', icon: Truck, count: filteredVehicles.length },
+                                { id: 'trips', label: 'School Trips', icon: Calendar, count: filteredTrips.length, show: isEduTransport },
+                                { id: 'alerts', label: 'Disruptions Log', icon: Bell, count: filteredAlerts.length, show: isEduTransport },
+                            ].filter(t => t.show !== false).map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setReportSubTab(tab.id as any)}
+                                    className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer ${
+                                        reportSubTab === tab.id
+                                            ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 dark:shadow-none scale-105'
+                                            : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                    }`}
+                                >
+                                    <tab.icon className="w-3.5 h-3.5" />
+                                    <span>{tab.label}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] ${
+                                        reportSubTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                    }`}>
+                                        {tab.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Export Actions */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleExportExcel}
+                                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Export Excel</span>
+                            </button>
+                            <button
+                                onClick={() => window.print()}
+                                className="flex items-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer"
+                            >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Print</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Filters Bar */}
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative flex-1 w-full">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                value={reportSearch}
+                                onChange={e => setReportSearch(e.target.value)}
+                                placeholder={
+                                    reportSubTab === 'billing' ? 'Search student name, adm no, route, or invoice...' :
+                                    reportSubTab === 'routes' ? 'Search route name, bus, or driver...' :
+                                    reportSubTab === 'fleet' ? 'Search plate number, model, or driver...' :
+                                    reportSubTab === 'trips' ? 'Search trip name, destination, or teacher...' :
+                                    'Search disruption alert notices...'
+                                }
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+
+                        {reportSubTab === 'billing' && (
+                            <select
+                                value={reportStatusFilter}
+                                onChange={e => setReportStatusFilter(e.target.value)}
+                                className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shrink-0"
+                            >
+                                <option value="ALL">All Payment Statuses</option>
+                                <option value="paid">Paid in Full</option>
+                                <option value="pending">Pending Payment</option>
+                                <option value="waived">Waived Fees</option>
+                            </select>
+                        )}
+                    </div>
+
+                    {/* Report Content Tables */}
+                    {reportSubTab === 'billing' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Student Details</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Route & Mode</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Period</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Invoiced</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Paid</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Balance</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Status</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Due Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredInvoices.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="p-12 text-center text-slate-400 font-bold">
+                                                No transport invoices found matching your filter criteria.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredInvoices.map(inv => {
+                                            const amt = inv.amount || inv.finalAmount || 0;
+                                            const paid = inv.paidAmount || (inv.status === 'paid' ? amt : 0);
+                                            const bal = inv.balance !== undefined ? inv.balance : Math.max(0, amt - paid);
+                                            return (
+                                                <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4">
+                                                        <p className="font-black text-slate-900 dark:text-white">{inv.studentName}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400">{inv.admissionNumber || inv.invoiceNumber || inv.id}</p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{inv.routeName}</p>
+                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                                            {inv.preference || (inv as any).commutePreference || 'Round Trip'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 font-bold text-slate-600 dark:text-slate-300">{inv.period}</td>
+                                                    <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">KES {amt.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">KES {paid.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-mono font-black text-rose-600 dark:text-rose-400">KES {bal.toLocaleString()}</td>
+                                                    <td className="p-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                            inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                            inv.status === 'waived' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
+                                                            'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                                        }`}>
+                                                            {inv.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right font-bold text-slate-500">
+                                                        {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'routes' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Route Name</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Coverage Points</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Bus</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Crew (Driver & Attendant)</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Commuting Students</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredRoutes.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No route records found.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredRoutes.map(r => {
+                                            const studentCount = Object.values(studentCommutePrefs).filter(p => p.routeId === r.id && p.preference !== 'none').length;
+                                            return (
+                                                <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4 font-black text-slate-900 dark:text-white">{r.name}</td>
+                                                    <td className="p-4 font-medium text-slate-600 dark:text-slate-300">
+                                                        <span className="font-bold">{r.startPoint}</span> ➔ <span>{r.endPoint}</span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-black rounded-lg text-xs">
+                                                            {r.bus}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">👨‍✈️ {r.driver}</p>
+                                                        <p className="text-[10px] text-slate-400">👩‍💼 {r.attendant || 'No attendant assigned'}</p>
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                                                        {studentCount} Students
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'fleet' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Plate & Identification</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vehicle Model & Type</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Driver</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Seating Capacity</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Fleet Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredVehicles.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No vehicles registered in fleet.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredVehicles.map(v => (
+                                            <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                <td className="p-4">
+                                                    <span className="font-mono font-black text-slate-900 dark:text-white px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
+                                                        {v.plateNumber}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4">
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200">{v.model}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase">{v.vehicleType || 'School Bus'}</p>
+                                                </td>
+                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-300">
+                                                    {v.driverName || 'Unassigned'}
+                                                </td>
+                                                <td className="p-4 text-center font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                    {v.capacity} Seats
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <span className="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-black uppercase rounded-full">
+                                                        {v.status || 'Active'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'trips' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Trip Title</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Destination</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Date & Time</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Lead Teacher</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Bus</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredTrips.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-12 text-center text-slate-400 font-bold">No school excursion records found.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredTrips.map(t => (
+                                            <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                <td className="p-4 font-black text-slate-900 dark:text-white">{t.name}</td>
+                                                <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">{t.destination}</td>
+                                                <td className="p-4 text-slate-600 dark:text-slate-300 font-medium">
+                                                    {t.date} at {t.time}
+                                                </td>
+                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-300">{t.leadTeacher}</td>
+                                                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{t.vehicle}</td>
+                                                <td className="p-4 text-center">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                        t.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                        t.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                        'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                                    }`}>
+                                                        {t.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'alerts' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Severity</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Route & Bus</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Disruption Advisory</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Status</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Logged Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredAlerts.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No disruption alerts or route delay incidents recorded.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredAlerts.map(a => (
+                                            <tr key={a.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                <td className="p-4">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                        a.severity === 'high' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
+                                                        a.severity === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                        'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                                                    }`}>
+                                                        {a.severity}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4">
+                                                    <p className="font-bold text-slate-800 dark:text-slate-200">{a.route || 'All Routes'}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{a.vehiclePlate || 'N/A'}</p>
+                                                </td>
+                                                <td className="p-4 font-medium text-slate-700 dark:text-slate-300 max-w-md">{a.message}</td>
+                                                <td className="p-4">
+                                                    <span className="font-bold text-slate-600 dark:text-slate-400 uppercase text-[10px]">
+                                                        {a.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-right font-bold text-slate-500">
+                                                    {a.createdAt ? new Date(a.createdAt).toLocaleString() : 'N/A'}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="p-6 lg:p-10 space-y-10 group/logistics">
             {/* Navigation Tabs */}
@@ -2467,6 +3005,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
                     { id: 'alerts',  label: 'Disruption Alerts', icon: Bell,    show: isEduTransport },
                     { id: 'billing', label: 'Transport Billing', icon: Receipt, show: isEduTransport },
+                    { id: 'reports', label: 'Reports', icon: FileText, show: true },
                     { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
                 ].filter(t => t.show).map((tab) => (
                     <button
@@ -2601,6 +3140,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
                     />
                 )}
+                {activeTab === 'reports' && renderReports()}
             </div>
         </div>
     );
