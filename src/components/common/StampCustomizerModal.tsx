@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     Stamp, Check, Upload, RotateCcw, X, Palette, Calendar,
-    Building2, Phone, MapPin, Briefcase, Eye, Sparkles, Sliders
+    Building2, Phone, MapPin, Briefcase, Eye, Sparkles, Sliders, Circle, Ellipsis
 } from 'lucide-react';
 import type { Institution, LetterheadConfig, OfficialStampConfig, StampMode } from '../../types';
 import { KenyanOfficialStamp } from './KenyanOfficialStamp';
@@ -29,6 +29,12 @@ const DATER_PRESETS = [
     { name: 'Matching Ink', value: 'inherit', bg: 'bg-slate-700' },
 ];
 
+const DATE_FORMATS: { label: string; value: 'DD MMM YYYY' | 'DD/MM/YYYY' | 'DD-MM-YYYY'; example: string }[] = [
+    { label: 'Word Month', value: 'DD MMM YYYY', example: '21 MAY 2025' },
+    { label: 'Slash Digits', value: 'DD/MM/YYYY', example: '21/05/2025' },
+    { label: 'Dash Digits', value: 'DD-MM-YYYY', example: '21-05-2025' },
+];
+
 const DEPARTMENT_PRESETS = [
     'FINANCE & BURSAR',
     'ACCOUNTS DEPARTMENT',
@@ -52,11 +58,16 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
     const initialResolved = getResolvedStampConfig(existingStampConfig, currentInstitution);
 
     const [mode, setMode] = useState<StampMode>(existingStampConfig?.mode || (letterheadConfig?.stampImageUrl ? 'uploaded' : 'system_generated'));
-    const [institutionName, setInstitutionName] = useState(initialResolved.institutionName);
+    const [shape, setShape] = useState<'circle' | 'oval'>(existingStampConfig?.shape === 'oval' ? 'oval' : 'circle');
+    const [institutionName, setInstitutionName] = useState(initialResolved.institutionName.replace(/^★\s*|\s*★$/g, ''));
     const [addressLine, setAddressLine] = useState(initialResolved.addressLine.replace(/^★\s*|\s*★$/g, ''));
     const [contactPhone, setContactPhone] = useState(initialResolved.contactPhone);
     const [department, setDepartment] = useState(initialResolved.department);
-    const [customDatePrefix, setCustomDatePrefix] = useState(initialResolved.customDatePrefix || 'Date');
+    const [customDatePrefix, setCustomDatePrefix] = useState(initialResolved.customDatePrefix || '');
+    const [dateFormat, setDateFormat] = useState<'DD MMM YYYY' | 'DD/MM/YYYY' | 'DD-MM-YYYY'>(initialResolved.dateFormat || 'DD MMM YYYY');
+    const [showSignatureLine, setShowSignatureLine] = useState(initialResolved.showSignatureLine ?? true);
+    const [signatureLabel, setSignatureLabel] = useState(initialResolved.signatureLabel || 'Sign:...................');
+    const [showStars, setShowStars] = useState(initialResolved.showStars ?? true);
     const [inkColor, setInkColor] = useState(initialResolved.inkColor || '#0047AB');
     const [daterColor, setDaterColor] = useState(initialResolved.daterColor || '#DC2626');
     const [rotationAngle, setRotationAngle] = useState(initialResolved.rotationAngle ?? -3);
@@ -69,14 +80,19 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
 
     const liveConfig: OfficialStampConfig = {
         mode,
+        shape,
         stampImageUrl: uploadedImageUrl,
         inkColor,
         daterColor: daterColor === 'inherit' ? inkColor : daterColor,
-        institutionName,
-        addressLine: addressLine.startsWith('★') ? addressLine : `★ ${addressLine} ★`,
+        institutionName: showStars ? `★ ${institutionName.trim()} ★` : institutionName.trim(),
+        addressLine: showStars ? `★ ${addressLine.trim()} ★` : addressLine.trim(),
         contactPhone,
         department,
         customDatePrefix,
+        dateFormat,
+        showSignatureLine,
+        signatureLabel,
+        showStars,
         showDate,
         rotationAngle
     };
@@ -126,7 +142,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                         </div>
                         <div>
                             <h3 className="text-base font-black uppercase tracking-tight">Official Rubber Stamp Customizer</h3>
-                            <p className="text-[11px] font-medium text-slate-400">Configure dynamic institutional dater stamp for receipts, finance & vouchers</p>
+                            <p className="text-[11px] font-medium text-slate-400">Configure dynamic institutional dater stamp (Circle vs Oval) for receipts, finance & vouchers</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-xl cursor-pointer">
@@ -172,6 +188,55 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                             </div>
                         </div>
 
+                        {/* 2. Shape Template Switcher (Circle vs Oval) */}
+                        {mode === 'system_generated' && (
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2 flex items-center justify-between">
+                                    <span>Stamp Shape Template</span>
+                                    <span className="text-[9px] font-bold text-indigo-600 uppercase">Circle vs Oval</span>
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShape('circle')}
+                                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${
+                                            shape === 'circle'
+                                                ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-900 dark:text-indigo-200 shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                    >
+                                        <div className="w-8 h-8 rounded-full border-2 border-current flex items-center justify-center font-bold">
+                                            ⭕
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-xs font-black uppercase">Circular Stamp</p>
+                                            <p className="text-[9px] text-slate-400">Classic round institutional seal</p>
+                                        </div>
+                                        {shape === 'circle' && <Check className="w-4 h-4 ml-auto text-indigo-600" />}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShape('oval')}
+                                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${
+                                            shape === 'oval'
+                                                ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 text-indigo-900 dark:text-indigo-200 shadow-sm'
+                                                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                                        }`}
+                                    >
+                                        <div className="w-9 h-6 rounded-[50%] border-2 border-current flex items-center justify-center font-bold">
+                                            ⬭
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-xs font-black uppercase">Oval Stamp</p>
+                                            <p className="text-[9px] text-slate-400">Elliptical official finance stamp</p>
+                                        </div>
+                                        {shape === 'oval' && <Check className="w-4 h-4 ml-auto text-indigo-600" />}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Mode Specific Options */}
                         {mode === 'uploaded' && (
                             <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-4">
@@ -192,7 +257,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => setUploadedImageUrl(null)}
-                                            className="text-rose-500 hover:underline font-bold text-[10px] uppercase"
+                                            className="text-rose-500 hover:underline font-bold text-[10px] uppercase cursor-pointer"
                                         >
                                             Remove
                                         </button>
@@ -251,12 +316,55 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                     </div>
                                 </div>
 
+                                {/* Date Format & Prefix */}
+                                <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                            Date Format
+                                        </label>
+                                        <select
+                                            value={dateFormat}
+                                            onChange={e => setDateFormat(e.target.value as any)}
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                        >
+                                            {DATE_FORMATS.map(f => (
+                                                <option key={f.value} value={f.value}>
+                                                    {f.label} ({f.example})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                            Date Prefix (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={customDatePrefix}
+                                            onChange={e => setCustomDatePrefix(e.target.value)}
+                                            placeholder="e.g. Date or leave empty"
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                        />
+                                    </div>
+                                </div>
+
                                 {/* Text Fields */}
                                 <div className="space-y-3 pt-2">
                                     <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
-                                            Top Curved Text (Institution Name)
-                                        </label>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                Top Curved Text (Institution Name)
+                                            </label>
+                                            <label className="text-[9px] font-bold text-slate-400 flex items-center gap-1 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={showStars}
+                                                    onChange={e => setShowStars(e.target.checked)}
+                                                    className="rounded text-indigo-600 w-3 h-3"
+                                                />
+                                                <span>Flanking Stars (★)</span>
+                                            </label>
+                                        </div>
                                         <input
                                             type="text"
                                             value={institutionName}
@@ -274,7 +382,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                                 type="text"
                                                 value={addressLine}
                                                 onChange={e => setAddressLine(e.target.value.toUpperCase())}
-                                                placeholder="P.O BOX 1765-30100, ELDORET"
+                                                placeholder="P.O. BOX 1341 - 00100, NRB"
                                                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none focus:border-indigo-500"
                                             />
                                         </div>
@@ -292,27 +400,50 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
-                                            Inner Bottom Line (Department / Title)
-                                        </label>
-                                        <div className="flex gap-2">
+                                    {/* Signature Line vs Department */}
+                                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                Bottom Center: Signature Line vs Department
+                                            </label>
+                                            <label className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={showSignatureLine}
+                                                    onChange={e => setShowSignatureLine(e.target.checked)}
+                                                    className="rounded text-indigo-600 w-3.5 h-3.5"
+                                                />
+                                                <span>Signature Line</span>
+                                            </label>
+                                        </div>
+
+                                        {showSignatureLine ? (
                                             <input
                                                 type="text"
-                                                value={department}
-                                                onChange={e => setDepartment(e.target.value.toUpperCase())}
-                                                className="flex-1 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none focus:border-indigo-500"
+                                                value={signatureLabel}
+                                                onChange={e => setSignatureLabel(e.target.value)}
+                                                placeholder="Sign:..................."
+                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
                                             />
-                                            <select
-                                                onChange={e => e.target.value && setDepartment(e.target.value)}
-                                                className="px-3 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
-                                            >
-                                                <option value="">Presets...</option>
-                                                {DEPARTMENT_PRESETS.map(p => (
-                                                    <option key={p} value={p}>{p}</option>
-                                                ))}
-                                            </select>
-                                        </div>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={department}
+                                                    onChange={e => setDepartment(e.target.value.toUpperCase())}
+                                                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none"
+                                                />
+                                                <select
+                                                    onChange={e => e.target.value && setDepartment(e.target.value)}
+                                                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
+                                                >
+                                                    <option value="">Presets...</option>
+                                                    {DEPARTMENT_PRESETS.map(p => (
+                                                        <option key={p} value={p}>{p}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -326,7 +457,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                 <Eye className="w-3.5 h-3.5 text-indigo-500" /> Live Receipt Preview
                             </span>
                             <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-900/50">
-                                Exact Output
+                                {shape === 'oval' ? 'Oval Template' : 'Circle Template'}
                             </span>
                         </div>
 
@@ -342,7 +473,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                 <KenyanOfficialStamp
                                     config={liveConfig}
                                     date={testDate}
-                                    size={200}
+                                    size={shape === 'oval' ? 170 : 200}
                                 />
                             )}
                         </div>
@@ -357,7 +488,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setTestDate(new Date().toISOString().split('T')[0])}
-                                        className="text-[9px] font-bold text-indigo-600 hover:underline uppercase"
+                                        className="text-[9px] font-bold text-indigo-600 hover:underline uppercase cursor-pointer"
                                     >
                                         Today
                                     </button>

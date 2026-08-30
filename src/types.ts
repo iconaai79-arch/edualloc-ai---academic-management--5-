@@ -1091,7 +1091,11 @@ export interface OfficialStampConfig {
     addressLine?: string; // e.g. 'P.O BOX 1765-30100, ELDORET'
     contactPhone?: string; // e.g. 'TEL: 0723348912'
     department?: string; // e.g. 'FINANCE & BURSAR'
-    customDatePrefix?: string; // e.g. 'Date' or 'PAID ON'
+    customDatePrefix?: string; // e.g. 'Date' or 'PAID ON' or empty
+    dateFormat?: 'DD/MM/YYYY' | 'DD-MM-YYYY' | 'DD MMM YYYY'; // e.g. '21 MAY 2025' or '21/05/2025'
+    showSignatureLine?: boolean; // e.g. true for 'Sign:...................'
+    signatureLabel?: string; // e.g. 'Sign:...................'
+    showStars?: boolean;
     showDate?: boolean;
     rotationAngle?: number; // e.g. -3
 }
