@@ -99,10 +99,10 @@ const generateCircleStampSvg = (
     return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
-            <!-- Top Arched Path (Clockwise Arc) -->
+            <!-- Top Arched Path (Clockwise Arc: Left to Right across top) -->
             <path id="${topPathId}" d="M 36 140 A 104 104 0 0 1 244 140" fill="none" />
-            <!-- Bottom Arched Path (Clockwise Arc) -->
-            <path id="${bottomPathId}" d="M 244 140 A 104 104 0 0 1 36 140" fill="none" />
+            <!-- Bottom Arched Path (Counter-Clockwise Arc: Left to Right across bottom so text is upright) -->
+            <path id="${bottomPathId}" d="M 26 140 A 114 114 0 0 0 254 140" fill="none" />
             
             <!-- Subtle Distress Stamp Filter -->
             <filter id="distress_${uniqueId}">
@@ -116,8 +116,8 @@ const generateCircleStampSvg = (
             <circle cx="140" cy="140" r="133" fill="none" stroke="${resolved.inkColor}" stroke-width="4" />
             <circle cx="140" cy="140" r="125" fill="none" stroke="${resolved.inkColor}" stroke-width="1.8" />
 
-            <!-- Inner Solid Divider Ring -->
-            <circle cx="140" cy="140" r="82" fill="none" stroke="${resolved.inkColor}" stroke-width="1.8" />
+            <!-- Inner Solid Divider Ring (closer to institution name & address) -->
+            <circle cx="140" cy="140" r="97" fill="none" stroke="${resolved.inkColor}" stroke-width="1.8" />
 
             <!-- Top Curved Institution Name -->
             <text font-size="${nameFontSize}" font-weight="900" letter-spacing="${nameLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
@@ -126,16 +126,16 @@ const generateCircleStampSvg = (
                 </textPath>
             </text>
 
-            <!-- Bottom Curved Address / Postal Details -->
+            <!-- Bottom Curved Address / Postal Details (Upright, readable left-to-right) -->
             <text font-size="${addressFontSize}" font-weight="800" letter-spacing="${addressLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${bottomPathId}" startOffset="50%" text-anchor="middle">
                     ${resolved.addressLine}
                 </textPath>
             </text>
 
-            <!-- Inner Contact / Tel Line (if space allows or department) -->
+            <!-- Inner Contact / Tel Line -->
             ${resolved.contactPhone && !resolved.contactPhone.includes('000000') ? `
-                <text x="140" y="104" font-size="9" font-weight="800" letter-spacing="0.6" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="140" y="94" font-size="9" font-weight="800" letter-spacing="0.6" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.contactPhone}
                 </text>
             ` : ''}
@@ -143,10 +143,10 @@ const generateCircleStampSvg = (
             <!-- Center Dynamic Transaction Dater (Red Stamp Ink) -->
             ${resolved.showDate ? `
                 <g fill="${resolved.daterColor}" stroke="none">
-                    <text x="140" y="${resolved.showSignatureLine ? '138' : '146'}" font-size="19" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
-                    ${dateText}
-                </text>
-            </g>
+                    <text x="140" y="${resolved.showSignatureLine ? '138' : '142'}" font-size="19" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
+                        ${dateText}
+                    </text>
+                </g>
             ` : ''}
 
             <!-- Signature Line or Department Tag -->
@@ -155,7 +155,7 @@ const generateCircleStampSvg = (
                     ${resolved.signatureLabel}
                 </text>
             ` : `
-                <text x="140" y="174" font-size="10" font-weight="900" letter-spacing="1.2" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="140" y="172" font-size="10" font-weight="900" letter-spacing="1.2" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     * ${resolved.department} *
                 </text>
             `}
@@ -187,9 +187,9 @@ const generateOvalStampSvg = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="320" height="220" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path on Ellipse (Clockwise) -->
-            <path id="${topPathId}" d="M 38 110 A 122 72 0 0 1 282 110" fill="none" />
-            <!-- Bottom Arched Path on Ellipse (Clockwise) -->
-            <path id="${bottomPathId}" d="M 282 110 A 122 72 0 0 1 38 110" fill="none" />
+            <path id="${topPathId}" d="M 40 110 A 120 70 0 0 1 280 110" fill="none" />
+            <!-- Bottom Arched Path on Ellipse (Counter-Clockwise so text is upright) -->
+            <path id="${bottomPathId}" d="M 30 110 A 130 80 0 0 0 290 110" fill="none" />
             
             <!-- Subtle Distress Filter -->
             <filter id="distress_${uniqueId}">
@@ -203,8 +203,8 @@ const generateOvalStampSvg = (
             <ellipse cx="160" cy="110" rx="152" ry="102" fill="none" stroke="${resolved.inkColor}" stroke-width="4.2" />
             <ellipse cx="160" cy="110" rx="143" ry="93" fill="none" stroke="${resolved.inkColor}" stroke-width="1.6" />
 
-            <!-- Inner Compartment Ellipse -->
-            <ellipse cx="160" cy="110" rx="98" ry="52" fill="none" stroke="${resolved.inkColor}" stroke-width="1.6" />
+            <!-- Inner Compartment Ellipse (closer to outer border) -->
+            <ellipse cx="160" cy="110" rx="110" ry="64" fill="none" stroke="${resolved.inkColor}" stroke-width="1.6" />
 
             <!-- Top Curved Institution Name -->
             <text font-size="${nameFontSize}" font-weight="900" letter-spacing="${nameLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
@@ -213,7 +213,7 @@ const generateOvalStampSvg = (
                 </textPath>
             </text>
 
-            <!-- Bottom Curved Address / Postal Details -->
+            <!-- Bottom Curved Address / Postal Details (Upright) -->
             <text font-size="${addressFontSize}" font-weight="800" letter-spacing="${addressLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${bottomPathId}" startOffset="50%" text-anchor="middle">
                     ${resolved.addressLine}
@@ -222,7 +222,7 @@ const generateOvalStampSvg = (
 
             <!-- Inner Contact / Tel Line -->
             ${resolved.contactPhone && !resolved.contactPhone.includes('000000') ? `
-                <text x="160" y="80" font-size="8.5" font-weight="800" letter-spacing="0.5" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="160" y="78" font-size="8.5" font-weight="800" letter-spacing="0.5" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.contactPhone}
                 </text>
             ` : ''}
@@ -230,7 +230,7 @@ const generateOvalStampSvg = (
             <!-- Center Dynamic Transaction Dater (Red Stamp Ink) -->
             ${resolved.showDate ? `
                 <g fill="${resolved.daterColor}" stroke="none">
-                    <text x="160" y="${resolved.showSignatureLine ? '108' : '115'}" font-size="18" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
+                    <text x="160" y="${resolved.showSignatureLine ? '108' : '112'}" font-size="18" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
                         ${dateText}
                     </text>
                 </g>
@@ -238,7 +238,7 @@ const generateOvalStampSvg = (
 
             <!-- Signature Line or Department Tag -->
             ${resolved.showSignatureLine ? `
-                <text x="160" y="134" font-size="10" font-weight="800" letter-spacing="0.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="160" y="136" font-size="10" font-weight="800" letter-spacing="0.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.signatureLabel}
                 </text>
             ` : `
