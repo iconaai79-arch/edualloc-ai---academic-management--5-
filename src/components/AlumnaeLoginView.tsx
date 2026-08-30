@@ -122,11 +122,16 @@ export const AlumnaeLoginView: React.FC<AlumnaeLoginViewProps> = ({ onLoginSucce
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
             setGeneratedOtp(otp);
 
+            const now = new Date();
+            const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            const timestampText = `${formattedDate} at ${formattedTime}`;
+
             // Send OTP
             await apiService.sendEmail(
                 resetEmail, 
                 'Password Reset Code', 
-                `Your password reset code for Alumnae Prestige Circle is: ${otp}. If you did not request this, please ignore this email.`
+                `Your password reset code for Alumnae Prestige Circle is: ${otp}. Sent on ${timestampText}. If you did not request this, please ignore this email.`
             );
 
             setForgotPasswordStep('otp');

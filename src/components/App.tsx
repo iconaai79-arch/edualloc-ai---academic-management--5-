@@ -4751,6 +4751,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 const adminId = `u_admin_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
                 const generatedPassword = Math.random().toString(36).slice(-8);
                 const isResellerSelfReg = data.institutionType === 'Reseller';
+                const trialPeriodDays = 30;
+                const trialEndStr = new Date(Date.now() + trialPeriodDays * 24 * 60 * 60 * 1000).toISOString();
+                const nowStr = new Date().toISOString();
+
                 const newInstitution: Institution = {
                     id: instId,
                     name: data.institutionName,
@@ -4758,8 +4762,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     phoneNumber: data.institutionPhone,
                     institutionType: data.institutionType as any,
                     businessSubType: (data as any).businessSubType,
-                    status: isResellerSelfReg ? 'active' : 'trial',
-                    trialEndsAt: isResellerSelfReg ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                    status: 'active',
+                    trialEndsAt: trialEndStr,
+                    subscriptionEndsAt: trialEndStr,
                     institutionCode: generateAlphanumericCode(8),
                     useAllocationRequests: true,
                     resellerId: data.resellerId,
@@ -4771,6 +4776,56 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 await apiService.saveInstitution(newInstitution);
                 await apiService.saveUser(newAdmin);
                 
+                // Auto-provision standard module states for the institution
+                const defaultModulesByType: Record<string, string[]> = {
+                    'Education': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events', 'his'],
+                    'Primary': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'Secondary': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'College': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'University': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'TVET': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'Polytechnic': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'Institute': ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'enrollment_manager', 'events'],
+                    'IELTS Academy': ['academics', 'timetable', 'finance', 'library', 'enrollment_manager', 'events'],
+                    'Beauty College': ['beauty_college', 'finance', 'hr_payroll', 'timetable'],
+                    'Driving School': ['driving_school', 'finance', 'hr_payroll'],
+                    'Law Firm': ['law_firm', 'finance', 'hr_payroll'],
+                    'HIS': ['his', 'hr_payroll', 'finance', 'school_store'],
+                    'Pharmacy': ['pharmacy', 'finance', 'school_store'],
+                    'Business': ['finance', 'hr_payroll', 'school_store', 'transport'],
+                    'Retail': ['finance', 'hr_payroll', 'school_store'],
+                    'Cooperative': ['cooperative', 'finance', 'hr_payroll'],
+                    'SACCO': ['cooperative', 'finance', 'hr_payroll'],
+                    'Agrovet': ['cooperative', 'finance', 'school_store'],
+                    'Church': ['church', 'finance', 'events'],
+                    'Political Campaign': ['campaign', 'finance', 'events'],
+                    'Logistics': ['transport', 'finance', 'hr_payroll'],
+                    'Hospitality': ['finance', 'hr_payroll', 'events'],
+                    'Restaurant': ['restaurant_pos', 'finance', 'hr_payroll'],
+                    'Property Management': ['property', 'finance'],
+                    'Maize Miller': ['finance', 'hr_payroll', 'school_store'],
+                    'Fuel Station': ['fuel_station', 'finance', 'hr_payroll']
+                };
+
+                const targetType = data.institutionType || 'Education';
+                const modulesToProvision = defaultModulesByType[targetType] || defaultModulesByType['Education'];
+                for (const modId of modulesToProvision) {
+                    try {
+                        await apiService.saveModuleRecord('institution_module_states', {
+                            id: `ims_${modId}_${instId}`,
+                            institutionId: instId,
+                            moduleId: modId,
+                            status: 'active',
+                            activatedAt: nowStr,
+                            trialEndsAt: trialEndStr,
+                            subscriptionEndsAt: trialEndStr,
+                            updatedAt: nowStr
+                        });
+                    } catch (mErr) {
+                        console.warn(`[onInstitutionRegister] Module state provision warning for ${modId}:`, mErr);
+                    }
+                }
+
                 // Temporarily store session to allow authorized creation of demo data/settings
                 apiService.storeSession(newAdmin);
 
@@ -5000,8 +5055,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onAddInstitution: async (d: any) => { 
              const newId = (d as any).id || `inst_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`; 
              const now = new Date().toISOString();
-             await apiService.saveInstitution({ ...d, id: newId, createdAt: now, updatedAt: now } as any); 
-             const role = d.institutionType === 'Reseller' ? 'reseller' : 'admin'; 
+             const trialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+             const instToSave = {
+                 ...d,
+                 id: newId,
+                 status: d.status || 'active',
+                 trialEndsAt: d.trialEndsAt || trialEnd,
+                 subscriptionEndsAt: d.subscriptionEndsAt || trialEnd,
+                 createdAt: now,
+                 updatedAt: now
+             };
+             await apiService.saveInstitution(instToSave as any); 
+             const role = d.institutionType === 'Reseller' ? 'reseller' : getAdminRoleForInstitution(instToSave); 
              await apiService.registerUser({ id: `u_${Date.now()}`, name: `${d.name} Admin`, email: d.email, phoneNumber: d.phoneNumber, role: role as any, institutionId: newId, status: 'active', createdAt: now, updatedAt: now } as any, d.name); 
              loadData(); 
         },
@@ -6342,7 +6407,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isStatusExpired = (inst?.status as string) === 'expired' || inst?.status === 'suspended';
             const isSubscriptionExpired = !isReseller && inst && (
                 isStatusExpired ||
-                (inst.status !== 'active' && subEndDate !== null && subEndDate < now)
+                (inst.status !== 'trial' && inst.status !== 'active' && subEndDate !== null && subEndDate < now) ||
+                (inst.status === 'active' && subEndDate !== null && subEndDate < now)
             );
             const hasOverdueBill = !isReseller && inst && inst.billingModel === 'postpaid_student' && inst.isSuspendedForBilling;
             const isSuspended = !isReseller && inst && inst.status === 'suspended';
@@ -8088,8 +8154,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         setCurrentOtp(otp);
                                         setOtpPendingUser(u);
 
+                                        const now = new Date();
+                                        const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                        const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                        const timestampText = `${formattedDate} at ${formattedTime}`;
+
                                         const portalName = activeBranding.displayName || 'EduAI';
-                                        const otpMessage = `Your ${portalName} Verification Code is: ${otp}. Do not share this code with anyone.`;
+                                        const otpMessage = `Your ${portalName} Verification Code is: ${otp}. Sent on ${timestampText}. Do not share this code with anyone.`;
                                         console.log(`[Login] OTP Triggered for ${u.email}(Role: ${u.role}, Inst: ${u.institutionId})`);
 
                                         // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
@@ -8150,8 +8221,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 if (!otpPendingUser) return;
                                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                                 setCurrentOtp(otp);
+                                const now = new Date();
+                                const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                                const timestampText = `${formattedDate} at ${formattedTime}`;
+
                                 const portalName = activeBranding.displayName || 'EduAI';
-                                const otpMessage = `Your New ${portalName} Verification Code is: ${otp}.`;
+                                const otpMessage = `Your New ${portalName} Verification Code is: ${otp}. Sent on ${timestampText}. Do not share this code with anyone.`;
                                 console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
                                 // Dispatch with reporting and explicit authToken (User ID)

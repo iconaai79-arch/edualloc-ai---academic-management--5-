@@ -1325,9 +1325,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Send OTP via SMS
                 const smsConfig = settings.sms_config;
-                if (!smsConfig) return res.status(400).json({ success: false, message: 'SMS gateway not configured for password recovery.' });
+                const now = new Date();
+                const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Africa/Nairobi' });
+                const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Africa/Nairobi' });
+                const timestampText = `${formattedDate} at ${formattedTime}`;
 
-                const otpMessage = `Your EduAi Password Reset Code is: ${otp}. Valid for 10 minutes.`;
+                const otpMessage = `Your EduAi Password Reset Code is: ${otp}. Sent on ${timestampText}. Valid for 10 minutes. Do not share this code with anyone.`;
                 
                 // Re-using SMS dispatch logic (simplified for this specific context)
                 const provider = smsConfig.provider || 'Zettatel';

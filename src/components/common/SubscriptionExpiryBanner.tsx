@@ -115,9 +115,9 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
         return false;
     }, [institution, subscriptionLabel]);
 
-    const effectiveSubLabel = isEducation ? (subscriptionLabel || 'Student Subscription') : (subscriptionLabel || 'Plan Expiry');
-    const effectiveRenewBtn = isEducation ? (renewButtonText || 'Student Subscriptions') : (renewButtonText || 'Renew Subscription');
-    const effectiveTitle = isEducation ? 'Student Subscriptions Active' : (customTitle || (expiryInfo.isTrial ? 'Trial Ending' : (subscriptionLabel ? `${subscriptionLabel}` : 'Plan Expiration')));
+    const effectiveSubLabel = subscriptionLabel || (isEducation ? 'Institutional Plan' : 'Plan Expiry');
+    const effectiveRenewBtn = renewButtonText || 'Renew Subscription';
+    const effectiveTitle = customTitle || (expiryInfo.isTrial ? 'Trial Ending' : (subscriptionLabel ? `${subscriptionLabel}` : 'Subscription Active'));
 
     const handleRenewClick = () => {
         if (onRenew) {

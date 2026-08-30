@@ -48,7 +48,6 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import * as pdfService from '../../services/pdfService';
-import { StudentSubscriptionPlanManager } from '../common/StudentSubscriptionPlanManager';
 import { SuspenseAccountResolverModal, UnmatchedTransaction } from './SuspenseAccountResolverModal';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { DigitalExamPermitManager } from './DigitalExamPermitManager';
@@ -190,7 +189,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     
     // Dynamic Tabs based on Institution Type
     const isProcurementOfficer = props.currentUser?.role === 'procurement_officer' || (props.currentUser?.roles || []).includes('procurement_officer');
-    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics' | 'student_subscriptions'>(isProcurementOfficer ? 'requisitions' : 'home');
+    const [activeTab, setActiveTab] = useState<'home' | 'billing' | 'balances' | 'receipts' | 'parent_portal' | 'student_invoices' | 'wizard' | 'gok_capitation' | 'bursaries' | 'expenses' | 'audit' | 'requisitions' | 'config' | 'settings' | 'goods_in_lieu' | 'payroll' | 'reports' | 'transfers' | 'users' | 'logistics'>(isProcurementOfficer ? 'requisitions' : 'home');
     const [invoicesMainTab, setInvoicesMainTab] = useState<'ledger' | 'uninvoiced' | 'history' | 'wizard'>('ledger');
     const [homeSubTab, setHomeSubTab] = useState<'registry' | 'dashboard' | 'communication' | 'reports'>('registry');
     const [hrSubTab, setHrSubTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
@@ -9009,9 +9008,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 <SubscriptionExpiryBanner
                     institution={props.institution}
                     isCollapsed={!isSidebarOpen}
-                    subscriptionLabel="Student Subscriptions"
-                    renewButtonText="Student Subscriptions"
-                    onRenew={() => setActiveTab('student_subscriptions')}
                 />
 
                 <nav className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-200px)] pr-1 custom-scrollbar">
@@ -13162,18 +13158,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {activeTab === 'student_subscriptions' && (
-                    <div className="space-y-6 text-left animate-in fade-in duration-300">
-                        <StudentSubscriptionPlanManager
-                            currentInstitution={props.institution}
-                            currentUser={props.currentUser}
-                            users={props.students || props.users || []}
-                            courses={props.courses || []}
-                            companyDetails={props.companyDetails}
-                            moduleContext="finance"
-                        />
-                    </div>
-                )}
 
                 {activeTab === 'expenses' && (
                     <div className="space-y-6 animate-in fade-in duration-300">
@@ -22422,17 +22406,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             users={props.users || props.students || []}
                         />
                     </React.Suspense>
-                </div>
-            )}
-            {activeTab === 'student_subscriptions' && (
-                <div className="animate-in fade-in duration-300">
-                    <StudentSubscriptionPlanManager
-                        currentInstitution={props.institution}
-                        currentUser={props.currentUser}
-                        users={props.users || props.students || []}
-                        courses={props.courses || []}
-                        moduleContext="finance"
-                    />
                 </div>
             )}
             </div>

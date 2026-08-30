@@ -1189,7 +1189,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         setIsTesting(true);
         try {
             const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
-            const res = await apiService.sendSms(testRecipient, `Your EduAi Verification Code is: ${testOtp}. Do not share this code with anyone.`, localSmsConfig);
+            const now = new Date();
+            const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            const timestampText = `${formattedDate} at ${formattedTime}`;
+            const res = await apiService.sendSms(testRecipient, `Your EduAi Verification Code is: ${testOtp}. Sent on ${timestampText}. Do not share this code with anyone.`, localSmsConfig);
             if (res.success) alert(`OTP Test sent successfully. Code sent: ${testOtp}`);
             else alert(`Failed to send OTP test: ${res.message || "Verify your gateway settings."}${res.errorDetail ? `\n\nDetail: ${JSON.stringify(res.errorDetail)}` : ""}`);
         } catch (e) {
@@ -1649,8 +1653,9 @@ Please change it after login.`;
                         businessSubType: newInstData.category, // Mirror for legacy support
                         countyId: newInstData.countyId || undefined,
                         resellerId: isReseller ? undefined : (newInstData.resellerId || undefined),
-                        status: isReseller ? 'active' : 'trial',
-                        trialEndsAt: isReseller ? undefined : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+                        status: 'active',
+                        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                        subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                         institutionCode: `INST-${Date.now().toString().slice(-4)}`,
                         themeColor: '#4f46e5',
                         logoUrl: null,
