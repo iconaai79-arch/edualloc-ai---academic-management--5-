@@ -26,6 +26,10 @@ if (!SUPABASE_ANON_KEY) console.warn('[Supabase] Missing SUPABASE_ANON_KEY. Publ
 if (!SUPABASE_SERVICE_ROLE_KEY) console.warn('[Supabase] Missing SUPABASE_SERVICE_ROLE_KEY. Server-side API proxies will return 500.');
 else console.log('[Supabase] Service Role Key detected.');
 
+const safeAuthLock = async (_name: string, _acquireTimeout: number, fn: () => Promise<any>): Promise<any> => {
+    return await fn();
+};
+
 /**
  * FRONTEND CLIENT
  * - For browser/React usage
@@ -33,7 +37,14 @@ else console.log('[Supabase] Service Role Key detected.');
  */
 export let supabase: SupabaseClient | null =
     SUPABASE_URL && SUPABASE_ANON_KEY
-        ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                lock: safeAuthLock
+            }
+        })
         : null;
 
 /**
@@ -41,7 +52,14 @@ export let supabase: SupabaseClient | null =
  */
 export const initSupabase = (url: string, key: string) => {
     if (url && key) {
-        supabase = createClient(url, key);
+        supabase = createClient(url, key, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                lock: safeAuthLock
+            }
+        });
         return supabase;
     }
     return null;

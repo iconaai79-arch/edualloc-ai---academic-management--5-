@@ -4,6 +4,10 @@ export let supabase: SupabaseClient | null = null;
 
 let supabaseInstance: SupabaseClient | null = null;
 
+const safeAuthLock = async (_name: string, _acquireTimeout: number, fn: () => Promise<any>): Promise<any> => {
+    return await fn();
+};
+
 /**
  * Initializes or returns the existing Supabase client instance.
  * @param url The Supabase Project URL
@@ -15,9 +19,34 @@ export const initSupabase = (url: string, key: string, options?: any): SupabaseC
         throw new Error("Missing Supabase URL or Anon Key");
     }
 
+    const defaultOptions = {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            lock: safeAuthLock
+        },
+        global: {
+            headers: { 'x-application-name': 'eduai-academic' }
+        }
+    };
+
+    const finalOptions = {
+        ...defaultOptions,
+        ...options,
+        auth: {
+            ...defaultOptions.auth,
+            ...(options?.auth || {})
+        },
+        global: {
+            ...defaultOptions.global,
+            ...(options?.global || {})
+        }
+    };
+
     // Only re-initialize if the URL changes or instance is null
     if (!supabaseInstance || (supabaseInstance as any).supabaseUrl !== url) {
-        supabaseInstance = createClient(url, key, options);
+        supabaseInstance = createClient(url, key, finalOptions);
         supabase = supabaseInstance;
     }
 
