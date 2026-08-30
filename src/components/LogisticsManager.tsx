@@ -355,34 +355,45 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         }
     };
 
-    const handleGenerateInvoices = (cycle: BillingCycle, period: string) => {
+    const handleGenerateInvoices = async (cycle: BillingCycle, period: string, notifySms: boolean = true) => {
         const demoStudents = [
-            { id: 'st_1', name: 'Kelvin Kiprop',  admissionNumber: 'ADM/8821/24' },
-            { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24' },
-            { id: 'st_3', name: 'Liam Otieno',    admissionNumber: 'ADM/8774/24' },
-            { id: 'st_4', name: 'Chloe Kamau',    admissionNumber: 'ADM/9331/25' },
-            { id: 'st_5', name: 'Ethan Ndwiga',   admissionNumber: 'ADM/8109/23' },
+            { id: 'st_1', name: 'Kelvin Kiprop',  admissionNumber: 'ADM/8821/24', parentPhone: '0712345678' },
+            { id: 'st_2', name: 'Alisha Wanjiku', admissionNumber: 'ADM/9012/24', parentPhone: '0723456789' },
+            { id: 'st_3', name: 'Liam Otieno',    admissionNumber: 'ADM/8774/24', parentPhone: '0734567890' },
+            { id: 'st_4', name: 'Chloe Kamau',    admissionNumber: 'ADM/9331/25', parentPhone: '0745678901' },
+            { id: 'st_5', name: 'Ethan Ndwiga',   admissionNumber: 'ADM/8109/23', parentPhone: '0756789012' },
         ];
         const sourceStudents = students.length > 0
-            ? students.map(s => ({ id: s.id, name: s.name, admissionNumber: (s as any).admissionNumber || `ADM/${Math.floor(Math.random()*9000+1000)}/24` }))
+            ? students.map(s => {
+                const userObj = users.find(u => u.id === s.id || u.email === (s as any).email);
+                const phone = (s as any).parentPhone || (s as any).guardianPhoneNumber || (s as any).phoneNumber || userObj?.guardianPhoneNumber || userObj?.parentPhone || userObj?.phoneNumber;
+                return {
+                    id: s.id,
+                    name: s.name,
+                    admissionNumber: (s as any).admissionNumber || `ADM/${Math.floor(Math.random()*9000+1000)}/24`,
+                    parentPhone: phone || '0700000000'
+                };
+            })
             : demoStudents;
 
         const newInvoices: TransportFeeInvoice[] = [];
         const due = new Date(); due.setDate(due.getDate() + 14);
 
-        sourceStudents.forEach((student, idx) => {
+        for (let idx = 0; idx < sourceStudents.length; idx++) {
+            const student = sourceStudents[idx];
             const pref = studentCommutePrefs[student.id];
-            if (!pref || pref.preference === 'none') return;
+            if (!pref || pref.preference === 'none') continue;
             const route = routeFeeSetting.find(r => r.routeId === (pref?.routeId || ['route_1','route_2','route_3'][idx % 3]));
-            if (!route) return;
+            if (!route) continue;
             const oneWayPct = (route.oneWayPercentage ?? defaultOneWayPercentage ?? 60) / 100;
             const multiplier = pref.preference === 'round_trip' ? 1.0 : oneWayPct;
             const base = cycle === 'term' ? route.termFee : route.monthlyFee;
             const finalAmt = Math.round(base * multiplier);
-            if (finalAmt === 0) return;
+            if (finalAmt === 0) continue;
             // avoid duplicates for the same period
-            if (transportInvoices.some(i => i.studentId === student.id && i.period === period)) return;
-            newInvoices.push({
+            if (transportInvoices.some(i => i.studentId === student.id && i.period === period)) continue;
+
+            const inv: TransportFeeInvoice = {
                 id: `tinv_${Date.now()}_${idx}`,
                 studentId: student.id,
                 studentName: student.name,
@@ -398,14 +409,31 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 status: 'pending',
                 issuedDate: new Date().toISOString(),
                 dueDate: due.toISOString(),
-            });
-        });
+                parentPhone: student.parentPhone,
+            };
+
+            newInvoices.push(inv);
+
+            // Optional SMS invoice notification dispatch
+            if (notifySms && student.parentPhone && student.parentPhone !== '0700000000') {
+                const msg = `Dear Parent, Transport invoice of KES ${finalAmt.toLocaleString()} for ${student.name} (${student.admissionNumber}) on route ${route.routeName} (${period}) has been generated. Due date: ${due.toLocaleDateString()}. Thank you, ${currentInstitution?.name || 'School Transport Desk'}.`;
+                apiService.sendSms(student.parentPhone, msg, (currentInstitution as any)?.smsConfig, 1, currentInstitution?.id).catch(e => console.warn('SMS invoice dispatch error:', e));
+            }
+        }
+
         setTransportInvoices(prev => [...prev, ...newInvoices]);
     };
 
-    const handleMarkPaid = (invoiceId: string, method: string) => {
+    const handleMarkPaid = (invoiceId: string, method: string, transactionCode?: string) => {
         setTransportInvoices(prev => prev.map(i => i.id === invoiceId
-            ? { ...i, status: 'paid', paidDate: new Date().toISOString(), paymentMethod: method }
+            ? {
+                ...i,
+                status: 'paid',
+                paidDate: new Date().toISOString(),
+                paymentMethod: method,
+                transactionCode: transactionCode || i.transactionCode,
+                receiptNumber: `TR-REC-${invoiceId.slice(-6).toUpperCase()}`
+            }
             : i
         ));
     };
@@ -3138,6 +3166,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         onWaive={handleWaiveFee}
                         defaultOneWayPercentage={defaultOneWayPercentage}
                         onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
+                        currentInstitution={currentInstitution}
+                        users={users}
                     />
                 )}
                 {activeTab === 'reports' && renderReports()}
