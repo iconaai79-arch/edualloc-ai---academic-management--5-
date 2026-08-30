@@ -1079,12 +1079,30 @@ export interface Semester {
     sessions?: SemesterSession[];
 }
 
+export type StampMode = 'system_generated' | 'uploaded' | 'none';
+
+export interface OfficialStampConfig {
+    mode: StampMode;
+    stampImageUrl?: string | null;
+    inkColor?: string; // e.g. '#0047ab' (Royal Blue), '#1e3a8a' (Navy), '#4c1d95' (Violet), '#14532d' (Green), '#991b1b' (Crimson)
+    daterColor?: string; // e.g. '#dc2626' (Red dater like Kenyan stamps)
+    shape?: 'circle' | 'oval' | 'rectangle';
+    institutionName?: string;
+    addressLine?: string; // e.g. 'P.O BOX 1765-30100, ELDORET'
+    contactPhone?: string; // e.g. 'TEL: 0723348912'
+    department?: string; // e.g. 'FINANCE & BURSAR'
+    customDatePrefix?: string; // e.g. 'Date' or 'PAID ON'
+    showDate?: boolean;
+    rotationAngle?: number; // e.g. -3
+}
+
 export interface LetterheadConfig {
     headerImageUrl: string | null;
     stampImageUrl: string | null;
     footerImageUrl?: string | null;
     footerText?: string;
     showStamp?: boolean;
+    stampConfig?: OfficialStampConfig;
 }
 
 export interface SmsConfig {

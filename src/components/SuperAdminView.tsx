@@ -89,6 +89,8 @@ import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
 import { ZapIcon } from './icons/ZapIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
+import { StampCustomizerModal } from './common/StampCustomizerModal';
+import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 import { apiService } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
@@ -956,6 +958,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [localFtpConfig, setLocalFtpConfig] = useState<FtpConfig>(companyDetails?.ftpConfig || { host: '', port: 21, user: '', password: '', remoteRoot: '/', publicUrlRoot: '' });
     const [localKcbConfig, setLocalKcbConfig] = useState<KcbConfig>(companyDetails?.kcbConfig || { appKey: '', appSecret: '', environment: 'sandbox' });
     const [localCoopConfig, setLocalCoopConfig] = useState<CoopB2bConfig>(companyDetails?.coopConfig || { serviceName: 'KEWISCO SACCO', connectionID: 'TEST', connectionPassword: 'CoopTest', institutionCode: '210001918' });
+    const [isStampCustomizerOpen, setIsStampCustomizerOpen] = useState(false);
     const [coopIps, setCoopIps] = useState<{ serverIp: string; clientIp: string } | null>(null);
     const [localGoogleDriveConfig, setLocalGoogleDriveConfig] = useState<GoogleDriveConfig>(companyDetails?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', folderId: '', isActive: false });
     const [isTestingGoogleDrive, setIsTestingGoogleDrive] = useState(false);
@@ -4848,29 +4851,46 @@ Please change it after login.`;
                                                 </div>
 
                                                 <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Stamp Image</label>
-                                                    <label className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-500 transition-colors">
-                                                        <div className="p-2 bg-white rounded-lg shadow-sm">
-                                                            <ArrowUpTrayIcon className="w-5 h-5 text-indigo-600" />
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <p className="text-xs font-bold text-slate-700">Upload Stamp Image</p>
-                                                            <p className="text-[10px] text-slate-400">PNG with transparency (Max 1MB)</p>
-                                                        </div>
-                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleLocalImageUpload(e, 'stamp')} />
-                                                    </label>
-                                                    {localCompanyInfo.letterheadConfig?.stampImageUrl && (
-                                                        <div className="mt-3 flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                                            <img loading="lazy" src={localCompanyInfo.letterheadConfig.stampImageUrl} className="h-12 object-contain" alt="Stamp Preview" />
+                                                    <div className="flex items-center justify-between mb-3 ml-1">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                                            Official Rubber Stamp & Dater
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsStampCustomizerOpen(true)}
+                                                            className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                                        >
+                                                            <span>⚙️ Configure Stamp</span>
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-16 h-16 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1 overflow-hidden shadow-sm">
+                                                                <KenyanOfficialStamp
+                                                                    institution={companyDetails as any}
+                                                                    config={localCompanyInfo.letterheadConfig?.stampConfig}
+                                                                    date={new Date()}
+                                                                    size={56}
+                                                                />
+                                                            </div>
                                                             <div>
-                                                                <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Active Stamp</p>
-                                                                <button type="button" onClick={() => setLocalCompanyInfo({
-                                                                    ...localCompanyInfo,
-                                                                    letterheadConfig: { ...localCompanyInfo.letterheadConfig, stampImageUrl: null }
-                                                                } as any)} className="text-[9px] font-bold text-red-500 uppercase hover:underline">Remove Stamp</button>
+                                                                <p className="text-xs font-black uppercase text-slate-900 dark:text-white">
+                                                                    {localCompanyInfo.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'Uploaded Custom Stamp' : (localCompanyInfo.letterheadConfig?.stampConfig?.mode === 'none' ? 'No Stamp' : 'Dynamic Kenyan Dater Stamp')}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-400 font-medium">
+                                                                    {localCompanyInfo.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'Custom image stamp active' : 'Auto-updates date on receipts & vouchers'}
+                                                                </p>
                                                             </div>
                                                         </div>
-                                                    )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsStampCustomizerOpen(true)}
+                                                            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                                                        >
+                                                            Customize
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -8589,6 +8609,18 @@ Please change it after login.`;
                     onClose={() => setPdfPreviewData(null)}
                 />
             )}
+            <StampCustomizerModal
+                isOpen={isStampCustomizerOpen}
+                onClose={() => setIsStampCustomizerOpen(false)}
+                currentInstitution={companyDetails as any}
+                letterheadConfig={localCompanyInfo.letterheadConfig}
+                onSaveConfig={(updatedConfig) => {
+                    setLocalCompanyInfo(prev => ({
+                        ...prev,
+                        letterheadConfig: updatedConfig
+                    }));
+                }}
+            />
         </div>
     );
 };

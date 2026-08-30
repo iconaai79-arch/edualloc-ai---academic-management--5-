@@ -23,6 +23,8 @@ import { SubjectGroupingManager } from './SubjectGroupingManager';
 import { KcpeScoresManager } from './KcpeScoresManager';
 import { ExamConfigManager } from './ExamConfigManager';
 import { SubscriptionManager } from './SubscriptionManager';
+import { StampCustomizerModal } from './common/StampCustomizerModal';
+import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 import { supabase } from '../lib/supabase';
 import { apiService } from '../services/apiService';
 import { PrinterIcon } from './icons/PrinterIcon';
@@ -245,6 +247,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     ]);
     const [loadingBcCourses, setLoadingBcCourses] = useState(false);
     const [isGeneratingBcFee, setIsGeneratingBcFee] = useState(false);
+    const [isStampModalOpen, setIsStampModalOpen] = useState(false);
 
     const handleAddBcInstallment = () => {
         setBcInstallments(prev => [...prev, { label: `Installment ${prev.length + 1}`, amount: 5000 }]);
@@ -4435,7 +4438,142 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             </div>
                         )}
                         {generalSubTab === 'location' && <LocationSettings institution={props.currentInstitution} onSave={(id: string, data: any) => props.onUpdateInstitution && props.onUpdateInstitution(id, data)} />}
-                        {generalSubTab === 'branding' && ( /* ... branding UI ... */ <div className="space-y-6"><div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700"><div className="flex justify-between items-center mb-8"><h4 className="font-bold text-lg flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" /> Visual Brand Identity</h4><button onClick={() => setShowPaperPreview(!showPaperPreview)} className="text-[10px] font-black uppercase text-indigo-600 hover:underline flex items-center gap-1"><EyeIcon className="w-4 h-4" /> {showPaperPreview ? 'Hide Paper' : 'Preview Documents'}</button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-10"><div className="space-y-6"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Accent Theme Color</label><div className="flex gap-4 items-center"><input type="color" value={props.themeColor} onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.onUpdateThemeColor && props.onUpdateThemeColor(e.target.value)} className="h-12 w-24 p-1 rounded-xl border border-slate-200 bg-white cursor-pointer" /><span className="font-mono text-sm font-bold text-slate-500 uppercase">{props.themeColor}</span></div></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Corporate Seal / Logo</label><div className="flex items-center gap-6"><div className="h-20 w-20 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-100 shadow-inner">{props.logoUrl ? <img loading="lazy" src={props.logoUrl} alt="Logo" className="h-full w-full object-contain" /> : <BuildingOfficeIcon className="w-8 h-8 text-slate-200" />}</div><label className="btn-secondary text-[10px] h-10 px-4 flex items-center justify-center cursor-pointer">Update Emblem<input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'logo')} /></label></div></div></div><div className="space-y-4"><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Document Header (LPO/Receipts)</label><label className="btn-secondary h-24 w-full flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-6 h-6 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Header Banner</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'letterhead')} /></label></div><div><label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Official Report Footer</label><label className="btn-secondary h-16 w-full flex items-center justify-center gap-2 cursor-pointer border-dashed"><ArrowUpTrayIcon className="w-4 h-4 text-slate-300" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Footer Strip</span><input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'footer')} /></label></div></div></div></div>{showPaperPreview && (<div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top"><BrandedPaper institution={props.currentInstitution} letterheadConfig={props.letterheadConfig} footerImageUrl={props.footerImageUrl}><div className="h-96 flex flex-col items-center justify-center opacity-10 py-32"><ClipboardListIcon className="w-24 h-24 text-slate-900 mb-6" /><p className="text-2xl font-black text-slate-900 uppercase tracking-[0.2em]">Live Document Preview</p></div></BrandedPaper></div>)}</div>)}
+                        {generalSubTab === 'branding' && (
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <h4 className="font-bold text-lg flex items-center gap-2">
+                                            <SparklesIcon className="w-5 h-5 text-indigo-500" /> Visual Brand Identity & Letterhead
+                                        </h4>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPaperPreview(!showPaperPreview)}
+                                            className="text-[10px] font-black uppercase text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <EyeIcon className="w-4 h-4" /> {showPaperPreview ? 'Hide Paper' : 'Preview Documents'}
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                        <div className="space-y-6">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">
+                                                    Accent Theme Color
+                                                </label>
+                                                <div className="flex gap-4 items-center">
+                                                    <input
+                                                        type="color"
+                                                        value={props.themeColor}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.onUpdateThemeColor && props.onUpdateThemeColor(e.target.value)}
+                                                        className="h-12 w-24 p-1 rounded-xl border border-slate-200 bg-white cursor-pointer"
+                                                    />
+                                                    <span className="font-mono text-sm font-bold text-slate-500 uppercase">{props.themeColor}</span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">
+                                                    Corporate Seal / Logo
+                                                </label>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="h-20 w-20 rounded-2xl bg-slate-50 dark:bg-slate-900 flex items-center justify-center overflow-hidden border border-slate-100 shadow-inner">
+                                                        {props.logoUrl ? (
+                                                            <img loading="lazy" src={props.logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                                                        ) : (
+                                                            <BuildingOfficeIcon className="w-8 h-8 text-slate-200" />
+                                                        )}
+                                                    </div>
+                                                    <label className="btn-secondary text-[10px] h-10 px-4 flex items-center justify-center cursor-pointer">
+                                                        Update Emblem
+                                                        <input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'logo')} />
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            {/* Official Rubber Stamp Card */}
+                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">
+                                                        Official Rubber Stamp & Dater
+                                                    </label>
+                                                    <span className="text-[9px] font-bold uppercase text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
+                                                        {props.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'Custom Upload' : (props.letterheadConfig?.stampConfig?.mode === 'none' ? 'Disabled' : 'Dynamic Auto-Dater')}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-14 h-14 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-1 overflow-hidden shadow-sm flex-shrink-0">
+                                                            <KenyanOfficialStamp
+                                                                institution={props.currentInstitution}
+                                                                config={props.letterheadConfig?.stampConfig}
+                                                                date={new Date()}
+                                                                size={48}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black uppercase text-slate-900 dark:text-white">
+                                                                {props.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'Uploaded Custom Stamp' : (props.letterheadConfig?.stampConfig?.mode === 'none' ? 'No Stamp' : 'Kenyan Circular Stamp')}
+                                                            </p>
+                                                            <p className="text-[10px] text-slate-400 font-medium">
+                                                                {props.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'Custom image stamp active' : 'Auto-updates date on receipts & vouchers'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsStampModalOpen(true)}
+                                                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm flex-shrink-0"
+                                                    >
+                                                        Configure
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">
+                                                    Document Header (LPO/Receipts)
+                                                </label>
+                                                <label className="btn-secondary h-24 w-full flex flex-col items-center justify-center gap-2 cursor-pointer border-dashed">
+                                                    <ArrowUpTrayIcon className="w-6 h-6 text-slate-300" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Header Banner</span>
+                                                    <input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'letterhead')} />
+                                                </label>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">
+                                                    Official Report Footer
+                                                </label>
+                                                <label className="btn-secondary h-16 w-full flex items-center justify-center gap-2 cursor-pointer border-dashed">
+                                                    <ArrowUpTrayIcon className="w-4 h-4 text-slate-300" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Upload Footer Strip</span>
+                                                    <input type="file" className="hidden" accept="image/*" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleImageUpload(e, 'footer')} />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {showPaperPreview && (
+                                    <div className="mt-12 border-4 border-dashed border-slate-100 rounded-[3.5rem] p-6 bg-slate-50 animate-scale-in origin-top">
+                                        <BrandedPaper
+                                            institution={props.currentInstitution}
+                                            letterheadConfig={props.letterheadConfig}
+                                            footerImageUrl={props.footerImageUrl}
+                                        >
+                                            <div className="h-96 flex flex-col items-center justify-center opacity-10 py-32">
+                                                <ClipboardListIcon className="w-24 h-24 text-slate-900 mb-6" />
+                                                <p className="text-2xl font-black text-slate-900 uppercase tracking-[0.2em]">Live Document Preview</p>
+                                            </div>
+                                        </BrandedPaper>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {generalSubTab === 'exam_config' && <div className="animate-fade-in"><ExamConfigManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} subjects={props.subjects} academicLevels={props.academicLevels} courses={props.courses} users={props.users} /></div>}
                         {generalSubTab === 'grading' && <div className="animate-fade-in"><GradingSystemManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} courses={props.courses} users={props.users} subjects={props.subjects} academicLevels={props.academicLevels} /></div>}
                         {generalSubTab === 'subject_grouping' && <div className="animate-fade-in"><SubjectGroupingManager currentInstitution={props.currentInstitution} onUpdateInstitution={props.onUpdateInstitution} academicLevels={props.academicLevels} courses={props.courses} subjects={props.subjects} /></div>}
@@ -5833,6 +5971,16 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 )
             }
 
+            <StampCustomizerModal
+                isOpen={isStampModalOpen}
+                onClose={() => setIsStampModalOpen(false)}
+                currentInstitution={props.currentInstitution}
+                letterheadConfig={props.letterheadConfig}
+                onSaveConfig={(updatedConfig) => {
+                    props.onSaveLetterheadConfig?.(updatedConfig);
+                }}
+            />
+
             <style>{`
                 .form-input, .form-select { display: block; width: 100%; border-radius: 0.75rem; border: 1px solid #e2e8f0; padding: 0.625rem 0.875rem; background-color: #fff; font-size: 0.875rem; transition: all 0.2s; color: #1e293b; }
                 .dark .form-input, .dark .form-select { border-color: #334155; background-color: #0f172a; color: #fff; }
@@ -5843,5 +5991,5 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             `}</style>
         </div >
     );
-}
+};
 

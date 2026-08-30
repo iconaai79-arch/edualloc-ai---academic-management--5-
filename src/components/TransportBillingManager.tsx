@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 import type { Institution, User as UserType } from '../types';
+import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -507,15 +508,21 @@ const TransportReceiptModal: React.FC<{
                     </div>
 
                     {/* Stamp & Footer */}
-                    <div className="flex justify-between items-end pt-4 border-t border-slate-100">
-                        <div className="border-2 border-emerald-600 rounded-xl p-2.5 text-center text-emerald-700 transform -rotate-3 inline-block">
-                            <p className="text-[9px] font-black uppercase tracking-widest">PAID IN FULL</p>
-                            <p className="text-[8px] font-bold">{new Date(invoice.paidDate || invoice.issuedDate).toLocaleDateString()}</p>
+                    <div className="flex justify-between items-end pt-4 border-t border-slate-100 relative">
+                        <div className="flex-shrink-0">
+                            <KenyanOfficialStamp
+                                institution={institution}
+                                date={invoice.paidDate || invoice.issuedDate}
+                                departmentOverride="TRANSPORT DESK"
+                                size={120}
+                            />
                         </div>
                         <div className="text-right text-[10px] font-medium text-slate-400">
-                            <p>Authorized Bursar & Transport Signature</p>
-                            <div className="h-6"></div>
-                            <p className="font-bold text-slate-600">EduAI Automated Financial System</p>
+                            <p className="font-bold text-slate-700">Authorized Bursar & Transport Signature</p>
+                            <div className="h-6 flex items-center justify-end">
+                                <span className="font-serif italic text-slate-400 text-xs tracking-wider">Authorized Officer</span>
+                            </div>
+                            <p className="font-bold text-slate-500">EduAI Automated Financial System</p>
                         </div>
                     </div>
                 </div>

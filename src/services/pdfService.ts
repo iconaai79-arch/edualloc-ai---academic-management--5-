@@ -6,6 +6,7 @@ import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlot
 import { generatePastelColor, generatePastelColorRgb } from '../utils/colorUtils';
 import { getInitials } from '../utils/stringUtils';
 import { formatRoleDisplayName, isEduInstitution } from '../utils/roleUtils';
+import { generateStampDataUri } from '../utils/stampGenerator';
 
 
 // Use a safer way to access the global jsPDF object which might be on window or just global
@@ -731,7 +732,19 @@ export const generateReceiptPdfDataUri = async (
     const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
     const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
     const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
-    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
+    
+    // Dynamic Kenyan Stamp generation matching physical rubber dater stamp
+    let stampImg: HTMLImageElement | null = null;
+    if (letterConfig?.showStamp !== false && letterConfig?.stampConfig?.mode !== 'none') {
+        const dateToStamp = receipt?.paymentDate || transaction?.timestamp || new Date();
+        const stampDataUri = await generateStampDataUri(letterConfig?.stampConfig, dateToStamp, institution);
+        if (stampDataUri) {
+            stampImg = await loadImage(stampDataUri);
+        }
+    } else if (letterConfig?.stampImageUrl) {
+        stampImg = await loadImage(letterConfig.stampImageUrl);
+    }
+
     const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
 
@@ -782,17 +795,38 @@ export const generateCombinedReceiptsPdfDataUri = async (
     const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
     const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
     const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
-    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
+    const defaultStampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
     const footerText = letterConfig?.footerText || '';
     const logoImg = await loadImage(logoUrl);
 
     const total = receiptEntries.length;
+    const stampImageCache = new Map<string, HTMLImageElement | null>();
 
     for (let i = 0; i < total; i++) {
         if (i > 0) {
             doc.addPage();
         }
         const entry = receiptEntries[i];
+        
+        // Resolve dynamic stamp image for this receipt's payment date
+        let currentStampImg = defaultStampImg;
+        if (letterConfig?.showStamp !== false && letterConfig?.stampConfig?.mode !== 'none') {
+            const dateKey = String(entry.receipt?.paymentDate || entry.transaction?.timestamp || 'today');
+            if (stampImageCache.has(dateKey)) {
+                currentStampImg = stampImageCache.get(dateKey) || null;
+            } else {
+                const dateToStamp = entry.receipt?.paymentDate || entry.transaction?.timestamp || new Date();
+                const stampDataUri = await generateStampDataUri(letterConfig?.stampConfig, dateToStamp, institution);
+                if (stampDataUri) {
+                    const loaded = await loadImage(stampDataUri);
+                    stampImageCache.set(dateKey, loaded);
+                    currentStampImg = loaded;
+                } else {
+                    stampImageCache.set(dateKey, null);
+                }
+            }
+        }
+
         renderReceiptPageOnDoc(
             doc,
             entry.receipt,
@@ -802,7 +836,7 @@ export const generateCombinedReceiptsPdfDataUri = async (
             logoImg,
             headerImg,
             footerImg,
-            stampImg,
+            currentStampImg,
             footerText,
             entry.invoiceBalance,
             accountantName,
