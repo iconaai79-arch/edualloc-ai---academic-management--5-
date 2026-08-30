@@ -82,17 +82,29 @@ import { syncEngine } from '../services/syncEngine';
 import { OfflineSyncWidget } from './common/OfflineSyncWidget';
 // Robust dynamic chunk loading handler with automatic browser recovery
 function safeLazy<T extends React.ComponentType<any>>(
-    importFn: () => Promise<{ default: T } | T>
+    importFn: () => Promise<any>
 ): React.LazyExoticComponent<T> {
     return lazy(async () => {
         try {
-            const component = await importFn();
-            return 'default' in component ? component : { default: component } as any;
+            const res = await importFn();
+            if (!res) {
+                throw new Error("Dynamic module import returned undefined/null");
+            }
+            if (typeof res === 'object' && 'default' in res && res.default) {
+                return res;
+            }
+            return { default: res };
         } catch (error) {
             console.error("Dynamic import failed, attempting window reload to sync chunks:", error);
+            if ('caches' in window) {
+                caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+            }
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+            }
             const lastReload = sessionStorage.getItem('chunk_load_failed_reload');
             const now = Date.now();
-            if (!lastReload || now - parseInt(lastReload) > 15000) {
+            if (!lastReload || now - parseInt(lastReload) > 8000) {
                 sessionStorage.setItem('chunk_load_failed_reload', String(now));
                 window.location.reload();
             }
@@ -103,77 +115,77 @@ function safeLazy<T extends React.ComponentType<any>>(
 
 const PrivacyPolicy = safeLazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
-const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m.SpeechBuddyPortal })));
-const KidsCodingRoboticsStudio = safeLazy(() => import('./STEM/KidsCodingRoboticsStudio').then(m => ({ default: m.KidsCodingRoboticsStudio })));
-const IELTSPrepSuite = safeLazy(() => import('./IELTS/IELTSPrepSuite').then(m => ({ default: m.IELTSPrepSuite })));
-const SpeechTherapyReportGenerator = safeLazy(() => import('./SpeechTherapyReportGenerator').then(m => ({ default: m.SpeechTherapyReportGenerator })));
-const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then(m => ({ default: m.AIExamGenerator })));
-const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then(m => ({ default: m.NTSADrivingSimulator })));
-const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').then(m => ({ default: m.BeautyCollegeLogbook })));
-const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => ({ default: m.SchoolBusTracker })));
-const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m.FeePromissoryTracker })));
-const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m.CampaignPromiseTracker })));
-const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m.CommunicationsManager })));
-const DoctorAttendanceManager = safeLazy(() => import('./his/DoctorAttendanceManager').then(m => ({ default: m.DoctorAttendanceManager })));
-const OpdTriagePrescriptionManager = safeLazy(() => import('./his/OpdTriagePrescriptionManager').then(m => ({ default: m.OpdTriagePrescriptionManager })));
-const StudentSmartGatePassManager = safeLazy(() => import('./Academics/StudentSmartGatePassManager').then(m => ({ default: m.StudentSmartGatePassManager })));
-const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQualityCreditEngine').then(m => ({ default: m.FarmerMilkQualityCreditEngine })));
-const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then(m => ({ default: m.FleetMaintenanceTracker })));
-const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then(m => ({ default: m.CitizenGrievancePetitionDesk })));
-const BoardingHouseholdBalanceManager = safeLazy(() => import('./Finance/BoardingHouseholdBalanceManager').then(m => ({ default: m.BoardingHouseholdBalanceManager })));
-const PrivateSecurityCompanyView = safeLazy(() => import('./security/PrivateSecurityCompanyView').then(m => ({ default: m.PrivateSecurityCompanyView })));
+const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m?.SpeechBuddyPortal || m?.default || m })));
+const KidsCodingRoboticsStudio = safeLazy(() => import('./STEM/KidsCodingRoboticsStudio').then(m => ({ default: m?.KidsCodingRoboticsStudio || m?.default || m })));
+const IELTSPrepSuite = safeLazy(() => import('./IELTS/IELTSPrepSuite').then(m => ({ default: m?.IELTSPrepSuite || m?.default || m })));
+const SpeechTherapyReportGenerator = safeLazy(() => import('./SpeechTherapyReportGenerator').then(m => ({ default: m?.SpeechTherapyReportGenerator || m?.default || m })));
+const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then(m => ({ default: m?.AIExamGenerator || m?.default || m })));
+const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then(m => ({ default: m?.NTSADrivingSimulator || m?.default || m })));
+const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').then(m => ({ default: m?.BeautyCollegeLogbook || m?.default || m })));
+const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => ({ default: m?.SchoolBusTracker || m?.default || m })));
+const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m?.FeePromissoryTracker || m?.default || m })));
+const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m?.CampaignPromiseTracker || m?.default || m })));
+const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m?.CommunicationsManager || m?.default || m })));
+const DoctorAttendanceManager = safeLazy(() => import('./his/DoctorAttendanceManager').then(m => ({ default: m?.DoctorAttendanceManager || m?.default || m })));
+const OpdTriagePrescriptionManager = safeLazy(() => import('./his/OpdTriagePrescriptionManager').then(m => ({ default: m?.OpdTriagePrescriptionManager || m?.default || m })));
+const StudentSmartGatePassManager = safeLazy(() => import('./Academics/StudentSmartGatePassManager').then(m => ({ default: m?.StudentSmartGatePassManager || m?.default || m })));
+const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQualityCreditEngine').then(m => ({ default: m?.FarmerMilkQualityCreditEngine || m?.default || m })));
+const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then(m => ({ default: m?.FleetMaintenanceTracker || m?.default || m })));
+const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then(m => ({ default: m?.CitizenGrievancePetitionDesk || m?.default || m })));
+const BoardingHouseholdBalanceManager = safeLazy(() => import('./Finance/BoardingHouseholdBalanceManager').then(m => ({ default: m?.BoardingHouseholdBalanceManager || m?.default || m })));
+const PrivateSecurityCompanyView = safeLazy(() => import('./security/PrivateSecurityCompanyView').then(m => ({ default: m?.PrivateSecurityCompanyView || m?.default || m })));
 
 // Lazy-loaded major portals
-const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m.AdminView })));
-const SuperAdminView = safeLazy(() => import('./SuperAdminView').then(m => ({ default: m.SuperAdminView })));
-const LecturerView = safeLazy(() => import('./LecturerView').then(m => ({ default: m.LecturerView })));
-const StudentView = safeLazy(() => import('./StudentView').then(m => ({ default: m.StudentView })));
-const TenantPortalView = safeLazy(() => import('./TenantPortalView').then(m => ({ default: m.TenantPortalView })));
-const LandlordPortalView = safeLazy(() => import('./LandlordPortalView').then(m => ({ default: m.LandlordPortalView })));
-const PropertyManagementView = safeLazy(() => import('./PropertyManagementView').then(m => ({ default: m.PropertyManagementView })));
-const LibraryMasterView = safeLazy(() => import('./LibraryMasterView').then(m => ({ default: m.LibraryMasterView })));
-const AcademicsOfficerView = safeLazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
-const FinanceOfficerView = safeLazy(() => import('./Finance/FinanceOfficerView').then(m => ({ default: m.FinanceOfficerView })));
-const HROfficerView = safeLazy(() => import('./HR/HROfficerView').then(m => ({ default: m.HROfficerView })));
-const LibraryWarRoom = safeLazy(() => import('./Library/LibraryWarRoom').then(m => ({ default: m.LibraryWarRoom })));
-const CountyAdminView = safeLazy(() => import('./CountyAdminView').then(m => ({ default: m.CountyAdminView })));
-const ConstituencyAdminView = safeLazy(() => import('./ConstituencyAdminView').then(m => ({ default: m.ConstituencyAdminView })));
-const ParentView = safeLazy(() => import('./ParentView').then(m => ({ default: m.ParentView })));
-const PracticeTeacherView = safeLazy(() => import('./PracticeTeacherView').then(m => ({ default: m.PracticeTeacherView })));
-const CarWashView = safeLazy(() => import('./CarWashView').then(m => ({ default: m.CarWashView })));
-const CarWashCustomerPortal = safeLazy(() => import('./CarWashCustomerPortal').then(m => ({ default: m.CarWashCustomerPortal })));
-const AgrovetView = safeLazy(() => import('./AgrovetView').then(m => ({ default: m.AgrovetView })));
-const PropertyMarketplaceView = safeLazy(() => import('./PropertyMarketplaceView').then(m => ({ default: m.PropertyMarketplaceView })));
-const ChurchDashboard = safeLazy(() => import('./church/ChurchDashboard').then(m => ({ default: m.ChurchDashboard })));
-const FarmerPortal = safeLazy(() => import('./coop/FarmerPortal').then(m => ({ default: m.FarmerPortal })));
-const RiderPortal = safeLazy(() => import('./coop/RiderPortal').then(m => ({ default: m.RiderPortal })));
+const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m?.AdminView || m?.default || m })));
+const SuperAdminView = safeLazy(() => import('./SuperAdminView').then(m => ({ default: m?.SuperAdminView || m?.default || m })));
+const LecturerView = safeLazy(() => import('./LecturerView').then(m => ({ default: m?.LecturerView || m?.default || m })));
+const StudentView = safeLazy(() => import('./StudentView').then(m => ({ default: m?.StudentView || m?.default || m })));
+const TenantPortalView = safeLazy(() => import('./TenantPortalView').then(m => ({ default: m?.TenantPortalView || m?.default || m })));
+const LandlordPortalView = safeLazy(() => import('./LandlordPortalView').then(m => ({ default: m?.LandlordPortalView || m?.default || m })));
+const PropertyManagementView = safeLazy(() => import('./PropertyManagementView').then(m => ({ default: m?.PropertyManagementView || m?.default || m })));
+const LibraryMasterView = safeLazy(() => import('./LibraryMasterView').then(m => ({ default: m?.LibraryMasterView || m?.default || m })));
+const AcademicsOfficerView = safeLazy(() => import('./AcademicsOfficerView').then(m => ({ default: m?.AcademicsOfficerView || m?.default || m })));
+const FinanceOfficerView = safeLazy(() => import('./Finance/FinanceOfficerView').then(m => ({ default: m?.FinanceOfficerView || m?.default || m })));
+const HROfficerView = safeLazy(() => import('./HR/HROfficerView').then(m => ({ default: m?.HROfficerView || m?.default || m })));
+const LibraryWarRoom = safeLazy(() => import('./Library/LibraryWarRoom').then(m => ({ default: m?.LibraryWarRoom || m?.default || m })));
+const CountyAdminView = safeLazy(() => import('./CountyAdminView').then(m => ({ default: m?.CountyAdminView || m?.default || m })));
+const ConstituencyAdminView = safeLazy(() => import('./ConstituencyAdminView').then(m => ({ default: m?.ConstituencyAdminView || m?.default || m })));
+const ParentView = safeLazy(() => import('./ParentView').then(m => ({ default: m?.ParentView || m?.default || m })));
+const PracticeTeacherView = safeLazy(() => import('./PracticeTeacherView').then(m => ({ default: m?.PracticeTeacherView || m?.default || m })));
+const CarWashView = safeLazy(() => import('./CarWashView').then(m => ({ default: m?.CarWashView || m?.default || m })));
+const CarWashCustomerPortal = safeLazy(() => import('./CarWashCustomerPortal').then(m => ({ default: m?.CarWashCustomerPortal || m?.default || m })));
+const AgrovetView = safeLazy(() => import('./AgrovetView').then(m => ({ default: m?.AgrovetView || m?.default || m })));
+const PropertyMarketplaceView = safeLazy(() => import('./PropertyMarketplaceView').then(m => ({ default: m?.PropertyMarketplaceView || m?.default || m })));
+const ChurchDashboard = safeLazy(() => import('./church/ChurchDashboard').then(m => ({ default: m?.ChurchDashboard || m?.default || m })));
+const FarmerPortal = safeLazy(() => import('./coop/FarmerPortal').then(m => ({ default: m?.FarmerPortal || m?.default || m })));
+const RiderPortal = safeLazy(() => import('./coop/RiderPortal').then(m => ({ default: m?.RiderPortal || m?.default || m })));
 const BoardingMasterView = safeLazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = safeLazy(() => import('./ResellerDashboard'));
-const EventManagementView = safeLazy(() => import('./events/EventManagementView').then(m => ({ default: m.EventManagementView })));
-const TenantStorefrontView = safeLazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m.TenantStorefrontView })));
-const SchoolStorefrontView = safeLazy(() => import('./public/SchoolStorefrontView').then(m => ({ default: m.SchoolStorefrontView })));
-const CommunityHubView = safeLazy(() => import('./public/CommunityHubView').then(m => ({ default: m.CommunityHubView })));
-const TransportHubView = safeLazy(() => import('./public/TransportHubView').then(m => ({ default: m.TransportHubView })));
-const HospitalityStorefront = safeLazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m.HospitalityStorefront })));
-const HospitalityMarketplace = safeLazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m.HospitalityMarketplace })));
-const CampaignJoinPage = safeLazy(() => import('./public/CampaignJoinPage').then(m => ({ default: m.CampaignJoinPage })));
-const FuelStationDashboard = safeLazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
+const EventManagementView = safeLazy(() => import('./events/EventManagementView').then(m => ({ default: m?.EventManagementView || m?.default || m })));
+const TenantStorefrontView = safeLazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m?.TenantStorefrontView || m?.default || m })));
+const SchoolStorefrontView = safeLazy(() => import('./public/SchoolStorefrontView').then(m => ({ default: m?.SchoolStorefrontView || m?.default || m })));
+const CommunityHubView = safeLazy(() => import('./public/CommunityHubView').then(m => ({ default: m?.CommunityHubView || m?.default || m })));
+const TransportHubView = safeLazy(() => import('./public/TransportHubView').then(m => ({ default: m?.TransportHubView || m?.default || m })));
+const HospitalityStorefront = safeLazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m?.HospitalityStorefront || m?.default || m })));
+const HospitalityMarketplace = safeLazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m?.HospitalityMarketplace || m?.default || m })));
+const CampaignJoinPage = safeLazy(() => import('./public/CampaignJoinPage').then(m => ({ default: m?.CampaignJoinPage || m?.default || m })));
+const FuelStationDashboard = safeLazy(() => import('./FuelStationDashboard').then(m => ({ default: m?.FuelStationDashboard || m?.default || m })));
 const CivilWorksDashboard = safeLazy(() => import('./CivilWorksDashboard'));
 const LogisticsDashboard = safeLazy(() => import('./LogisticsDashboard'));
-const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').then(m => ({ default: m.CampaignSocialPortal })));
-const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then(m => ({ default: m.CampaignLoginView })));
-const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m.PublicCarInvoicePayment })));
-const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m.PublicEventRegistration })));
-const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m.PublicEventConfirmation })));
-const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then(m => ({ default: m.PublicVisitorAuthorization })));
-const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m.DrivingSchoolManager })));
-const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m.PublicInvoiceView })));
-const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then(m => ({ default: m.PublicResultSlipPortal })));
-const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m.DSInterestPage })));
-const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m.RestaurantPOSManager })));
+const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').then(m => ({ default: m?.CampaignSocialPortal || m?.default || m })));
+const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then(m => ({ default: m?.CampaignLoginView || m?.default || m })));
+const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m?.PublicCarInvoicePayment || m?.default || m })));
+const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m?.PublicEventRegistration || m?.default || m })));
+const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m?.PublicEventConfirmation || m?.default || m })));
+const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then(m => ({ default: m?.PublicVisitorAuthorization || m?.default || m })));
+const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m?.DrivingSchoolManager || m?.default || m })));
+const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m?.PublicInvoiceView || m?.default || m })));
+const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then(m => ({ default: m?.PublicResultSlipPortal || m?.default || m })));
+const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m?.DSInterestPage || m?.default || m })));
+const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m?.RestaurantPOSManager || m?.default || m })));
 import HealthCoreView from './his/HealthCoreView';
 import ModernPharmacyManager from './his/ModernPharmacyManager';
-const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then(m => ({ default: m.CarServiceView })));
+const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then(m => ({ default: m?.CarServiceView || m?.default || m })));
 
 
 
