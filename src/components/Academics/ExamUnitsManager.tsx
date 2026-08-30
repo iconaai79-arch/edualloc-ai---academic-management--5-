@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
+import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
 import { PlusIcon } from '../icons/PlusIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
