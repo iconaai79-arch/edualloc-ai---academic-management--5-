@@ -93,8 +93,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     // Vehicles state & API operations for Vehicle Registration tab & fleet selections
     const [dbVehicles, setDbVehicles] = useState<any[]>(() => {
-        const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_vehicles');
+        const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
+        const saved = key ? localStorage.getItem(key) : null;
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -109,8 +109,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 { id: 'vh_demo_2', plateNumber: 'KBB 120Z', model: 'Bus 02', vehicleType: 'bus', capacity: 33, status: 'active', institutionId: currentInstitution?.id, driverName: 'James Kamau' },
                 { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
             ];
-            localStorage.setItem(key, JSON.stringify(demo));
-            localStorage.setItem('eduai_vehicles', JSON.stringify(demo));
+            if (key) localStorage.setItem(key, JSON.stringify(demo));
             return demo;
         }
         return [];
@@ -118,16 +117,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
     const fetchVehiclesList = async () => {
+        if (!currentInstitution?.id) return;
         setIsLoadingVehicles(true);
         try {
-            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
+            const key = `eduai_vehicles_${currentInstitution.id}`;
             const apiRecords = await apiService.fetchModuleRecords('vehicles', currentInstitution.id).catch(() => []);
             if (Array.isArray(apiRecords) && apiRecords.length > 0) {
                 setDbVehicles(apiRecords);
                 localStorage.setItem(key, JSON.stringify(apiRecords));
-                localStorage.setItem('eduai_vehicles', JSON.stringify(apiRecords));
             } else {
-                const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_vehicles');
+                const saved = localStorage.getItem(key);
                 if (saved !== null) {
                     try {
                         const parsed = JSON.parse(saved);
@@ -141,7 +140,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     ];
                     setDbVehicles(demo);
                     localStorage.setItem(key, JSON.stringify(demo));
-                    localStorage.setItem('eduai_vehicles', JSON.stringify(demo));
                 } else {
                     setDbVehicles([]);
                 }
@@ -155,7 +153,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     React.useEffect(() => {
         fetchVehiclesList();
-    }, [currentInstitution.id]);
+    }, [currentInstitution?.id]);
 
     const handleAddVehicle = async (vehicleData: any) => {
         try {
@@ -166,9 +164,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             };
             const next = [newVehicle, ...dbVehicles];
             setDbVehicles(next);
-            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
-            localStorage.setItem(key, JSON.stringify(next));
-            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
+            if (key) localStorage.setItem(key, JSON.stringify(next));
 
             await apiService.saveModuleRecord('vehicles', newVehicle).catch(() => {});
         } catch (err: any) {
@@ -256,10 +253,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             : a
         ));
     };
-    // ── TRANSPORT BILLING STATE ────────────────────────────────────────────────
+    // ── TRANSPORT BILLING & ROUTES STATE (SCOPED STRICTLY BY INSTITUTION) ────
     const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>(() => {
         const instKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_route_fee_settings');
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -268,25 +265,27 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 console.error('Error parsing route settings:', e);
             }
         }
-        const defaultFees = [
-            { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
-            { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
-            { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
-        ];
-        if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultFees));
-        localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(defaultFees));
-        return defaultFees;
+        if (currentInstitution?.id?.startsWith('demo_')) {
+            const defaultFees = [
+                { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
+                { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
+                { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
+            ];
+            if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultFees));
+            return defaultFees;
+        }
+        return [];
     });
 
     React.useEffect(() => {
-        const key = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
+        if (!currentInstitution?.id) return;
+        const key = `eduai_transport_route_fee_settings_${currentInstitution.id}`;
         localStorage.setItem(key, JSON.stringify(routeFeeSetting));
-        localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(routeFeeSetting));
     }, [routeFeeSetting, currentInstitution?.id]);
 
     const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
-        const key = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : 'eduai_transport_fee_invoices';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_transport_fee_invoices');
+        const key = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : null;
+        const saved = key ? localStorage.getItem(key) : null;
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -299,14 +298,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
-        const key = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : 'eduai_transport_fee_invoices';
+        if (!currentInstitution?.id) return;
+        const key = `eduai_transport_fee_invoices_${currentInstitution.id}`;
         localStorage.setItem(key, JSON.stringify(transportInvoices));
-        localStorage.setItem('eduai_transport_fee_invoices', JSON.stringify(transportInvoices));
     }, [transportInvoices, currentInstitution?.id]);
 
     const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
         const instKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_student_commute_prefs');
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
@@ -319,14 +318,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
-        const key = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
+        if (!currentInstitution?.id) return;
+        const key = `eduai_student_commute_prefs_${currentInstitution.id}`;
         localStorage.setItem(key, JSON.stringify(studentCommutePrefs));
-        localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(studentCommutePrefs));
     }, [studentCommutePrefs, currentInstitution?.id]);
 
     const [defaultOneWayPercentage, setDefaultOneWayPercentage] = useState<number>(() => {
         const instKey = currentInstitution?.id ? `eduai_transport_oneway_pct_${currentInstitution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_oneway_pct');
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved !== null) {
             const val = Number(saved);
             if (!isNaN(val) && val >= 1 && val <= 100) return val;
@@ -335,10 +334,114 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     });
 
     React.useEffect(() => {
-        const key = currentInstitution?.id ? `eduai_transport_oneway_pct_${currentInstitution.id}` : 'eduai_transport_oneway_pct';
+        if (!currentInstitution?.id) return;
+        const key = `eduai_transport_oneway_pct_${currentInstitution.id}`;
         localStorage.setItem(key, String(defaultOneWayPercentage));
-        localStorage.setItem('eduai_transport_oneway_pct', String(defaultOneWayPercentage));
     }, [defaultOneWayPercentage, currentInstitution?.id]);
+
+    // School Bus Routes State
+    const [busRoutes, setBusRoutes] = useState<Array<{
+        id: string;
+        name: string;
+        startPoint: string;
+        endPoint: string;
+        bus: string;
+        driver: string;
+        attendant: string;
+    }>>(() => {
+        const instKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : null;
+        const saved = instKey ? localStorage.getItem(instKey) : null;
+        if (saved !== null) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (e) {
+                console.error('Error parsing bus routes from localStorage:', e);
+            }
+        }
+        if (currentInstitution?.id?.startsWith('demo_')) {
+            const defaultRoutes = [
+                { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+                { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+                { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+            ];
+            if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultRoutes));
+            return defaultRoutes;
+        }
+        return [];
+    });
+
+    React.useEffect(() => {
+        if (!currentInstitution?.id) return;
+        const key = `eduai_transport_bus_routes_${currentInstitution.id}`;
+        localStorage.setItem(key, JSON.stringify(busRoutes));
+    }, [busRoutes, currentInstitution?.id]);
+
+    // Synchronize all states whenever institution switches to guarantee 100% tenant isolation
+    React.useEffect(() => {
+        if (!currentInstitution?.id) return;
+        
+        // 1. Bus Routes
+        const routeKey = `eduai_transport_bus_routes_${currentInstitution.id}`;
+        const savedRoutes = localStorage.getItem(routeKey);
+        if (savedRoutes !== null) {
+            try { setBusRoutes(JSON.parse(savedRoutes)); } catch (e) { setBusRoutes([]); }
+        } else if (currentInstitution.id.startsWith('demo_')) {
+            const demoRoutes = [
+                { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+                { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+                { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+            ];
+            setBusRoutes(demoRoutes);
+            localStorage.setItem(routeKey, JSON.stringify(demoRoutes));
+        } else {
+            setBusRoutes([]);
+        }
+
+        // 2. Route Fees
+        const feeKey = `eduai_transport_route_fee_settings_${currentInstitution.id}`;
+        const savedFees = localStorage.getItem(feeKey);
+        if (savedFees !== null) {
+            try { setRouteFeeSetting(JSON.parse(savedFees)); } catch (e) { setRouteFeeSetting([]); }
+        } else if (currentInstitution.id.startsWith('demo_')) {
+            const demoFees = [
+                { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
+                { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
+                { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
+            ];
+            setRouteFeeSetting(demoFees);
+            localStorage.setItem(feeKey, JSON.stringify(demoFees));
+        } else {
+            setRouteFeeSetting([]);
+        }
+
+        // 3. Invoices
+        const invKey = `eduai_transport_fee_invoices_${currentInstitution.id}`;
+        const savedInvs = localStorage.getItem(invKey);
+        if (savedInvs !== null) {
+            try { setTransportInvoices(JSON.parse(savedInvs)); } catch (e) { setTransportInvoices([]); }
+        } else {
+            setTransportInvoices([]);
+        }
+
+        // 4. Commute Preferences
+        const prefKey = `eduai_student_commute_prefs_${currentInstitution.id}`;
+        const savedPrefs = localStorage.getItem(prefKey);
+        if (savedPrefs !== null) {
+            try { setStudentCommutePrefs(JSON.parse(savedPrefs)); } catch (e) { setStudentCommutePrefs({}); }
+        } else {
+            setStudentCommutePrefs({});
+        }
+
+        // 5. One Way %
+        const pctKey = `eduai_transport_oneway_pct_${currentInstitution.id}`;
+        const savedPct = localStorage.getItem(pctKey);
+        if (savedPct !== null) {
+            setDefaultOneWayPercentage(Number(savedPct) || 60);
+        } else {
+            setDefaultOneWayPercentage(60);
+        }
+    }, [currentInstitution?.id]);
 
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
@@ -453,41 +556,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         'run_3': { cleared: true, checkedOutBy: 'Officer Grace M.', checkedOutAt: '03:15 PM' },
     });
 
-    // School Bus Routes State
-    const [busRoutes, setBusRoutes] = useState<Array<{
-        id: string;
-        name: string;
-        startPoint: string;
-        endPoint: string;
-        bus: string;
-        driver: string;
-        attendant: string;
-    }>>(() => {
-        const instKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_bus_routes');
-        if (saved !== null) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) return parsed;
-            } catch (e) {
-                console.error('Error parsing bus routes from localStorage:', e);
-            }
-        }
-        const defaultRoutes = [
-            { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: 'Westlands School Gate', bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-            { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: 'Westlands School Gate', bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
-            { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: 'Westlands School Gate', bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-        ];
-        if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultRoutes));
-        localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(defaultRoutes));
-        return defaultRoutes;
-    });
-
-    React.useEffect(() => {
-        const key = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
-        localStorage.setItem(key, JSON.stringify(busRoutes));
-        localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(busRoutes));
-    }, [busRoutes, currentInstitution?.id]);
+    // Remove redundant old busRoutes definition (already hoisted above)
 
     // Route Registration & Editing Modal States
     const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
@@ -600,12 +669,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setBusRoutes(nextRoutes);
         setRouteFeeSetting(nextFees);
 
-        const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
-        const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
-        localStorage.setItem(routeKey, JSON.stringify(nextRoutes));
-        localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(nextRoutes));
-        localStorage.setItem(feeKey, JSON.stringify(nextFees));
-        localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(nextFees));
+        const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : null;
+        const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : null;
+        if (routeKey) localStorage.setItem(routeKey, JSON.stringify(nextRoutes));
+        if (feeKey) localStorage.setItem(feeKey, JSON.stringify(nextFees));
 
         // Clean up student preferences assigned to this route
         setStudentCommutePrefs(prev => {
@@ -615,25 +682,34 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     delete next[stId];
                 }
             });
-            const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
-            localStorage.setItem(prefKey, JSON.stringify(next));
-            localStorage.setItem('eduai_student_commute_prefs', JSON.stringify(next));
+            const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
+            if (prefKey) localStorage.setItem(prefKey, JSON.stringify(next));
             return next;
         });
     };
 
-    const students = useMemo(() => users.filter(u => u.role === 'student'), [users]);
+    // Filter users strictly to current institution to prevent cross-institution data bleed
+    const institutionUsers = useMemo(() => {
+        if (!currentInstitution?.id) return users;
+        return users.filter(u => {
+            const uInst = u.institutionId || (u as any).institution_id || (u as any).schoolId;
+            return !uInst || uInst === currentInstitution.id;
+        });
+    }, [users, currentInstitution?.id]);
+
+    const students = useMemo(() => institutionUsers.filter(u => u.role === 'student'), [institutionUsers]);
+    const drivers = useMemo(() => institutionUsers.filter(u => u.role === 'driver' || u.roles?.includes('driver')), [institutionUsers]);
+    const assistants = useMemo(() => institutionUsers.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant') || u.role === 'staff'), [institutionUsers]);
 
     // Automatically map existing students to initial routes ONLY on first-ever load if nothing has been saved yet
     React.useEffect(() => {
-        if (!isEduTransport) return;
-        const key = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : 'eduai_student_commute_prefs';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_student_commute_prefs');
+        if (!isEduTransport || !currentInstitution?.id) return;
+        const key = `eduai_student_commute_prefs_${currentInstitution.id}`;
+        const saved = localStorage.getItem(key);
         if (saved !== null) {
-            // User already has saved preferences (even if empty after deleting routes), do NOT overwrite!
             return;
         }
-        if (busRoutes.length === 0) return;
+        if (busRoutes.length === 0 || students.length === 0) return;
         const initialPrefs: typeof studentCommutePrefs = {};
         students.forEach((student, index) => {
             const routes = busRoutes.map(r => r.id);
@@ -741,9 +817,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         return () => clearInterval(interval);
     }, [isEduTransport]);
 
-    const drivers = useMemo(() => users.filter(u => u.role === 'driver' || u.roles?.includes('driver')), [users]);
-    const assistants = useMemo(() => users.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant') || u.role === 'staff'), [users]);
-
     const availableVehicleOptions = useMemo(() => {
         if (dbVehicles && dbVehicles.length > 0) {
             return dbVehicles.map(v => {
@@ -771,13 +844,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     }, [dbVehicles, currentInstitution?.id]);
 
     const displayStudents = useMemo(() => {
-        const rawStudents = students.length > 0 ? students : [
+        const rawStudents = students.length > 0 ? students : (currentInstitution?.id?.startsWith('demo_') ? [
             { id: 'st_1', name: 'Kelvin Kiprop', role: 'student', studentClass: 'Grade 4', stream: 'North', metadata: { admissionNumber: 'ADM/8821/24', studentClass: 'Grade 4', stream: 'North' } },
             { id: 'st_2', name: 'Alisha Wanjiku', role: 'student', studentClass: 'Grade 3', stream: 'East', metadata: { admissionNumber: 'ADM/9012/24', studentClass: 'Grade 3', stream: 'East' } },
             { id: 'st_3', name: 'Liam Otieno', role: 'student', studentClass: 'Grade 5', stream: 'West', metadata: { admissionNumber: 'ADM/8774/24', studentClass: 'Grade 5', stream: 'West' } },
             { id: 'st_4', name: 'Chloe Kamau', role: 'student', studentClass: 'Grade 2', stream: 'Blue', metadata: { admissionNumber: 'ADM/9331/25', studentClass: 'Grade 2', stream: 'Blue' } },
             { id: 'st_5', name: 'Ethan Ndwiga', role: 'student', studentClass: 'Grade 6', stream: 'Gold', metadata: { admissionNumber: 'ADM/8109/23', studentClass: 'Grade 6', stream: 'Gold' } },
-        ];
+        ] : []);
 
         return rawStudents.map(s => {
             const resolvedAdm = getStudentResolvedAdm(s, true);
@@ -795,7 +868,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 stream: stream || ''
             };
         });
-    }, [students]);
+    }, [students, currentInstitution?.id]);
 
     // Dynamic list of unique classes for filtering
     const availableClasses = useMemo(() => {
@@ -886,40 +959,49 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         s.clientName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const activeCommutersCount = useMemo(() => {
+        return Object.values(studentCommutePrefs).filter(p => p.preference && p.preference !== 'none').length;
+    }, [studentCommutePrefs]);
+
     const stats = isSACCO ? [
         { label: 'SACCO Members', value: '42', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Fleet Strength', value: '124', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Fleet Strength', value: dbVehicles.length.toString(), icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Trip Commission', value: 'KES 84k', icon: Receipt, color: 'text-green-600', bg: 'bg-green-50' },
         { label: 'Pending Licenses', value: '8', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
     ] : isShuttle ? [
         { label: 'Total Passengers', value: users.length.toString(), icon: User, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Active Shuttles', value: '8', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Active Shuttles', value: dbVehicles.length > 0 ? dbVehicles.length.toString() : '8', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Seat Occupancy', value: '74%', icon: Armchair, color: 'text-green-600', bg: 'bg-green-50' },
         { label: 'Departures (Today)', value: '14', icon: DoorOpen, color: 'text-purple-600', bg: 'bg-purple-50' },
     ] : isEduTransport ? [
-        { label: 'School Buses on Route', value: '5', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-        { label: 'Commuting Students', value: '184', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'GPS Signal Feed', value: 'Active', icon: MapPin, color: 'text-green-600', bg: 'bg-green-50' },
-        { label: 'School Trips Today', value: '2', icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { label: 'Registered Bus Routes', value: busRoutes.length.toString(), icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Commuting Students', value: activeCommutersCount.toString(), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: 'GPS Signal Feed', value: busRoutes.length > 0 ? 'Active' : 'Standby', icon: MapPin, color: 'text-green-600', bg: 'bg-green-50' },
+        { label: 'School Trips Today', value: schoolTrips.length.toString(), icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-50' },
     ] : [
         { label: 'Active Shipments', value: '24', icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: 'Idle Fleet', value: '3', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+        { label: 'Idle Fleet', value: dbVehicles.length.toString(), icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50' },
         { label: 'Fuel Efficiency', value: '88%', icon: Fuel, color: 'text-green-600', bg: 'bg-green-50' },
         { label: 'Delayed', value: '2', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
     ];
 
     const renderStudentCommute = () => {
-        const schoolRuns = busRoutes.map((r, idx) => ({
-            id: `run_${r.id}`,
-            routeName: r.name,
-            runType: idx % 2 === 0 ? 'Morning Pick-up' : 'Afternoon Drop-off',
-            driver: r.driver || 'Douglas Omwamba',
-            vehicle: r.bus || (availableVehicleOptions[0]?.label || 'Unassigned Vehicle'),
-            attendant: r.attendant || 'Sarah Wanjiku',
-            status: idx === 0 ? 'boarding' : idx === 1 ? 'in_transit' : 'completed',
-            students: '24/30',
-            startTime: idx % 2 === 0 ? '06:15 AM' : '03:30 PM'
-        }));
+        const schoolRuns = busRoutes.map((r, idx) => {
+            const enrolledCount = Object.values(studentCommutePrefs).filter(p => p.routeId === r.id && p.preference !== 'none').length;
+            const matchedVeh = availableVehicleOptions.find(v => v.label === r.bus || v.plate === r.bus);
+            const cap = matchedVeh?.capacity || '30';
+            return {
+                id: `run_${r.id}`,
+                routeName: r.name,
+                runType: idx % 2 === 0 ? 'Morning Pick-up' : 'Afternoon Drop-off',
+                driver: r.driver || (matchedVeh?.driver || 'Unassigned Driver'),
+                vehicle: r.bus || (availableVehicleOptions[0]?.label || 'Unassigned Vehicle'),
+                attendant: r.attendant || 'Assigned Staff',
+                status: idx === 0 ? 'boarding' : idx === 1 ? 'in_transit' : 'completed',
+                students: `${enrolledCount}/${cap}`,
+                startTime: idx % 2 === 0 ? '06:15 AM' : '03:30 PM'
+            };
+        });
 
         const filteredRuns = schoolRuns.filter(r => 
             r.routeName.toLowerCase().includes(searchTerm.toLowerCase()) || 
