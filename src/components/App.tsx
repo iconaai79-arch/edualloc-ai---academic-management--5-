@@ -1046,7 +1046,7 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
     EXECUTE FUNCTION allocate_tenant_sms_bonus();
                         `).catch(() => {});
 
-                        apiService.runMigration(\`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;\`).catch(() => {});
+                        apiService.runMigration(`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;`).catch(() => {});
 
                         apiService.runMigration(`
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT);
