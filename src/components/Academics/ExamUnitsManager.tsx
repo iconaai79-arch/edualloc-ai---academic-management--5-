@@ -851,195 +851,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return s.id || '';
     }, []);
 
-    // Update real students whenever users prop arrives or changes
-    useEffect(() => {
-        const fromProps = (users || []).filter(isStudentUser);
-        if (fromProps.length > 0) {
-            setAllRealStudents(prev => {
-                const map = new Map<string, any>();
-                prev.forEach(p => {
-                    const k = getStudentDedupKey(p);
-                    if (k) map.set(k, p);
-                });
-                fromProps.forEach(st => {
-                    const k = getStudentDedupKey(st);
-                    if (k && !map.has(k)) {
-                        map.set(k, st);
-                    }
-                });
-                return Array.from(map.values());
-            });
-        }
-    }, [users, isStudentUser, getStudentDedupKey]);
-
-    useEffect(() => {
-        if (currentInstitution?.id) {
-            Promise.all([
-                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
-            ]).then(([enrRecords, stRecords, userRecords]) => {
-                // Build userId → user lookup for hydrating enrollment records
-                const userById = new Map<string, any>();
-                [...(stRecords || []), ...(userRecords || [])].forEach(u => {
-                    if (u?.id) userById.set(u.id, u);
-                    if (u?.userId) userById.set(u.userId, u);
-                });
-
-                // Hydrate enrollment records: inject name from linked user or from metadata
-                const hydratedEnrollments: any[] = (enrRecords || []).map((enr: any) => {
-                    if (!enr) return null;
-                    const linkedUser = (enr.userId ? userById.get(enr.userId) : null) || (enr.user_id ? userById.get(enr.user_id) : null);
-                    const resolvedName =
-                        (linkedUser?.name && !linkedUser.name.toLowerCase().startsWith('student ') ? linkedUser.name : null) ||
-                        enr.metadata?.studentName ||
-                        enr.metadata?.name ||
-                        enr.metadata?.fullName ||
-                        linkedUser?.name ||
-                        enr.name ||
-                        null;
-
-                    // Resolve admission number
-                    const resolvedAdm =
-                        enr.admissionNumber || enr.admission_number || enr.admNo ||
-                        linkedUser?.admissionNumber || linkedUser?.admission_number || linkedUser?.admNo ||
-                        enr.metadata?.admissionNumber || enr.metadata?.admNo || null;
-
-                    // Resolve class/grade
-                    const resolvedClass =
-                        enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.metadata?.class ||
-                        linkedUser?.studentClass || linkedUser?.classLevel || linkedUser?.grade ||
-                        enr.studentClass || enr.gradeLevel || enr.grade || null;
-
-                    return {
-                        ...enr,
-                        // Overlay resolved fields so resolveCleanStudentName & getStudentClass work
-                        name: resolvedName || enr.name || '',
-                        admissionNumber: resolvedAdm || enr.admissionNumber,
-                        studentClass: resolvedClass || enr.studentClass,
-                        // Keep metadata for fallback lookups
-                        metadata: {
-                            ...(enr.metadata || {}),
-                            ...(resolvedName ? { studentName: resolvedName } : {}),
-                            ...(resolvedClass ? { gradeLevel: resolvedClass } : {}),
-                        }
-                    };
-                }).filter(Boolean);
-
-                const unifiedStudentMap = new Map<string, any>();
-
-                // 1. Process enrollment records first (primary source for active class enrollment)
-                hydratedEnrollments.forEach((enr: any) => {
-                    if (!enr) return;
-                    const key = getStudentDedupKey(enr);
-                    if (key) unifiedStudentMap.set(key, enr);
-                });
-
-                // 2. Process student registry & user records without creating duplicate rows
-                [...(stRecords || []), ...(userRecords || [])].forEach((u: any) => {
-                    if (!u || !isStudentUser(u)) return;
-                    const key = getStudentDedupKey(u);
-                    if (!key) return;
-
-                    const existing = unifiedStudentMap.get(key);
-                    if (!existing) {
-                        unifiedStudentMap.set(key, u);
-                    } else {
-                        // Merge attributes preferring better names and canonical class
-                        const existingNameOk = existing.name && !existing.name.toLowerCase().startsWith('student ') && existing.name.trim().length > 2;
-                        const newNameOk = u.name && !u.name.toLowerCase().startsWith('student ') && u.name.trim().length > 2;
-                        unifiedStudentMap.set(key, {
-                            ...u,
-                            ...existing,
-                            name: existingNameOk ? existing.name : (newNameOk ? u.name : (existing.name || u.name)),
-                            studentClass: existing.studentClass || u.studentClass || existing.classLevel || u.classLevel || existing.grade || u.grade,
-                            admissionNumber: existing.admissionNumber || u.admissionNumber || existing.admNo || u.admNo,
-                        });
-                    }
-                });
-
-                const unique = Array.from(unifiedStudentMap.values());
-                if (unique.length > 0) {
-                    setAllRealStudents(unique);
-                    try {
-                        localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(unique));
-                    } catch (e) { }
-                }
-            });
-        }
-    }, [currentInstitution, isStudentUser, getStudentDedupKey]);
-
-
-
-    // Broadsheet Spreadsheet State
-    const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
-    const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
-    const [searchStudentQuery, setSearchStudentQuery] = useState('');
-
-    // Fetch saved exams and broadsheets from DB on mount
-    useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
-                .then(records => {
-                    if (records && records.length > 0) {
-                        setExams(prev => {
-                            const existingIds = new Set(prev.map(e => e.id));
-                            const newOnes = records.filter(r => !existingIds.has(r.id));
-                            const merged = [...newOnes, ...prev];
-                            try {
-                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch (e) { }
-                            return merged;
-                        });
-                    }
-                })
-                .catch(err => console.log('Using default exam units:', err));
-
-            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
-                .then(records => {
-                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
-                    const storeData = match?.settings || match?.stateData || match?.data;
-                    if (storeData && typeof storeData === 'object') {
-                        setExamMarksStore(prev => {
-                            const merged = { ...prev, ...storeData };
-                            try {
-                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch (e) { }
-                            return merged;
-                        });
-                        if (selectedExamId && storeData[selectedExamId] && Array.isArray(storeData[selectedExamId]) && storeData[selectedExamId].length > 0) {
-                            setBroadsheetStudentRows(sanitizeBroadsheetRows(storeData[selectedExamId]));
-                        }
-                    }
-                })
-                .catch(() => { });
-        }
-
-        const handleAcademicsSync = () => {
-            try {
-                if (currentInstitution?.id) {
-                    const saved = localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`);
-                    if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (parsed && typeof parsed === 'object') {
-                            setExamMarksStore(prev => ({ ...prev, ...parsed }));
-                            if (selectedExamId && parsed[selectedExamId] && Array.isArray(parsed[selectedExamId])) {
-                                setBroadsheetStudentRows(sanitizeBroadsheetRows(parsed[selectedExamId]));
-                            }
-                        }
-                    }
-                }
-            } catch (e) { }
-        };
-
-        window.addEventListener('eduai_broadsheets_updated', handleAcademicsSync);
-        window.addEventListener('eduai_academics_synced', handleAcademicsSync);
-        return () => {
-            window.removeEventListener('eduai_broadsheets_updated', handleAcademicsSync);
-            window.removeEventListener('eduai_academics_synced', handleAcademicsSync);
-        };
-    }, [currentInstitution, selectedExamId, sanitizeBroadsheetRows]);
-
     // Comprehensive helper to resolve student class name across all schema variations
     const getStudentClass = useCallback((st: any): string => {
         if (!st) return '';
@@ -1254,6 +1065,195 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return row;
         });
     }, [allRealStudents, users, resolveCleanAdmNo, resolveCleanStudentName]);
+
+    // Update real students whenever users prop arrives or changes
+    useEffect(() => {
+        const fromProps = (users || []).filter(isStudentUser);
+        if (fromProps.length > 0) {
+            setAllRealStudents(prev => {
+                const map = new Map<string, any>();
+                prev.forEach(p => {
+                    const k = getStudentDedupKey(p);
+                    if (k) map.set(k, p);
+                });
+                fromProps.forEach(st => {
+                    const k = getStudentDedupKey(st);
+                    if (k && !map.has(k)) {
+                        map.set(k, st);
+                    }
+                });
+                return Array.from(map.values());
+            });
+        }
+    }, [users, isStudentUser, getStudentDedupKey]);
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
+            ]).then(([enrRecords, stRecords, userRecords]) => {
+                // Build userId → user lookup for hydrating enrollment records
+                const userById = new Map<string, any>();
+                [...(stRecords || []), ...(userRecords || [])].forEach(u => {
+                    if (u?.id) userById.set(u.id, u);
+                    if (u?.userId) userById.set(u.userId, u);
+                });
+
+                // Hydrate enrollment records: inject name from linked user or from metadata
+                const hydratedEnrollments: any[] = (enrRecords || []).map((enr: any) => {
+                    if (!enr) return null;
+                    const linkedUser = (enr.userId ? userById.get(enr.userId) : null) || (enr.user_id ? userById.get(enr.user_id) : null);
+                    const resolvedName =
+                        (linkedUser?.name && !linkedUser.name.toLowerCase().startsWith('student ') ? linkedUser.name : null) ||
+                        enr.metadata?.studentName ||
+                        enr.metadata?.name ||
+                        enr.metadata?.fullName ||
+                        linkedUser?.name ||
+                        enr.name ||
+                        null;
+
+                    // Resolve admission number
+                    const resolvedAdm =
+                        enr.admissionNumber || enr.admission_number || enr.admNo ||
+                        linkedUser?.admissionNumber || linkedUser?.admission_number || linkedUser?.admNo ||
+                        enr.metadata?.admissionNumber || enr.metadata?.admNo || null;
+
+                    // Resolve class/grade
+                    const resolvedClass =
+                        enr.metadata?.gradeLevel || enr.metadata?.studentClass || enr.metadata?.class ||
+                        linkedUser?.studentClass || linkedUser?.classLevel || linkedUser?.grade ||
+                        enr.studentClass || enr.gradeLevel || enr.grade || null;
+
+                    return {
+                        ...enr,
+                        // Overlay resolved fields so resolveCleanStudentName & getStudentClass work
+                        name: resolvedName || enr.name || '',
+                        admissionNumber: resolvedAdm || enr.admissionNumber,
+                        studentClass: resolvedClass || enr.studentClass,
+                        // Keep metadata for fallback lookups
+                        metadata: {
+                            ...(enr.metadata || {}),
+                            ...(resolvedName ? { studentName: resolvedName } : {}),
+                            ...(resolvedClass ? { gradeLevel: resolvedClass } : {}),
+                        }
+                    };
+                }).filter(Boolean);
+
+                const unifiedStudentMap = new Map<string, any>();
+
+                // 1. Process enrollment records first (primary source for active class enrollment)
+                hydratedEnrollments.forEach((enr: any) => {
+                    if (!enr) return;
+                    const key = getStudentDedupKey(enr);
+                    if (key) unifiedStudentMap.set(key, enr);
+                });
+
+                // 2. Process student registry & user records without creating duplicate rows
+                [...(stRecords || []), ...(userRecords || [])].forEach((u: any) => {
+                    if (!u || !isStudentUser(u)) return;
+                    const key = getStudentDedupKey(u);
+                    if (!key) return;
+
+                    const existing = unifiedStudentMap.get(key);
+                    if (!existing) {
+                        unifiedStudentMap.set(key, u);
+                    } else {
+                        // Merge attributes preferring better names and canonical class
+                        const existingNameOk = existing.name && !existing.name.toLowerCase().startsWith('student ') && existing.name.trim().length > 2;
+                        const newNameOk = u.name && !u.name.toLowerCase().startsWith('student ') && u.name.trim().length > 2;
+                        unifiedStudentMap.set(key, {
+                            ...u,
+                            ...existing,
+                            name: existingNameOk ? existing.name : (newNameOk ? u.name : (existing.name || u.name)),
+                            studentClass: existing.studentClass || u.studentClass || existing.classLevel || u.classLevel || existing.grade || u.grade,
+                            admissionNumber: existing.admissionNumber || u.admissionNumber || existing.admNo || u.admNo,
+                        });
+                    }
+                });
+
+                const unique = Array.from(unifiedStudentMap.values());
+                if (unique.length > 0) {
+                    setAllRealStudents(unique);
+                    try {
+                        localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(unique));
+                    } catch (e) { }
+                }
+            });
+        }
+    }, [currentInstitution, isStudentUser, getStudentDedupKey]);
+
+
+
+    // Broadsheet Spreadsheet State
+    const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
+    const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
+    const [searchStudentQuery, setSearchStudentQuery] = useState('');
+
+    // Fetch saved exams and broadsheets from DB on mount
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
+                .then(records => {
+                    if (records && records.length > 0) {
+                        setExams(prev => {
+                            const existingIds = new Set(prev.map(e => e.id));
+                            const newOnes = records.filter(r => !existingIds.has(r.id));
+                            const merged = [...newOnes, ...prev];
+                            try {
+                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch (e) { }
+                            return merged;
+                        });
+                    }
+                })
+                .catch(err => console.log('Using default exam units:', err));
+
+            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                    const storeData = match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object') {
+                        setExamMarksStore(prev => {
+                            const merged = { ...prev, ...storeData };
+                            try {
+                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch (e) { }
+                            return merged;
+                        });
+                        if (selectedExamId && storeData[selectedExamId] && Array.isArray(storeData[selectedExamId]) && storeData[selectedExamId].length > 0) {
+                            setBroadsheetStudentRows(sanitizeBroadsheetRows(storeData[selectedExamId]));
+                        }
+                    }
+                })
+                .catch(() => { });
+        }
+
+        const handleAcademicsSync = () => {
+            try {
+                if (currentInstitution?.id) {
+                    const saved = localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (parsed && typeof parsed === 'object') {
+                            setExamMarksStore(prev => ({ ...prev, ...parsed }));
+                            if (selectedExamId && parsed[selectedExamId] && Array.isArray(parsed[selectedExamId])) {
+                                setBroadsheetStudentRows(sanitizeBroadsheetRows(parsed[selectedExamId]));
+                            }
+                        }
+                    }
+                }
+            } catch (e) { }
+        };
+
+        window.addEventListener('eduai_broadsheets_updated', handleAcademicsSync);
+        window.addEventListener('eduai_academics_synced', handleAcademicsSync);
+        return () => {
+            window.removeEventListener('eduai_broadsheets_updated', handleAcademicsSync);
+            window.removeEventListener('eduai_academics_synced', handleAcademicsSync);
+        };
+    }, [currentInstitution, selectedExamId, sanitizeBroadsheetRows]);
 
     // Display students list for Choose from students modal
     const displayStudentsList = useMemo(() => {
