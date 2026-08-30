@@ -151,14 +151,16 @@
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistrations().then(function(regs) { regs.forEach(function(r) { r.unregister(); }); }).catch(function(){});
         }
-        var key = 'eduai_last_chunk_reload';
-        var lastReload = sessionStorage.getItem(key);
-        var now = Date.now();
-        if (!lastReload || (now - parseInt(lastReload, 10)) > 5000) {
-          sessionStorage.setItem(key, String(now));
-          console.warn('[Deployment Sync] Stale script chunk detected. Auto-reloading page...');
-          window.location.href = window.location.origin + window.location.pathname + '?sync=' + now;
-        }
+        try {
+          var key = 'eduai_last_chunk_reload';
+          var lastReload = window.sessionStorage ? sessionStorage.getItem(key) : null;
+          var now = Date.now();
+          if (!lastReload || (now - parseInt(lastReload, 10)) > 5000) {
+            if (window.sessionStorage) sessionStorage.setItem(key, String(now));
+            console.warn('[Deployment Sync] Stale script chunk detected. Auto-reloading page...');
+            window.location.href = window.location.origin + window.location.pathname + '?sync=' + now;
+          }
+        } catch (storageErr) {}
       }
     }, true);
 
