@@ -24,7 +24,8 @@ interface ClassSubjectAllocationModalProps {
     onDeleteSubject?: (subjectId: string) => void;
 }
 
-export { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+export { isSubjectApplicableToClass, isSubjectAssignedToClassStream };
 
 export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalProps> = ({
     onClose,
