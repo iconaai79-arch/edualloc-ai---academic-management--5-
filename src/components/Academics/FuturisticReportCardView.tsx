@@ -882,32 +882,11 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 {/* Header Subtabs & Search Bar Controls */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        {/* Subtabs */}
-                        <div className="flex gap-2 p-1.5 bg-slate-50 dark:bg-slate-800 rounded-2xl">
-                            <button
-                                onClick={() => setPreviewTab('pdf')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                                    previewTab === 'pdf' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
-                                }`}
-                            >
-                                PDF Preview
-                            </button>
-                            <button
-                                onClick={() => setPreviewTab('subject_comments')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                                    previewTab === 'subject_comments' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
-                                }`}
-                            >
-                                Subject Specific Comments
-                            </button>
-                            <button
-                                onClick={() => setPreviewTab('overall_comments')}
-                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                                    previewTab === 'overall_comments' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
-                                }`}
-                            >
-                                Overall Performance Comments
-                            </button>
+                        {/* View Title Badge */}
+                        <div className="flex items-center gap-2">
+                            <span className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                                <BookOpenIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> PDF Report Card Preview
+                            </span>
                         </div>
 
                         {/* Actions */}
