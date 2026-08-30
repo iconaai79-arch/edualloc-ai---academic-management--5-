@@ -98,7 +98,40 @@ class LocalDb {
         return this.put(storeName, item);
     }
 
-    async get(storeName: string, id: string): Promise<any> {
+    async bulkPut(storeName: string, items: any[]): Promise<void> {
+        if (!Array.isArray(items) || items.length === 0) return;
+        try {
+            const db = await this.getDB();
+            if (!db.objectStoreNames.contains(storeName)) return;
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    for (const raw of items) {
+                        if (!raw || typeof raw !== 'object') continue;
+                        const payload = { ...raw };
+                        if (!payload.id) {
+                            payload.id = payload._id || payload.code || payload.uuid || payload.key || payload.patient_id || payload.user_id || payload.institutionId || `${storeName}_${Math.random().toString(36).slice(2)}`;
+                        }
+                        store.put(payload);
+                    }
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => {
+                        console.warn(`[LocalDb] bulkPut failed on store ${storeName}:`, tx.error);
+                        resolve();
+                    };
+                } catch (e) {
+                    console.warn(`[LocalDb] bulkPut transaction error on ${storeName}:`, e);
+                    resolve();
+                }
+            });
+        } catch (err) {
+            console.warn(`[LocalDb] bulkPut exception on ${storeName}:`, err);
+        }
+    }
+
+    async get<T = any>(storeName: string, id: string): Promise<T | null> {
         try {
             const db = await this.getDB();
             if (!db.objectStoreNames.contains(storeName)) return null;
@@ -118,7 +151,7 @@ class LocalDb {
         }
     }
 
-    async getAll(storeName: string): Promise<any[]> {
+    async getAll<T = any>(storeName: string): Promise<T[]> {
         try {
             const db = await this.getDB();
             if (!db.objectStoreNames.contains(storeName)) return [];
@@ -127,10 +160,10 @@ class LocalDb {
                     const tx = db.transaction(storeName, 'readonly');
                     const store = tx.objectStore(storeName);
                     const request = store.getAll();
-                    request.onsuccess = () => resolve(request.result || []);
-                    request.onerror = () => resolve([]);
+                    request.onsuccess = () => resolve((request.result || []) as T[]);
+                    request.onerror = () => resolve([] as T[]);
                 } catch {
-                    resolve([]);
+                    resolve([] as T[]);
                 }
             });
         } catch {
