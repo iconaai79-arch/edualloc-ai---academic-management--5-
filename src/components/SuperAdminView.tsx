@@ -8615,10 +8615,12 @@ Please change it after login.`;
                 currentInstitution={companyDetails as any}
                 letterheadConfig={localCompanyInfo.letterheadConfig}
                 onSaveConfig={(updatedConfig) => {
-                    setLocalCompanyInfo(prev => ({
-                        ...prev,
+                    const updated = {
+                        ...localCompanyInfo,
                         letterheadConfig: updatedConfig
-                    }));
+                    };
+                    setLocalCompanyInfo(updated);
+                    props.onUpdateCompanyDetails?.(updated);
                 }}
             />
         </div>

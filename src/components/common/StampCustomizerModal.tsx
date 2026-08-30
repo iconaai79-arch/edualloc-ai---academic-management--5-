@@ -45,6 +45,18 @@ const DEPARTMENT_PRESETS = [
     'ADMISSIONS & REGISTRAR'
 ];
 
+const POSTAL_ADDRESS_PRESETS = [
+    'P.O. BOX 2306-30100 ELDORET',
+    'P.O. BOX 1341-00100 NAIROBI',
+    'P.O. BOX 90120-80100 MOMBASA',
+    'P.O. BOX 40100 KISUMU',
+    'P.O. BOX 20100 NAKURU',
+    'P.O. BOX 60100 EMBU',
+    'P.O. BOX 10100 NYERI',
+    'P.O. BOX 50100 KAKAMEGA',
+    'P.O. BOX 30200 KITALE'
+];
+
 export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
     isOpen,
     onClose,
@@ -373,29 +385,59 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
-                                                Bottom Curved Text (Postal Address)
-                                            </label>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                    Bottom Curved Text (Postal Address)
+                                                </label>
+                                                <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">
+                                                    {addressLine.length} chars
+                                                </span>
+                                            </div>
                                             <input
                                                 type="text"
                                                 value={addressLine}
                                                 onChange={e => setAddressLine(e.target.value.toUpperCase())}
-                                                placeholder="P.O. BOX 1341 - 00100, NRB"
-                                                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none focus:border-indigo-500"
+                                                placeholder="e.g. P.O. BOX 2306-30100 ELDORET"
+                                                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                             />
+                                            {/* Quick Postal Address Suggestions & Fill from School Profile */}
+                                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                {currentInstitution?.address && currentInstitution.address.toUpperCase() !== addressLine && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAddressLine(currentInstitution.address!.toUpperCase())}
+                                                        className="text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer"
+                                                    >
+                                                        Use Profile Address
+                                                    </button>
+                                                )}
+                                                <select
+                                                    onChange={e => e.target.value && setAddressLine(e.target.value)}
+                                                    value=""
+                                                    className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 outline-none cursor-pointer"
+                                                >
+                                                    <option value="">Presets (e.g. Eldoret, Nairobi...)</option>
+                                                    {POSTAL_ADDRESS_PRESETS.map(p => (
+                                                        <option key={p} value={p}>{p}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
-                                                Inner Top Line (Phone / Tel)
-                                            </label>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                    Inner Top Line (Phone / Tel)
+                                                </label>
+                                                <span className="text-[9px] font-bold text-slate-400">Optional</span>
+                                            </div>
                                             <input
                                                 type="text"
                                                 value={contactPhone}
                                                 onChange={e => setContactPhone(e.target.value.toUpperCase())}
                                                 placeholder="TEL: 0723348912"
-                                                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none focus:border-indigo-500"
+                                                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white uppercase outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                                             />
                                         </div>
                                     </div>

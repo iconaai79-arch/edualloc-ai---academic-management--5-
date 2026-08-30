@@ -42,7 +42,13 @@ export const getResolvedStampConfig = (
     institution?: Institution | null
 ): Required<OfficialStampConfig> => {
     const rawName = (config?.institutionName || institution?.name || 'ACADEMIC INSTITUTION').toUpperCase().trim();
-    const rawAddress = (config?.addressLine || institution?.address || 'P.O. BOX 1341 - 00100, NAIROBI').toUpperCase().trim();
+    const rawAddress = (
+        config?.addressLine || 
+        (institution as any)?.postalAddress || 
+        (institution as any)?.postal_address || 
+        institution?.address || 
+        'P.O. BOX 1341 - 00100, NAIROBI'
+    ).toUpperCase().trim();
     const rawPhone = (config?.contactPhone || institution?.phoneNumber || (institution?.email ? `TEL: ${institution.email}` : 'TEL: 0700000000')).toUpperCase().trim();
     const formattedPhone = rawPhone.startsWith('TEL') || rawPhone.startsWith('PHONE') || rawPhone.startsWith('EMAIL') ? rawPhone : `TEL: ${rawPhone}`;
 
@@ -81,6 +87,15 @@ const generateCircleStampSvg = (
     const topPathId = `top_circle_${uniqueId}`;
     const bottomPathId = `bottom_circle_${uniqueId}`;
 
+    // Adaptive font size & letter spacing based on string lengths
+    const nameLen = (resolved.institutionName || '').length;
+    const nameFontSize = nameLen > 38 ? 10 : (nameLen > 30 ? 11.5 : (nameLen > 22 ? 12.5 : 13));
+    const nameLetterSpacing = nameLen > 38 ? 0.6 : (nameLen > 30 ? 0.9 : 1.4);
+
+    const addressLen = (resolved.addressLine || '').length;
+    const addressFontSize = addressLen > 40 ? 8.5 : (addressLen > 32 ? 9.5 : (addressLen > 24 ? 10.5 : 11.5));
+    const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.8 : 1.2);
+
     return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
@@ -105,14 +120,14 @@ const generateCircleStampSvg = (
             <circle cx="140" cy="140" r="82" fill="none" stroke="${resolved.inkColor}" stroke-width="1.8" />
 
             <!-- Top Curved Institution Name -->
-            <text font-size="13" font-weight="900" letter-spacing="1.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+            <text font-size="${nameFontSize}" font-weight="900" letter-spacing="${nameLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${topPathId}" startOffset="50%" text-anchor="middle">
                     ${resolved.institutionName}
                 </textPath>
             </text>
 
             <!-- Bottom Curved Address / Postal Details -->
-            <text font-size="11" font-weight="800" letter-spacing="1.2" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+            <text font-size="${addressFontSize}" font-weight="800" letter-spacing="${addressLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${bottomPathId}" startOffset="50%" text-anchor="middle">
                     ${resolved.addressLine}
                 </textPath>
@@ -129,9 +144,9 @@ const generateCircleStampSvg = (
             ${resolved.showDate ? `
                 <g fill="${resolved.daterColor}" stroke="none">
                     <text x="140" y="${resolved.showSignatureLine ? '138' : '146'}" font-size="19" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
-                        ${dateText}
-                    </text>
-                </g>
+                    ${dateText}
+                </text>
+            </g>
             ` : ''}
 
             <!-- Signature Line or Department Tag -->
@@ -160,6 +175,14 @@ const generateOvalStampSvg = (
     const topPathId = `top_oval_${uniqueId}`;
     const bottomPathId = `bottom_oval_${uniqueId}`;
 
+    const nameLen = (resolved.institutionName || '').length;
+    const nameFontSize = nameLen > 38 ? 9.5 : (nameLen > 30 ? 11 : 12.5);
+    const nameLetterSpacing = nameLen > 38 ? 0.6 : (nameLen > 30 ? 0.9 : 1.2);
+
+    const addressLen = (resolved.addressLine || '').length;
+    const addressFontSize = addressLen > 40 ? 8 : (addressLen > 32 ? 9 : 10.5);
+    const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.7 : 1.0);
+
     return `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="320" height="220" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
@@ -184,14 +207,14 @@ const generateOvalStampSvg = (
             <ellipse cx="160" cy="110" rx="98" ry="52" fill="none" stroke="${resolved.inkColor}" stroke-width="1.6" />
 
             <!-- Top Curved Institution Name -->
-            <text font-size="12.5" font-weight="900" letter-spacing="1.2" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+            <text font-size="${nameFontSize}" font-weight="900" letter-spacing="${nameLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${topPathId}" startOffset="50%" text-anchor="middle">
                     ${resolved.institutionName}
                 </textPath>
             </text>
 
             <!-- Bottom Curved Address / Postal Details -->
-            <text font-size="10.5" font-weight="800" letter-spacing="1.0" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+            <text font-size="${addressFontSize}" font-weight="800" letter-spacing="${addressLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${bottomPathId}" startOffset="50%" text-anchor="middle">
                     ${resolved.addressLine}
                 </textPath>
