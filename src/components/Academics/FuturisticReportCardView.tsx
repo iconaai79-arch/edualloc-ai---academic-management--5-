@@ -14,6 +14,8 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { PaperAirplaneIcon } from '../icons/PaperAirplaneIcon';
 import { FingerPrintIcon } from '../icons/FingerPrintIcon';
+import { EyeIcon } from '../icons/EyeIcon';
+import { XIcon } from '../icons/XIcon';
 import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
 import { apiService } from '../../services/apiService';
 import * as XLSX from 'xlsx';
@@ -399,8 +401,8 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         };
     });
 
-    // Main Preview Sub-Tab
-    const [previewTab, setPreviewTab] = useState<'pdf' | 'subject_comments' | 'overall_comments'>('pdf');
+    // On-Screen PDF Preview Modal State
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
 
     // Accordion year/term selection states
     const initialYear = yearTermsTree[0]?.year || '2026';
@@ -882,22 +884,45 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 {/* Header Subtabs & Search Bar Controls */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm space-y-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        {/* View Title Badge */}
-                        <div className="flex items-center gap-2">
-                            <span className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2">
-                                <BookOpenIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> PDF Report Card Preview
+                        {/* Open PDF Preview Primary Button & Badge */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={() => setIsPdfPreviewOpen(true)}
+                                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-indigo-500/25 hover:scale-105 active:scale-95 transition-all border border-purple-400/30 cursor-pointer"
+                            >
+                                <EyeIcon className="w-4 h-4 text-amber-300 animate-pulse" />
+                                <span>Open PDF Preview</span>
+                            </button>
+                            <span className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                <BookOpenIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Active Card
                             </span>
                         </div>
 
                         {/* Actions */}
                         <div className="flex items-center gap-2">
-                            <button onClick={() => window.print()} className="btn-secondary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => window.print()}
+                                className="btn-secondary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 cursor-pointer"
+                            >
                                 <PrinterIcon className="w-4 h-4" /> Print
                             </button>
-                            <button onClick={() => alert("Downloading Futuristic PDF Report...")} className="btn-primary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md">
-                                <ArrowUpTrayIcon className="w-4 h-4" /> Download
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsPdfPreviewOpen(true);
+                                    setTimeout(() => window.print(), 350);
+                                }}
+                                className="btn-primary px-4 py-2 text-xs font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md cursor-pointer"
+                            >
+                                <ArrowUpTrayIcon className="w-4 h-4" /> Download PDF
                             </button>
-                            <button onClick={() => alert("Sending Report via Email/SMS to Guardian...")} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-xl flex items-center gap-1.5 shadow-md">
+                            <button
+                                type="button"
+                                onClick={() => alert("Report card dispatched via SMS / Email to parent / guardian!")}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-xl flex items-center gap-1.5 shadow-md cursor-pointer"
+                            >
                                 <PaperAirplaneIcon className="w-4 h-4" /> Send
                             </button>
                         </div>
@@ -1028,7 +1053,6 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
                 {/* THE OFFICIAL ACADEMIC REPORT CARD DOCUMENT (LIGHT THEME) */}
                 <div className="bg-white text-slate-900 p-8 md:p-12 rounded-[2.5rem] shadow-xl border border-slate-200/90 relative overflow-hidden space-y-8 print:p-0 print:shadow-none print:border-none print:rounded-none">
-
                     {/* OFFICIAL SCHOOL BANNER */}
                     <div className="relative flex flex-col md:flex-row justify-between items-center gap-6 p-6 md:p-8 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-3xl border border-slate-200/90 shadow-xs">
                         <div className="flex items-center gap-5">
@@ -1277,6 +1301,317 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     </div>
                 </div>
             </div>
+
+            {/* ON-SCREEN PDF PREVIEW MODAL */}
+            {isPdfPreviewOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fade-in no-print">
+                    <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-5xl max-h-[96vh] flex flex-col shadow-2xl overflow-hidden">
+                        {/* Modal Top Action Toolbar */}
+                        <div className="p-4 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-600 rounded-xl shadow-inner">
+                                    <DocumentArrowDownIcon className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                                        Official Student Report Card &mdash; PDF Document Preview
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 font-semibold">
+                                        {currentStudent.name} ({currentStudent.admissionNo || currentStudent.id}) &bull; {currentStudentClassInfo.rawClass} &bull; {selectedTerm} {selectedYear}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                {/* Prev / Next in Modal */}
+                                <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                                    <button
+                                        onClick={handlePrevStudent}
+                                        disabled={filteredStudents.length <= 1}
+                                        className="px-2.5 py-1 text-xs font-black rounded-lg hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                        title="Previous Student"
+                                    >
+                                        ‹ Prev
+                                    </button>
+                                    <span className="text-[10px] font-mono text-slate-400 px-1 font-bold">
+                                        {filteredStudents.length > 0 ? `${currentStudentIndex + 1}/${filteredStudents.length}` : '0/0'}
+                                    </span>
+                                    <button
+                                        onClick={handleNextStudent}
+                                        disabled={filteredStudents.length <= 1}
+                                        className="px-2.5 py-1 text-xs font-black rounded-lg hover:bg-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                        title="Next Student"
+                                    >
+                                        Next ›
+                                    </button>
+                                </div>
+
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <PrinterIcon className="w-4 h-4" /> Print / Save PDF
+                                </button>
+                                <button
+                                    onClick={() => setIsPdfPreviewOpen(false)}
+                                    className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                    title="Close Preview"
+                                >
+                                    <XIcon className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Printable PDF Document Sheet in Modal */}
+                        <div className="p-4 sm:p-8 overflow-y-auto bg-slate-950/70 flex-1 flex justify-center custom-scrollbar">
+                            <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl space-y-6 font-sans text-xs relative">
+                                {/* OFFICIAL SCHOOL BANNER */}
+                                <div className="relative flex flex-col md:flex-row justify-between items-center gap-6 p-6 md:p-8 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-3xl border border-slate-200/90 shadow-xs">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center text-3xl font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
+                                            {(currentInstitution?.name || 'A').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase tracking-[0.25em] text-indigo-700 bg-indigo-100/80 px-3 py-1 rounded-full border border-indigo-200">
+                                                OFFICIAL ACADEMIC REPORT CARD
+                                            </span>
+                                            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mt-1.5">
+                                                {currentInstitution?.name || 'ACADEMIC INSTITUTION'}
+                                            </h1>
+                                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                {currentInstitution?.address || (currentInstitution as any)?.location || 'P.O. BOX 100, NAIROBI'} &bull; TEL: {(currentInstitution as any)?.phone || (currentInstitution as any)?.contactPhone || '+254 700 000 000'} &bull; INSTITUTION CODE: {(currentInstitution as any)?.code || (currentInstitution as any)?.registrationNumber || `KNEC-${currentInstitution?.id ? String(currentInstitution.id).slice(-5).toUpperCase() : '84092'}`}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-right flex flex-col items-end border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-6 shrink-0">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">ACADEMIC PERIOD</span>
+                                        <span className="text-lg font-black text-indigo-600 uppercase tracking-tight mt-0.5">
+                                            {selectedYear} &bull; {selectedTerm.toUpperCase()}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md mt-1 border border-emerald-200">
+                                            OFFICIAL END-OF-TERM CARD
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* STUDENT PROFILE & PERFORMANCE HUD */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90">
+                                    <div className="lg:col-span-4 flex items-center gap-4 border-b lg:border-b-0 lg:border-r border-slate-200 pb-4 lg:pb-0 lg:pr-6">
+                                        <div className="relative shrink-0">
+                                            <div className="w-18 h-18 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-3xl text-indigo-600 shadow-xs">
+                                                👤
+                                            </div>
+                                            <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" />
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
+                                            <h3 className="text-lg font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
+                                            <p className="text-xs font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{currentStudent.admissionNo || currentStudent.id}</span></p>
+                                            <p className="text-xs text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
+                                        </div>
+                                    </div>
+
+                                    <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">MEAN POINTS</span>
+                                            <div className="text-2xl font-black text-indigo-600 mt-1">{studentSummary.meanPts}</div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">Points Avg</span>
+                                        </div>
+
+                                        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">MEAN SCORE (%)</span>
+                                            <div className="text-2xl font-black text-emerald-600 mt-1">{studentSummary.meanScore}%</div>
+                                            <span className="text-[9px] font-bold text-emerald-600 uppercase">Grade: {studentSummary.meanGrade}</span>
+                                        </div>
+
+                                        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">OVERALL RANK</span>
+                                            <div className="text-2xl font-black text-slate-900 mt-1">{studentSummary.overallPos} <span className="text-xs text-slate-400 font-normal">/ {studentSummary.totalStudents}</span></div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase">School Position</span>
+                                        </div>
+
+                                        <div className="p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
+                                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">STREAM RANK</span>
+                                            <div className="text-2xl font-black text-purple-600 mt-1">{studentSummary.streamPos} <span className="text-xs text-slate-400 font-normal">/ {studentSummary.streamStudents}</span></div>
+                                            <span className="text-[9px] font-bold text-purple-600 uppercase">V.A.P: {studentSummary.vap}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* SUBJECT MARKS PERFORMANCE MATRIX */}
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center px-1">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
+                                            📊 SUBJECT PERFORMANCE MATRIX
+                                        </h4>
+                                        <span className="text-[10px] font-mono text-slate-400">{activeSubjects.length} SUBJECTS RECORDED</span>
+                                    </div>
+
+                                    <div className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-xs">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead className="bg-slate-100/80 text-[10px] font-black uppercase text-slate-600 tracking-widest">
+                                                    <tr>
+                                                        <th className="p-4 border-b border-slate-200">SUBJECT</th>
+                                                        <th className="p-4 border-b border-slate-200 text-center">MID TERM</th>
+                                                        <th className="p-4 border-b border-slate-200 text-center">END TERM</th>
+                                                        <th className="p-4 border-b border-slate-200 text-center">TOTAL</th>
+                                                        <th className="p-4 border-b border-slate-200 text-center">GRADE</th>
+                                                        <th className="p-4 border-b border-slate-200 text-center">PTS</th>
+                                                        <th className="p-4 border-b border-slate-200 text-center">POS</th>
+                                                        <th className="p-4 border-b border-slate-200">REMARKS</th>
+                                                        <th className="p-4 border-b border-slate-200 text-right">TEACHER</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 text-xs font-semibold">
+                                                    {subjectPerformance.map(row => (
+                                                        <tr key={row.subject.id} className="hover:bg-indigo-50/20 transition-colors">
+                                                            <td className="p-4 font-bold uppercase text-slate-900">{row.subject.name}</td>
+                                                            <td className="p-4 text-center font-mono text-slate-600">{row.midTerm}</td>
+                                                            <td className="p-4 text-center font-mono text-slate-700">{row.endTerm}</td>
+                                                            <td className="p-4 text-center font-black text-indigo-600 text-sm">{row.total}</td>
+                                                            <td className="p-4 text-center">
+                                                                <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                                                                    ['A', 'A-', 'EE'].includes(row.grade) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                                    ['B+', 'B', 'B-', 'ME'].includes(row.grade) ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                                                    ['C+', 'C', 'C-', 'AE'].includes(row.grade) ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                                    'bg-rose-50 text-rose-700 border border-rose-200'
+                                                                }`}>
+                                                                    {row.grade}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-4 text-center font-bold text-slate-700">{row.pts}</td>
+                                                            <td className="p-4 text-center font-mono text-slate-500">{row.pos}</td>
+                                                            <td className="p-4 text-slate-600 text-[11px] uppercase font-bold">{row.remark}</td>
+                                                            <td className="p-4 text-right font-mono text-indigo-600 text-[10px]">{row.teacherSig}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* PROGRESS HISTORY & ATTENDANCE / FEES GRID */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                    <div className="lg:col-span-7 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90 space-y-3">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center gap-2">
+                                            📈 STUDENT PROGRESS HISTORY
+                                        </h4>
+                                        <div className="overflow-x-auto bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-slate-100/80 text-[9px] font-black uppercase text-slate-600">
+                                                    <tr>
+                                                        <th className="p-2.5">PERIOD</th>
+                                                        <th className="p-2.5 text-center">RANK</th>
+                                                        <th className="p-2.5 text-center">M/POINTS</th>
+                                                        <th className="p-2.5 text-right">GRADE</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {progressHistory.map((ph, idx) => (
+                                                        <tr key={idx}>
+                                                            <td className="p-2.5 font-bold text-slate-700">{ph.period}</td>
+                                                            <td className="p-2.5 text-center font-mono text-amber-600 font-bold">#{ph.rank}</td>
+                                                            <td className="p-2.5 text-center font-mono text-indigo-600 font-bold">{ph.pts}</td>
+                                                            <td className="p-2.5 text-right font-black text-slate-800">{ph.grade}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div className="lg:col-span-5 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90 space-y-4 text-xs">
+                                        <h4 className="text-xs font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                                            🛡️ ATTENDANCE & DISCIPLINE
+                                        </h4>
+                                        <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+                                            <div>
+                                                <span className="text-[9px] font-black text-slate-400 block">DAYS PRESENT</span>
+                                                <span className="font-black text-emerald-600 text-sm">64 / 65</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] font-black text-slate-400 block">DISCIPLINE CASES</span>
+                                                <span className="font-black text-slate-700 text-sm">0 (CLEAN)</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-amber-700">💰 FEE STATUS SUMMARY</h4>
+                                            {(() => {
+                                                const studentFinance = feeBalances[currentStudent.id] ||
+                                                    feeBalances[currentStudent.admissionNo || ''] || {
+                                                        balance: 0,
+                                                        nextTermFees: 18500,
+                                                        totalDue: 18500
+                                                    };
+                                                return (
+                                                    <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs space-y-1.5">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-500 font-medium">Fees Balance:</span>
+                                                            <span className={`font-mono font-bold ${studentFinance.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                                KES {studentFinance.balance.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-500 font-medium">Next Term Fees:</span>
+                                                            <span className="font-mono text-slate-800 font-semibold">
+                                                                KES {studentFinance.nextTermFees.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between border-t border-slate-100 pt-1.5 font-black">
+                                                            <span className="text-indigo-900">TOTAL DUE ON REOPENING:</span>
+                                                            <span className="font-mono text-indigo-600">
+                                                                KES {studentFinance.totalDue.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* TEACHER COMMENTS & PRINCIPAL SEAL */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-50/80 p-6 rounded-3xl border border-slate-200/90">
+                                    <div className="lg:col-span-8 space-y-3">
+                                        <div>
+                                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">CLASS TEACHER'S REMARKS [ Lionel Japkoech ]</span>
+                                            <p className="text-xs font-medium text-slate-700 mt-1 italic bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs leading-relaxed">
+                                                "Work rate has shown steady positive trajectory. Recommended for academic merit."
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">PRINCIPAL / HEADTEACHER REMARKS [ Paul Martin ]</span>
+                                            <p className="text-xs font-medium text-slate-700 mt-1 italic bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs leading-relaxed">
+                                                "Commendable discipline and consistency. Focus on Mathematics to reach target grade A."
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Encrypted QR Seal */}
+                                    <div className="lg:col-span-4 flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-indigo-100 shadow-xs text-center space-y-2">
+                                        <div className="w-16 h-16 bg-indigo-50 border border-indigo-200 rounded-xl p-0.5 flex items-center justify-center">
+                                            <FingerPrintIcon className="w-8 h-8 text-indigo-600" />
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-500 block">DIGITAL VERIFICATION SEAL</span>
+                                        <span className="text-[8px] font-mono text-slate-400 block">HASH: 8F92-A39B-4091-E271</span>
+                                    </div>
+                                </div>
+
+                                {/* FOOTER BAR */}
+                                <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    <span>SCHOOL CLOSED ON: <strong className="text-slate-800">25/08/2026</strong></span>
+                                    <span>NEXT TERM BEGINS ON: <strong className="text-emerald-600">20/09/2026</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* GENERATE REPORT CARDS WIZARD MODAL */}
             <GenerateReportCardsWizardModal
