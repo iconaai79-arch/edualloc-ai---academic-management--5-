@@ -456,7 +456,7 @@ export const App: React.FC = () => {
     const [activeStoreTenantId, setActiveStoreTenantId] = useState<string | null>(() => {
         try {
             const params = new URLSearchParams(window.location.search);
-            const shop = params.get('shop') || params.get('showroom') || params.get('id') || params.get('kiosk');
+            const shop = params.get('shop') || params.get('showroom') || params.get('id') || params.get('kiosk') || params.get('institution') || params.get('institutionId') || params.get('school') || params.get('schoolId') || params.get('store') || params.get('tenant');
             if (shop) return shop;
 
             const host = window.location.hostname.toLowerCase();
@@ -567,12 +567,12 @@ export const App: React.FC = () => {
             // Show if URL param set, or hostname is showcase/marketing, or no user and not marketplace/guest portals/tenant stores
             const isMarketingSubdomain = hostname === 'showcase.eduai.co.ke' || hostname.includes('showcase') || hostname.includes('marketing');
             
+            if (isMarketingSubdomain || params.get('view') === 'showcase' || params.get('view') === 'marketing') return true;
+
             // Subdomain detection for Alumnae Portal
             const isAlumnaeSubdomain = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater');
             
             const isLessonManageLink = !!window.location.pathname.match(/^\/ds\/lesson\/([^\/]+)\/manage\/?$/);
-
-            if (isMarketingSubdomain || params.get('view') === 'showcase') return true;
             if (isAlumnaeSubdomain || isLessonManageLink) return false; // Don't show marketing if on alumnae subdomain or lesson link
             
             const isAlumnaeDeepLink = params.get('school') || params.get('alumnae') || params.get('view') === 'alumnae_register' || params.get('view') === 'alumnae_social' || params.get('view') === 'alumnae_portal';
@@ -4682,7 +4682,21 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onOpenGuestPortal: () => setShowGuestPortal(true),
         onOpenGuestFeedback: () => setShowGuestFeedback(true),
         onOpenMarketplace: () => setShowMarketplace(true),
-        onOpenShowcase: () => setShowMarketing(true),
+        onOpenShowcase: () => {
+            setShowMarketplace(false);
+            setShowCommunityHub(false);
+            setShowTransportHub(false);
+            setShowGuestPortal(false);
+            setShowGuestFeedback(false);
+            setShowAlumnaeLogin(false);
+            setShowAlumnaeRegister(false);
+            setShowAlumnaePortal(false);
+            setShowAlumnaeActivation(false);
+            setShowInstitutionClaim(false);
+            setShowCampaignLogin(false);
+            setShowCampaignPortal(false);
+            setShowMarketing(true);
+        },
         onBookDemo: () => setShowBookDemo(true),
         themeColor: companyDetails.themeColor || "#4f46e5",
         onParentRequestOtp: () => ({ success: true, message: '' }), onParentVerifyOtp: () => ({ success: true, message: '' }), companyDetails: companyDetails,
@@ -6505,13 +6519,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 `}} />
             )}
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
-                {currentUser ? (
+                {showMarketing ? (
+                    <MarketingLandingPage 
+                        onLogin={() => setShowMarketing(false)}
+                        onBookDemo={() => setShowBookDemo(true)}
+                        onOpenStore={() => { setShowMarketing(false); setShowMarketplace(true); }}
+                        onLaunchSimulator={handleLaunchSimulator}
+                        onRegister={(modId) => {
+                            setRegistrationModuleId(modId);
+                            setLoginInitialView('register');
+                            setShowMarketing(false);
+                        }}
+                    />
+                ) : currentUser ? (
                     <>
                         <Header
                             currentUser={currentUser}
                             institutionName={activeBranding.displayName}
                             onLogout={handleLogout}
                             onEditProfile={() => setIsProfileModalOpen(true)}
+                            onOpenShowcase={() => setShowMarketing(true)}
                             logoUrl={activeBranding.logoUrl}
                             systemLogoUrl={companyDetails.logoUrl}
                             notifications={notifications}
@@ -7608,7 +7635,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 } else if (targetInst?.institutionType === 'Construction') {
                                     return <ConstructionProjectView institutionId={targetInst.id} />;
                                 } else if (targetInst?.institutionType === 'Education' || targetInst?.institutionType === 'Primary' || targetInst?.institutionType === 'Secondary') {
-                                    return <SchoolStorefrontView institutionId={targetInst.id} onEnrollmentClick={() => setShowAlumnaeRegister(true)} />;
+                                    return <SchoolStorefrontView institutionId={targetInst.id} initialInstitution={targetInst} institutions={institutions} onEnrollmentClick={() => setShowAlumnaeRegister(true)} />;
                                 }
                                 return <TenantStorefrontView institutionId={targetInst ? targetInst.id : activeStoreTenantId} />;
                             })()

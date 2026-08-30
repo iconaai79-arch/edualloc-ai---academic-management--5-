@@ -18,10 +18,12 @@ import { AiSalesAgentWidget } from './AiSalesAgentWidget';
 
 interface SchoolStorefrontViewProps {
     institutionId: string;
+    initialInstitution?: Institution | null;
+    institutions?: Institution[];
     onEnrollmentClick?: () => void;
 }
 
-export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ institutionId, onEnrollmentClick }) => {
+export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ institutionId, initialInstitution, institutions = [], onEnrollmentClick }) => {
     const { success } = useToast();
     
     const handleShareAd = async (platform: 'whatsapp' | 'twitter' | 'copy', ad: SchoolAd) => {
@@ -40,7 +42,13 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
         }
     };
 
-    const [school, setSchool] = useState<Institution | null>(null);
+    const [school, setSchool] = useState<Institution | null>(() => {
+        if (initialInstitution) return initialInstitution;
+        if (institutions && institutions.length > 0) {
+            return institutions.find(i => i.id === institutionId || i.slug === institutionId || (i.useSubdomain && i.customSubdomain === institutionId)) || null;
+        }
+        return null;
+    });
     const [news, setNews] = useState<BulletinItem[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
     const [levels, setLevels] = useState<AcademicLevel[]>([]);
@@ -48,22 +56,28 @@ export const SchoolStorefrontView: React.FC<SchoolStorefrontViewProps> = ({ inst
     const [ads, setAds] = useState<SchoolAd[]>([]);
     const [teachersCount, setTeachersCount] = useState(0);
     const [studentsCount, setStudentsCount] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!school);
     const [activeSection, setActiveSection] = useState<'overview' | 'academics' | 'news' | 'admissions' | 'gallery'>('overview');
 
     useEffect(() => {
         const loadSchoolData = async () => {
-            setLoading(true);
+            if (!school) setLoading(true);
             try {
                 // Fetch School Details (ID or Slug)
-                let resolvedSchool: Institution | null = null;
-                const instsById = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { id: institutionId } });
+                let resolvedSchool: Institution | null = initialInstitution || institutions.find(i => i.id === institutionId || i.slug === institutionId || (i.useSubdomain && i.customSubdomain === institutionId)) || null;
                 
-                if (instsById && instsById.length > 0) {
-                    resolvedSchool = instsById[0];
-                } else {
-                    const instsBySlug = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { slug: institutionId } });
-                    if (instsBySlug && instsBySlug.length > 0) resolvedSchool = instsBySlug[0];
+                if (!resolvedSchool) {
+                    const instsById = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { id: institutionId } });
+                    if (instsById && instsById.length > 0) {
+                        resolvedSchool = instsById[0];
+                    } else {
+                        const instsBySlug = await apiService.fetchModuleRecords<Institution>('institutions', undefined, undefined, { filter: { slug: institutionId } });
+                        if (instsBySlug && instsBySlug.length > 0) resolvedSchool = instsBySlug[0];
+                    }
+                }
+                if (!resolvedSchool) {
+                    const allInsts = await apiService.fetchInstitutions();
+                    resolvedSchool = (allInsts || []).find(i => i.id === institutionId || i.slug === institutionId || (i.useSubdomain && i.customSubdomain === institutionId)) || null;
                 }
 
                 if (resolvedSchool) {

@@ -15,7 +15,14 @@ declare global {
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
     const msg = String(event.reason?.message || event.reason || '');
-    if (msg.includes('message channel closed') || msg.includes('asynchronous response') || msg.includes('listener indicated')) {
+    if (
+      msg.includes('message channel closed') || 
+      msg.includes('asynchronous response') || 
+      msg.includes('listener indicated') ||
+      msg.includes('Could not establish connection') ||
+      msg.includes('Receiving end does not exist') ||
+      msg.includes('chrome-extension://')
+    ) {
       event.preventDefault();
     }
   });

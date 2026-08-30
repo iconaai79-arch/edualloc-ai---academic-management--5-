@@ -35,6 +35,7 @@ interface HeaderProps {
     secondaryColor?: string;
     hidePerspectiveSwitcher?: boolean;
     androidUrl?: string;
+    onOpenShowcase?: () => void;
 }
 
 const formatRoleName = (role?: Role, institution?: Institution | null): string => {
@@ -82,7 +83,7 @@ export const Header: React.FC<HeaderProps> = ({
     applicationTitle, notifications, onMarkAsRead, currentInstitution, 
     isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, 
     onToggleHealthSystem, isHealthSystemOpen, onTogglePharmacySystem, isPharmacySystemOpen, primaryColor, secondaryColor,
-    hidePerspectiveSwitcher, androidUrl
+    hidePerspectiveSwitcher, androidUrl, onOpenShowcase
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -296,6 +297,11 @@ export const Header: React.FC<HeaderProps> = ({
                                         </div>
                                     )}
                                     <div className="p-1 px-2">
+                                        {onOpenShowcase && (
+                                            <button onClick={() => { onOpenShowcase(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors rounded-xl">
+                                                <SparklesIcon className="w-4 h-4 text-indigo-500" /> Platform Showcase
+                                            </button>
+                                        )}
                                         {onEditProfile && (
                                             <button onClick={() => { onEditProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-3 transition-colors rounded-xl">
                                                 <PencilIcon className="w-4 h-4" /> Edit Profile

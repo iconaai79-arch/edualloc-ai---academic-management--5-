@@ -11,7 +11,7 @@ import { CalendarDaysIcon } from '../icons/CalendarDaysIcon';
 import { ChatBubbleBottomCenterTextIcon } from '../icons/ChatBubbleBottomCenterTextIcon';
 
 interface AiSalesAgentWidgetProps {
-    institution: Institution;
+    institution?: Institution;
     catalogItems?: Array<{
         id: string;
         name: string;

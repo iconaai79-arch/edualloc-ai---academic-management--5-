@@ -158,22 +158,32 @@ export const SchoolShowcaseManager: React.FC<SchoolShowcaseManagerProps> = ({ sc
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                    {[
-                        { id: 'content', label: isMilling ? 'Plant Profile' : 'Identity', icon: TagIcon },
-                        { id: 'gallery', label: isMilling ? 'Facility Gallery' : 'Gallery', icon: ImageIcon },
-                        { id: 'ads', label: isMilling ? 'Intake & Offers' : 'Ads', icon: SparklesIcon },
-                        { id: 'config', label: 'CPanel', icon: ArrowPathIcon }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-slate-950 text-indigo-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <tab.icon className="w-3.5 h-3.5" />
-                            {tab.label}
-                        </button>
-                    ))}
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => window.open(`/?view=storefront&institution=${school.id}`, '_blank')}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-md transition-all active:scale-95"
+                    >
+                        <SparklesIcon className="w-3.5 h-3.5" />
+                        Preview Live Showcase
+                    </button>
+                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                        {[
+                            { id: 'content', label: isMilling ? 'Plant Profile' : 'Identity', icon: TagIcon },
+                            { id: 'gallery', label: isMilling ? 'Facility Gallery' : 'Gallery', icon: ImageIcon },
+                            { id: 'ads', label: isMilling ? 'Intake & Offers' : 'Ads', icon: SparklesIcon },
+                            { id: 'config', label: 'CPanel', icon: ArrowPathIcon }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-white dark:bg-slate-950 text-indigo-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                <tab.icon className="w-3.5 h-3.5" />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 

@@ -1051,7 +1051,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             // Educational tabs
-            if (['timetable', 'courses', 'leaveout', 'boarding', 'remedials', 'eduflow', 'eduvote', 'enrollment', 'showcase'].includes(tab.id)) {
+            if (['timetable', 'courses', 'leaveout', 'boarding', 'remedials', 'eduflow', 'eduvote', 'enrollment'].includes(tab.id)) {
                 if (!isEdu && !isSchool) return false;
                 if (isDS || isBC) return false;
                 return true;
@@ -1132,7 +1132,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
 
             if (tab.id === 'showcase') {
-                return (isSchool || isEdu) && !isDS && ['admin', 'head_teacher', 'dos', 'super_admin', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(roleToUse || '');
+                return ((isSchool || isEdu || isMilling) && !isDS && ['admin', 'head_teacher', 'dos', 'director', 'super_admin', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(roleToUse || '')) || !!localStorage.getItem('eduai_super_admin_session');
             }
 
             if (tab.id === 'enrollment') {

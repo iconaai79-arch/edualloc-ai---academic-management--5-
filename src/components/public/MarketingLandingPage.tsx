@@ -1305,7 +1305,9 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
       )}
 
       {/* Embedded AI Sales Chat Assistant */}
-      <AiSalesAgentWidget />
+      <AiSalesAgentWidget 
+        institution={companyDetails ? ({ id: 'marketing_hq', name: companyDetails.name || 'EduAI', institutionType: 'HQ' } as any) : undefined}
+      />
     </div>
   );
 };
