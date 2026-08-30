@@ -232,7 +232,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (courses && Array.isArray(courses) && courses.length > 0) {
             courses.forEach(c => {
                 if (!c) return;
-                const name = c.name || (c as any).title || c.code;
+                const name = c?.name || (c as any)?.title || c?.code;
                 if (name && typeof name === 'string') classSet.add(name);
             });
         }
@@ -241,7 +241,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (academicLevels && Array.isArray(academicLevels) && academicLevels.length > 0) {
             academicLevels.forEach(l => {
                 if (!l) return;
-                const name = typeof l === 'string' ? l : (l.name || (l as any).title || (l as any).code);
+                const name = typeof l === 'string' ? l : (l?.name || (l as any)?.title || (l as any)?.code);
                 if (name && typeof name === 'string') classSet.add(name);
             });
         }
@@ -267,7 +267,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (Array.isArray(instClasses)) {
                 instClasses.forEach((c: any) => {
                     if (!c) return;
-                    const name = typeof c === 'string' ? c : (c.name || c.title);
+                    const name = typeof c === 'string' ? c : (c?.name || c?.title);
                     if (name && typeof name === 'string') classSet.add(name);
                 });
             }
@@ -417,16 +417,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             if (Array.isArray(storeEntry) && storeEntry.length > 0) {
                 storeEntry.forEach(sNameOrId => {
-                    const matchedSub = (subjects || []).find(s => s.id === sNameOrId || s.name.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim() || s.code.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim());
-                    if (matchedSub) {
+                    const matchedSub = (subjects || []).find(s => s && (s.id === sNameOrId || (s.name && s.name.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim()) || (s.code && s.code.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim())));
+                    if (matchedSub && matchedSub.name) {
                         enrolledSubjectsSet.add(matchedSub.name);
                     } else if (typeof sNameOrId === 'string' && sNameOrId.length > 1) {
                         enrolledSubjectsSet.add(sNameOrId);
                     }
                 });
             } else if (subjects && subjects.length > 0) {
-                const applicable = subjects.filter(s => isSubjectApplicableToClass({ name: s.name, code: s.code }, tc));
-                applicable.forEach(s => enrolledSubjectsSet.add(s.name));
+                const applicable = subjects.filter(s => s && isSubjectApplicableToClass({ name: s.name || '', code: s.code || '' }, tc));
+                applicable.forEach(s => {
+                    if (s && s.name) enrolledSubjectsSet.add(s.name);
+                });
             }
         });
 
@@ -521,10 +523,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 if (matchedSubjects.length > 0) {
                     const paperList: TestedPaperConfig[] = [];
                     matchedSubjects.forEach((sub, idx) => {
+                        if (!sub) return;
+                        const subName = sub.name || '';
+                        const subCode = sub.code || '';
                         const subConfig = (savedConfigs || []).flatMap((c: any) => c.subjects || []).find((s: any) => 
-                            (s.subjectId && s.subjectId === sub.id) || 
-                            (s.subjectName && s.subjectName.toLowerCase().trim() === sub.name.toLowerCase().trim()) || 
-                            (s.subjectCode && s.subjectCode.toLowerCase().trim() === sub.code.toLowerCase().trim())
+                            (s && s.subjectId && s.subjectId === sub.id) || 
+                            (s && s.subjectName && subName && s.subjectName.toLowerCase().trim() === subName.toLowerCase().trim()) || 
+                            (s && s.subjectCode && subCode && s.subjectCode.toLowerCase().trim() === subCode.toLowerCase().trim())
                         );
 
                         if (subConfig && Array.isArray(subConfig.papers) && subConfig.papers.length > 0) {

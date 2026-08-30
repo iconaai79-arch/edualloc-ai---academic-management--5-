@@ -940,7 +940,7 @@ export const App: React.FC = () => {
                 try {
                     const healthPromise = apiService.testDatabaseConnection().catch(() => ({ status: 'offline' }));
                     const timeoutPromise = new Promise<{ status: string }>((resolve) =>
-                        setTimeout(() => resolve({ status: 'offline' }), 2500)
+                        setTimeout(() => resolve({ status: 'offline' }), 800)
                     );
                     const health = await Promise.race([healthPromise, timeoutPromise]);
                     if (health.status === 'setup_required') {
@@ -979,9 +979,10 @@ export const App: React.FC = () => {
                 setIsApiOnline(false);
                 setIsSchemaInitializationRequired(false);
             } else {
-                if (isApiOnline) {
-                    // Idempotent setup of PM subscription bonus trigger
-                    apiService.runMigration(`
+                // Background idempotent migrations (non-blocking for ultra-fast startup)
+                setTimeout(() => {
+                    if (isApiOnline) {
+                        apiService.runMigration(`
 CREATE OR REPLACE FUNCTION public.allocate_tenant_sms_bonus()
 RETURNS TRIGGER 
 LANGUAGE plpgsql 
@@ -1043,12 +1044,11 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
     BEFORE UPDATE OF subscription_ends_at ON institutions
     FOR EACH ROW
     EXECUTE FUNCTION allocate_tenant_sms_bonus();
-                    `).catch(e => console.warn('[Schema Update] SMS trigger install failed:', e));
+                        `).catch(() => {});
 
-                    apiService.runMigration(`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;`).catch(() => {});
+                        apiService.runMigration(\`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;\`).catch(() => {});
 
-                    // Idempotent setup of process_teacher_checkin signature update
-                    apiService.runMigration(`
+                        apiService.runMigration(`
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT);
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(UUID, UUID, VARCHAR, VARCHAR, TEXT);
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT, TEXT, TIMESTAMPTZ);
@@ -1068,7 +1068,6 @@ DECLARE
     v_current_time TIME := COALESCE(p_timestamp::time, CURRENT_TIME);
     v_current_date DATE := COALESCE(p_timestamp::date, CURRENT_DATE);
 BEGIN
-    -- Insert or update check-in record
     INSERT INTO public.teacher_checkins (
         teacher_id,
         institution_id,
@@ -1101,7 +1100,6 @@ BEGIN
         updated_at = CURRENT_TIMESTAMP
     RETURNING id INTO v_checkin_id;
     
-    -- Mark reminder as acknowledged
     UPDATE public.teacher_checkin_reminders
     SET status = 'Acknowledged',
         acknowledged_at = CURRENT_TIMESTAMP
@@ -1114,22 +1112,24 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT, TEXT, TIMESTAMP WITH TIME ZONE) TO anon, authenticated, service_role;
-                    `).catch(e => console.warn('[Schema Update] process_teacher_checkin signature update failed:', e));
-                }
+                        `).catch(() => {});
+                    }
+                }, 1000);
 
                 if (!silent) setLoadStatus("Synchronizing Identity...");
                 
-                // Critical identity fetch - needed for Phase 2 logic
+                // High-speed parallelized identity fetch
+                const isGuestMode = !currentUser;
                 const results = await Promise.all([
                     apiService.fetchInstitutions().catch(() => []),
-                    (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : apiService.fetchModuleRecords<County>('counties').catch(() => []),
                     apiService.fetchCompanySettings().catch(() => null),
-                    (isAlumnaeMode && !currentUser) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? apiService.fetchModuleRecords<User>('users').catch(() => []) : apiService.fetchUsers(currentUser?.institutionId).catch(() => []),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? apiService.fetchModuleRecords<User>('users').catch(() => []) : apiService.fetchUsers(currentUser?.institutionId).catch(() => []),
                     (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchFullRegistry().catch(() => []) : Promise.resolve([]),
                     !currentUser ? Promise.resolve([]) : apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []),
-                    apiService.fetchModuleRecords<any>('events').catch(() => []),
+                    isGuestMode ? Promise.resolve([]) : apiService.fetchModuleRecords<any>('events').catch(() => []),
                     (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []) : Promise.resolve([]),
-                    apiService.fetchModuleRecords<Branch>('branches').catch(() => []),
+                    isGuestMode ? Promise.resolve([]) : apiService.fetchModuleRecords<Branch>('branches').catch(() => []),
                 ]);
                 insts = results[0];
                 cnts = results[1];
