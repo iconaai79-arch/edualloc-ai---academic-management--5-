@@ -43,6 +43,7 @@ import { BankFeedsManager } from './BankFeedsManager';
 import { ParentLedgerPortal } from './ParentLedgerPortal';
 import { AiFinancialIntelligence } from './AiFinancialIntelligence';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
+import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -22365,36 +22366,100 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             {/* On-Screen Interactive PDF Preview Modal */}
             {pdfPreviewModal && (
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fade-in">
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fade-in print-container-modal">
                     <style>{`
                         @media print {
+                            html, body {
+                                height: auto !important;
+                                min-height: 100% !important;
+                                overflow: visible !important;
+                                background: white !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                            }
                             body * {
                                 visibility: hidden !important;
                             }
-                            #printable-pdf-document, #printable-pdf-document * {
+                            .print-container-modal,
+                            .print-container-modal * {
                                 visibility: visible !important;
                             }
-                            #printable-pdf-document {
-                                position: fixed !important;
-                                left: 0 !important;
-                                top: 0 !important;
-                                width: 100% !important;
+                            .print-container-modal {
+                                position: static !important;
+                                display: block !important;
+                                background: transparent !important;
+                                padding: 0 !important;
                                 margin: 0 !important;
-                                padding: 24px !important;
+                                overflow: visible !important;
+                                max-height: none !important;
+                                height: auto !important;
+                                width: 100% !important;
+                                inset: auto !important;
+                                backdrop-filter: none !important;
+                                z-index: auto !important;
+                            }
+                            .print-modal-inner {
+                                position: static !important;
+                                display: block !important;
+                                background: white !important;
+                                border: none !important;
+                                box-shadow: none !important;
+                                border-radius: 0 !important;
+                                max-height: none !important;
+                                height: auto !important;
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                overflow: visible !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                            }
+                            .print-scroll-area {
+                                position: static !important;
+                                display: block !important;
+                                background: white !important;
+                                overflow: visible !important;
+                                max-height: none !important;
+                                height: auto !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                            }
+                            #printable-pdf-document {
+                                position: relative !important;
+                                display: block !important;
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                margin: 0 auto !important;
+                                padding: 8mm 12mm !important;
                                 background: white !important;
                                 color: black !important;
                                 box-shadow: none !important;
                                 border: none !important;
                                 border-radius: 0 !important;
-                                max-width: none !important;
-                                z-index: 999999 !important;
+                                overflow: visible !important;
+                                height: auto !important;
                             }
-                            .no-print {
+                            #printable-pdf-document * {
+                                visibility: visible !important;
+                                color: black !important;
+                            }
+                            #printable-pdf-document table {
+                                page-break-inside: auto !important;
+                                width: 100% !important;
+                            }
+                            #printable-pdf-document tr {
+                                page-break-inside: avoid !important;
+                                page-break-after: auto !important;
+                            }
+                            #printable-pdf-document thead {
+                                display: table-header-group !important;
+                            }
+                            .no-print,
+                            .print\\:hidden {
                                 display: none !important;
                             }
                         }
                     `}</style>
-                    <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col">
+                    <div className="bg-slate-900 border border-slate-700 rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col print-modal-inner">
                         {/* Modal Navigation Header */}
                         <div className="bg-slate-950 p-6 border-b border-slate-800 flex justify-between items-center no-print">
                             <div className="flex items-center gap-3">
@@ -22415,10 +22480,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
 
                         {/* Live On-Screen Printable PDF Paper Sheet */}
-                        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-slate-950/60">
-                            <div id="printable-pdf-document" className="mx-auto bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-2xl max-w-2xl font-sans relative border border-slate-200">
+                        <div className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar bg-slate-950/60 print-scroll-area">
+                            <div id="printable-pdf-document" className="mx-auto bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-2xl max-w-2xl font-sans relative border border-slate-200 print-only">
                                 {/* Watermark */}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none">
+                                <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none no-print">
                                     <span className="text-6xl font-black tracking-widest -rotate-12 text-slate-900 uppercase">{props.institution.name}</span>
                                 </div>
 
@@ -22471,14 +22536,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 text-[11px]">
                                                 {pdfPreviewModal.items.map((it: any, idx: number) => (
-                                                    <tr key={idx}>
+                                                    <tr key={idx} className="border-b border-slate-100">
                                                         <td className="py-1.5 font-mono text-slate-400">{idx + 1}</td>
                                                         <td className="py-1.5 font-bold text-slate-900">{it.name}</td>
                                                         <td className="py-1.5 font-mono text-slate-600">{it.adm}</td>
                                                         <td className="py-1.5 font-medium text-slate-700">{it.cls}</td>
-                                                        <td className="py-1.5 text-right font-bold">KSh {it.inv.toLocaleString()}</td>
-                                                        <td className="py-1.5 text-right font-bold text-emerald-700">KSh {it.pd.toLocaleString()}</td>
-                                                        <td className="py-1.5 text-right font-bold text-rose-700">KSh {it.bal.toLocaleString()}</td>
+                                                        <td className="py-1.5 text-right font-bold">KSh {Number(it.inv || 0).toLocaleString()}</td>
+                                                        <td className="py-1.5 text-right font-bold text-emerald-700">KSh {Number(it.pd || 0).toLocaleString()}</td>
+                                                        <td className="py-1.5 text-right font-bold text-rose-700">KSh {Number(it.bal || 0).toLocaleString()}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -22490,15 +22555,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2 text-xs">
                                     <div className="flex justify-between">
                                         <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Billed / Invoiced</span>
-                                        <span className="font-mono font-bold">KSh {pdfPreviewModal.invoiced.toLocaleString()}</span>
+                                        <span className="font-mono font-bold">KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Amount Paid</span>
-                                        <span className="font-mono font-bold text-emerald-400">KSh {pdfPreviewModal.paid.toLocaleString()}</span>
+                                        <span className="font-mono font-bold text-emerald-400">KSh {Number(pdfPreviewModal.paid || 0).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between border-t border-slate-800 pt-2 mt-2 text-sm">
                                         <span className="font-black uppercase tracking-wider text-rose-300">Total Outstanding Balance Due</span>
-                                        <span className="font-mono font-black text-rose-400 text-base">KSh {pdfPreviewModal.balance.toLocaleString()}</span>
+                                        <span className="font-mono font-black text-rose-400 text-base">KSh {Number(pdfPreviewModal.balance || 0).toLocaleString()}</span>
                                     </div>
                                 </div>
 
@@ -22509,10 +22574,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <p className="font-black text-slate-800">{props.currentUser?.name || 'Chief Accountant'}</p>
                                         <p className="text-[9px] text-slate-500 font-mono">Digital Signature ID: #FIN-{Math.floor(100000 + Math.random() * 900000)}</p>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="w-24 h-10 border-b border-slate-400 mb-1 flex items-end justify-center">
-                                            <span className="font-serif italic text-indigo-900 text-sm font-bold">Approved</span>
-                                        </div>
+                                    <div className="text-right flex flex-col items-end">
+                                        <KenyanOfficialStamp institution={props.institution} size={90} className="mb-1" />
                                         <p className="text-[9px] font-bold text-slate-400 uppercase">Authorized Official Stamp</p>
                                     </div>
                                 </div>
@@ -22521,8 +22584,112 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Modal Actions Footer */}
                         <div className="bg-slate-950 p-6 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4 no-print">
-                            <p className="text-[10px] font-bold text-slate-400">Interactive Document Viewer — High Resolution Vector Print</p>
+                            <p className="text-[10px] font-bold text-slate-400">Interactive Document Viewer — High Resolution Vector Print & PDF Export</p>
                             <div className="flex items-center gap-3">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const { jsPDF } = await import('jspdf');
+                                            await import('jspdf-autotable');
+                                            const doc = new jsPDF({
+                                                orientation: 'portrait',
+                                                unit: 'mm',
+                                                format: 'a4'
+                                            });
+
+                                            doc.setFontSize(15);
+                                            doc.setFont('helvetica', 'bold');
+                                            doc.setTextColor(15, 23, 42);
+                                            doc.text(props.institution.name || 'ACADEMIC INSTITUTION', 14, 16);
+
+                                            doc.setFontSize(10);
+                                            doc.setFont('helvetica', 'bold');
+                                            doc.setTextColor(79, 70, 229);
+                                            doc.text(pdfPreviewModal.title || 'OFFICIAL FEE BALANCE STATEMENT', 14, 23);
+
+                                            doc.setFontSize(8);
+                                            doc.setFont('helvetica', 'normal');
+                                            doc.setTextColor(100, 116, 139);
+                                            doc.text(`${pdfPreviewModal.subtitle || ''} | Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, 28);
+
+                                            doc.setDrawColor(226, 232, 240);
+                                            doc.setFillColor(248, 250, 252);
+                                            doc.roundedRect(14, 31, 182, 16, 2, 2, 'FD');
+
+                                            doc.setFontSize(8);
+                                            doc.setFont('helvetica', 'bold');
+                                            doc.setTextColor(71, 85, 105);
+                                            doc.text(`Account / Student: ${pdfPreviewModal.studentName}`, 18, 37);
+                                            doc.text(`Adm / Ref: ${pdfPreviewModal.admNo}`, 18, 43);
+                                            doc.text(`Class: ${pdfPreviewModal.className}`, 110, 37);
+                                            doc.text(`Status: Verified Ledger Record`, 110, 43);
+
+                                            let currentY = 52;
+
+                                            if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
+                                                const head = [['#', 'Student Name', 'Adm No', 'Class', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']];
+                                                const body = pdfPreviewModal.items.map((it: any, idx: number) => [
+                                                    idx + 1,
+                                                    it.name,
+                                                    it.adm,
+                                                    it.cls,
+                                                    Number(it.inv || 0).toLocaleString(),
+                                                    Number(it.pd || 0).toLocaleString(),
+                                                    Number(it.bal || 0).toLocaleString()
+                                                ]);
+
+                                                (doc as any).autoTable({
+                                                    head,
+                                                    body,
+                                                    startY: 50,
+                                                    theme: 'grid',
+                                                    styles: { fontSize: 8, cellPadding: 2 },
+                                                    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+                                                    columnStyles: {
+                                                        0: { halign: 'center', cellWidth: 10 },
+                                                        1: { halign: 'left', fontStyle: 'bold' },
+                                                        2: { halign: 'left' },
+                                                        3: { halign: 'left' },
+                                                        4: { halign: 'right' },
+                                                        5: { halign: 'right', textColor: [16, 185, 129] },
+                                                        6: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
+                                                    }
+                                                });
+
+                                                currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 120;
+                                            }
+
+                                            if (currentY > 250) {
+                                                doc.addPage();
+                                                currentY = 20;
+                                            }
+
+                                            doc.setDrawColor(15, 23, 42);
+                                            doc.setFillColor(15, 23, 42);
+                                            doc.roundedRect(14, currentY, 182, 22, 2, 2, 'FD');
+
+                                            doc.setFontSize(9);
+                                            doc.setFont('helvetica', 'normal');
+                                            doc.setTextColor(203, 213, 225);
+                                            doc.text(`Total Invoiced: KSh ${Number(pdfPreviewModal.invoiced || 0).toLocaleString()}`, 20, currentY + 8);
+                                            doc.text(`Total Paid: KSh ${Number(pdfPreviewModal.paid || 0).toLocaleString()}`, 20, currentY + 16);
+
+                                            doc.setFontSize(11);
+                                            doc.setFont('helvetica', 'bold');
+                                            doc.setTextColor(253, 164, 175);
+                                            doc.text(`Total Balance Due: KSh ${Number(pdfPreviewModal.balance || 0).toLocaleString()}`, 105, currentY + 13);
+
+                                            const safeFilename = `${(pdfPreviewModal.title || 'fee_balance_report').toLowerCase().replace(/[^a-z0-9]+/g, '_')}.pdf`;
+                                            doc.save(safeFilename);
+                                        } catch (err: any) {
+                                            console.error('Download PDF error:', err);
+                                            alert('Failed to generate PDF download.');
+                                        }
+                                    }}
+                                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-emerald-600/30 active:scale-95 flex items-center gap-2"
+                                >
+                                    📥 Download PDF
+                                </button>
                                 <button
                                     onClick={() => window.print()}
                                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95 flex items-center gap-2"
