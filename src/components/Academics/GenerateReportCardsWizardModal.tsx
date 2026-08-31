@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Assessment, Institution, Student } from '../../types';
+import type { Assessment, Institution, Student, Course } from '../../types';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { apiService } from '../../services/apiService';
+import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 
 export interface StudentFeeRecord {
@@ -16,13 +17,64 @@ export interface StudentFeeRecord {
     status: 'Cleared' | 'Pending' | 'Overdue';
 }
 
+export const resolveStudentClassName = (st: any, coursesList?: any[], fallbackClass?: string, institution?: Institution | null): string => {
+    if (!st) return fallbackClass && fallbackClass !== 'all' ? fallbackClass : 'Form 3 East';
+    const isPrimary = (institution?.institutionType || '').toLowerCase() === 'primary' || 
+                      (institution?.name || '').toLowerCase().includes('primary') || 
+                      (institution?.name || '').toLowerCase().includes('academy');
+
+    const candidates = [
+        st.studentClass,
+        st.className,
+        st.gradeLevel,
+        st.classLevel,
+        st.class_name,
+        st.class,
+        st.grade,
+        st.courseName,
+        st.metadata?.gradeLevel,
+        st.metadata?.class,
+        st.metadata?.studentClass,
+        st.metadata?.course,
+        st.metadata?.courseName
+    ];
+
+    for (const cand of candidates) {
+        if (cand && typeof cand === 'string') {
+            const trimmed = cand.trim();
+            if (trimmed && trimmed.toLowerCase() !== 'class' && trimmed.toLowerCase() !== 'undefined' && trimmed.toLowerCase() !== 'null') {
+                return trimmed;
+            }
+        }
+    }
+
+    // Match courseId against course list
+    if (coursesList && Array.isArray(coursesList) && coursesList.length > 0) {
+        const cId = st.courseId || st.course_id || st.metadata?.courseId;
+        if (cId) {
+            const matched = coursesList.find(c => c && (c.id === cId || c.code === cId));
+            if (matched && matched.name) {
+                return String(matched.name).trim();
+            }
+        }
+    }
+
+    if (fallbackClass && fallbackClass !== 'all') {
+        return fallbackClass;
+    }
+
+    return isPrimary ? 'Grade 3 East' : 'Form 3 East';
+};
+
 interface GenerateReportCardsWizardModalProps {
     isOpen: boolean;
     onClose: () => void;
     currentInstitution?: Institution | null;
     assessments?: Assessment[];
     savedExamUnits?: any[];
-    students?: Student[];
+    students?: any[];
+    courses?: any[];
+    selectedClass?: string;
     onApplyReportConfig?: (config: {
         academicYear: string;
         academicTerm: string;
@@ -43,6 +95,8 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
     assessments = [],
     savedExamUnits = [],
     students = [],
+    courses = [],
+    selectedClass,
     onApplyReportConfig
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
@@ -244,11 +298,14 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                 const sampleBalance = idx === 0 ? 0 : idx === 1 ? 4500 : idx === 2 ? 12000 : 0;
                 const nextFees = defaultNextTermFee;
                 const total = sampleBalance + nextFees;
+                const resolvedAdm = resolveRealStudentAdmNo(st, idx, effectiveStudents);
+                const resolvedClass = resolveStudentClassName(st, courses, selectedClass, currentInstitution);
+
                 return {
                     studentId: st.id,
-                    admissionNo: st.admissionNo || st.admission_number || `ADM-${st.id}`,
+                    admissionNo: resolvedAdm,
                     studentName: st.name || st.fullName || 'Student',
-                    studentClass: (st as any).studentClass || (st as any).grade || 'Class',
+                    studentClass: resolvedClass,
                     currentBalance: sampleBalance,
                     nextTermFees: nextFees,
                     totalDue: total,
@@ -261,7 +318,7 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                 setPreviewStudentId(initialList[0].studentId);
             }
         }
-    }, [effectiveStudents]);
+    }, [effectiveStudents, courses, selectedClass, currentInstitution]);
 
     // ── 1. SYNCHRONIZE FROM FINANCE MODULE ──
     const handleSyncFromFinance = async () => {
@@ -275,8 +332,10 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                 apiService.fetchModuleRecords<any>('fee_payments', instId).catch(() => [])
             ]);
 
-            const updated = effectiveStudents.map(st => {
-                const adm = String(st.admissionNo || st.admission_number || '').trim().toLowerCase();
+            const updated = effectiveStudents.map((st, idx) => {
+                const resolvedAdm = resolveRealStudentAdmNo(st, idx, effectiveStudents);
+                const resolvedClass = resolveStudentClassName(st, courses, selectedClass, currentInstitution);
+                const adm = String(resolvedAdm || '').trim().toLowerCase();
                 const stId = String(st.id).trim().toLowerCase();
 
                 // Find matching student invoices
@@ -298,9 +357,9 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
 
                 return {
                     studentId: st.id,
-                    admissionNo: st.admissionNo || st.admission_number || `ADM-${st.id}`,
+                    admissionNo: resolvedAdm,
                     studentName: st.name || st.fullName || 'Student',
-                    studentClass: (st as any).studentClass || (st as any).grade || 'Class',
+                    studentClass: resolvedClass,
                     currentBalance: bal,
                     nextTermFees: nextFees,
                     totalDue: total,
@@ -1068,53 +1127,53 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                                 </div>
                             </div>
 
-                            {/* Realistic Live Sample Report Card Preview */}
-                            <div className="bg-slate-950 text-slate-100 p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6 font-sans">
+                            {/* Realistic Live Sample Report Card Preview (Clean Light Theme) */}
+                            <div className="bg-white text-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-xl space-y-6 font-sans">
                                 {/* Header */}
-                                <div className="border-b border-slate-800 pb-5 flex justify-between items-start">
+                                <div className="border-b border-slate-200 pb-5 flex justify-between items-start">
                                     <div>
-                                        <span className="text-[9px] font-black uppercase tracking-[0.25em] text-indigo-400 block">
+                                        <span className="text-[9px] font-black uppercase tracking-[0.25em] text-indigo-600 block">
                                             {currentInstitution?.name || 'CENTRAL ACADEMIC REPOSITORY'}
                                         </span>
-                                        <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white mt-0.5">
+                                        <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-900 mt-0.5">
                                             OFFICIAL STUDENT ACADEMIC PROGRESS REPORT
                                         </h3>
-                                        <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                        <p className="text-xs text-slate-500 font-medium mt-0.5">
                                             ACADEMIC YEAR {academicYear} • {selectedTerm.toUpperCase()} PERFORMANCE EVALUATION
                                         </p>
                                     </div>
                                     <div className="text-right">
-                                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-mono font-black uppercase">
+                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-mono font-black uppercase">
                                             SAMPLE PREVIEW
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Student Meta Card */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-slate-900/80 rounded-xl border border-slate-800 text-xs">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                                     <div>
-                                        <span className="text-[9px] font-black uppercase text-slate-400 block">STUDENT NAME</span>
-                                        <span className="font-bold text-white uppercase">{activePreviewRecord.studentName}</span>
+                                        <span className="text-[9px] font-black uppercase text-slate-500 block">STUDENT NAME</span>
+                                        <span className="font-bold text-slate-900 uppercase">{activePreviewRecord.studentName}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[9px] font-black uppercase text-slate-400 block">ADMISSION NUMBER</span>
-                                        <span className="font-mono font-bold text-indigo-400">{activePreviewRecord.admissionNo}</span>
+                                        <span className="text-[9px] font-black uppercase text-slate-500 block">ADMISSION NUMBER</span>
+                                        <span className="font-mono font-bold text-indigo-600">{activePreviewRecord.admissionNo}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[9px] font-black uppercase text-slate-400 block">CLASS / GRADE</span>
-                                        <span className="font-bold text-slate-200">{activePreviewRecord.studentClass}</span>
+                                        <span className="text-[9px] font-black uppercase text-slate-500 block">CLASS / GRADE</span>
+                                        <span className="font-bold text-slate-800">{activePreviewRecord.studentClass}</span>
                                     </div>
                                     <div>
-                                        <span className="text-[9px] font-black uppercase text-slate-400 block">CALCULATION MODE</span>
-                                        <span className="font-bold text-emerald-400 uppercase">{calculationMode}</span>
+                                        <span className="text-[9px] font-black uppercase text-slate-500 block">CALCULATION MODE</span>
+                                        <span className="font-bold text-emerald-600 uppercase">{calculationMode}</span>
                                     </div>
                                 </div>
 
                                 {/* Subjects Evaluation Table */}
-                                <div className="border border-slate-800 rounded-xl overflow-hidden">
+                                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
                                     <table className="w-full text-left text-xs">
                                         <thead>
-                                            <tr className="bg-slate-900 text-slate-400 text-[10px] font-black uppercase tracking-wider border-b border-slate-800">
+                                            <tr className="bg-slate-100/90 text-slate-700 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
                                                 <th className="p-3">SUBJECT</th>
                                                 <th className="p-3 text-center">SCORE (%)</th>
                                                 <th className="p-3 text-center">GRADE</th>
@@ -1122,7 +1181,7 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                                                 <th className="p-3">TEACHER REMARKS</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                                        <tbody className="divide-y divide-slate-100 text-slate-700">
                                             {[
                                                 { name: 'Mathematics', score: 84, grade: 'A', pts: 12, remark: 'Exceptional problem-solving abilities' },
                                                 { name: 'English', score: 76, grade: 'A-', pts: 11, remark: 'Articulate comprehension & composition' },
@@ -1130,62 +1189,62 @@ export const GenerateReportCardsWizardModal: React.FC<GenerateReportCardsWizardM
                                                 { name: 'Physics', score: 78, grade: 'A-', pts: 11, remark: 'Strong practical and theoretical grasp' },
                                                 { name: 'Chemistry', score: 72, grade: 'B+', pts: 10, remark: 'Good analytical precision' }
                                             ].map((sub, i) => (
-                                                <tr key={i} className="hover:bg-slate-900/40">
-                                                    <td className="p-3 font-bold text-white">{sub.name}</td>
-                                                    <td className="p-3 text-center font-mono font-bold text-indigo-300">{sub.score}</td>
-                                                    <td className="p-3 text-center font-black text-emerald-400">{sub.grade}</td>
-                                                    <td className="p-3 text-center font-mono text-slate-400">{sub.pts}</td>
-                                                    <td className="p-3 italic text-slate-400">{sub.remark}</td>
+                                                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="p-3 font-bold text-slate-900">{sub.name}</td>
+                                                    <td className="p-3 text-center font-mono font-bold text-indigo-600">{sub.score}</td>
+                                                    <td className="p-3 text-center font-black text-emerald-600">{sub.grade}</td>
+                                                    <td className="p-3 text-center font-mono text-slate-600">{sub.pts}</td>
+                                                    <td className="p-3 italic text-slate-500">{sub.remark}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
 
-                                {/* Financial Fee Status Summary Card (As Requested!) */}
+                                {/* Financial Fee Status Summary Card (Clean Light Theme) */}
                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                    <div className="md:col-span-6 p-4 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2">
-                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                                    <div className="md:col-span-6 p-4 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-2">
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
                                             <span>💰</span> OFFICIAL FEE STATUS & BILLING SUMMARY
                                         </h4>
                                         <div className="space-y-1.5 pt-1 text-xs">
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Current Outstanding Balance:</span>
-                                                <span className="font-mono font-bold text-slate-200">
+                                                <span className="text-slate-600">Current Outstanding Balance:</span>
+                                                <span className="font-mono font-bold text-slate-900">
                                                     KES {activePreviewRecord.currentBalance.toLocaleString()}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Next Term ({selectedTerm === 'Term 1' ? 'Term 2' : selectedTerm === 'Term 2' ? 'Term 3' : 'Term 1'}) Fees:</span>
-                                                <span className="font-mono font-bold text-slate-200">
+                                                <span className="text-slate-600">Next Term ({selectedTerm === 'Term 1' ? 'Term 2' : selectedTerm === 'Term 2' ? 'Term 3' : 'Term 1'}) Fees:</span>
+                                                <span className="font-mono font-bold text-slate-900">
                                                     KES {activePreviewRecord.nextTermFees.toLocaleString()}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between border-t border-slate-800 pt-2 font-black">
-                                                <span className="text-amber-400">TOTAL AMOUNT DUE ON REOPENING:</span>
-                                                <span className="font-mono text-amber-400 text-sm">
+                                            <div className="flex justify-between border-t border-amber-200 pt-2 font-black">
+                                                <span className="text-amber-900">TOTAL AMOUNT DUE ON REOPENING:</span>
+                                                <span className="font-mono text-amber-900 text-sm">
                                                     KES {activePreviewRecord.totalDue.toLocaleString()}
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="md:col-span-6 p-4 bg-slate-900/90 rounded-xl border border-slate-800 space-y-2 text-xs">
-                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                                    <div className="md:col-span-6 p-4 bg-indigo-50/70 rounded-xl border border-indigo-200/80 space-y-2 text-xs">
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-indigo-800 flex items-center gap-1.5">
                                             <span>📅</span> TERM DATES & CLOSING SCHEDULE
                                         </h4>
-                                        <div className="space-y-1.5 pt-1 text-xs text-slate-300">
+                                        <div className="space-y-1.5 pt-1 text-xs text-slate-700">
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Current Term Closed On:</span>
-                                                <span className="font-bold text-white">{termEndDate}</span>
+                                                <span className="text-slate-600">Current Term Closed On:</span>
+                                                <span className="font-bold text-slate-900">{termEndDate}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-400">Next Term Begins On:</span>
-                                                <span className="font-bold text-emerald-400">{nextTermStartDate}</span>
+                                                <span className="text-slate-600">Next Term Begins On:</span>
+                                                <span className="font-bold text-emerald-600">{nextTermStartDate}</span>
                                             </div>
-                                            <div className="flex justify-between border-t border-slate-800 pt-2">
-                                                <span className="text-slate-400">Digital Verification:</span>
-                                                <span className="text-emerald-400 font-mono text-[10px]">VERIFIED [SHA-256]</span>
+                                            <div className="flex justify-between border-t border-indigo-200 pt-2">
+                                                <span className="text-slate-600">Digital Verification:</span>
+                                                <span className="text-emerald-700 font-mono text-[10px] font-black">VERIFIED [SHA-256]</span>
                                             </div>
                                         </div>
                                     </div>

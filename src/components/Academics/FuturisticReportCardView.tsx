@@ -18,6 +18,7 @@ import { EyeIcon } from '../icons/EyeIcon';
 import { XIcon } from '../icons/XIcon';
 import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
 import { apiService } from '../../services/apiService';
+import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 
 interface FuturisticReportCardViewProps {
@@ -1040,7 +1041,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                                     className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-slate-700/50 cursor-pointer"
                                                 >
                                                     <div className="font-black uppercase">{st.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono">Adm: {st.admissionNo || st.id} &bull; {getStudentClassInfo(st).rawClass}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">Adm: {resolveRealStudentAdmNo(st)} &bull; {getStudentClassInfo(st).rawClass}</div>
                                                 </button>
                                             ))
                                         )}
@@ -1097,7 +1098,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                             <div className="min-w-0">
                                 <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
                                 <h3 className="text-lg font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
-                                <p className="text-xs font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{currentStudent.admissionNo || currentStudent.id}</span></p>
+                                <p className="text-xs font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent)}</span></p>
                                 <p className="text-xs text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
                             </div>
                         </div>
@@ -1408,7 +1409,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                         <div className="min-w-0">
                                             <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
                                             <h3 className="text-lg font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
-                                            <p className="text-xs font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{currentStudent.admissionNo || currentStudent.id}</span></p>
+                                            <p className="text-xs font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent)}</span></p>
                                             <p className="text-xs text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
                                         </div>
                                     </div>
@@ -1620,6 +1621,8 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 currentInstitution={currentInstitution}
                 assessments={assessments}
                 students={activeStudents}
+                courses={courses}
+                selectedClass={selectedClass !== 'all' ? selectedClass : undefined}
                 onApplyReportConfig={(config) => {
                     setSelectedYear(config.academicYear);
                     setSelectedTerm(config.academicTerm);

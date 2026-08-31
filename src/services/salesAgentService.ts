@@ -39,9 +39,9 @@ export interface AgentMessage {
  * about the current institution, its products, prices, and capabilities.
  */
 function buildSystemPrompt(ctx: SalesAgentContext): string {
-    const inst = ctx.institution;
+    const inst = ctx.institution || {} as any;
     const instType = inst.institutionType || 'Enterprise Cloud ERP & Multi-Industry SaaS';
-    const currency = (inst as any).currency || 'KES';
+    const currency = (inst as any)?.currency || 'KES';
     const businessName = inst.name || 'EduAI Global Cloud OS';
     const agentTitle = ctx.agentName || `${businessName} AI Solutions Advisor`;
 
@@ -73,9 +73,9 @@ CAMPUS PROFILE:
 - School / Institution: ${businessName}
 - Type: ${instType}
 - Location: ${inst.address || inst.subCounty || inst.countyId || 'Kenya'}
-- Contact Phone: ${ctx.contactPhone || inst.phoneNumber || (inst as any).phone || 'Available on request'}
+- Contact Phone: ${ctx.contactPhone || inst.phoneNumber || (inst as any)?.phone || 'Available on request'}
 - Contact Email: ${ctx.contactEmail || inst.email || 'Available on request'}
-- WhatsApp: ${ctx.whatsappNumber || inst.phoneNumber || (inst as any).phone || ''}
+- WhatsApp: ${ctx.whatsappNumber || inst.phoneNumber || (inst as any)?.phone || ''}
 - Operating / Office Hours: ${ctx.operatingHours || 'Monday - Friday: 7:30 AM - 5:00 PM'}
 - Currency: ${currency}
 ${servicesText}
@@ -100,9 +100,9 @@ BUSINESS & PLATFORM PROFILE:
 - Organization Name: ${businessName}
 - Industry / Focus: ${instType} ${inst.businessSubType ? `(${inst.businessSubType})` : ''}
 - Location / Address: ${inst.address || inst.countyId || 'Nairobi, Kenya'}
-- Contact Phone: ${ctx.contactPhone || inst.phoneNumber || (inst as any).phone || '+254 700 000 000'}
+- Contact Phone: ${ctx.contactPhone || inst.phoneNumber || (inst as any)?.phone || '+254 700 000 000'}
 - Contact Email: ${ctx.contactEmail || inst.email || 'sales@eduai.co.ke'}
-- WhatsApp / Hotline: ${ctx.whatsappNumber || inst.phoneNumber || (inst as any).phone || '+254 700 000 000'}
+- WhatsApp / Hotline: ${ctx.whatsappNumber || inst.phoneNumber || (inst as any)?.phone || '+254 700 000 000'}
 - Operating Hours: ${ctx.operatingHours || '24/7 Cloud Support | Mon - Sat: 8:00 AM - 6:00 PM'}
 - Currency: ${currency}
 ${catalogText}
@@ -126,12 +126,12 @@ function generateLocalAgentResponse(
     history: AgentMessage[],
     ctx: SalesAgentContext
 ): AgentMessage {
-    const inst = ctx.institution;
+    const inst = ctx.institution || {} as any;
     const lower = userMessage.toLowerCase().trim();
-    const currency = (inst as any).currency || 'KES';
+    const currency = (inst as any)?.currency || 'KES';
     const instName = inst.name || 'EduAI Global Cloud OS';
     const agentTitle = ctx.agentName || `${instName} Solutions Advisor`;
-    const phone = ctx.contactPhone || inst.phoneNumber || (inst as any).phone || '+254 700 000 000';
+    const phone = ctx.contactPhone || inst.phoneNumber || (inst as any)?.phone || '+254 700 000 000';
     const email = ctx.contactEmail || inst.email || 'sales@eduai.co.ke';
     const address = inst.address || inst.subCounty || inst.countyId || 'Nairobi, Kenya';
     const isSchool = inst.institutionType && ['Education', 'Primary', 'Secondary', 'Tertiary', 'Higher Education', 'TVET', 'College', 'University'].includes(inst.institutionType as string);
