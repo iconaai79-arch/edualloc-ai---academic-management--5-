@@ -3,7 +3,8 @@ import { Institution, Role } from '../types';
 /**
  * Returns the appropriate admin role for a new institution based on its type and subtype.
  */
-export function getAdminRoleForInstitution(institution: Partial<Institution>): Role {
+export function getAdminRoleForInstitution(institution: Partial<Institution> | null | undefined): Role {
+    if (!institution) return 'head_teacher';
     const type = institution.institutionType;
     const subType = institution.businessSubType?.toLowerCase() || '';
 
@@ -67,8 +68,8 @@ export function isHISInstitution(institution: Partial<Institution> | null | unde
 export function getRolesForInstitution(institution: Institution | null | undefined): (Role | string)[] {
     if (!institution) return ['admin'];
 
-    const type = institution.institutionType;
-    const subType = institution.businessSubType?.toLowerCase() || '';
+    const type = institution?.institutionType;
+    const subType = institution?.businessSubType?.toLowerCase() || '';
 
     // Cooperative, SACCO, Agrovet
     const isCoop = type === 'Cooperative' || type === 'SACCO' || type === 'Agrovet' || 

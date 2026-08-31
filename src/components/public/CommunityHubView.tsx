@@ -55,10 +55,10 @@ export const CommunityHubView: React.FC<CommunityHubViewProps> = ({ institutions
     }, [activeFilter]);
 
     const communityInsts = useMemo(() => {
-        return institutions.filter(inst => 
-            inst.institutionType === 'Community' || 
-            inst.institutionType === 'Political Campaign' || 
-            ['NGO/Foundation', 'Chama/Savings Group', 'Estate/Neighborhood', 'Relief/Social Work', 'Family Heritage', 'Political Campaign'].includes(inst.category || '')
+        return (institutions || []).filter(inst => 
+            inst?.institutionType === 'Community' || 
+            inst?.institutionType === 'Political Campaign' || 
+            ['NGO/Foundation', 'Chama/Savings Group', 'Estate/Neighborhood', 'Relief/Social Work', 'Family Heritage', 'Political Campaign'].includes(inst?.category || '')
         );
     }, [institutions]);
 

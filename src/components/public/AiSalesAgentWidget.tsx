@@ -218,7 +218,7 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
         }
     };
 
-    const isSchool = !institution.institutionType || ['Education', 'Primary', 'Secondary', 'Tertiary', 'Higher Education', 'TVET', 'College', 'University'].includes(institution.institutionType);
+    const isSchool = !institution?.institutionType || ['Education', 'Primary', 'Secondary', 'Tertiary', 'Higher Education', 'TVET', 'College', 'University'].includes(institution?.institutionType as any);
 
     const quickChips = isSchool ? [
         { label: '🎓 Courses & Levels', query: 'What academic programs and grade levels do you offer?' },
@@ -273,13 +273,13 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                                         Active AI
                                     </span>
                                 </div>
-                                <p className="text-[10px] text-slate-300 truncate max-w-[200px] font-medium">{institution.name}</p>
+                                <p className="text-[10px] text-slate-300 truncate max-w-[200px] font-medium">{institutionName}</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
                             {whatsappNumber && (
                                 <a
-                                    href={`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(institution.name)},%20I%20am%20inquiring%20about%20your%20services`}
+                                    href={`https://wa.me/${whatsappNumber.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(institutionName)},%20I%20am%20inquiring%20about%20your%20services`}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="p-2 text-emerald-400 hover:bg-white/10 rounded-xl transition-colors"
