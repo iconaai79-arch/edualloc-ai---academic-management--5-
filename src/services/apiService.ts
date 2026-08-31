@@ -2051,14 +2051,32 @@ export const apiService = {
             }
         } catch(e) {}
 
-        // Local storage mode for unsupported server modules
-        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
-            if (module === 'users') {
-                const dsStudents = ls.get('ds_students');
-                ls.set('ds_students', (dsStudents || []).filter((s: any) => s && !idsSet.has(s.userId) && !idsSet.has(s.user_id)));
-                const dsInstructors = ls.get('ds_instructors');
-                ls.set('ds_instructors', (dsInstructors || []).filter((i: any) => i && !idsSet.has(i.userId) && !idsSet.has(i.user_id)));
+        if (module === 'users') {
+            const dsStudents = ls.get('ds_students');
+            if (Array.isArray(dsStudents)) {
+                ls.set('ds_students', dsStudents.filter((s: any) => s && !idsSet.has(s.userId) && !idsSet.has(s.user_id)));
             }
+            const dsInstructors = ls.get('ds_instructors');
+            if (Array.isArray(dsInstructors)) {
+                ls.set('ds_instructors', dsInstructors.filter((i: any) => i && !idsSet.has(i.userId) && !idsSet.has(i.user_id)));
+            }
+        }
+
+        // Direct Supabase delete if _supabase is present
+        if (_supabase) {
+            try {
+                if (idsArray.length === 1) {
+                    await _supabase.from(module).delete().eq('id', idsArray[0]);
+                } else {
+                    await _supabase.from(module).delete().in('id', idsArray);
+                }
+            } catch (err) {
+                console.warn(`[deleteModuleRecord] Direct Supabase delete for ${module}:`, err);
+            }
+        }
+
+        // Local storage mode for unsupported server modules
+        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module)) {
             return;
         }
 
