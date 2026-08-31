@@ -2637,10 +2637,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }, [subjects, loadData]);
 
     const handleUpdateCourse = useCallback(async (id: string, data: any) => {
+        // Optimistically update React state immediately
+        setCourses(prev => (prev || []).map(c => c.id === id ? { ...c, ...data } : c));
+        
         const existing = (courses || []).find(c => c.id === id);
         if (existing) {
-            await apiService.saveModuleRecord('courses', { ...existing, ...data });
-            loadData();
+            try {
+                await apiService.saveModuleRecord('courses', { ...existing, ...data });
+            } catch (err) {
+                console.error("Failed to update course/grade record:", err);
+            }
+            await loadData(false, true);
         }
     }, [courses, loadData]);
 
@@ -2745,22 +2752,41 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }, [loadData]);
 
     const handleAddCourse = useCallback(async (data: any) => {
-        const id = `course_${Date.now()}`;
-        const courseData = { ...data, id, institutionId: currentUser?.institutionId, levels: data.levels || [] };
-        await apiService.saveModuleRecord('courses', courseData);
-        loadData();
-    }, [currentUser, loadData]);
+        const id = data.id || `course_${Date.now()}`;
+        const targetInstitutionId = data.institutionId || currentUser?.institutionId || activeInstitution?.id;
+        const courseData = { ...data, id, institutionId: targetInstitutionId, levels: data.levels || [] };
+        
+        // Optimistically update React state immediately
+        setCourses(prev => [...(prev || []).filter(c => c.id !== id), courseData]);
+        
+        try {
+            await apiService.saveModuleRecord('courses', courseData);
+        } catch (err) {
+            console.error("Failed to save course/grade record:", err);
+        }
+        await loadData(false, true);
+    }, [currentUser, activeInstitution, loadData]);
 
     const handleDeleteCourse = useCallback(async (id: string) => {
-        await apiService.deleteModuleRecord('courses', id);
-        loadData();
+        // Optimistically remove from React state immediately
+        setCourses(prev => (prev || []).filter(c => c.id !== id));
+        
+        try {
+            await apiService.deleteModuleRecord('courses', id);
+        } catch (err) {
+            console.error("Failed to delete course/grade record:", err);
+        }
+        await loadData(false, true);
     }, [loadData]);
 
     const handleImportCourses = useCallback(async (data: any[]) => {
-        const enriched = data.map(c => ({ ...c, institutionId: currentUser?.institutionId }));
+        const targetInstId = currentUser?.institutionId || activeInstitution?.id;
+        const enriched = data.map((c, idx) => ({ ...c, id: c.id || `course_${Date.now()}_${idx}`, institutionId: targetInstId }));
+        
+        setCourses(prev => [...(prev || []), ...enriched]);
         await apiService.onImportCourses(enriched);
-        loadData();
-    }, [currentUser, loadData]);
+        await loadData(false, true);
+    }, [currentUser, activeInstitution, loadData]);
 
     const handleAddRoom = useCallback(async (data: any) => {
         await apiService.saveModuleRecord('rooms', { ...data, id: `room_${Date.now()}`, institutionId: currentUser?.institutionId });

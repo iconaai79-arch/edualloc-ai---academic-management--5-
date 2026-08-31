@@ -337,6 +337,14 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     rooms = [], users = [], allocations = [], allTimetableEntries = [],
     timetableSettings, onSaveTimetableSettings, onLogAction
 }) => {
+    const [localCourses, setLocalCourses] = useState<Course[]>(courses || []);
+
+    useEffect(() => {
+        if (Array.isArray(courses)) {
+            setLocalCourses(courses);
+        }
+    }, [courses]);
+
     const [managerTab, setManagerTab] = useState<'courses' | 'streams' | 'pathways' | 'lessons'>('courses');
     const [isAdding, setIsAdding] = useState(false);
     const [isAddingStream, setIsAddingStream] = useState(false);
@@ -358,19 +366,32 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [newStreamName, setNewStreamName] = useState('');
     const [newStreamRoomId, setNewStreamRoomId] = useState('');
 
-    const handleAddCourseInternal = onAddCourse || (async (courseData: any) => {
-        try {
-            const instId = currentInstitution?.id || currentUser?.institutionId || 'default';
-            await apiService.saveModuleRecord('courses', {
-                ...courseData,
-                institutionId: instId,
-                id: `course_${Date.now()}`
-            });
-            setIsAdding(false);
-        } catch (err) {
-            console.error("Failed to save grade/course:", err);
+    const handleAddCourseInternal = async (courseData: any) => {
+        const id = courseData.id || `course_${Date.now()}`;
+        const instId = currentInstitution?.id || currentUser?.institutionId || 'default';
+        const newCourse: Course = {
+            ...courseData,
+            id,
+            institutionId: instId,
+            levels: courseData.levels || []
+        };
+        setLocalCourses(prev => [...(prev || []).filter(c => c.id !== id), newCourse]);
+        setIsAdding(false);
+
+        if (onAddCourse) {
+            try {
+                await onAddCourse(courseData);
+            } catch (err) {
+                console.error("Failed in onAddCourse:", err);
+            }
+        } else {
+            try {
+                await apiService.saveModuleRecord('courses', newCourse);
+            } catch (err) {
+                console.error("Failed to save grade/course:", err);
+            }
         }
-    });
+    };
 
     const [editingStructureFor, setEditingStructureFor] = useState<{ course: Course, level: CourseLevel, subject: Subject, currentStructure: LessonStructure[] } | null>(null);
 
@@ -379,7 +400,6 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     const [newLessonSubjectId, setNewLessonSubjectId] = useState('');
     const [newLessonStructure, setNewLessonStructure] = useState<string>('Single');
 
-    // Pathway (Option Block) States
     const [selectedPathwayCourseId, setSelectedPathwayCourseId] = useState('');
     const [newPathwaySubjectIds, setNewPathwaySubjectIds] = useState<string[]>([]);
     const [pathwayProcessing, setPathwayProcessing] = useState(false);
@@ -451,9 +471,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     };
 
     const visibleCourses = useMemo(() => {
-        if (currentUser?.role === 'tto' && currentUser?.departmentId) return (courses || []).filter(c => c.departmentId === currentUser.departmentId);
-        return courses || [];
-    }, [courses, currentUser]);
+        if (currentUser?.role === 'tto' && currentUser?.departmentId) return (localCourses || []).filter(c => c.departmentId === currentUser.departmentId);
+        return localCourses || [];
+    }, [localCourses, currentUser]);
 
     const departmentMap = useMemo(() => new Map((departments || []).map(d => [d.id, d.name])), [departments]);
     const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u.name])), [users]);
@@ -524,28 +544,26 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                             .map(ls => `${ls.count}x ${ls.periods === 1 ? 'Single' : ls.periods === 2 ? 'Double' : ls.periods + ' Periods'}`).join(', ') || 'N/A';
 
                         lessons.push({
-                            id: `${course.id}-${level.id}-${subject.id}`,
+                            id: `${course.id}_${level.id}_${subject.id}`,
                             courseId: course.id,
+                            courseName: course.name,
                             levelId: level.id,
+                            levelName: level.name,
                             subjectId: subject.id,
                             subjectName: subject.name,
                             subjectCode: subject.code,
-                            lecturer: lecturersNames || 'Unassigned',
-                            lecturerId: firstLecturerId,
-                            courseName: course.name,
-                            levelName: level.name,
-                            structure: structure,
-                            isOverride: !!meta?.lessonStructure,
-                            structureSource: structureSource,
                             departmentId: course.departmentId,
-                            allocationId: relatedAllocations[0]?.id || null
+                            lecturer: lecturersNames || 'Unassigned',
+                            lecturerId: firstLecturerId || null,
+                            allocationId: relatedAllocations[0]?.id || null,
+                            status: relatedAllocations[0]?.status || 'unassigned'
                         });
                     }
                 });
             });
         });
         return lessons;
-    }, [visibleCourses, allocations, userMap, subjectMap]);
+    }, [visibleCourses, subjectMap, allocations, userMap]);
 
     const filteredLessons = useMemo(() => {
         return (lessonsList || []).filter(lesson => {
@@ -563,7 +581,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     const handleAddStream = (e: React.FormEvent) => {
         e.preventDefault();
-        const course = (courses || []).find(c => c.id === newStreamCourseId);
+        const course = (localCourses || []).find(c => c.id === newStreamCourseId);
         if (course && newStreamName.trim()) {
             const newLevel: CourseLevel = {
                 id: `stream_${Date.now()}`,
@@ -571,7 +589,9 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                 subjectIds: [],
                 roomId: newStreamRoomId || undefined
             };
-            onUpdateCourse?.(course.id, { levels: [...(course.levels || []), newLevel] });
+            const updatedLevels = [...(course.levels || []), newLevel];
+            setLocalCourses(prev => (prev || []).map(c => c.id === course.id ? { ...c, levels: updatedLevels } : c));
+            onUpdateCourse?.(course.id, { levels: updatedLevels });
             setNewStreamName('');
             setNewStreamCourseId('');
             setIsAddingStream(false);
@@ -580,13 +600,14 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     const handleUpdateStream = () => {
         if (!editingStream) return;
-        const course = courses.find(c => c.id === editingStream.courseId);
+        const course = (localCourses || []).find(c => c.id === editingStream.courseId);
         if (!course) return;
 
         const updatedLevels = (course.levels || []).map(l =>
             l.id === editingStream.streamId ? { ...l, name: editingStream.name, classTeacherId: (editingStream as any).classTeacherId, roomId: (editingStream as any).roomId } : l
         );
 
+        setLocalCourses(prev => (prev || []).map(c => c.id === course.id ? { ...c, levels: updatedLevels } : c));
         if (onUpdateCourse) {
             onUpdateCourse(course.id, { levels: updatedLevels });
             setEditingStream(null);
@@ -594,14 +615,16 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
     };
 
     const handleDeleteStream = (courseId: string, streamId: string) => {
-        const course = (courses || []).find(c => c.id === courseId);
+        const course = (localCourses || []).find(c => c.id === courseId);
         if (course && window.confirm("Are you sure you want to delete this stream? This will remove all subject associations for this stream.")) {
             const updatedLevels = (course.levels || []).filter(l => l.id !== streamId);
+            setLocalCourses(prev => (prev || []).map(c => c.id === courseId ? { ...c, levels: updatedLevels } : c));
             onUpdateCourse?.(courseId, { levels: updatedLevels });
         }
     };
 
     const handleUpdateCourseSubmit = (id: string, data: Partial<Omit<Course, 'id' | 'institutionId'>>) => {
+        setLocalCourses(prev => (prev || []).map(c => c.id === id ? { ...c, ...data } : c));
         onUpdateCourse?.(id, data);
         setEditingCourse(null);
     };
@@ -612,6 +635,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
             const sIds = Array.from(new Set(rawIds));
             return { ...l, subjectIds: sIds, subject_ids: sIds };
         });
+        setLocalCourses(prev => (prev || []).map(c => c.id === courseId ? { ...c, levels: normalizedLevels } : c));
         if (assigningSubjectsTo && assigningSubjectsTo.id === courseId) {
             setAssigningSubjectsTo(prev => prev ? { ...prev, levels: normalizedLevels } : null);
         }
@@ -644,21 +668,26 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     const handleUpdateStructure = (structureString: string) => {
         if (!editingStructureFor) return;
-        // Parse structure string e.g., "Single" -> [{ periods: 1, count: 1 }]
         let structure: LessonStructure[] = [];
         if (structureString === 'Single') structure = [{ periods: 1, count: 1 }];
         else if (structureString === 'Double') structure = [{ periods: 2, count: 1 }];
         else if (structureString === 'Triple') structure = [{ periods: 3, count: 1 }];
         else if (structureString === 'Quad') structure = [{ periods: 4, count: 1 }];
         else if (structureString === 'Double + Single') structure = [{ periods: 2, count: 1 }, { periods: 1, count: 1 }];
-        else structure = [{ periods: 1, count: 1 }]; // Default
+        else structure = [{ periods: 1, count: 1 }];
 
         handleSaveStructureOverride({ lessonStructure: structure });
     };
 
     const confirmDelete = async () => {
-        if (deletingCourse && onDeleteCourse) {
-            await onDeleteCourse(deletingCourse.id);
+        if (deletingCourse) {
+            const idToDelete = deletingCourse.id;
+            setLocalCourses(prev => (prev || []).filter(c => c.id !== idToDelete));
+            if (onDeleteCourse) {
+                await onDeleteCourse(idToDelete);
+            } else {
+                await apiService.deleteModuleRecord('courses', idToDelete);
+            }
             onLogAction?.(`Archived curriculum record: ${deletingCourse.name}`);
             setDeletingCourse(null);
         }
@@ -717,7 +746,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
         setPathwayProcessing(true);
         const subjectNames = newPathwaySubjectIds.map(id => (subjects || []).find(s => s && s.id === id)?.name || id).join(', ');
-        const course = (courses || []).find(c => c && c.id === selectedPathwayCourseId);
+        const course = (localCourses || []).find(c => c && c.id === selectedPathwayCourseId);
         const description = `Option Block for ${course?.name || 'Academic Course'}: ${subjectNames}`;
 
         const newConstraint: TimetableConstraint = {
@@ -762,16 +791,16 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
     const levelsForNewLesson = useMemo(() => {
         if (!newLessonCourseId) return [];
-        return (courses || []).find(c => c.id === newLessonCourseId)?.levels || [];
-    }, [newLessonCourseId, courses]);
+        return (localCourses || []).find(c => c.id === newLessonCourseId)?.levels || [];
+    }, [newLessonCourseId, localCourses]);
 
     const subjectsForNewLesson = useMemo(() => {
         if (!newLessonCourseId) return subjects || [];
-        const course = (courses || []).find(c => c.id === newLessonCourseId);
+        const course = (localCourses || []).find(c => c.id === newLessonCourseId);
         if (!course) return subjects || [];
         // Relax filtering for schools or if department IDs are missing
         return (subjects || []).filter(s => isSchoolInstitution(currentInstitution) || !course.departmentId || !s.departmentId || s.departmentId === course.departmentId);
-    }, [newLessonCourseId, courses, subjects, isSchool]);
+    }, [newLessonCourseId, localCourses, subjects, isSchool]);
 
     const EditCourseModal: React.FC<{
         course: Course;
@@ -1549,7 +1578,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             </button>
                                             <button
                                                 onClick={() => {
-                                                    const course = courses.find(c => c.id === stream.courseId);
+                                                    const course = (localCourses || []).find(c => c.id === stream.courseId);
                                                     if (course) setAssigningSubjectsTo(course);
                                                 }}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white dark:bg-indigo-900/30 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
@@ -1558,7 +1587,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             </button>
                                             <button
                                                 onClick={() => {
-                                                    const course = courses.find(c => c.id === stream.courseId);
+                                                    const course = (localCourses || []).find(c => c.id === stream.courseId);
                                                     if (course) {
                                                         setManagingLessonsForCourse(course);
                                                         setManagingLessonsForStreamId(stream.streamId);
@@ -1570,7 +1599,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                                 Lessons
                                             </button>
                                             <button
-                                                onClick={() => setViewingProgressOf(courses.find(c => c.id === stream.courseId) || null)}
+                                                onClick={() => setViewingProgressOf((localCourses || []).find(c => c.id === stream.courseId) || null)}
                                                 className="flex items-center gap-1.5 px-4 py-2 bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white dark:bg-amber-900/30 dark:text-amber-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                                             >
                                                 Progress
@@ -2146,7 +2175,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         onImport={async (courses) => {
                             if (onImportCourses) await onImportCourses(courses);
                         }}
-                        existingCourses={courses}
+                        existingCourses={localCourses}
                         departments={departments}
                         academicLevels={academicLevels}
                         isSchool={isSchool}
