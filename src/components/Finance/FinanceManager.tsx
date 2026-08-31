@@ -2457,14 +2457,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 setImporterHeaders(headers);
 
                 // Auto-detect columns
-                const detectedId = headers.find((h: string) => /adm|number|reg|identifier|student|name/i.test(h)) || '';
+                const detectedId = headers.find((h: string) => /^(adm|admission|reg|registration|adm[\s_]*(no|num|number|#|id)|student[\s_]*(no|num|number|#|id|adm)|upi)/i.test(h.trim()) && !/name|payer/i.test(h.trim())) ||
+                                   headers.find((h: string) => /adm|number|reg|identifier/i.test(h) && !/name|payer/i.test(h)) ||
+                                   headers.find((h: string) => /name|student/i.test(h)) || '';
                 const detectedBal = headers.find((h: string) => /bal|amount|open/i.test(h)) || '';
                 setImporterMappings({
                     identifier: detectedId,
                     balance: detectedBal
                 });
 
-                if (/name|student/i.test(detectedId)) {
+                if (/name/i.test(detectedId) && !/adm|reg|no|number|id/i.test(detectedId)) {
                     setImporterMatchField('name');
                 } else {
                     setImporterMatchField('admissionNumber');
@@ -2531,7 +2533,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             ];
             candidates.forEach(c => {
                 if (c !== undefined && c !== null && String(c).trim() !== '') {
-                    set.add(String(c).trim());
+                    const strVal = String(c).trim();
+                    if (!/^adm-10\d{2,}$/i.test(strVal)) {
+                        set.add(strVal);
+                    }
                 }
             });
             return Array.from(set);
@@ -2553,7 +2558,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const alphaRawId = sanitizeAlphaNum(rawId);
             const rawInt = parseInt(rawId, 10);
 
-            // Find matching student
+            // Find matching student strictly by admission number
             let matchedStudent: User | undefined;
 
             if (importerMatchField === 'admissionNumber') {
@@ -2564,28 +2569,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (!isNaN(rawInt) && ids.some(id => parseInt(id, 10) === rawInt)) return true;
                     return false;
                 });
-
-                // Fallback to student name match if admission number match failed
-                if (!matchedStudent) {
+            } else {
+                // Match strictly by exact full name (at least 2 words, zero partial matches)
+                const tokens = normRawId.split(/\s+/).filter(Boolean);
+                if (tokens.length >= 2) {
                     matchedStudent = mergedStudents.find(s => {
                         if (!s.name) return false;
-                        return normalize(s.name) === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
-                    });
-                }
-            } else {
-                // Primary match by student name
-                matchedStudent = mergedStudents.find(s => {
-                    if (!s.name) return false;
-                    return normalize(s.name) === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
-                });
-
-                // Fallback to admission number match
-                if (!matchedStudent) {
-                    matchedStudent = mergedStudents.find(s => {
-                        const ids = getStudentIdentifiers(s);
-                        if (ids.some(id => normalize(id) === normRawId)) return true;
-                        if (alphaRawId && ids.some(id => sanitizeAlphaNum(id) === alphaRawId)) return true;
-                        return false;
+                        const sClean = normalize(s.name);
+                        return sClean === normRawId || (alphaRawId && sanitizeAlphaNum(s.name) === alphaRawId);
                     });
                 }
             }

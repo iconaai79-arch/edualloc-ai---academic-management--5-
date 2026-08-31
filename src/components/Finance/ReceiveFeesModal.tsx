@@ -459,7 +459,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         const registerStudentAdmVariants = (val: any, student: User) => {
             if (!val) return;
             const strClean = String(val).trim().toLowerCase();
-            if (!strClean || strClean === '—' || strClean === 'n/a' || strClean === 'null' || strClean === 'undefined' || strClean.startsWith('usr_') || strClean.startsWith('user_')) return;
+            if (!strClean || strClean === '—' || strClean === 'n/a' || strClean === 'null' || strClean === 'undefined' || strClean.startsWith('usr_') || strClean.startsWith('user_') || /^adm-10\d{2,}$/i.test(strClean)) return;
 
             // 1. Exact string as recorded
             registerAdmKey(strClean, student);
@@ -690,18 +690,31 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         return { allocations, summary: summary || 'Tuition' };
     };
 
-    // Auto-detect columns from parsed headers (strictly ignores row counters like #, No, S/No, Index)
-    const autoDetectColumns = (headers: string[]) => {
+    const detectStatementHeaders = (headers: string[]) => {
         const isRowCounter = (h: string) => /^(#|no\.?|s\/?no\.?|serial(\s*no\.?)?|row|sn|index)$/i.test(h.trim());
         const candidateHeaders = headers.filter(h => !isRowCounter(h));
 
+        const isAdmHeader = (h: string) => {
+            const clean = h.trim().toLowerCase();
+            if (/^(name|student[\s_]*name|full[\s_]*name|payer[\s_]*name|sender[\s_]*name|student|payer)$/i.test(clean)) return false;
+            return /^(adm|admission|reg|registration|adm[\s_]*(no|num|number|#|id)|admission[\s_]*(no|num|number|#|id)|reg[\s_]*(no|num|number|#|id)|registration[\s_]*(no|num|number|#|id)|student[\s_]*(no|num|number|#|id|adm)|upi)$/i.test(clean) ||
+                   /^(adm_no|reg_no|admission_number|admission_no)$/i.test(clean);
+        };
+
+        const isNameHeader = (h: string, admColFound: string) => {
+            const clean = h.trim().toLowerCase();
+            if (h === admColFound) return false;
+            return /^(name|student[\s_]*name|payer[\s_]*name|sender[\s_]*name|full[\s_]*name|student|payer)$/i.test(clean) ||
+                   /name|payer/i.test(clean);
+        };
+
         const findCol = (pattern: RegExp) => candidateHeaders.find(h => pattern.test(h.trim())) || '';
 
-        const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm)?|adm[\s_]*no|upi)$/i) ||
-                            candidateHeaders.find(h => /^(adm|admission|reg_no|adm_no)$/i.test(h.trim())) ||
-                            candidateHeaders.find(h => /adm|admission/i.test(h.trim())) || '';
+        const detectedAdm = candidateHeaders.find(isAdmHeader) ||
+                            candidateHeaders.find(h => /^(adm|admission)$/i.test(h.trim())) ||
+                            candidateHeaders.find(h => /(adm|admission)/i.test(h.trim()) && !/name|payer/i.test(h)) || '';
 
-        const detectedName = findCol(/^(name|student[\s_]*name|payer[\s_]*name|sender[\s_]*name|full[\s_]*name)$/i) ||
+        const detectedName = candidateHeaders.find(h => isNameHeader(h, detectedAdm)) ||
                              candidateHeaders.find(h => /name|payer|student/i.test(h) && h !== detectedAdm) || '';
 
         const detectedAmt = findCol(/^(amount|amount[\s_]*(paid|received|ksh)?|paid|credit|total|ksh)$/i) ||
@@ -716,6 +729,29 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
         const detectedMode = findCol(/^(payment[\s_]*mode|pay[\s_]*mode|mode|payment[\s_]*type|channel|method)$/i) || '';
 
         const detectedReceipt = findCol(/^(receipt|receipt[\s_]*(no|number|#|id)?|rcpt|rcpt[\s_]*(no|#)?|rec[\s_]*(no|#)?)$/i) || '';
+
+        return {
+            detectedAdm,
+            detectedName,
+            detectedAmt,
+            detectedRef,
+            detectedDate,
+            detectedMode,
+            detectedReceipt
+        };
+    };
+
+    // Auto-detect columns from parsed headers (strictly ignores row counters like #, No, S/No, Index)
+    const autoDetectColumns = (headers: string[]) => {
+        const {
+            detectedAdm,
+            detectedName,
+            detectedAmt,
+            detectedRef,
+            detectedDate,
+            detectedMode,
+            detectedReceipt
+        } = detectStatementHeaders(headers);
 
         setAdmissionCol(detectedAdm);
         setNameCol(detectedName);
@@ -879,24 +915,15 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             setRawRows(parsedRows);
 
             autoDetectColumns(headers);
-
-            const isRowCounter = (h: string) => /^(#|no\.?|s\/?no\.?|serial(\s*no\.?)?|row|sn|index)$/i.test(h.trim());
-            const candidateHeaders = headers.filter(h => !isRowCounter(h));
-
-            const findCol = (pattern: RegExp) => candidateHeaders.find(h => pattern.test(h.trim())) || '';
-            const detectedAdm = findCol(/^(adm|admission|reg|registration|student[\s_]*(no|id|num|adm)?|adm[\s_]*no|upi)$/i) ||
-                                candidateHeaders.find(h => /^(adm|admission|reg_no|adm_no)$/i.test(h.trim())) ||
-                                candidateHeaders.find(h => /adm|admission/i.test(h.trim())) || '';
-            const detectedName = findCol(/^(name|student[\s_]*name|payer[\s_]*name|sender[\s_]*name|full[\s_]*name)$/i) ||
-                                 candidateHeaders.find(h => /name|payer|student/i.test(h) && h !== detectedAdm) || '';
-            const detectedAmt = findCol(/^(amount|amount[\s_]*(paid|received|ksh)?|paid|credit|total|ksh)$/i) ||
-                                candidateHeaders.find(h => /amount|paid|total|credit/i.test(h)) || '';
-            const detectedRef = findCol(/^(reference|ref(erence)?[\s_]*(no|code|#)?|trans(action)?[\s_]*(code|id|ref)?|mpesa[\s_]*(code|ref)?|code)$/i) ||
-                                candidateHeaders.find(h => /ref|trans|code|mpesa/i.test(h)) || '';
-            const detectedDate = findCol(/^(paid[\s_]*on|date|payment[\s_]*date|trans[\s_]*date|txn[\s_]*date)$/i) ||
-                                 candidateHeaders.find(h => /date|paid|time/i.test(h)) || '';
-            const detectedMode = findCol(/^(payment[\s_]*mode|pay[\s_]*mode|mode|payment[\s_]*type|channel|method)$/i) || '';
-            const detectedReceipt = findCol(/^(receipt|receipt[\s_]*(no|number|#|id)?|rcpt|rcpt[\s_]*(no|#)?|rec[\s_]*(no|#)?)$/i) || '';
+            const {
+                detectedAdm,
+                detectedName,
+                detectedAmt,
+                detectedRef,
+                detectedDate,
+                detectedMode,
+                detectedReceipt
+            } = detectStatementHeaders(headers);
 
             reconcileRows(parsedRows, {
                 admCol: detectedAdm,

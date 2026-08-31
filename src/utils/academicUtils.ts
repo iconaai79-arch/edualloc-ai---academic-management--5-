@@ -178,17 +178,20 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
         }
     }
 
-    // Match by ID or Name in registry / enrollments if provided
+    // Match by ID or exact full name in registry / enrollments if provided
     if (registry && Array.isArray(registry) && registry.length > 0) {
         const studentId = student.id;
         const cleanName = student.name ? String(student.name).trim().toLowerCase() : '';
+        const nameTokens = cleanName.split(/\s+/).filter(Boolean);
+
         const matched = registry.find(s => {
             if (studentId && (s.userId === studentId || s.studentId === studentId || s.id === studentId)) {
                 return true;
             }
-            if (cleanName) {
+            // Only match by name if exact full name matches and has at least 2 words (never partial first-name matches)
+            if (cleanName && nameTokens.length >= 2) {
                 const sName = String(s.name || s.fullName || '').trim().toLowerCase();
-                if (sName && (sName === cleanName || sName.includes(cleanName) || cleanName.includes(sName))) {
+                if (sName && sName === cleanName) {
                     return true;
                 }
             }
