@@ -225,15 +225,12 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
  *   "PP1 Red" -> { className: "PP1", stream: "Red" }
  */
 export const extractClassAndStream = (raw?: any): { className: string; stream?: string; academicYear?: string } => {
-    if (!raw || typeof raw !== 'string') {
-        const str = raw ? String(raw).trim() : '';
-        if (!str || str === 'undefined' || str === 'null' || str === '—' || str === 'N/A' || str === 'Unclassified') {
-            return { className: '' };
-        }
-        raw = str;
+    if (raw === null || raw === undefined) {
+        return { className: '' };
     }
 
-    let text = String(raw).trim();
+    const textStr = typeof raw === 'string' ? raw : String(raw);
+    let text = textStr.trim();
     if (!text || text === 'undefined' || text === 'null' || text === '—' || text === 'N/A' || text === 'Unclassified') {
         return { className: '' };
     }
@@ -305,16 +302,18 @@ export const extractClassAndStream = (raw?: any): { className: string; stream?: 
  * Normalizes class names into a clean, canonical form (e.g. "FORM 4" -> "Form 4", "Form 4 B 2026" -> "Form 4").
  */
 export const normalizeClassName = (raw?: any): string => {
+    if (raw === null || raw === undefined) return '';
     const parsed = extractClassAndStream(raw);
-    return parsed.className;
+    return parsed.className || '';
 };
 
 /**
  * Normalizes stream names (e.g. "b" -> "B", "stream b" -> "B", "NORTH" -> "North").
  */
 export const normalizeStreamName = (raw?: any): string => {
-    if (!raw) return '';
-    let str = String(raw).trim();
+    if (raw === null || raw === undefined) return '';
+    const strRaw = typeof raw === 'string' ? raw : String(raw);
+    let str = strRaw.trim();
     if (!str || str === '—' || str === 'undefined' || str === 'null' || str === 'N/A' || str === 'Unassigned' || str.toLowerCase() === 'all') {
         return '';
     }
@@ -336,12 +335,17 @@ export const normalizeStreamName = (raw?: any): string => {
 };
 
 /**
- * Natural sort comparator for academic classes (e.g. PP1, PP2, Grade 1..12, Form 1..4).
+ * Natural sort helper & comparator for academic classes (e.g. PP1, PP2, Grade 1..12, Form 1..4).
+ * Supports both direct function call on an array: naturalClassSort(['Form 4', 'Form 1'])
+ * AND standard array sort comparator: ['Form 4', 'Form 1'].sort(naturalClassSort)
  */
-export const naturalClassSort = (a: string, b: string): number => {
-    const parseClassWeight = (cls: string): number => {
-        if (!cls) return 9999;
-        const lower = cls.toLowerCase().trim();
+export const naturalClassSort = (a: any, b?: any): any => {
+    const parseClassWeight = (cls: any): number => {
+        if (cls === null || cls === undefined) return 9999;
+        const str = typeof cls === 'string' ? cls : String(cls);
+        const lower = str.toLowerCase().trim();
+        if (!lower) return 9999;
+
         if (lower.includes('playgroup') || lower.includes('daycare')) return 10;
         if (lower.includes('pp1') || lower.includes('pre-primary 1') || lower.includes('nursery')) return 20;
         if (lower.includes('pp2') || lower.includes('pre-primary 2') || lower.includes('kindergarten')) return 30;
@@ -360,10 +364,22 @@ export const naturalClassSort = (a: string, b: string): number => {
         return 500;
     };
 
-    const weightA = parseClassWeight(a);
-    const weightB = parseClassWeight(b);
-    if (weightA !== weightB) return weightA - weightB;
-    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    const compareTwo = (x: any, y: any): number => {
+        const strX = typeof x === 'string' ? x : String(x || '');
+        const strY = typeof y === 'string' ? y : String(y || '');
+        const weightA = parseClassWeight(strX);
+        const weightB = parseClassWeight(strY);
+        if (weightA !== weightB) return weightA - weightB;
+        return strX.localeCompare(strY, undefined, { numeric: true, sensitivity: 'base' });
+    };
+
+    // If first argument is an array (e.g. naturalClassSort(myArray)), sort and return a new array
+    if (Array.isArray(a)) {
+        return [...a].sort(compareTwo);
+    }
+
+    // Otherwise treat as standard comparator (a, b)
+    return compareTwo(a, b);
 };
 
 /**
