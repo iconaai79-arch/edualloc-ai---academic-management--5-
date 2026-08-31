@@ -16,6 +16,7 @@ import { MODULES } from '../../constants';
 import { AiSalesAgentWidget } from './AiSalesAgentWidget';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { generateStampDataUri, formatStampDate } from '../../utils/stampGenerator';
+import { PublicStampPaymentModal } from './PublicStampPaymentModal';
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
@@ -299,6 +300,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
   const [stampInk, setStampInk] = useState('#0047AB');
   const [stampDate, setStampDate] = useState(new Date().toISOString().split('T')[0]);
   const [isGeneratingStamp, setIsGeneratingStamp] = useState(false);
+  const [isStampPaymentModalOpen, setIsStampPaymentModalOpen] = useState(false);
 
   // M-Pesa Playground
   const [mpesaPhone, setMpesaPhone] = useState('0712345678');
@@ -829,19 +831,36 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
                 />
               </div>
 
-              <div className="w-full flex justify-between items-center pt-3 border-t border-slate-800">
-                <p className="text-[11px] text-slate-400 font-medium">
-                  ⚡ Auto-stamps every receipt, fee voucher & LPO
-                </p>
-                <button
-                  type="button"
-                  onClick={handleDownloadDemoStamp}
-                  disabled={isGeneratingStamp}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-lg transition-all cursor-pointer flex items-center gap-2"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Stamp (PNG)</span>
-                </button>
+              <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span>★ KES 50</span>
+                    <span className="text-slate-400 font-normal">HD License</span>
+                  </span>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    560px HD PNG & Vector SVG
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleDownloadDemoStamp}
+                    disabled={isGeneratingStamp}
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider border border-slate-800 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    title="Download Free Watermarked Demo"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Free Demo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsStampPaymentModalOpen(true)}
+                    className="flex-grow sm:flex-grow-0 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-900/30 transition-all cursor-pointer flex items-center justify-center gap-2 hover:scale-[1.02]"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Pay KES 50 & Download Stamp</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1303,6 +1322,16 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Public Stamp Payment & Download Modal */}
+      <PublicStampPaymentModal
+        isOpen={isStampPaymentModalOpen}
+        onClose={() => setIsStampPaymentModalOpen(false)}
+        stampConfig={liveStampConfig}
+        stampDate={stampDate}
+        companyDetails={companyDetails}
+        feeAmount={50}
+      />
 
       {/* Embedded AI Sales Chat Assistant */}
       <AiSalesAgentWidget 
