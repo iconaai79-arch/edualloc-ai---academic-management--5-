@@ -335,9 +335,9 @@ export const ReportCard: React.FC<ReportCardProps> = ({
 
                     <style>{`
                         @media print {
-                            @page { margin: 15mm; }
-                            .no-print { display: none; }
-                            body { background: white; -webkit-print-color-adjust: exact; }
+                            @page { size: A4 portrait; margin: 8mm 10mm; }
+                            .no-print { display: none !important; }
+                            body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                         }
                         table { border-spacing: 0; width: 100%; }
                         th, td { border: 1px solid #e2e8f0; }
