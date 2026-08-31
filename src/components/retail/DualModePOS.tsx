@@ -369,7 +369,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             setActiveMode('shop'); // Force shop mode on desktop
         } else if (width < 768) {
             setActiveMode('field'); // Default to field mode on mobile
-        } else if (currentUser.role.includes('agent') || currentUser.role === 'field_agent') {
+        } else if ((currentUser.role || '').includes('agent') || currentUser.role === 'field_agent') {
             // Specific overrides for tablet if and role is field agent
             setActiveMode('field');
         }

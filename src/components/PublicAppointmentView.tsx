@@ -44,7 +44,7 @@ export const PublicAppointmentView: React.FC<PublicAppointmentViewProps> = ({ us
         
         if (searchTerm) {
             const lower = searchTerm.toLowerCase();
-            staff = staff.filter(u => u.name.toLowerCase().includes(lower) || u.role.toLowerCase().includes(lower));
+            staff = staff.filter(u => u.name.toLowerCase().includes(lower) || (u.role || '').toLowerCase().includes(lower));
         }
         return staff.slice(0, 20);
     }, [users, selectedInstitutionId, searchTerm]);

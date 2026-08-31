@@ -1251,8 +1251,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id)
             } : null;
             const instType = activeInst?.institutionType || 'General';
-            const instId = instOverrideId || (currentUser && (currentUser.role === 'super_admin' || currentUser.role.startsWith('county_')) ? undefined : currentUser?.institutionId);
-            const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
+            const instId = instOverrideId || (currentUser && (currentUser.role === 'super_admin' || (currentUser.role || '').startsWith('county_')) ? undefined : currentUser?.institutionId);
+            const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser.countyId : undefined;
             const effectiveInstId = instOverrideId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || ''));
             const isSuper = currentUser?.role === 'super_admin';
 
@@ -1261,7 +1261,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isAcademic = isSuper || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'].includes(instTypeLower);
             const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
-            const isCoopRole = currentUser ? ['cooperative_manager', 'coop_admin', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'agrovet_admin'].includes(currentUser.role) : false;
+            const isCoopRole = currentUser?.role ? ['cooperative_manager', 'coop_admin', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'agrovet_admin'].includes(currentUser.role) : false;
             const isCoop = isSuper || isCoopRole || ['cooperative', 'sacco', 'agrovet', 'farming'].includes(instTypeLower);
             const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'retail agency', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower) || instTypeLower.includes('retail') || (activeInst?.businessSubType || '').toLowerCase().includes('retail') || (activeInst?.category || '').toLowerCase().includes('retail');
             const isHigherEd = ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
@@ -1532,7 +1532,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 let cInvs: any[] = [], cPay: any[] = [];
                 let ims: any[] = [], disc: any[] = [], fExps: any[] = [], fGoals: any[] = [], fPayroll: any[] = [], demoLeads: any[] = [];
                 let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
-                const cntId = currentUser && currentUser.role.startsWith('county_') ? currentUser.countyId : undefined;
+                const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser.countyId : undefined;
 
                 // ── BATCH 1: Financial & Basic Modules ─────────────────────────
                 const results = await Promise.all([
