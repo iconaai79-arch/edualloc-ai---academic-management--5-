@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
@@ -3018,321 +3019,322 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             </div>
 
             {/* MODAL 1: ADD NEW EXAM (STEP 1 & STEP 2) */}
-            {isAddExamModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in">
+            {isAddExamModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto flex flex-col max-h-[92vh]">
                         {/* Title Bar */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
                             <div>
                                 <h3 className="font-bold text-base text-slate-800 dark:text-white">{isEditingExam ? 'Edit exam' : 'Add exam'}</h3>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Step {wizardStep} of 2</p>
                             </div>
                             <div className="flex items-center gap-3 text-slate-400">
                                 <button type="button" className="hover:text-slate-600 text-lg font-bold">+</button>
-                                <button type="button" onClick={() => { setIsAddExamModalOpen(false); setWizardStep(1); }} className="hover:text-slate-600">
+                                <button type="button" onClick={() => { setIsAddExamModalOpen(false); setWizardStep(1); }} className="hover:text-slate-600 cursor-pointer">
                                     <XIcon className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Modal Body */}
-                        {wizardStep === 1 ? (
-                            /* STEP 1: GENERAL CONFIG */
-                            <div className="p-6 space-y-6">
-                                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                    Start by choosing the type of exam you want to create from the three options below.
-                                </p>
+                        <div className="overflow-y-auto flex-1 custom-scrollbar">
+                            {wizardStep === 1 ? (
+                                /* STEP 1: GENERAL CONFIG */
+                                <div className="p-6 space-y-6">
+                                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                        Start by choosing the type of exam you want to create from the three options below.
+                                    </p>
 
-                                {/* Creation Method Radio Group */}
-                                <div className="flex flex-wrap items-center gap-6 text-xs font-medium text-slate-700 dark:text-slate-300">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="creationMethod"
-                                            checked={creationMethod === 'raw_marks'}
-                                            onChange={() => setCreationMethod('raw_marks')}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>Allow teachers to enter raw marks</span>
-                                    </label>
+                                    {/* Creation Method Radio Group */}
+                                    <div className="flex flex-wrap items-center gap-6 text-xs font-medium text-slate-700 dark:text-slate-300">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="creationMethod"
+                                                checked={creationMethod === 'raw_marks'}
+                                                onChange={() => setCreationMethod('raw_marks')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>Allow teachers to enter raw marks</span>
+                                        </label>
 
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="creationMethod"
-                                            checked={creationMethod === 'combine'}
-                                            onChange={() => setCreationMethod('combine')}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>Combine existing exams</span>
-                                    </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="creationMethod"
+                                                checked={creationMethod === 'combine'}
+                                                onChange={() => setCreationMethod('combine')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>Combine existing exams</span>
+                                        </label>
 
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="creationMethod"
-                                            checked={creationMethod === 'excel'}
-                                            onChange={() => setCreationMethod('excel')}
-                                            className="text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span>Import exam results from Excel</span>
-                                    </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="creationMethod"
+                                                checked={creationMethod === 'excel'}
+                                                onChange={() => setCreationMethod('excel')}
+                                                className="text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>Import exam results from Excel</span>
+                                        </label>
+                                    </div>
+
+                                    {/* Form Fields Table/Grid */}
+                                    <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                        {/* Exam Name */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam name</label>
+                                            <div className="col-span-2">
+                                                <input
+                                                    type="text"
+                                                    value={newExamName}
+                                                    onChange={e => setNewExamName(e.target.value)}
+                                                    placeholder="e.g County pre-mock"
+                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Exam Type */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam type</label>
+                                            <div className="col-span-2 flex items-center gap-6 text-xs text-slate-700 dark:text-slate-300">
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="examTypeRadio"
+                                                        checked={newExamTypeRadio === 'CAT'}
+                                                        onChange={() => setNewExamTypeRadio('CAT')}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>CAT</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="examTypeRadio"
+                                                        checked={newExamTypeRadio === 'End Term'}
+                                                        onChange={() => setNewExamTypeRadio('End Term')}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>End Term</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="examTypeRadio"
+                                                        checked={newExamTypeRadio === 'Inter-school'}
+                                                        onChange={() => setNewExamTypeRadio('Inter-school')}
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>Inter-school</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* Academic Year */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Academic year</label>
+                                            <div className="col-span-2 relative">
+                                                <select
+                                                    value={newAcademicYear}
+                                                    onChange={e => setNewAcademicYear(e.target.value)}
+                                                    className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                                >
+                                                    <option value="2026">2026</option>
+                                                    <option value="2025">2025</option>
+                                                    <option value="2024">2024</option>
+                                                </select>
+                                                <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                            </div>
+                                        </div>
+
+                                        {/* Term */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Term</label>
+                                            <div className="col-span-2 relative">
+                                                <select
+                                                    value={newTerm}
+                                                    onChange={e => setNewTerm(e.target.value)}
+                                                    className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                                >
+                                                    <option value="Term 1">Term 1</option>
+                                                    <option value="Term 2">Term 2</option>
+                                                    <option value="Term 3">Term 3</option>
+                                                </select>
+                                                <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                            </div>
+                                        </div>
+
+                                        {/* Grading System */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Grading system</label>
+                                            <div className="col-span-2 relative">
+                                                <select
+                                                    value={newGradingSystem}
+                                                    onChange={e => setNewGradingSystem(e.target.value)}
+                                                    className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
+                                                >
+                                                    <option value="Main grading system">Main grading system</option>
+                                                    <option value="8-4-4 KCSE Grading">8-4-4 KCSE Grading</option>
+                                                    <option value="CBC Standardized Grading">CBC Standardized Grading</option>
+                                                </select>
+                                                <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                                            </div>
+                                        </div>
+
+                                        {/* Exam Starts On */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam starts on</label>
+                                            <div className="col-span-2">
+                                                <input
+                                                    type="date"
+                                                    value={newExamStartDate}
+                                                    onChange={e => setNewExamStartDate(e.target.value)}
+                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Marks Submission Deadline */}
+                                        <div className="grid grid-cols-3 items-center gap-4">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Marks submission deadline</label>
+                                            <div className="col-span-2">
+                                                <input
+                                                    type="date"
+                                                    value={newExamSubmissionDate}
+                                                    onChange={e => setNewExamSubmissionDate(e.target.value)}
+                                                    className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                            ) : (
+                                /* STEP 2: STUDENTS & PAPERS SCOPE & UNIQUE RANKING CRITERIA */
+                                <div className="p-6 space-y-6">
+                                    {/* Instructions prompt matching exact wording */}
+                                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-relaxed">
+                                        Specify the students that will be sitting this exam by entering student names, admission or class name. If not all subjects will be tested, click <span className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">'Papers to Test'</span> to choose papers being tested. You can also specify a unique ranking criteria to be used on this exam only.
+                                    </p>
 
-                                {/* Form Fields Table/Grid */}
-                                <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                    {/* Exam Name */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam name</label>
-                                        <div className="col-span-2">
-                                            <input
-                                                type="text"
-                                                value={newExamName}
-                                                onChange={e => setNewExamName(e.target.value)}
-                                                placeholder="e.g County pre-mock"
-                                                className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                                            />
-                                        </div>
-                                    </div>
+                                    {/* Section 1: Student Scope & Search */}
+                                    <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                        <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">Students Sitting Exam</label>
+                                        <input
+                                            type="text"
+                                            value={targetStudentSearch}
+                                            onChange={e => setTargetStudentSearch(e.target.value)}
+                                            placeholder="Search student names, admission no. or class..."
+                                            className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                                        />
 
-                                    {/* Exam Type */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam type</label>
-                                        <div className="col-span-2 flex items-center gap-6 text-xs text-slate-700 dark:text-slate-300">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="examTypeRadio"
-                                                    checked={newExamTypeRadio === 'CAT'}
-                                                    onChange={() => setNewExamTypeRadio('CAT')}
-                                                    className="text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span>CAT</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="examTypeRadio"
-                                                    checked={newExamTypeRadio === 'End Term'}
-                                                    onChange={() => setNewExamTypeRadio('End Term')}
-                                                    className="text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span>End Term</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="examTypeRadio"
-                                                    checked={newExamTypeRadio === 'Inter-school'}
-                                                    onChange={() => setNewExamTypeRadio('Inter-school')}
-                                                    className="text-blue-600 focus:ring-blue-500"
-                                                />
-                                                <span>Inter-school</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {/* Academic Year */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Academic year</label>
-                                        <div className="col-span-2 relative">
-                                            <select
-                                                value={newAcademicYear}
-                                                onChange={e => setNewAcademicYear(e.target.value)}
-                                                className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
-                                            >
-                                                <option value="2026">2026</option>
-                                                <option value="2025">2025</option>
-                                                <option value="2024">2024</option>
-                                            </select>
-                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                                        </div>
-                                    </div>
-
-                                    {/* Term */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Term</label>
-                                        <div className="col-span-2 relative">
-                                            <select
-                                                value={newTerm}
-                                                onChange={e => setNewTerm(e.target.value)}
-                                                className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
-                                            >
-                                                <option value="Term 1">Term 1</option>
-                                                <option value="Term 2">Term 2</option>
-                                                <option value="Term 3">Term 3</option>
-                                            </select>
-                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                                        </div>
-                                    </div>
-
-                                    {/* Grading System */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Grading system</label>
-                                        <div className="col-span-2 relative">
-                                            <select
-                                                value={newGradingSystem}
-                                                onChange={e => setNewGradingSystem(e.target.value)}
-                                                className="w-full h-9 px-3 pr-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white appearance-none focus:outline-none focus:border-blue-500"
-                                            >
-                                                <option value="Main grading system">Main grading system</option>
-                                                <option value="8-4-4 KCSE Grading">8-4-4 KCSE Grading</option>
-                                                <option value="CBC Standardized Grading">CBC Standardized Grading</option>
-                                            </select>
-                                            <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-                                        </div>
-                                    </div>
-
-                                    {/* Exam Starts On */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Exam starts on</label>
-                                        <div className="col-span-2">
-                                            <input
-                                                type="date"
-                                                value={newExamStartDate}
-                                                onChange={e => setNewExamStartDate(e.target.value)}
-                                                className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Marks Submission Deadline */}
-                                    <div className="grid grid-cols-3 items-center gap-4">
-                                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Marks submission deadline</label>
-                                        <div className="col-span-2">
-                                            <input
-                                                type="date"
-                                                value={newExamSubmissionDate}
-                                                onChange={e => setNewExamSubmissionDate(e.target.value)}
-                                                className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            /* STEP 2: STUDENTS & PAPERS SCOPE & UNIQUE RANKING CRITERIA */
-                            <div className="p-6 space-y-6">
-                                {/* Instructions prompt matching exact wording */}
-                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                    Specify the students that will be sitting this exam by entering student names, admission or class name. If not all subjects will be tested, click <span className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded">'Papers to Test'</span> to choose papers being tested. You can also specify a unique ranking criteria to be used on this exam only.
-                                </p>
-
-                                {/* Section 1: Student Scope & Search */}
-                                <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                    <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">Students Sitting Exam</label>
-                                    <input
-                                        type="text"
-                                        value={targetStudentSearch}
-                                        onChange={e => setTargetStudentSearch(e.target.value)}
-                                        placeholder="Search student names, admission no. or class..."
-                                        className="w-full h-9 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
-                                    />
-
-                                    <div className="pt-0.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsStudentPickerModalOpen(true)}
-                                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1.5"
-                                        >
-                                            <UserGroupIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                                            <span>Choose from students</span>
-                                        </button>
-                                    </div>
-
-                                    {/* Search result hint */}
-                                    {(() => {
-                                        const q = targetStudentSearch.trim().toLowerCase();
-                                        if (!q) return null;
-                                        // Find students matching adm no or name
-                                        const matchedStudents = allRealStudents.filter(u => {
-                                            const admNo = String((u as any).admissionNumber || (u as any).admNo || (u as any).adm_no || '').toLowerCase();
-                                            const name = String((u as any).fullName || (u as any).name || u.email || '').toLowerCase();
-                                            return admNo.includes(q) || name.includes(q);
-                                        });
-                                        if (matchedStudents.length === 0 && !registeredClasses.some(c => c.toLowerCase().includes(q))) {
-                                            return <p className="text-[11px] text-red-500 font-medium">No students or classes found matching "{targetStudentSearch}"</p>;
-                                        }
-                                        if (matchedStudents.length > 0) {
-                                            return <p className="text-[11px] text-blue-600 font-semibold">{matchedStudents.length} student{matchedStudents.length > 1 ? 's' : ''} found — their classes are highlighted below</p>;
-                                        }
-                                        return null;
-                                    })()}
-
-                                    {/* Target Classes Selector with Select All / Clear All */}
-                                    <div className="flex justify-between items-center pt-1">
-                                        <span className="text-[11px] font-medium text-slate-500">Classes Sitting Exam ({selectedClasses.length} selected)</span>
-                                        <div className="flex gap-2 text-xs">
+                                        <div className="pt-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => setSelectedClasses(registeredClasses)}
-                                                className="text-[11px] font-bold text-blue-600 hover:underline"
+                                                onClick={() => setIsStudentPickerModalOpen(true)}
+                                                className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1.5"
                                             >
-                                                Select All
-                                            </button>
-                                            <span className="text-slate-300">|</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedClasses([])}
-                                                className="text-[11px] font-bold text-slate-500 hover:underline"
-                                            >
-                                                Clear All
+                                                <UserGroupIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                                <span>Choose from students</span>
                                             </button>
                                         </div>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 p-2 rounded-lg">
+
+                                        {/* Search result hint */}
                                         {(() => {
                                             const q = targetStudentSearch.trim().toLowerCase();
-                                            // Build set of classes that have a student matching the search
-                                            const studentMatchedClasses = new Set<string>();
-                                            if (q) {
-                                                allRealStudents.forEach(u => {
-                                                    const admNo = String((u as any).admissionNumber || (u as any).admNo || (u as any).adm_no || '').toLowerCase();
-                                                    const name = String((u as any).fullName || (u as any).name || u.email || '').toLowerCase();
-                                                    if (admNo.includes(q) || name.includes(q)) {
-                                                        const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
-                                                        if (cl) studentMatchedClasses.add(String(cl).trim());
-                                                    }
-                                                });
-                                            }
-                                            // Filter class chips: show classes matching query by name OR by student match
-                                            const visibleClasses = q
-                                                ? registeredClasses.filter(c => c.toLowerCase().includes(q) || studentMatchedClasses.has(c))
-                                                : registeredClasses;
-
-                                            if (visibleClasses.length === 0) {
-                                                return <p className="text-[11px] text-slate-400 italic px-1 py-2 w-full">No matching classes found</p>;
-                                            }
-
-                                            return visibleClasses.map(cName => {
-                                                const isSelected = selectedClasses.includes(cName);
-                                                const isStudentMatch = studentMatchedClasses.has(cName);
-                                                return (
-                                                    <button
-                                                        key={cName}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setSelectedClasses(prev =>
-                                                                isSelected ? prev.filter(c => c !== cName) : [...prev, cName]
-                                                            );
-                                                        }}
-                                                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${isSelected
-                                                                ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                                                                : isStudentMatch
-                                                                    ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-400 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400'
-                                                                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                                                            }`}
-                                                        title={isStudentMatch ? `A matching student is in ${cName}` : cName}
-                                                    >
-                                                        {isSelected ? '✓ ' : isStudentMatch ? '🎯 ' : '+ '}{cName}
-                                                    </button>
-                                                );
+                                            if (!q) return null;
+                                            // Find students matching adm no or name
+                                            const matchedStudents = allRealStudents.filter(u => {
+                                                const admNo = String((u as any).admissionNumber || (u as any).admNo || (u as any).adm_no || '').toLowerCase();
+                                                const name = String((u as any).fullName || (u as any).name || u.email || '').toLowerCase();
+                                                return admNo.includes(q) || name.includes(q);
                                             });
+                                            if (matchedStudents.length === 0 && !registeredClasses.some(c => c.toLowerCase().includes(q))) {
+                                                return <p className="text-[11px] text-red-500 font-medium">No students or classes found matching "{targetStudentSearch}"</p>;
+                                            }
+                                            if (matchedStudents.length > 0) {
+                                                return <p className="text-[11px] text-blue-600 font-semibold">{matchedStudents.length} student{matchedStudents.length > 1 ? 's' : ''} found — their classes are highlighted below</p>;
+                                            }
+                                            return null;
                                         })()}
-                                    </div>
-                                </div>
 
-                                {/* Section 2: Papers to Test Button & Import Enrolled Subjects */}
+                                        {/* Target Classes Selector with Select All / Clear All */}
+                                        <div className="flex justify-between items-center pt-1">
+                                            <span className="text-[11px] font-medium text-slate-500">Classes Sitting Exam ({selectedClasses.length} selected)</span>
+                                            <div className="flex gap-2 text-xs">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedClasses(registeredClasses)}
+                                                    className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                                                >
+                                                    Select All
+                                                </button>
+                                                <span className="text-slate-300">|</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedClasses([])}
+                                                    className="text-[11px] font-bold text-slate-500 hover:underline cursor-pointer"
+                                                >
+                                                    Clear All
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 p-2 rounded-lg">
+                                            {(() => {
+                                                const q = targetStudentSearch.trim().toLowerCase();
+                                                const studentMatchedClasses = new Set<string>();
+                                                if (q) {
+                                                    allRealStudents.forEach(u => {
+                                                        const admNo = String((u as any).admissionNumber || (u as any).admNo || (u as any).adm_no || '').toLowerCase();
+                                                        const name = String((u as any).fullName || (u as any).name || u.email || '').toLowerCase();
+                                                        if (admNo.includes(q) || name.includes(q)) {
+                                                            const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                                                            if (cl) studentMatchedClasses.add(String(cl).trim());
+                                                        }
+                                                    });
+                                                }
+                                                const visibleClasses = q
+                                                    ? registeredClasses.filter(c => c.toLowerCase().includes(q) || studentMatchedClasses.has(c))
+                                                    : registeredClasses;
+                                                return visibleClasses.map(cName => {
+                                                    const isChecked = selectedClasses.includes(cName);
+                                                    const hasDirectStudentMatch = studentMatchedClasses.has(cName);
+                                                    return (
+                                                        <label
+                                                            key={cName}
+                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer border transition-all ${
+                                                                isChecked
+                                                                    ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 shadow-xs'
+                                                                    : hasDirectStudentMatch
+                                                                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 text-amber-800 dark:text-amber-200 ring-2 ring-amber-400/40'
+                                                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={e => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedClasses([...selectedClasses, cName]);
+                                                                    } else {
+                                                                        setSelectedClasses(selectedClasses.filter(c => c !== cName));
+                                                                    }
+                                                                }}
+                                                                className="rounded text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <span>{cName}</span>
+                                                            {hasDirectStudentMatch && (
+                                                                <span className="ml-0.5 text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/60 px-1 rounded">MATCH</span>
+                                                            )}
+                                                        </label>
+                                                    );
+                                                });
+                                            })()}
+                                        </div>
+                                    </div>
                                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-800 dark:text-white">Exam Papers</h4>
@@ -3501,6 +3503,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </div>
                             </div>
                         )}
+                        </div>
 
                         {/* Modal Footer Buttons */}
                         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
@@ -3541,29 +3544,30 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => { setIsAddExamModalOpen(false); setWizardStep(1); }}
-                                    className="px-6 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-medium text-xs rounded transition-all"
+                                    className="px-6 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-medium text-xs rounded transition-all cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL 2: PAPERS TO TEST & MAX SCORE CONVERSION CONFIGURATION */}
-            {isPapersModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in">
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
+            {isPapersModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto flex flex-col max-h-[92vh]">
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
                             <div>
                                 <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase">Papers to Test & Max Input Score</h4>
                                 <p className="text-[10px] text-slate-400 font-medium">Configure maximum raw input marks per paper (e.g. Math Paper 1: 30 marks) & auto-conversion to 100%.</p>
                             </div>
-                            <button onClick={() => setIsPapersModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XIcon className="w-5 h-5" /></button>
+                            <button onClick={() => setIsPapersModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><XIcon className="w-5 h-5" /></button>
                         </div>
 
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
                             <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 shadow-sm max-h-72 overflow-y-auto">
                                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-xs">
                                     <thead className="bg-slate-50 dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-400">
@@ -3665,14 +3669,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         } catch (e) { }
                                         setIsPapersModalOpen(false);
                                     }}
-                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all"
+                                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all cursor-pointer"
                                 >
                                     Save Papers Configuration ({deduplicatePapers(testedPaperConfigs).filter(p => p.enabled).length} Active)
                                 </button>
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL 3: MARKS ENTRY & BROADSHEET SPREADSHEET */}
