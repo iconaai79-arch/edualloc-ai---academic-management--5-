@@ -59,6 +59,8 @@ import { EyeIcon } from './icons/EyeIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
+import { ScanToPayQrModal } from './common/ScanToPayQrModal';
+import { QrCodeIcon } from './icons/QrCodeIcon';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { CurrencyIcon } from './icons/CurrencyIcon';
 import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
@@ -670,6 +672,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+    const [showScanToPayModal, setShowScanToPayModal] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
     const [managingGatewayFor, setManagingGatewayFor] = useState<Institution | null>(null);
@@ -5272,6 +5275,49 @@ Please change it after login.`;
                                                 </div>
                                             </div>
 
+                                            {/* Scan-to-Pay QR & Direct Client Checkout Studio */}
+                                            <div className="p-6 sm:p-8 bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-slate-50 dark:from-emerald-950/30 dark:via-slate-900/60 dark:to-slate-900 rounded-[2.5rem] border border-emerald-200/80 dark:border-emerald-800/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-lg shadow-emerald-600/20 flex-shrink-0">
+                                                        <QrCodeIcon className="w-8 h-8" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-[9px] font-black uppercase tracking-widest">
+                                                                Scan & Pay STK Trigger
+                                                            </span>
+                                                            <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">Paybill: {localMpesaConfig.paybillNumber || '4086655'}</span>
+                                                        </div>
+                                                        <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                            Scan-to-Pay QR Code & Standee Generator
+                                                        </h4>
+                                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl leading-relaxed">
+                                                            Print counter standees or share payment links. When a client scans the QR code, they enter their mobile phone number to trigger an instant Safaricom M-Pesa STK PIN prompt.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const url = `${window.location.origin}/?view=scan-to-pay`;
+                                                            navigator.clipboard.writeText(url);
+                                                            alert('Public Scan-to-Pay URL copied to clipboard:\n' + url);
+                                                        }}
+                                                        className="flex-1 md:flex-none h-12 px-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-750 transition-all shadow-sm flex items-center justify-center gap-2"
+                                                    >
+                                                        Copy Link
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowScanToPayModal(true)}
+                                                        className="flex-1 md:flex-none h-12 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2"
+                                                    >
+                                                        <QrCodeIcon className="w-4 h-4" /> Standee Studio
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             <div className="pt-6 border-t flex flex-col sm:flex-row justify-between items-center gap-4">
                                                 <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 w-full sm:w-auto">
                                                     <input
@@ -8622,6 +8668,12 @@ Please change it after login.`;
                     setLocalCompanyInfo(updated);
                     props.onUpdateCompanyDetails?.(updated);
                 }}
+            />
+            <ScanToPayQrModal
+                isOpen={showScanToPayModal}
+                onClose={() => setShowScanToPayModal(false)}
+                companyDetails={companyDetails}
+                mpesaConfig={localMpesaConfig}
             />
         </div>
     );

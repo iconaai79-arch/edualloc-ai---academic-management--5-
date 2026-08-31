@@ -175,6 +175,7 @@ const LogisticsDashboard = safeLazy(() => import('./LogisticsDashboard'));
 const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').then(m => ({ default: m?.CampaignSocialPortal || m?.default || m })));
 const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then(m => ({ default: m?.CampaignLoginView || m?.default || m })));
 const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m?.PublicCarInvoicePayment || m?.default || m })));
+const PublicScanToPayView = safeLazy(() => import('./public/PublicScanToPayView').then(m => ({ default: m?.PublicScanToPayView || m?.default || m })));
 const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m?.PublicEventRegistration || m?.default || m })));
 const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m?.PublicEventConfirmation || m?.default || m })));
 const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then(m => ({ default: m?.PublicVisitorAuthorization || m?.default || m })));
@@ -7799,6 +7800,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             />
                          ) : showMarketplace ? (
                             <PropertyMarketplaceView carListings={carListings} />
+                          ) : (new URLSearchParams(window.location.search).get('view') === 'scan-to-pay' || new URLSearchParams(window.location.search).get('view') === 'scantopay' || new URLSearchParams(window.location.search).get('view') === 'pay') ? (
+                             <Suspense fallback={<SystemPulseLoader message="Loading Scan to Pay Portal..." />}>
+                                 <PublicScanToPayView 
+                                     companyDetails={companyDetails}
+                                     institutions={institutions}
+                                     onBackToPortal={() => window.location.href = '/'}
+                                 />
+                             </Suspense>
                           ) : new URLSearchParams(window.location.search).get('view') === 'pay-car-invoice' ? (
                              <Suspense fallback={<SystemPulseLoader message="Loading Payment Gateway..." />}>
                                  <PublicCarInvoicePayment 
