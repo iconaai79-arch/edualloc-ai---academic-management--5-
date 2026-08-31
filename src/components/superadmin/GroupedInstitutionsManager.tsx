@@ -566,7 +566,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                     <div className="border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/30 p-6 space-y-4">
                                         <div className="flex justify-between items-center mb-2">
                                             <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">
-                                                Branch Locations for {inst.name} ({instBranches.length})
+                                                Branch Locations for {inst?.name || 'Institution'} ({instBranches.length})
                                             </h4>
                                         </div>
 
@@ -583,6 +583,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {instBranches.map((branch) => {
+                                                    if (!branch) return null;
                                                     const bConfigs = configMap.get(branch.id) || [];
                                                     const branchUsersCount = users.filter(u => (u as any).branch_id === branch.id || (u as any).branchId === branch.id).length;
                                                     const isLinkedInst = !!(branch.linked_institution_id || branch.linkedInstitutionId);
@@ -597,7 +598,7 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                                                 <div className="flex justify-between items-start">
                                                                     <div className="flex items-center gap-2">
                                                                         <GitBranch className="w-4 h-4 text-indigo-600" />
-                                                                        <h5 className="font-bold text-slate-800 dark:text-white text-sm">{branch.name}</h5>
+                                                                        <h5 className="font-bold text-slate-800 dark:text-white text-sm">{branch?.name || 'Branch'}</h5>
                                                                     </div>
                                                                     <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
                                                                         {branch.id}

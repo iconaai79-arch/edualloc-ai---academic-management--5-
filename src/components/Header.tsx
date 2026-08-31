@@ -259,14 +259,14 @@ export const Header: React.FC<HeaderProps> = ({
                                 className="flex items-center gap-2 p-1 pr-2 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                             >
                                 <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold overflow-hidden border border-slate-300 dark:border-slate-600">
-                                    {currentUser.profilePhotoUrl ? (
+                                    {currentUser?.profilePhotoUrl ? (
                                         <img loading="lazy" src={currentUser.profilePhotoUrl} alt="Profile" className="h-full w-full object-cover" />
                                     ) : (
-                                        <span className="text-xs">{getInitials(currentUser.name)}</span>
+                                        <span className="text-xs">{getInitials(currentUser?.name)}</span>
                                     )}
                                 </div>
                                 <div className="hidden md:block text-left">
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate max-w-[100px]">{(currentUser.name || 'User').split(' ')[0]}</span>
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate max-w-[100px]">{(currentUser?.name || 'User').split(' ')[0]}</span>
                                 </div>
                                 <ChevronDownIcon className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`} />
                             </button>

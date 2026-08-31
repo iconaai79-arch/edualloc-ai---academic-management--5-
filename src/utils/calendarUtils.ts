@@ -33,16 +33,19 @@ export const generateIcsContent = (
 ): string => {
     const buildingMap = new Map((buildings || []).map(b => [b.id, b.name]));
 
+    const userName = user?.name || 'User';
     let icsString = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
         'PRODID:-//EduAi//Timetable Allocator//EN',
-        `X-WR-CALNAME:My Timetable - ${user.name}`,
+        `X-WR-CALNAME:My Timetable - ${userName}`,
         'X-WR-TIMEZONE:UTC',
     ].join('\r\n');
 
-    const semesterStartDate = new Date(activeSemester.startDate + 'T00:00:00Z');
-    const semesterEndDate = new Date(activeSemester.endDate + 'T23:59:59Z');
+    const safeStartDate = activeSemester?.startDate || new Date().toISOString().split('T')[0];
+    const safeEndDate = activeSemester?.endDate || new Date().toISOString().split('T')[0];
+    const semesterStartDate = new Date(safeStartDate + 'T00:00:00Z');
+    const semesterEndDate = new Date(safeEndDate + 'T23:59:59Z');
     const untilDate = toICSDate(semesterEndDate).split('T')[0];
     const dayToIcsDay = {
         'Sunday': 'SU', 'Monday': 'MO', 'Tuesday': 'TU', 'Wednesday': 'WE', 'Thursday': 'TH', 'Friday': 'FR', 'Saturday': 'SA'

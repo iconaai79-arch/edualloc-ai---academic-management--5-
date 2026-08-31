@@ -43,7 +43,7 @@ export const SyncCalendarModal: React.FC<SyncCalendarModalProps> = ({ onClose, t
                 <div className="p-6 flex-grow overflow-y-auto">
                     <div className="bg-sky-50 dark:bg-sky-900/50 p-4 rounded-lg">
                         <p className="text-sm text-sky-800 dark:text-sky-200">
-                            This will download an <strong>.ics file</strong> containing your scheduled classes for the current semester ({activeSemester.name}). You can then import this file into your preferred calendar application.
+                            This will download an <strong>.ics file</strong> containing your scheduled classes for the current semester ({activeSemester?.name || 'Current Semester'}). You can then import this file into your preferred calendar application.
                         </p>
                         <button onClick={handleDownload} className="mt-4 btn-primary inline-flex items-center gap-2">
                             <DocumentArrowDownIcon className="w-5 h-5"/>
