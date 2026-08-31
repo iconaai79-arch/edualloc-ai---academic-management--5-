@@ -4767,9 +4767,9 @@ export const apiService = {
             let hasMore = true;
             let batchCount = 0;
 
-            while (hasMore && batchCount < 5) {
+            while (hasMore && batchCount < 10) {
                 const batchPromise = apiService.fetchModuleRecords<SchoolRegistry>('school_registry', undefined, undefined, { limit, offset });
-                const timeoutPromise = new Promise<SchoolRegistry[]>((resolve) => setTimeout(() => resolve([]), 3500));
+                const timeoutPromise = new Promise<SchoolRegistry[]>((resolve) => setTimeout(() => resolve([]), 20000));
                 const batch = await Promise.race([batchPromise, timeoutPromise]);
                 batchCount++;
                 if (!batch || batch.length === 0) {

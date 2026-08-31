@@ -1195,16 +1195,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 };
 
                 const isGuestMode = !currentUser;
+                const isSuperAdmin = currentUser?.role === 'super_admin';
+                const identityTimeout = isSuperAdmin ? 30000 : 15000;
+
                 const results = await Promise.all([
-                    withTimeout(apiService.fetchInstitutions().catch(() => []), 3500, []),
-                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<County>('counties').catch(() => []), 3000, []),
-                    withTimeout(apiService.fetchCompanySettings().catch(() => null), 3000, null),
-                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? withTimeout(apiService.fetchModuleRecords<User>('users').catch(() => []), 3500, []) : withTimeout(apiService.fetchUsers(currentUser?.institutionId).catch(() => []), 3500, []),
-                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchFullRegistry().catch(() => []), 4000, []) : Promise.resolve([]),
-                    !currentUser ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states').catch(() => []), 3000, []),
-                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<any>('events').catch(() => []), 3000, []),
-                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchModuleRecords<Constituency>('constituencies').catch(() => []), 3000, []) : Promise.resolve([]),
-                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<Branch>('branches').catch(() => []), 3000, []),
+                    withTimeout(apiService.fetchInstitutions().catch(() => []), identityTimeout, []),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<County>('counties', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
+                    withTimeout(apiService.fetchCompanySettings().catch(() => null), identityTimeout, null),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? withTimeout(apiService.fetchModuleRecords<User>('users', undefined, undefined, { limit: 100000 }).catch(() => []), identityTimeout, []) : withTimeout(apiService.fetchUsers(currentUser?.institutionId).catch(() => []), identityTimeout, []),
+                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchFullRegistry().catch(() => []), identityTimeout, []) : Promise.resolve([]),
+                    !currentUser ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
+                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<any>('events', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
+                    (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchModuleRecords<Constituency>('constituencies', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []) : Promise.resolve([]),
+                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<Branch>('branches', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
                 ]);
                 insts = results[0];
                 cnts = results[1];
@@ -1446,30 +1449,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             setBuildings(b || []);
             setAcademicLevels(al || []);
             setUserTasks(tasks || []);
-            let finalTxns = txns || [];
-            if (currentUser?.role === 'super_admin' && !instId) {
-                finalTxns = finalTxns.filter(txn => {
-                    const desc = (txn.description || '').toLowerCase();
-                    const type = txn.metadata?.type;
-                    const provider = txn.provider;
-                    const metaProvider = txn.metadata?.provider || (typeof txn.metadata === 'string' && txn.metadata.includes('"provider":"kcb"') ? 'kcb' : undefined);
-                    const isKcb = txn.checkoutRequestId?.startsWith('KCB_') || 
-                                  provider === 'kcb' || 
-                                  metaProvider === 'kcb';
-                    return type === 'subscription' || 
-                           type === 'sms' ||
-                           type === 'alumnae_registration' ||
-                           provider === 'ncba' ||
-                           isKcb ||
-                           desc.includes('license') || 
-                           desc.includes('renewal') || 
-                           desc.includes('sms top-up') ||
-                           desc.includes('portal subscription') ||
-                           desc.includes('alumnae') ||
-                           desc.includes('activation');
-                });
-            }
-            setTransactions(finalTxns);
+            setTransactions(txns || []);
             setReceipts(recs || []);
             setActivityLog(logs || []);
             setNotifications(notifs || []);
@@ -1510,9 +1490,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             // ── PHASE 3: Context-Specific Extended Data ──────────────────────
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
-                const effectiveInstIdFinal: string = (instOverrideId || (currentUser?.role === 'super_admin' ? activeStoreTenantId : (activeInst?.id || currentUser?.institutionId || instId || ''))) || '';
+                const effectiveInstIdFinal: string | undefined = instOverrideId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || undefined));
                 
-                console.log("[Data Refresh] Loading institutional data for:", effectiveInstIdFinal);
+                console.log("[Data Refresh] Loading institutional data for:", effectiveInstIdFinal || 'GLOBAL/ALL');
             
                 // Initialize all extended variables to empty arrays
                 let inv: any[] = [], ext: any[] = [], vh: any[] = [], fs: any[] = [], fp: any[] = [], fb: any[] = [];
@@ -1697,6 +1677,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 setInvoices(inv || []);
                 if (fRecs && Array.isArray(fRecs) && fRecs.length > 0) {
                     setReceipts(fRecs);
+                } else if (recs && Array.isArray(recs) && recs.length > 0) {
+                    setReceipts(recs);
                 }
                 setExtensionRequests(ext || []);
                 setVoteHeads(vh || []);
