@@ -44,7 +44,7 @@ import { ParentLedgerPortal } from './ParentLedgerPortal';
 import { AiFinancialIntelligence } from './AiFinancialIntelligence';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
-import { resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort } from '../../utils/academicUtils';
+import { resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -4155,7 +4155,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             if (bStudent.phoneNumber) apiService.sendSms(bStudent.phoneNumber, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
                             if (bStudent.metadata?.parentPhone) apiService.sendSms(bStudent.metadata.parentPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
                         }
-                        if (excelImportSendEmail && bStudent.email) {
+                        if (excelImportSendEmail && bStudent.email && !isPlaceholderEmail(bStudent.email)) {
                             const bHtml = `<p>Dear ${bStudent.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${rec.amountPaid.toLocaleString()}</strong> received. Receipt No: <strong>${rec.receiptNumber}</strong>.</p><p>Download: <a href="${bLink}">${bLink}</a></p><p>${bulkSchool} Accounts Office</p>`;
                             apiService.sendEmail(bStudent.email, `Receipt ${rec.receiptNumber} — ${bulkSchool}`, bHtml).catch(() => {});
                         }
@@ -6169,7 +6169,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (notifyStudent?.phoneNumber) apiService.sendSms(notifyStudent.phoneNumber, smsText, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
                     if (notifyStudent?.metadata?.parentPhone) apiService.sendSms(notifyStudent.metadata.parentPhone, smsText, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
                 }
-                if (sendEmailNotification && notifyStudent?.email) {
+                if (sendEmailNotification && notifyStudent?.email && !isPlaceholderEmail(notifyStudent.email)) {
                     apiService.sendEmail(notifyStudent.email, `Payment Receipt ${receiptNumber} — ${notifySchool}`, emailHtml).catch(() => {});
                 }
             } catch (_ne) { /* notifications are non-critical */ }

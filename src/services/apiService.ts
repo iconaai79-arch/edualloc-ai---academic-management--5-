@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
 import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtils';
+import { isPlaceholderEmail } from '../utils/academicUtils';
 import { localDb } from './localDb';
 import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
 import type {
@@ -2727,7 +2728,7 @@ export const apiService = {
         const userWithPass = { ...userData, password };
         await apiService.saveUser(userWithPass);
 
-        if (userData.email) {
+        if (userData.email && !isPlaceholderEmail(userData.email)) {
             const subject = "Welcome to Eduai Automation - Account Credentials";
             const body = `Dear ${userData.name},\n\nYour account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${userData.email}\nPassword: ${password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
 
@@ -3194,6 +3195,10 @@ export const apiService = {
         }, []);
     },
     async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string, attachments?: any[]): Promise<any> {
+        if (!recipient || isPlaceholderEmail(recipient)) {
+            return { success: true, message: "Skipped sending email to placeholder/dummy local email address.", skipped: true };
+        }
+
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
         }
@@ -3266,6 +3271,9 @@ export const apiService = {
             try {
                 let res;
                 if (method === 'email' && user.email) {
+                    if (isPlaceholderEmail(user.email)) {
+                        continue;
+                    }
                     res = await apiService.sendEmail(user.email, subject, body);
                 } else if (method === 'sms' && user.phoneNumber) {
                     res = await apiService.sendSms(user.phoneNumber, smsBody);
@@ -4123,7 +4131,7 @@ export const apiService = {
 
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
-            if (user.email) {
+            if (user.email && !isPlaceholderEmail(user.email)) {
                 const subject = "Welcome to Eduai Automation - Account Credentials";
                 const body = `Dear ${user.name},\n\nYour account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                 apiService.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));
@@ -4172,7 +4180,7 @@ export const apiService = {
 
         // Send welcome emails and SMS
         sanitizedData.forEach(user => {
-            if (user.email) {
+            if (user.email && !isPlaceholderEmail(user.email)) {
                 const subject = "Welcome to Eduai Automation - Account Credentials";
                 const body = `Dear ${user.name},\n\nYour student account has been created on the Eduai Automation Management System${institutionName ? ` for ${institutionName}` : ''}.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${user.password}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
                 apiService.sendEmail(user.email, subject, body).catch(e => console.error(`Failed to send email to ${user.email}:`, e));

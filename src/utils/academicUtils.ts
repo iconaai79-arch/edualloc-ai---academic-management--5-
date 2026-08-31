@@ -561,4 +561,35 @@ export const resolveRealStudentStream = (
     return '';
 };
 
+/**
+ * Checks whether an email address is a synthetic / dummy placeholder
+ * (e.g. student_usr_1787924229587_04no7z@eduai.local, student_123@eduai.local, *@eduai.local, *.local).
+ * Returns true if the email is a placeholder that should NOT be sent emails.
+ */
+export const isPlaceholderEmail = (email?: string | null): boolean => {
+    if (!email || typeof email !== 'string') return true;
+    const clean = email.trim().toLowerCase();
+    if (!clean || !clean.includes('@')) return true;
 
+    const domain = clean.split('@')[1] || '';
+
+    return (
+        clean.endsWith('@eduai.local') ||
+        clean.endsWith('.local') ||
+        clean.endsWith('@local') ||
+        domain === 'local' ||
+        domain === 'localhost' ||
+        domain.endsWith('.local') ||
+        clean.startsWith('student_usr_') ||
+        clean.startsWith('usr_') ||
+        (clean.startsWith('student_') && (domain.includes('eduai') || domain.includes('local'))) ||
+        (clean.startsWith('parent_') && (domain.includes('eduai') || domain.includes('local'))) ||
+        (clean.startsWith('staff_') && (domain.includes('eduai') || domain.includes('local'))) ||
+        clean.endsWith('@localhost') ||
+        clean.includes('example.com') ||
+        clean.includes('noemail') ||
+        clean === 'student@eduai.local' ||
+        clean === 'parent@eduai.local' ||
+        clean === 'user@eduai.local'
+    );
+};

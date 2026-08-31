@@ -1,6 +1,9 @@
 
 import type { Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, Room, SmsConfig } from '../types';
 import { apiService } from './apiService';
+import { isPlaceholderEmail } from '../utils/academicUtils';
+
+export { isPlaceholderEmail };
 
 /**
  * Sends an email notification using the backend API.
@@ -12,7 +15,10 @@ export const sendEmailNotification = async (
     emailConfig?: EmailConfig,
     companyName?: string,
     attachments?: any[]
-): Promise<{ success: boolean; message: string }> => {
+): Promise<{ success: boolean; message: string; skipped?: boolean }> => {
+    if (!recipientEmail || isPlaceholderEmail(recipientEmail)) {
+        return { success: true, message: "Skipped sending email to placeholder/local email address.", skipped: true };
+    }
     try {
         const result = await apiService.sendEmail(recipientEmail, subject, body, emailConfig, undefined, attachments);
         return result;
