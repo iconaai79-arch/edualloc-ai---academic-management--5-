@@ -12,6 +12,7 @@ import { SparklesIcon } from '../icons/SparklesIcon';
 import { ClockIcon } from '../icons/ClockIcon';
 import { ClipboardListIcon } from '../icons/ClipboardListIcon';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
+import { resolveRealStudentClass, naturalClassSort } from '../../utils/academicUtils';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -143,7 +144,8 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     const getStudentCourseId = (student: User) => {
         const enr = studentEnrollmentMap.get(student.id);
-        const gradeLevel = student.courseId || (student as any).course_id || enr?.metadata?.gradeLevel || enr?.metadata?.stream || enr?.courseId || enr?.course_id;
+        const resolvedCls = resolveRealStudentClass(student, enrollments, courses, '');
+        const gradeLevel = student.courseId || (student as any).course_id || resolvedCls || enr?.courseId || enr?.course_id;
         if (!gradeLevel) return undefined;
         
         const matched = courses.find(c => 
@@ -171,16 +173,14 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
 
     const studentClassMap = useMemo(() => {
         const map = new Map<string, string>();
-        enrollments.forEach(enr => {
-            if (enr.userId) {
-                const cls = enr.metadata?.gradeLevel || enr.metadata?.stream;
-                if (cls) {
-                    map.set(enr.userId, cls);
-                }
+        students.forEach(s => {
+            const cls = resolveRealStudentClass(s, enrollments, courses, '');
+            if (cls) {
+                map.set(s.id, cls);
             }
         });
         return map;
-    }, [enrollments]);
+    }, [students, enrollments, courses]);
 
     // Invoices list for unbilled reconciliation
     const [existingInvoices, setExistingInvoices] = useState<any[]>([]);
@@ -194,12 +194,12 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     // Extract unique classes/grade levels from student registry
     const classes = useMemo(() => {
         const set = new Set<string>();
-        enrollments.forEach(enr => {
-            const cls = enr.metadata?.gradeLevel || enr.metadata?.stream;
-            if (cls) set.add(cls);
+        students.forEach(s => {
+            const cls = resolveRealStudentClass(s, enrollments, courses, '');
+            if (cls && cls !== 'Unclassified') set.add(cls);
         });
-        return Array.from(set);
-    }, [enrollments]);
+        return naturalClassSort(Array.from(set));
+    }, [students, enrollments, courses]);
 
     // Resolve selected semester to its name (fee structures store the human-readable name e.g. "Term 1")
     const selectedSemName = useMemo(() => {
@@ -214,7 +214,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
             return students.filter(s => s.id === selectedStudentId);
         }
         if (targetType === 'class') {
-            return students.filter(s => studentClassMap.get(s.id) === selectedClass);
+            return students.filter(s => (studentClassMap.get(s.id) || '').toLowerCase() === (selectedClass || '').toLowerCase());
         }
         if (targetType === 'course') {
             return students.filter(s => getStudentCourseId(s) === selectedCourseId);

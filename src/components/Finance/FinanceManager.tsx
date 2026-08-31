@@ -43,6 +43,7 @@ import { BankFeedsManager } from './BankFeedsManager';
 import { ParentLedgerPortal } from './ParentLedgerPortal';
 import { AiFinancialIntelligence } from './AiFinancialIntelligence';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
+import { resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -335,103 +336,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const getStudentClassName = useCallback((s: any): string => {
         if (!s) return 'Unclassified';
-        
-        // 1. Direct properties on student object
-        const directCandidates = [
-            s.className,
-            s.class_name,
-            s.gradeLevel,
-            s.grade_level,
-            s.studentClass,
-            s.student_class,
-            s.class,
-            s.grade,
-            s.form,
-            s.stream,
-            s.academicLevel,
-            s.academic_level,
-            s.courseName,
-            s.course_name,
-            s.course
-        ];
-        for (const val of directCandidates) {
-            if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
-                return String(val).trim();
-            }
-        }
-
-        // 2. Metadata properties on student object
-        if (s.metadata && typeof s.metadata === 'object') {
-            const metaCandidates = [
-                s.metadata.className,
-                s.metadata.class_name,
-                s.metadata.gradeLevel,
-                s.metadata.grade_level,
-                s.metadata.studentClass,
-                s.metadata.student_class,
-                s.metadata.class,
-                s.metadata.grade,
-                s.metadata.form,
-                s.metadata.stream,
-                s.metadata.academicLevel,
-                s.metadata.academic_level,
-                s.metadata.courseName,
-                s.metadata.course
-            ];
-            for (const val of metaCandidates) {
-                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
-                    return String(val).trim();
-                }
-            }
-        }
-
-        // 3. Match from enrollments (student_enrollments)
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
-        if (allEnrs.length > 0) {
-            const sId = s.id || s.userId || s.user_id;
-            const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
-            if (enr) {
-                const enrCandidates = [
-                    enr.className,
-                    enr.class_name,
-                    enr.gradeLevel,
-                    enr.grade_level,
-                    enr.grade,
-                    enr.form,
-                    enr.stream,
-                    enr.studentClass,
-                    enr.courseName,
-                    enr.course_name,
-                    enr.course,
-                    enr.courseLevel,
-                    enr.metadata?.className,
-                    enr.metadata?.class_name,
-                    enr.metadata?.gradeLevel,
-                    enr.metadata?.grade_level,
-                    enr.metadata?.class,
-                    enr.metadata?.grade,
-                    enr.metadata?.form,
-                    enr.metadata?.stream
-                ];
-                for (const val of enrCandidates) {
-                    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A' && String(val).trim() !== '—') {
-                        return String(val).trim();
-                    }
-                }
-            }
-        }
+        const res = resolveRealStudentClass(s, allEnrs, props.courses, '');
+        if (res) return res;
 
-        // 4. Match from invoices for this student
+        // Check invoices for this student if not found
         const sInvs = (props.invoices || []).filter((inv: any) => inv && (inv.studentId === s.id || inv.userId === s.id));
         for (const inv of sInvs) {
             const invCls = (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || (inv as any).metadata?.className || (inv as any).metadata?.studentClass;
-            if (invCls && String(invCls).trim() && String(invCls).trim() !== 'undefined' && String(invCls).trim() !== 'null' && String(invCls).trim() !== 'N/A') {
-                return String(invCls).trim();
-            }
+            const norm = normalizeClassName(invCls);
+            if (norm) return norm;
         }
 
         return 'Unclassified';
-    }, [enrollments, allBranchEnrollments, props.invoices]);
+    }, [enrollments, allBranchEnrollments, props.courses, props.invoices]);
 
     const studentClassGroup = useCallback((s: any): string => {
         return getStudentClassName(s);
@@ -439,10 +357,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const getStudentStream = useCallback((s: any): string => {
         if (!s) return '—';
-        const sId = s.id || s.userId;
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
-        const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.id === sId));
-        const stream = enr?.metadata?.stream || enr?.stream || s?.stream || s?.metadata?.stream || '';
+        const stream = resolveRealStudentStream(s, allEnrs);
         return stream || '—';
     }, [enrollments, allBranchEnrollments]);
 
@@ -466,22 +382,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         (enrollments || []).forEach((e: any) => {
             const c = e.className || e.class_name || e.gradeLevel || e.grade_level || e.grade || e.form || e.metadata?.className;
-            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+            const norm = normalizeClassName(c);
+            if (norm && norm !== 'Unclassified') set.add(norm);
         });
         (props.feeStructures || []).forEach((fs: any) => {
             const c = fs.gradeLevel || fs.className || fs.class_name || fs.name;
-            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+            const norm = normalizeClassName(c);
+            if (norm && norm !== 'Unclassified') set.add(norm);
         });
         (props.courses || []).forEach((co: any) => {
             const c = co.name || co.title || co.code;
-            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+            const norm = normalizeClassName(c);
+            if (norm && norm !== 'Unclassified') set.add(norm);
         });
         (props.invoices || []).forEach((inv: any) => {
             const c = inv.studentClass || inv.className || inv.gradeLevel;
-            if (c && String(c).trim() && String(c).trim() !== 'Unclassified') set.add(String(c).trim());
+            const norm = normalizeClassName(c);
+            if (norm && norm !== 'Unclassified') set.add(norm);
         });
 
-        const list = Array.from(set).filter(Boolean).sort();
+        const list = naturalClassSort(Array.from(set));
         const hasUnclassified = (props.students || []).some((s: any) => getStudentClassName(s) === 'Unclassified');
         if (hasUnclassified && !list.includes('Unclassified')) {
             list.push('Unclassified');
@@ -2932,7 +2852,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return filteredStudents.map(s => {
             const enrollment = mergedEnrollments.find(e => e.userId === s.id || (e as any).user_id === s.id || (e as any).studentId === s.id);
             const adm = getStudentAdmNumber(s) || studentAdmissionNumber(s);
-            const cls = enrollment?.metadata?.gradeLevel || enrollment?.metadata?.stream || studentClassGroup(s);
+            const cls = resolveRealStudentClass(s, mergedEnrollments, props.courses, 'Unclassified');
+            const stream = resolveRealStudentStream(s, mergedEnrollments);
 
             // Collect all student identifier variants for robust matching
             const studentIds = new Set<string>();
@@ -3081,6 +3002,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 admissionNumber: adm,
                 className: cls,
                 gradeLevel: cls,
+                stream: stream,
                 openingBalance: openingBal,
                 lastUpdatedTime,
                 totals: {
@@ -3101,22 +3023,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
         studentFinanceData.forEach(s => {
-            const cls = s.className || studentClassGroup(s);
-            if (cls) classesSet.add(cls);
+            const rawCls = s.className || studentClassGroup(s);
+            const cls = normalizeClassName(rawCls);
+            if (cls && cls !== 'Unclassified' && cls !== '—') {
+                classesSet.add(cls);
+            }
         });
-        return Array.from(classesSet).sort();
-    }, [studentFinanceData]);
+        return naturalClassSort(Array.from(classesSet));
+    }, [studentFinanceData, studentClassGroup]);
 
     const availableStreamsForBalances = useMemo(() => {
         const streamSet = new Set<string>();
         studentFinanceData.forEach(s => {
-            const stream = getStudentStream(s);
+            const rawStream = (s as any).stream || getStudentStream(s);
+            const stream = normalizeStreamName(rawStream);
             if (stream && stream !== '—' && stream.toLowerCase() !== 'all' && stream.toLowerCase() !== 'unassigned') {
                 streamSet.add(stream);
             }
         });
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    }, [studentFinanceData, enrollments]);
+    }, [studentFinanceData, getStudentStream]);
 
     const filteredOpeningBalanceStudents = useMemo(() => {
         return studentFinanceData.filter(student => {
@@ -3124,7 +3050,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 (student.admissionNumber && student.admissionNumber.toLowerCase().includes(openingBalanceSearch.toLowerCase()));
             
             const cls = student.className || studentClassGroup(student);
-            const matchesClass = openingBalanceClassFilter === 'All' || cls === openingBalanceClassFilter;
+            const matchesClass = openingBalanceClassFilter === 'All' || (cls && cls.toLowerCase() === openingBalanceClassFilter.toLowerCase());
             
             return matchesSearch && matchesClass;
         });
@@ -3143,12 +3069,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             );
 
             const cls = s.className || studentClassGroup(s);
-            const matchesClass = balanceClassFilter === 'All' || cls === balanceClassFilter;
+            const matchesClass = balanceClassFilter === 'All' || (cls && cls.toLowerCase() === balanceClassFilter.toLowerCase());
 
-            const stStream = getStudentStream(s);
+            const stStream = (s as any).stream || getStudentStream(s);
             const matchesStream = balanceStreamFilter === 'All' || (
                 (stStream && stStream.toLowerCase() === balanceStreamFilter.toLowerCase()) ||
-                (cls && cls.toLowerCase().includes(balanceStreamFilter.toLowerCase())) ||
                 (s.metadata?.stream && String(s.metadata.stream).toLowerCase() === balanceStreamFilter.toLowerCase())
             );
 
@@ -18354,7 +18279,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 });
 
                                 // Classes list
-                                const classes = Array.from(new Set(studentFinanceData.map((s: any) => s.className || studentClassGroup(s)))).filter(Boolean).sort();
+                                const classes = availableClassesForBalances;
 
                                 // Terms
                                 const terms = Array.from(new Set(
@@ -18517,13 +18442,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                         {/* 2. All Balances */}
                                         {outstandingSubTab === 'all_balances' && (() => {
+                                            const classes = availableClassesForBalances;
                                             const streams = availableStreamsForBalances;
                                             
                                             const filteredList = studentFinanceData
                                                 .filter((s: any) => s.totals.balance > 0)
                                                 .filter((s: any) => !balFilter || s.name?.toLowerCase().includes(balFilter.toLowerCase()) || (s.admissionNumber || '').toLowerCase().includes(balFilter.toLowerCase()))
-                                                .filter((s: any) => !balClass || (s.className || studentClassGroup(s)) === balClass)
-                                                .filter((s: any) => !balStream || getStudentStream(s).toLowerCase() === balStream.toLowerCase())
+                                                .filter((s: any) => !balClass || normalizeClassName(s.className || studentClassGroup(s)).toLowerCase() === normalizeClassName(balClass).toLowerCase())
+                                                .filter((s: any) => !balStream || normalizeStreamName((s as any).stream || getStudentStream(s)).toLowerCase() === normalizeStreamName(balStream).toLowerCase())
                                                 .sort((a: any, b: any) => b.totals.balance - a.totals.balance);
 
                                             const totalItems = filteredList.length;
@@ -18538,10 +18464,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
                                                     : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
                                                 }`}>
-                                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+                                                    <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 mb-6">
                                                         <div>
-                                                            <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">All Outstanding Fee Balances</h3>
-                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">{totalItems} students with active fee arrears</p>
+                                                            <h3 className={`text-base font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white drop-shadow-sm' : 'text-slate-900 dark:text-white'}`}>All Outstanding Fee Balances</h3>
+                                                            <p className={`text-[10px] font-bold mt-0.5 ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>{totalItems} students with active fee arrears</p>
                                                         </div>
 
                                                         <div className="flex flex-wrap items-center gap-2 max-w-full">
@@ -18553,7 +18479,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalFilter(e.target.value);
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold transition-all ${
+                                                                    themeMode === 'futuristic'
+                                                                        ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-rose-500'
+                                                                }`}
                                                             />
                                                             <select
                                                                 value={balClass}
@@ -18561,7 +18491,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalClass(e.target.value);
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all ${
+                                                                    themeMode === 'futuristic'
+                                                                        ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
+                                                                }`}
                                                             >
                                                                 <option value="">All Classes</option>
                                                                 {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
@@ -18573,7 +18507,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalStream(e.target.value);
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all ${
+                                                                    themeMode === 'futuristic'
+                                                                        ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
+                                                                }`}
                                                             >
                                                                 <option value="">All Streams</option>
                                                                 {streams.map((st: string) => <option key={st} value={st}>{st}</option>)}
@@ -18584,7 +18522,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalItemsPerPage(Number(e.target.value));
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white"
+                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all ${
+                                                                    themeMode === 'futuristic'
+                                                                        ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
+                                                                }`}
                                                             >
                                                                 <option value={10}>10 / page</option>
                                                                 <option value={25}>25 / page</option>
@@ -18594,7 +18536,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </select>
                                                             <button
                                                                 onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.invoiced, s.totals.paid, s.totals.balance]))}
-                                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5"
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                                                             >
                                                                 📥 CSV Export
                                                             </button>
@@ -18617,7 +18559,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         bal: s.totals.balance
                                                                     }))
                                                                 })}
-                                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5"
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                                                             >
                                                                 👥 On-Screen PDF Preview
                                                             </button>
@@ -18643,7 +18585,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     });
                                                                     setTimeout(() => window.print(), 350);
                                                                 }}
-                                                                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-slate-600/20 active:scale-95 flex items-center gap-1.5"
+                                                                className="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-slate-700/20 active:scale-95 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                                                             >
                                                                 🖨️ Print Report
                                                             </button>
@@ -18732,10 +18674,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {outstandingSubTab === 'student_summary' && (() => {
                                             const filteredVoteData = studentVoteData.filter((s: any) => s.totals.balance > 0);
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
                                                         <div>
-                                                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Summary by Votehead</h3>
+                                                            <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Student Summary by Votehead</h3>
                                                             <p className="text-[10px] text-slate-400 font-medium">Amount invoiced and received per votehead per student across classes</p>
                                                         </div>
                                                         <div className="flex items-center gap-2">
@@ -18753,13 +18699,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     ]);
                                                                     exportCSV('student_summary_by_votehead', headers, rows);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
                                                             >
                                                                 📥 CSV
                                                             </button>
                                                             <button
                                                                 onClick={() => window.print()}
-                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
                                                             >
                                                                 🖨️ Print
                                                             </button>
@@ -18779,23 +18725,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <tbody>
                                                                 {filteredVoteData.map((s: any, i: number) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-bold text-slate-800 dark:text-white whitespace-nowrap">{s.name}</TD>
-                                                                        <TD cls="text-slate-500">{s.admissionNumber}</TD>
-                                                                        <TD cls="text-slate-600 font-bold">{s.className || studentClassGroup(s)}</TD>
+                                                                        <TD cls={`font-bold whitespace-nowrap ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{s.name}</TD>
+                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-mono' : 'text-slate-500'}>{s.admissionNumber}</TD>
+                                                                        <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-300' : 'text-slate-600'}`}>{s.className || studentClassGroup(s)}</TD>
                                                                         {allVoteHeads.map(v => (
                                                                             <TD key={v} cls="text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                                                                 {s.voteMap[v] ? (
                                                                                     <div>
-                                                                                        <div className="font-black text-slate-700">{s.voteMap[v].invoiced.toLocaleString()}</div>
-                                                                                        <div className="text-emerald-600">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
-                                                                                        <div className="text-rose-500 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                        <div className={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>{s.voteMap[v].invoiced.toLocaleString()}</div>
+                                                                                        <div className="text-emerald-400">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                        <div className="text-rose-400 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
                                                                                     </div>
-                                                                                ) : <span className="text-slate-300">—</span>}
+                                                                                ) : <span className="text-slate-500">—</span>}
                                                                             </TD>
                                                                         ))}
-                                                                        <TD cls="font-black text-slate-700">KSh {s.totals.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-600">KSh {s.totals.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-600">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-400">KSh {s.totals.balance.toLocaleString()}</TD>
                                                                     </tr>
                                                                 ))}
                                                             </tbody>
@@ -18809,7 +18755,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {/* 4. Class Summary */}
                                         {outstandingSubTab === 'class_summary' && (() => {
                                             const classSummary = classes.map((cls: string) => {
-                                                const students = studentFinanceData.filter((s: any) => (s.className || studentClassGroup(s)) === cls);
+                                                const students = studentFinanceData.filter((s: any) => normalizeClassName(s.className || studentClassGroup(s)).toLowerCase() === normalizeClassName(cls).toLowerCase());
                                                 return {
                                                     cls,
                                                     count: students.length,
@@ -18820,17 +18766,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             }).filter(r => r.invoiced > 0);
                                             const totals = classSummary.reduce((a: any, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Class Summary</h3>
+                                                        <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Class Summary</h3>
                                                         <div className="flex items-center gap-2">
                                                             <button
                                                                 onClick={() => exportCSV('class_summary_report', ['Class', 'Students Count', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection Rate %'], classSummary.map(r => [r.cls, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))}
-                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
                                                             >
                                                                 📥 CSV
                                                             </button>
-                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">
                                                                 🖨️ Print
                                                             </button>
                                                         </div>
@@ -18841,15 +18791,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <tbody>
                                                                 {classSummary.map((r, i) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-black text-slate-800 dark:text-white">{r.cls}</TD>
-                                                                        <TD cls="text-slate-500 font-bold">{r.count}</TD>
-                                                                        <TD cls="font-black text-slate-700">KSh {r.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-600">KSh {r.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-600">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{r.cls}</TD>
+                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-bold' : 'text-slate-500 font-bold'}>{r.count}</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-400">KSh {r.balance.toLocaleString()}</TD>
                                                                         <TD cls="">
                                                                             <div className="flex items-center gap-2">
                                                                                 <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${r.invoiced > 0 ? Math.min(100, (r.paid / r.invoiced) * 100) : 0}%` }} /></div>
-                                                                                <span className="text-[10px] font-black text-slate-600">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
+                                                                                <span className={`text-[10px] font-black ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-600'}`}>{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
                                                                             </div>
                                                                         </TD>
                                                                     </tr>
@@ -18858,9 +18808,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">{classSummary.reduce((a, r) => a + r.count, 0)}</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
-                                                                    <TD cls="text-emerald-600">KSh {totals.paid.toLocaleString()}</TD>
-                                                                    <TD cls="text-rose-600">KSh {totals.balance.toLocaleString()}</TD>
-                                                                    <TD cls="text-slate-700">{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                    <TD cls="text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
+                                                                    <TD cls={themeMode === 'futuristic' ? 'text-slate-300' : 'text-slate-700'}>{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
                                                                 </tr>
                                                             </tbody>
                                                         </table>
@@ -18879,12 +18829,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 return { term, invoiced, paid, balance: invoiced - paid, count: invs.length };
                                             }).filter(r => r.invoiced > 0);
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Term Summary Balances</h3>
+                                                        <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Term Summary Balances</h3>
                                                         <div className="flex items-center gap-2">
-                                                            <button onClick={() => exportCSV('term_summary_balances', ['Term', 'Invoices Count', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'], termSummary.map(r => [r.term, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">📥 CSV</button>
-                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">🖨️ Print</button>
+                                                            <button onClick={() => exportCSV('term_summary_balances', ['Term', 'Invoices Count', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'], termSummary.map(r => [r.term, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">📥 CSV</button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">🖨️ Print</button>
                                                         </div>
                                                     </div>
                                                     <div className="overflow-x-auto">
@@ -18893,12 +18847,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <tbody>
                                                                 {termSummary.map((r, i) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-black text-slate-800 dark:text-white">{r.term}</TD>
-                                                                        <TD cls="text-slate-500 font-bold">{r.count}</TD>
-                                                                        <TD cls="font-black text-slate-700">KSh {r.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-600">KSh {r.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-600">KSh {r.balance.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-slate-600">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{r.term}</TD>
+                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-bold' : 'text-slate-500 font-bold'}>{r.count}</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-400">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-black' : 'text-slate-600 font-black'}>{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : 0}%</TD>
                                                                     </tr>
                                                                 ))}
                                                                 {termSummary.length === 0 && (<tr><td colSpan={6} className="py-8 text-center text-slate-400 text-xs font-medium">No term data found</td></tr>)}
@@ -18928,12 +18882,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             }).filter(r => r.invoiced > 0).sort((a, b) => b.balance - a.balance);
                                             const totals = vhSummary.reduce((a, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6">
+                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Voteheads Summary</h3>
+                                                        <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Voteheads Summary</h3>
                                                         <div className="flex items-center gap-2">
-                                                            <button onClick={() => exportCSV('voteheads_summary', ['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection %'], vhSummary.map(r => [r.vh, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">📥 CSV</button>
-                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1">🖨️ Print</button>
+                                                            <button onClick={() => exportCSV('voteheads_summary', ['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection %'], vhSummary.map(r => [r.vh, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">📥 CSV</button>
+                                                            <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">🖨️ Print</button>
                                                         </div>
                                                     </div>
                                                     <div className="overflow-x-auto">
@@ -18942,14 +18900,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <tbody>
                                                                 {vhSummary.map((r, i) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls="font-black text-slate-800 dark:text-white">{r.vh}</TD>
-                                                                        <TD cls="font-black text-slate-700">KSh {r.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-600">KSh {r.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-600">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{r.vh}</TD>
+                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-400">KSh {r.balance.toLocaleString()}</TD>
                                                                         <TD cls="">
                                                                             <div className="flex items-center gap-2">
                                                                                 <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${r.invoiced > 0 ? Math.min(100, (r.paid / r.invoiced) * 100) : 0}%` }} /></div>
-                                                                                <span className="text-[10px] font-black">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
+                                                                                <span className={`text-[10px] font-black ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-600'}`}>{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
                                                                             </div>
                                                                         </TD>
                                                                     </tr>
@@ -18957,9 +18915,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
                                                                     <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
-                                                                    <TD cls="text-emerald-600">KSh {totals.paid.toLocaleString()}</TD>
-                                                                    <TD cls="text-rose-600">KSh {totals.balance.toLocaleString()}</TD>
-                                                                    <TD cls="text-slate-600">{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                    <TD cls="text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
+                                                                    <TD cls={themeMode === 'futuristic' ? 'text-slate-300' : 'text-slate-600'}>{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
                                                                 </tr>
                                                             </tbody>
                                                         </table>
@@ -18976,8 +18934,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                             // Filter by search query (name, admission number) and class
                                             const filteredDistStudents = baseDebtorStudents.filter((s: any) => {
-                                                const sClass = (s.className || studentClassGroup(s) || 'General').trim();
-                                                if (voteheadDistClassFilter !== 'All' && sClass !== voteheadDistClassFilter) {
+                                                const sClass = normalizeClassName(s.className || studentClassGroup(s));
+                                                if (voteheadDistClassFilter !== 'All' && sClass.toLowerCase() !== voteheadDistClassFilter.toLowerCase()) {
                                                     return false;
                                                 }
                                                 if (voteheadDistSearch.trim()) {
@@ -18992,7 +18950,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             });
 
                                             // Extract unique available classes for filter dropdown
-                                            const availableDistClasses = Array.from(new Set(baseDebtorStudents.map((s: any) => (s.className || studentClassGroup(s) || 'General').trim()))).filter(Boolean).sort();
+                                            const availableDistClasses = naturalClassSort(Array.from(new Set(baseDebtorStudents.map((s: any) => normalizeClassName(s.className || studentClassGroup(s))))).filter(c => c && c !== 'Unclassified' && c !== '—'));
 
                                             // Pagination calculations
                                             const totalItems = filteredDistStudents.length;
@@ -19008,12 +18966,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const filteredTotalBalance = filteredDistStudents.reduce((a: number, s: any) => a + s.totals.balance, 0);
 
                                             return (
-                                                <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-6 space-y-4">
+                                                <div className={`rounded-[2rem] border shadow-sm p-6 space-y-4 ${
+                                                    themeMode === 'futuristic'
+                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
+                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
+                                                }`}>
                                                     {/* Header with Title & Global Action Buttons */}
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Votehead Distribution</h3>
+                                                                <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Votehead Distribution</h3>
                                                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
                                                                     {totalItems} {totalItems === 1 ? 'Debtor' : 'Debtors'}
                                                                 </span>
@@ -19034,13 +18996,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     ]);
                                                                     exportCSV('votehead_distribution', headers, rows);
                                                                 }}
-                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-sm"
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-sm shrink-0"
                                                             >
                                                                 📥 Export CSV ({totalItems})
                                                             </button>
                                                             <button
                                                                 onClick={() => window.print()}
-                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-sm"
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-sm shrink-0"
                                                             >
                                                                 🖨️ Print
                                                             </button>
