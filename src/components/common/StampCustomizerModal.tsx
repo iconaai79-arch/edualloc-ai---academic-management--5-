@@ -71,8 +71,8 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
 
     const [mode, setMode] = useState<StampMode>(existingStampConfig?.mode || (letterheadConfig?.stampImageUrl ? 'uploaded' : 'system_generated'));
     const [shape, setShape] = useState<'circle' | 'oval'>(existingStampConfig?.shape === 'oval' ? 'oval' : 'circle');
-    const [institutionName, setInstitutionName] = useState(initialResolved.institutionName.replace(/^★\s*|\s*★$/g, ''));
-    const [addressLine, setAddressLine] = useState(initialResolved.addressLine.replace(/^★\s*|\s*★$/g, ''));
+    const [institutionName, setInstitutionName] = useState(initialResolved.institutionName.replace(/★/g, '').trim());
+    const [addressLine, setAddressLine] = useState(initialResolved.addressLine.replace(/★/g, '').trim());
     const [contactPhone, setContactPhone] = useState(initialResolved.contactPhone);
     const [department, setDepartment] = useState(initialResolved.department);
     const [customDatePrefix, setCustomDatePrefix] = useState(initialResolved.customDatePrefix || '');
@@ -96,8 +96,8 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
         stampImageUrl: uploadedImageUrl,
         inkColor,
         daterColor: daterColor === 'inherit' ? inkColor : daterColor,
-        institutionName: showStars ? `★ ${institutionName.trim()} ★` : institutionName.trim(),
-        addressLine: showStars ? `★ ${addressLine.trim()} ★` : addressLine.trim(),
+        institutionName: institutionName.replace(/★/g, '').trim(),
+        addressLine: addressLine.replace(/★/g, '').trim(),
         contactPhone,
         department,
         customDatePrefix,
@@ -374,7 +374,7 @@ export const StampCustomizerModal: React.FC<StampCustomizerModalProps> = ({
                                                     onChange={e => setShowStars(e.target.checked)}
                                                     className="rounded text-indigo-600 w-3 h-3"
                                                 />
-                                                <span>Flanking Stars (★)</span>
+                                                <span>2 Middle Stars (★)</span>
                                             </label>
                                         </div>
                                         <input

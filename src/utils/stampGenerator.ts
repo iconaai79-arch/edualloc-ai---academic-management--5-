@@ -41,20 +41,21 @@ export const getResolvedStampConfig = (
     config?: OfficialStampConfig | null,
     institution?: Institution | null
 ): Required<OfficialStampConfig> => {
-    const rawName = (config?.institutionName || institution?.name || 'ACADEMIC INSTITUTION').toUpperCase().trim();
+    const rawName = (config?.institutionName || institution?.name || 'ACADEMIC INSTITUTION')
+        .replace(/★/g, '')
+        .toUpperCase()
+        .trim();
     const rawAddress = (
         config?.addressLine || 
         (institution as any)?.postalAddress || 
         (institution as any)?.postal_address || 
         institution?.address || 
         'P.O. BOX 1341 - 00100, NAIROBI'
-    ).toUpperCase().trim();
+    ).replace(/★/g, '').toUpperCase().trim();
     const rawPhone = (config?.contactPhone || institution?.phoneNumber || (institution?.email ? `TEL: ${institution.email}` : 'TEL: 0700000000')).toUpperCase().trim();
     const formattedPhone = rawPhone.startsWith('TEL') || rawPhone.startsWith('PHONE') || rawPhone.startsWith('EMAIL') ? rawPhone : `TEL: ${rawPhone}`;
 
     const showStars = config?.showStars ?? true;
-    const formattedName = showStars && !rawName.includes('★') ? `★ ${rawName} ★` : rawName;
-    const formattedAddress = showStars && !rawAddress.includes('★') ? `★ ${rawAddress} ★` : rawAddress;
 
     return {
         mode: config?.mode || 'system_generated',
@@ -62,8 +63,8 @@ export const getResolvedStampConfig = (
         inkColor: config?.inkColor || '#0047AB', // Classic Kenyan Stamp Blue
         daterColor: config?.daterColor || '#DC2626', // Bold Red Dater
         shape: config?.shape || 'circle',
-        institutionName: formattedName,
-        addressLine: formattedAddress,
+        institutionName: rawName,
+        addressLine: rawAddress,
         contactPhone: formattedPhone,
         department: (config?.department || 'FINANCE & BURSAR').toUpperCase().trim(),
         customDatePrefix: config?.customDatePrefix !== undefined ? config.customDatePrefix : '',
@@ -87,12 +88,15 @@ const generateCircleStampSvg = (
     const topPathId = `top_circle_${uniqueId}`;
     const bottomPathId = `bottom_circle_${uniqueId}`;
 
+    const cleanName = (resolved.institutionName || '').replace(/★/g, '').trim();
+    const cleanAddress = (resolved.addressLine || '').replace(/★/g, '').trim();
+
     // Adaptive font size & letter spacing based on string lengths
-    const nameLen = (resolved.institutionName || '').length;
+    const nameLen = cleanName.length;
     const nameFontSize = nameLen > 38 ? 10 : (nameLen > 30 ? 11.5 : (nameLen > 22 ? 12.5 : 13));
     const nameLetterSpacing = nameLen > 38 ? 0.6 : (nameLen > 30 ? 0.9 : 1.4);
 
-    const addressLen = (resolved.addressLine || '').length;
+    const addressLen = cleanAddress.length;
     const addressFontSize = addressLen > 40 ? 8.5 : (addressLen > 32 ? 9.5 : (addressLen > 24 ? 10.5 : 11.5));
     const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.8 : 1.2);
 
@@ -100,9 +104,9 @@ const generateCircleStampSvg = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path (Clockwise Arc: Left to Right across top) -->
-            <path id="${topPathId}" d="M 36 140 A 104 104 0 0 1 244 140" fill="none" />
+            <path id="${topPathId}" d="M 38 140 A 102 102 0 0 1 242 140" fill="none" />
             <!-- Bottom Arched Path (Counter-Clockwise Arc: Left to Right across bottom so text is upright) -->
-            <path id="${bottomPathId}" d="M 26 140 A 114 114 0 0 0 254 140" fill="none" />
+            <path id="${bottomPathId}" d="M 28 140 A 112 112 0 0 0 252 140" fill="none" />
             
             <!-- Subtle Distress Stamp Filter -->
             <filter id="distress_${uniqueId}">
@@ -119,17 +123,23 @@ const generateCircleStampSvg = (
             <!-- Inner Solid Divider Ring (closer to institution name & address) -->
             <circle cx="140" cy="140" r="97" fill="none" stroke="${resolved.inkColor}" stroke-width="1.8" />
 
+            <!-- Middle Flanking Stars (Exactly 2 Stars at Middle dividing Top and Bottom arcs) -->
+            ${resolved.showStars ? `
+                <text x="29" y="140" font-size="14" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="${resolved.inkColor}" stroke="none">★</text>
+                <text x="251" y="140" font-size="14" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="${resolved.inkColor}" stroke="none">★</text>
+            ` : ''}
+
             <!-- Top Curved Institution Name -->
             <text font-size="${nameFontSize}" font-weight="900" letter-spacing="${nameLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${topPathId}" startOffset="50%" text-anchor="middle">
-                    ${resolved.institutionName}
+                    ${cleanName}
                 </textPath>
             </text>
 
             <!-- Bottom Curved Address / Postal Details (Upright, readable left-to-right) -->
             <text font-size="${addressFontSize}" font-weight="800" letter-spacing="${addressLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${bottomPathId}" startOffset="50%" text-anchor="middle">
-                    ${resolved.addressLine}
+                    ${cleanAddress}
                 </textPath>
             </text>
 
@@ -175,11 +185,14 @@ const generateOvalStampSvg = (
     const topPathId = `top_oval_${uniqueId}`;
     const bottomPathId = `bottom_oval_${uniqueId}`;
 
-    const nameLen = (resolved.institutionName || '').length;
+    const cleanName = (resolved.institutionName || '').replace(/★/g, '').trim();
+    const cleanAddress = (resolved.addressLine || '').replace(/★/g, '').trim();
+
+    const nameLen = cleanName.length;
     const nameFontSize = nameLen > 38 ? 9.5 : (nameLen > 30 ? 11 : 12.5);
     const nameLetterSpacing = nameLen > 38 ? 0.6 : (nameLen > 30 ? 0.9 : 1.2);
 
-    const addressLen = (resolved.addressLine || '').length;
+    const addressLen = cleanAddress.length;
     const addressFontSize = addressLen > 40 ? 8 : (addressLen > 32 ? 9 : 10.5);
     const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.7 : 1.0);
 
@@ -187,9 +200,9 @@ const generateOvalStampSvg = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="320" height="220" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path on Ellipse (Clockwise) -->
-            <path id="${topPathId}" d="M 40 110 A 120 70 0 0 1 280 110" fill="none" />
+            <path id="${topPathId}" d="M 42 110 A 118 68 0 0 1 278 110" fill="none" />
             <!-- Bottom Arched Path on Ellipse (Counter-Clockwise so text is upright) -->
-            <path id="${bottomPathId}" d="M 30 110 A 130 80 0 0 0 290 110" fill="none" />
+            <path id="${bottomPathId}" d="M 32 110 A 128 78 0 0 0 288 110" fill="none" />
             
             <!-- Subtle Distress Filter -->
             <filter id="distress_${uniqueId}">
@@ -206,17 +219,23 @@ const generateOvalStampSvg = (
             <!-- Inner Compartment Ellipse (closer to outer border) -->
             <ellipse cx="160" cy="110" rx="110" ry="64" fill="none" stroke="${resolved.inkColor}" stroke-width="1.6" />
 
+            <!-- Middle Flanking Stars (Exactly 2 Stars at Middle dividing Top and Bottom arcs) -->
+            ${resolved.showStars ? `
+                <text x="34" y="110" font-size="14" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="${resolved.inkColor}" stroke="none">★</text>
+                <text x="286" y="110" font-size="14" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="${resolved.inkColor}" stroke="none">★</text>
+            ` : ''}
+
             <!-- Top Curved Institution Name -->
             <text font-size="${nameFontSize}" font-weight="900" letter-spacing="${nameLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${topPathId}" startOffset="50%" text-anchor="middle">
-                    ${resolved.institutionName}
+                    ${cleanName}
                 </textPath>
             </text>
 
             <!-- Bottom Curved Address / Postal Details (Upright) -->
             <text font-size="${addressFontSize}" font-weight="800" letter-spacing="${addressLetterSpacing}" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                 <textPath href="#${bottomPathId}" startOffset="50%" text-anchor="middle">
-                    ${resolved.addressLine}
+                    ${cleanAddress}
                 </textPath>
             </text>
 
