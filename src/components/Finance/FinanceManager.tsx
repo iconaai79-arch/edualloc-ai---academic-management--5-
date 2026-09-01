@@ -18200,8 +18200,91 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                     <button
                                                         type="button"
-                                                        onClick={() => window.print()}
-                                                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                        onClick={() => {
+                                                            const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+                                                            setPdfPreviewModal({
+                                                                title: `OFFICIAL FEE COLLECTION & REALIZATION REPORT`,
+                                                                subtitle: `${props.institution.name} — ${filteredInvoices.length} Invoices Listed (Class: ${collectionClassFilter === 'All' ? 'All Classes' : collectionClassFilter}, Status: ${collectionStatusFilter})`,
+                                                                studentName: `Batch Summary (${filteredInvoices.length} Invoices)`,
+                                                                admNo: `COUNT: ${filteredInvoices.length}`,
+                                                                className: collectionClassFilter === 'All' ? 'All Classes' : collectionClassFilter,
+                                                                invoiced: activeBilled,
+                                                                paid: activeCollected,
+                                                                balance: activeOutstanding,
+                                                                items: filteredInvoices.map((inv: any) => {
+                                                                    const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
+                                                                    const student = allStudentsList.find((s: any) => {
+                                                                        if (!s) return false;
+                                                                        const sId = s.id || s.userId || s.user_id;
+                                                                        if (studentId && (sId === studentId || s.id === studentId)) return true;
+                                                                        const sAdm = getStudentAdmNumber(s);
+                                                                        const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
+                                                                        if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
+                                                                        if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
+                                                                        return false;
+                                                                    }) || (props.students || []).find((s: any) => s.id === inv.studentId);
+                                                                    const paid = invoicePaidAmountMap.get(inv.id) || 0;
+                                                                    const bal = (inv.totalAmount || 0) - paid;
+                                                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
+                                                                    const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
+                                                                    return {
+                                                                        name: student?.name || (inv as any).studentName || (inv as any).student_name || '—',
+                                                                        adm: sAdm,
+                                                                        cls: cls,
+                                                                        inv: inv.totalAmount || 0,
+                                                                        pd: paid,
+                                                                        bal: bal
+                                                                    };
+                                                                })
+                                                            });
+                                                        }}
+                                                        className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20 active:scale-95 whitespace-nowrap"
+                                                    >
+                                                        👥 On-Screen PDF Preview
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+                                                            setPdfPreviewModal({
+                                                                title: `OFFICIAL FEE COLLECTION & REALIZATION REPORT`,
+                                                                subtitle: `${props.institution.name} — ${filteredInvoices.length} Invoices Listed (Class: ${collectionClassFilter === 'All' ? 'All Classes' : collectionClassFilter}, Status: ${collectionStatusFilter})`,
+                                                                studentName: `Batch Summary (${filteredInvoices.length} Invoices)`,
+                                                                admNo: `COUNT: ${filteredInvoices.length}`,
+                                                                className: collectionClassFilter === 'All' ? 'All Classes' : collectionClassFilter,
+                                                                invoiced: activeBilled,
+                                                                paid: activeCollected,
+                                                                balance: activeOutstanding,
+                                                                items: filteredInvoices.map((inv: any) => {
+                                                                    const studentId = inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id;
+                                                                    const student = allStudentsList.find((s: any) => {
+                                                                        if (!s) return false;
+                                                                        const sId = s.id || s.userId || s.user_id;
+                                                                        if (studentId && (sId === studentId || s.id === studentId)) return true;
+                                                                        const sAdm = getStudentAdmNumber(s);
+                                                                        const invAdm = inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo;
+                                                                        if (invAdm && sAdm && String(sAdm).trim().toLowerCase() === String(invAdm).trim().toLowerCase()) return true;
+                                                                        if ((inv as any).studentName && s.name && String(s.name).trim().toLowerCase() === String((inv as any).studentName).trim().toLowerCase()) return true;
+                                                                        return false;
+                                                                    }) || (props.students || []).find((s: any) => s.id === inv.studentId);
+                                                                    const paid = invoicePaidAmountMap.get(inv.id) || 0;
+                                                                    const bal = (inv.totalAmount || 0) - paid;
+                                                                    const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
+                                                                    const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
+                                                                    return {
+                                                                        name: student?.name || (inv as any).studentName || (inv as any).student_name || '—',
+                                                                        adm: sAdm,
+                                                                        cls: cls,
+                                                                        inv: inv.totalAmount || 0,
+                                                                        pd: paid,
+                                                                        bal: bal
+                                                                    };
+                                                                })
+                                                            });
+                                                            setTimeout(() => window.print(), 350);
+                                                        }}
+                                                        className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 whitespace-nowrap"
                                                     >
                                                         🖨️ Print Report
                                                     </button>
@@ -19884,8 +19967,54 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => window.print()}
-                                                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            onClick={() => {
+                                                                setPdfPreviewModal({
+                                                                    title: `DAILY FEE COLLECTION SUMMARY REPORT`,
+                                                                    subtitle: `${props.institution.name} — Period: ${dailyColPeriod.toUpperCase()} (Total Collections: KSh ${totalCollectionsSum.toLocaleString()})`,
+                                                                    studentName: `Daily Summary (${collectionList.length} Days)`,
+                                                                    admNo: `RECEIPTS: ${totalReceiptsSum}`,
+                                                                    className: `Term: ${dailyColTerm.toUpperCase()}`,
+                                                                    invoiced: totalCollectionsSum,
+                                                                    paid: totalCollectionsSum,
+                                                                    balance: 0,
+                                                                    items: collectionList.map((day: any) => ({
+                                                                        name: `Date: ${day.date}`,
+                                                                        adm: day.minRcpt === day.maxRcpt ? String(day.minRcpt) : `${day.minRcpt} - ${day.maxRcpt}`,
+                                                                        cls: `${day.receipts?.length || 1} Receipts`,
+                                                                        inv: day.total,
+                                                                        pd: day.total,
+                                                                        bal: 0
+                                                                    }))
+                                                                });
+                                                            }}
+                                                            className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20 active:scale-95"
+                                                        >
+                                                            👥 On-Screen PDF Preview
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setPdfPreviewModal({
+                                                                    title: `DAILY FEE COLLECTION SUMMARY REPORT`,
+                                                                    subtitle: `${props.institution.name} — Period: ${dailyColPeriod.toUpperCase()} (Total Collections: KSh ${totalCollectionsSum.toLocaleString()})`,
+                                                                    studentName: `Daily Summary (${collectionList.length} Days)`,
+                                                                    admNo: `RECEIPTS: ${totalReceiptsSum}`,
+                                                                    className: `Term: ${dailyColTerm.toUpperCase()}`,
+                                                                    invoiced: totalCollectionsSum,
+                                                                    paid: totalCollectionsSum,
+                                                                    balance: 0,
+                                                                    items: collectionList.map((day: any) => ({
+                                                                        name: `Date: ${day.date}`,
+                                                                        adm: day.minRcpt === day.maxRcpt ? String(day.minRcpt) : `${day.minRcpt} - ${day.maxRcpt}`,
+                                                                        cls: `${day.receipts?.length || 1} Receipts`,
+                                                                        inv: day.total,
+                                                                        pd: day.total,
+                                                                        bal: 0
+                                                                    }))
+                                                                });
+                                                                setTimeout(() => window.print(), 350);
+                                                            }}
+                                                            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                         >
                                                             🖨️ Print Report
                                                         </button>
