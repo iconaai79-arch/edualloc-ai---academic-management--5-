@@ -61,13 +61,15 @@ function sendLog(message, type = 'info') {
 }
 
 function createWindow() {
+    const iconPath = path.join(__dirname, 'renderer', 'eduai_logo_3d.png');
     mainWindow = new BrowserWindow({
-        width: 1080,
-        height: 720,
-        minWidth: 900,
-        minHeight: 600,
-        title: 'EduAI ZKTeco Sync Agent',
-        backgroundColor: '#090d16',
+        width: 1120,
+        height: 760,
+        minWidth: 920,
+        minHeight: 620,
+        title: 'EduAI ZKTeco Management Suite',
+        icon: iconPath,
+        backgroundColor: '#060911',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -93,9 +95,8 @@ function createWindow() {
 }
 
 function createTray() {
-    // Basic tray icon fallback
     try {
-        tray = new Tray(path.join(__dirname, 'renderer', 'icon.png'));
+        tray = new Tray(path.join(__dirname, 'renderer', 'eduai_logo_3d.png'));
     } catch (e) {
         // Create simple context menu tray if icon missing
     }

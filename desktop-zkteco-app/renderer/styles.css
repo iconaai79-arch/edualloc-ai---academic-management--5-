@@ -56,18 +56,17 @@ body {
     gap: 12px;
 }
 
-.brand-badge {
-    width: 38px;
-    height: 38px;
-    background: linear-gradient(135deg, #4f46e5, #06b6d4);
+.brand-logo-3d {
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
     border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 900;
-    font-size: 14px;
-    color: #fff;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+    filter: drop-shadow(0 4px 10px rgba(79, 70, 229, 0.45));
+    transition: transform 0.2s ease;
+}
+
+.brand-logo-3d:hover {
+    transform: scale(1.06) rotate(-2deg);
 }
 
 .brand-info h1 {
