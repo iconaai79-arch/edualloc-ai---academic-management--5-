@@ -3085,6 +3085,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             let matchesStatus = true;
             if (balanceStatusFilter === 'has_balance') {
                 matchesStatus = s.totals.balance > 0;
+            } else if (balanceStatusFilter === 'no_balance' || balanceStatusFilter === 'zero_balance' || balanceStatusFilter === 'cleared') {
+                matchesStatus = s.totals.balance <= 0;
+            } else if (balanceStatusFilter === 'exact_zero_balance') {
+                matchesStatus = s.totals.balance === 0 && s.totals.prepayment <= 0;
             } else if (balanceStatusFilter === 'fully_paid') {
                 matchesStatus = s.totals.balance <= 0 && s.totals.prepayment <= 0;
             } else if (balanceStatusFilter === 'prepaid') {
@@ -7514,6 +7518,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </button>
                         <button
                             type="button"
+                            onClick={() => {
+                                const list = filteredFinanceStudents;
+                                setPdfPreviewModal({
+                                    title: `FEE BALANCES REGISTER REPORT`,
+                                    subtitle: `${props.institution.name} — ${list.length} Students (${balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter}${balanceStreamFilter !== 'All' ? ` - ${balanceStreamFilter}` : ''})`,
+                                    studentName: `Batch Register (${list.length} Students)`,
+                                    admNo: `COUNT: ${list.length}`,
+                                    className: balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter,
+                                    invoiced: list.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
+                                    paid: list.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
+                                    balance: list.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
+                                    items: list.map((s: any) => ({
+                                        name: s.name,
+                                        adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
+                                        cls: s.className || studentClassGroup(s) || '—',
+                                        inv: s.totals?.invoiced || 0,
+                                        pd: s.totals?.paid || 0,
+                                        bal: s.totals?.balance || 0
+                                    }))
+                                });
+                            }}
+                            className="py-3 px-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-600/25 active:scale-95 cursor-pointer shrink-0"
+                            title="Open On-Screen PDF Preview for Filtered Fee Balances"
+                        >
+                            <EyeIcon className="w-4 h-4" />
+                            <span>PDF Preview</span>
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => window.print()}
                             className="py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
                         >
@@ -7582,6 +7615,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         >
                             <DownloadIcon className="w-3.5 h-3.5" />
                             <span>Export</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const list = filteredFinanceStudents;
+                                setPdfPreviewModal({
+                                    title: `FEE BALANCES REGISTER REPORT`,
+                                    subtitle: `${props.institution.name} — ${list.length} Students (${balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter}${balanceStreamFilter !== 'All' ? ` - ${balanceStreamFilter}` : ''})`,
+                                    studentName: `Batch Register (${list.length} Students)`,
+                                    admNo: `COUNT: ${list.length}`,
+                                    className: balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter,
+                                    invoiced: list.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
+                                    paid: list.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
+                                    balance: list.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
+                                    items: list.map((s: any) => ({
+                                        name: s.name,
+                                        adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
+                                        cls: s.className || studentClassGroup(s) || '—',
+                                        inv: s.totals?.invoiced || 0,
+                                        pd: s.totals?.paid || 0,
+                                        bal: s.totals?.balance || 0
+                                    }))
+                                });
+                            }}
+                            className="py-2 px-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                            title="Open On-Screen PDF Preview for Filtered Fee Balances"
+                        >
+                            <EyeIcon className="w-3.5 h-3.5" />
+                            <span>PDF Preview</span>
                         </button>
                         <button
                             type="button"
@@ -7669,13 +7731,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     <select
                         value={balanceStatusFilter}
                         onChange={(e) => setBalanceStatusFilter(e.target.value)}
-                        className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
+                        className={`w-full py-3 px-3.5 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold cursor-pointer transition-all ${
+                            balanceStatusFilter === 'no_balance' || balanceStatusFilter === 'zero_balance' || balanceStatusFilter === 'fully_paid'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                : balanceStatusFilter === 'has_balance'
+                                ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                : 'bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-none'
+                        }`}
                     >
                         <option value="All">All Payment Statuses</option>
-                        <option value="has_balance">Has Balance (Owing)</option>
-                        <option value="fully_paid">Fully Paid</option>
-                        <option value="prepaid">Prepaid / Credit</option>
-                        <option value="no_payment">No Payment Made</option>
+                        <option value="no_balance">✅ No Balance (Cleared / Paid / Credit)</option>
+                        <option value="exact_zero_balance">✨ Zero Balance Only (Exact 0.00)</option>
+                        <option value="fully_paid">✨ Fully Paid (0 Balance)</option>
+                        <option value="prepaid">💰 Prepaid / Credit (Overpaid)</option>
+                        <option value="has_balance">⚠️ Has Balance (Owing Arrears)</option>
+                        <option value="no_payment">❌ No Payment Made</option>
                         <option value="graduated">🎓 Graduated (Alumni)</option>
                         <option value="graduated_with_balance">🎓 Graduated with Balance</option>
                         <option value="active_only">🟢 Active Students Only</option>
@@ -7858,6 +7928,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             >
                                                                 <PrinterIcon className="w-3.5 h-3.5" />
                                                                 Statement
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `OFFICIAL FEE BALANCE STATEMENT`,
+                                                                        subtitle: props.institution.name,
+                                                                        studentName: student.name,
+                                                                        admNo: student.admissionNumber || studentAdmissionNumber(student) || '—',
+                                                                        className: `${student.className || studentClassGroup(student)}${getStudentStream(student) ? ` (${getStudentStream(student)})` : ''}`,
+                                                                        invoiced: student.totals.invoiced,
+                                                                        paid: student.totals.paid,
+                                                                        balance: student.totals.balance,
+                                                                        items: [
+                                                                            {
+                                                                                name: 'Opening Balance Arrears',
+                                                                                adm: student.admissionNumber || studentAdmissionNumber(student) || '—',
+                                                                                cls: student.className || studentClassGroup(student) || '—',
+                                                                                inv: student.openingBalance || 0,
+                                                                                pd: 0,
+                                                                                bal: student.openingBalance || 0
+                                                                            },
+                                                                            {
+                                                                                name: 'Current Term Invoiced Fees',
+                                                                                adm: student.admissionNumber || studentAdmissionNumber(student) || '—',
+                                                                                cls: student.className || studentClassGroup(student) || '—',
+                                                                                inv: Math.max(0, student.totals.invoiced - (student.openingBalance || 0)),
+                                                                                pd: student.totals.paid,
+                                                                                bal: student.totals.balance
+                                                                            }
+                                                                        ]
+                                                                    });
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-rose-200 dark:border-rose-800/40 shadow-xs active:scale-95 hover:shadow-sm cursor-pointer"
+                                                                title="Open On-Screen PDF Balance Statement Preview"
+                                                            >
+                                                                <EyeIcon className="w-3.5 h-3.5" />
+                                                                PDF Preview
                                                             </button>
                                                             <button
                                                                 type="button"
