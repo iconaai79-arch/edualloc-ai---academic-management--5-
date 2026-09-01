@@ -44,3 +44,5 @@ fix.cjs
 desktop-zkteco-app/dist-package/
 desktop-zkteco-app/dist-installer/
 desktop-zkteco-app/node_modules/
+public/downloads/
+*.zip

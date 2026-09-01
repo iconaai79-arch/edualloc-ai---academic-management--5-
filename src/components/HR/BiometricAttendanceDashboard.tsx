@@ -1378,7 +1378,14 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             </div>
                         </div>
 
-                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <a
+                                href="/downloads/EduAI-ZKTeco-Desktop-Agent-win-x64.zip"
+                                download="EduAI-ZKTeco-Desktop-Agent-win-x64.zip"
+                                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
+                            >
+                                ⬇️ Download Desktop App (.ZIP)
+                            </a>
                             <button onClick={() => setShowDesktopAgentModal(false)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md">
                                 Got It
                             </button>
