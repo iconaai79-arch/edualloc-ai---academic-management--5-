@@ -12,6 +12,30 @@ contextBridge.exposeInMainWorld('zkApi', {
     stopAutoSync: () => ipcRenderer.invoke('stop-auto-sync'),
     getRecentPunches: () => ipcRenderer.invoke('get-recent-punches'),
     
+    // Employee APIs
+    getEmployees: () => ipcRenderer.invoke('get-employees'),
+    saveEmployee: (emp) => ipcRenderer.invoke('save-employee', emp),
+    deleteEmployee: (id) => ipcRenderer.invoke('delete-employee', id),
+
+    // Category APIs
+    getCategories: () => ipcRenderer.invoke('get-categories'),
+    saveCategory: (cat) => ipcRenderer.invoke('save-category', cat),
+    deleteCategory: (id) => ipcRenderer.invoke('delete-category', id),
+
+    // Shift APIs
+    getShifts: () => ipcRenderer.invoke('get-shifts'),
+    saveShift: (shift) => ipcRenderer.invoke('save-shift', shift),
+    deleteShift: (id) => ipcRenderer.invoke('delete-shift', id),
+
+    // Attendance Reports & Cloud Sync
+    getAttendanceReport: (filters) => ipcRenderer.invoke('get-attendance-report', filters),
+    exportReportCsv: (filters) => ipcRenderer.invoke('export-report-csv', filters),
+    syncCloudStaff: () => ipcRenderer.invoke('sync-cloud-staff'),
+
+    // Terminal Hardware User Push / Pull
+    pullUsersFromDevice: (device) => ipcRenderer.invoke('pull-users-from-device', device),
+    pushUsersToDevice: (device, employeeList) => ipcRenderer.invoke('push-users-to-device', device, employeeList),
+    
     // Event listeners
     onNewPunch: (callback) => ipcRenderer.on('new-punch', (_, punch) => callback(punch)),
     onLog: (callback) => ipcRenderer.on('app-log', (_, log) => callback(log)),

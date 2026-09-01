@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EduAI ZKTeco Attendance & Cloud Sync Agent</title>
+    <title>EduAI ZKTeco Attendance & Desktop Management Suite</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 </head>
@@ -14,35 +14,51 @@
             <div class="brand">
                 <div class="brand-badge">ZK</div>
                 <div class="brand-info">
-                    <h1>EduAI ZKTeco Sync Agent</h1>
-                    <span class="version">v1.0 • Desktop Hardware Bridge</span>
+                    <h1>EduAI ZKTeco Management Suite</h1>
+                    <span class="version">v1.2 • Hardware Bridge & Attendance Engine</span>
                 </div>
             </div>
 
             <div class="header-status">
                 <div class="status-indicator">
                     <span class="pulse-dot active"></span>
-                    <span class="status-label">Bridge Active</span>
+                    <span class="status-label">Engine Active</span>
                 </div>
                 <button id="btn-sync-all" class="btn btn-primary">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                    <span>Sync All Now</span>
+                    <span>Sync All Devices</span>
                 </button>
             </div>
         </header>
 
         <!-- Main Content Area -->
         <main class="app-main">
-            <!-- Left Sidebar Navigation / Config -->
+            <!-- Left Sidebar Navigation -->
             <aside class="app-sidebar">
                 <nav class="nav-menu">
                     <button class="nav-item active" data-tab="live">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                         <span>Live Stream</span>
                     </button>
+                    <button class="nav-item" data-tab="employees">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <span>Employees / Staff</span>
+                    </button>
+                    <button class="nav-item" data-tab="categories">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        <span>Categories / Depts</span>
+                    </button>
+                    <button class="nav-item" data-tab="shifts">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>Work Shifts</span>
+                    </button>
+                    <button class="nav-item" data-tab="reports">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        <span>Attendance Reports</span>
+                    </button>
                     <button class="nav-item" data-tab="devices">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-                        <span>Terminals</span>
+                        <span>Terminals (LAN)</span>
                     </button>
                     <button class="nav-item" data-tab="cloud">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
@@ -94,7 +110,8 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>User PIN</th>
+                                    <th>Staff / PIN</th>
+                                    <th>Department</th>
                                     <th>Time Stamp</th>
                                     <th>Terminal Name</th>
                                     <th>Verify Mode</th>
@@ -103,14 +120,215 @@
                             </thead>
                             <tbody id="live-punch-tbody">
                                 <tr class="empty-row">
-                                    <td colspan="5">Listening for punches from biometric terminals...</td>
+                                    <td colspan="6">Listening for punches from biometric terminals...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- TAB 2: DEVICES / TERMINALS -->
+                <!-- TAB 2: EMPLOYEES / STAFF -->
+                <div class="tab-panel" id="panel-employees">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Staff & Employee Directory</h2>
+                            <p>Manage employee records, biometric PIN assignments, and terminal sync</p>
+                        </div>
+                        <div class="action-btn-group">
+                            <button id="btn-cloud-staff-sync" class="btn btn-secondary btn-sm" title="Pull staff registry from EduAI Cloud">
+                                ☁️ Sync Cloud Staff
+                            </button>
+                            <button id="btn-terminal-push" class="btn btn-secondary btn-sm" title="Upload staff to ZKTeco terminal">
+                                ⚡ Push to Terminal
+                            </button>
+                            <button id="btn-terminal-pull" class="btn btn-secondary btn-sm" title="Download enrolled users from ZKTeco terminal">
+                                📥 Pull from Terminal
+                            </button>
+                            <button id="btn-add-employee" class="btn btn-primary btn-sm">
+                                + Add Employee
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Search and Filters -->
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <input type="text" id="emp-search" placeholder="Search by name, PIN, phone, or ID...">
+                        </div>
+                        <div class="filter-box">
+                            <select id="emp-category-filter">
+                                <option value="all">All Departments / Categories</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Staff Member</th>
+                                    <th>Biometric PIN</th>
+                                    <th>Department</th>
+                                    <th>Assigned Shift</th>
+                                    <th>Phone / ID</th>
+                                    <th>RFID Card</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employees-tbody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB 3: CATEGORIES / DEPARTMENTS -->
+                <div class="tab-panel" id="panel-categories">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Staff Categories & Departments</h2>
+                            <p>Organize faculty and workforce into functional organizational units</p>
+                        </div>
+                        <button id="btn-add-category" class="btn btn-primary btn-sm">+ Add Category</button>
+                    </div>
+
+                    <div class="category-grid" id="category-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- TAB 4: WORK SHIFTS -->
+                <div class="tab-panel" id="panel-shifts">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Work Shift Schedules & Policies</h2>
+                            <p>Configure shift timings, grace periods for lateness, and active work days</p>
+                        </div>
+                        <button id="btn-add-shift" class="btn btn-primary btn-sm">+ Add Shift</button>
+                    </div>
+
+                    <div class="shift-grid" id="shift-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- TAB 5: ATTENDANCE REPORTS -->
+                <div class="tab-panel" id="panel-reports">
+                    <div class="panel-header">
+                        <div>
+                            <h2>Attendance Analytics & Reports</h2>
+                            <p>Compute daily work duration, shift adherence, lateness, and export payroll matrices</p>
+                        </div>
+                        <div class="action-btn-group">
+                            <button id="btn-export-csv" class="btn btn-secondary btn-sm">
+                                📥 Export CSV / Excel
+                            </button>
+                            <button id="btn-print-report" class="btn btn-primary btn-sm">
+                                🖨️ Print Report
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Report Filters Toolbar -->
+                    <div class="report-filter-bar">
+                        <div class="filter-item">
+                            <label>Start Date</label>
+                            <input type="date" id="rep-start-date">
+                        </div>
+                        <div class="filter-item">
+                            <label>End Date</label>
+                            <input type="date" id="rep-end-date">
+                        </div>
+                        <div class="filter-item">
+                            <label>Department</label>
+                            <select id="rep-category-filter">
+                                <option value="all">All Departments</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>Shift</label>
+                            <select id="rep-shift-filter">
+                                <option value="all">All Shifts</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>Status</label>
+                            <select id="rep-status-filter">
+                                <option value="all">All Statuses</option>
+                                <option value="present">Present (Any)</option>
+                                <option value="ontime">On Time</option>
+                                <option value="late">Late Arrival</option>
+                                <option value="absent">Absent</option>
+                            </select>
+                        </div>
+                        <div class="filter-item filter-action">
+                            <button id="btn-generate-report" class="btn btn-primary">
+                                Generate
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Metrics Cards -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <span class="kpi-label">Staff Evaluated</span>
+                            <h3 id="kpi-total-staff">0</h3>
+                            <span class="kpi-sub">Total active headcount</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Present Records</span>
+                            <h3 id="kpi-present" style="color: var(--emerald);">0</h3>
+                            <span class="kpi-sub">Punched in at least once</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">On-Time Punctuality</span>
+                            <h3 id="kpi-ontime-rate" style="color: #6366f1;">0%</h3>
+                            <span class="kpi-sub">Arrived within grace period</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Late Arrivals</span>
+                            <h3 id="kpi-late" style="color: var(--rose);">0</h3>
+                            <span class="kpi-sub">Exceeded shift grace window</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Total Hours Logged</span>
+                            <h3 id="kpi-hours" style="color: #06b6d4;">0 hrs</h3>
+                            <span class="kpi-sub">Accumulated work duration</span>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Attendance Matrix Table -->
+                    <div class="table-container" id="printable-report-area">
+                        <div class="print-only-header">
+                            <h2 id="print-institution-title">EduAI Institutional Attendance Ledger</h2>
+                            <p id="print-date-range">Report Period: </p>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Staff Member</th>
+                                    <th>PIN</th>
+                                    <th>Department</th>
+                                    <th>Shift</th>
+                                    <th>In Time</th>
+                                    <th>Out Time</th>
+                                    <th>Work Duration</th>
+                                    <th>Lateness</th>
+                                    <th>Attendance Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-tbody">
+                                <tr class="empty-row">
+                                    <td colspan="10">Select date range and click "Generate" to view attendance report.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB 6: DEVICES / TERMINALS -->
                 <div class="tab-panel" id="panel-devices">
                     <div class="panel-header">
                         <div>
@@ -125,7 +343,7 @@
                     </div>
                 </div>
 
-                <!-- TAB 3: CLOUD GATEWAY CONFIG -->
+                <!-- TAB 7: CLOUD GATEWAY CONFIG -->
                 <div class="tab-panel" id="panel-cloud">
                     <div class="panel-header">
                         <div>
@@ -158,7 +376,7 @@
                     </form>
                 </div>
 
-                <!-- TAB 4: CONSOLE LOGS -->
+                <!-- TAB 8: CONSOLE LOGS -->
                 <div class="tab-panel" id="panel-logs">
                     <div class="panel-header">
                         <div>
@@ -179,7 +397,9 @@
         </main>
     </div>
 
-    <!-- Add/Edit Device Modal -->
+    <!-- ═══════════ MODALS ═══════════ -->
+
+    <!-- Modal 1: Add/Edit Terminal Modal -->
     <div class="modal-overlay" id="device-modal" style="display: none;">
         <div class="modal-card">
             <div class="modal-header">
@@ -211,6 +431,178 @@
                     <button type="submit" class="btn btn-primary">Save Terminal</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: Add/Edit Employee Modal -->
+    <div class="modal-overlay" id="employee-modal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="emp-modal-title">Add Staff Member</h3>
+                <button class="btn-close" id="btn-close-emp-modal">&times;</button>
+            </div>
+            <form id="employee-form" class="modal-body">
+                <input type="hidden" id="emp-form-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="emp-form-name" required placeholder="e.g. Jane Mutua">
+                    </div>
+                    <div class="form-group">
+                        <label>Biometric PIN (Terminal User ID)</label>
+                        <input type="text" id="emp-form-pin" required placeholder="e.g. 106">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Department / Category</label>
+                        <select id="emp-form-category" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Assigned Shift</label>
+                        <select id="emp-form-shift" required></select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="emp-form-phone" placeholder="e.g. 0712345678">
+                    </div>
+                    <div class="form-group">
+                        <label>National ID / Passport</label>
+                        <input type="text" id="emp-form-nid" placeholder="e.g. 32091823">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>RFID Card Number</label>
+                        <input type="text" id="emp-form-card" placeholder="e.g. 10049286">
+                    </div>
+                    <div class="form-group">
+                        <label>Terminal Role</label>
+                        <select id="emp-form-privilege">
+                            <option value="User">Standard User</option>
+                            <option value="Admin">Terminal Admin</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-emp-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Staff Member</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: Add/Edit Category Modal -->
+    <div class="modal-overlay" id="category-modal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="cat-modal-title">Add Department / Category</h3>
+                <button class="btn-close" id="btn-close-cat-modal">&times;</button>
+            </div>
+            <form id="category-form" class="modal-body">
+                <input type="hidden" id="cat-form-id">
+                <div class="form-group">
+                    <label>Category / Department Name</label>
+                    <input type="text" id="cat-form-name" required placeholder="e.g. Science Department">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="cat-form-desc" placeholder="e.g. Physics, Chemistry and Biology teachers">
+                </div>
+                <div class="form-group">
+                    <label>Badge Accent Color</label>
+                    <div class="color-picker-row">
+                        <input type="color" id="cat-form-color" value="#4f46e5">
+                        <span id="cat-color-label" style="font-family: var(--font-mono); font-size: 12px;">#4f46e5</span>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-cat-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 4: Add/Edit Shift Modal -->
+    <div class="modal-overlay" id="shift-modal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="shift-modal-title">Add Work Shift</h3>
+                <button class="btn-close" id="btn-close-shift-modal">&times;</button>
+            </div>
+            <form id="shift-form" class="modal-body">
+                <input type="hidden" id="shift-form-id">
+                <div class="form-group">
+                    <label>Shift Title</label>
+                    <input type="text" id="shift-form-name" required placeholder="e.g. Morning Shift">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start / Expected In Time</label>
+                        <input type="time" id="shift-form-start" value="07:30" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End / Expected Out Time</label>
+                        <input type="time" id="shift-form-end" value="16:30" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Lateness Grace Period (Minutes)</label>
+                        <input type="number" id="shift-form-grace" value="15" min="0" max="120" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Accent Color</label>
+                        <input type="color" id="shift-form-color" value="#06b6d4" style="height: 42px; width: 100%;">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Active Work Days</label>
+                    <div class="days-checkbox-grid">
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Mon" checked> Mon</label>
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Tue" checked> Tue</label>
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Wed" checked> Wed</label>
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Thu" checked> Thu</label>
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Fri" checked> Fri</label>
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Sat"> Sat</label>
+                        <label class="day-chip"><input type="checkbox" name="workdays" value="Sun"> Sun</label>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-shift-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Shift</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 5: Push/Pull Device Selection Modal -->
+    <div class="modal-overlay" id="sync-select-modal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="sync-select-title">Select Terminal</h3>
+                <button class="btn-close" id="btn-close-sync-select">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="sync-select-prompt" style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+                    Choose the target ZKTeco terminal to communicate with:
+                </p>
+                <div class="form-group">
+                    <label>Terminal</label>
+                    <select id="sync-target-device"></select>
+                </div>
+                <div class="modal-actions" style="margin-top: 24px;">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-sync-select">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-confirm-sync-action">Proceed</button>
+                </div>
+            </div>
         </div>
     </div>
 

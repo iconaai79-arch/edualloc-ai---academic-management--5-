@@ -130,6 +130,11 @@ async function runSyncCycle() {
             sendLog(`Retrieved ${logs.length} total attendance punches from ${dev.name}.`, 'info');
 
             if (logs.length > 0) {
+                // Record all punches locally for analytics and report generation
+                logs.forEach(p => {
+                    cloudSync.recordLocalPunch(p, dev.name);
+                });
+
                 // Take latest punches
                 const syncRes = await cloudSync.syncAttendanceLogs(logs, dev.serialNumber || dev.ip);
                 if (syncRes.count > 0) {
@@ -149,7 +154,7 @@ async function runSyncCycle() {
                         }
                     });
                 } else {
-                    sendLog(`Device is up to date (0 new punches).`, 'info');
+                    sendLog(`Device is up to date (${logs.length} stored logs).`, 'info');
                 }
             }
 
@@ -173,9 +178,11 @@ async function runSyncCycle() {
     try {
         const flushed = await cloudSync.flushOfflineQueue();
         if (flushed.count > 0) {
-            sendLog(`✓ Flushed ${flushed.count} offline punches to cloud.`, 'success');
+            sendLog(`✓ Flushed ${flushed.count} offline buffered punches to EduAI Cloud.`, 'success');
         }
-    } catch (e) {}
+    } catch (e) {
+        // silent retry
+    }
 }
 
 function startAutoSyncTimer(intervalSec = 15) {
@@ -263,6 +270,95 @@ ipcMain.handle('stop-auto-sync', () => {
 });
 
 ipcMain.handle('get-recent-punches', () => recentPunches);
+
+// ── EMPLOYEE IPC HANDLERS ──
+ipcMain.handle('get-employees', () => cloudSync.getEmployees());
+ipcMain.handle('save-employee', (_, emp) => cloudSync.saveEmployee(emp));
+ipcMain.handle('delete-employee', (_, id) => cloudSync.deleteEmployee(id));
+
+// ── CATEGORY IPC HANDLERS ──
+ipcMain.handle('get-categories', () => cloudSync.getCategories());
+ipcMain.handle('save-category', (_, cat) => cloudSync.saveCategory(cat));
+ipcMain.handle('delete-category', (_, id) => cloudSync.deleteCategory(id));
+
+// ── SHIFTS IPC HANDLERS ──
+ipcMain.handle('get-shifts', () => cloudSync.getShifts());
+ipcMain.handle('save-shift', (_, shift) => cloudSync.saveShift(shift));
+ipcMain.handle('delete-shift', (_, id) => cloudSync.deleteShift(id));
+
+// ── ATTENDANCE REPORTS & EXPORT ──
+ipcMain.handle('get-attendance-report', (_, filters) => cloudSync.getAttendanceReport(filters));
+ipcMain.handle('export-report-csv', (_, filters) => cloudSync.generateAttendanceCsv(filters));
+ipcMain.handle('sync-cloud-staff', async () => {
+    try {
+        const res = await cloudSync.fetchCloudStaff();
+        return { success: true, count: res.count };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+// ── DEVICE USER SYNC ──
+ipcMain.handle('pull-users-from-device', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    try {
+        sendLog(`Downloading enrolled users from ${device.name || device.ip}...`, 'info');
+        await zk.connect();
+        const terminalUsers = await zk.getUsers();
+        await zk.disconnect();
+
+        let imported = 0;
+        terminalUsers.forEach(u => {
+            cloudSync.saveEmployee({
+                id: 'emp_zk_' + u.pin,
+                pin: u.pin,
+                name: u.name || `User #${u.pin}`,
+                cardNo: u.cardNo || '',
+                privilege: u.privilege || 'User',
+                categoryId: 'cat_teaching',
+                shiftId: 'shift_day',
+                active: true
+            });
+            imported++;
+        });
+
+        sendLog(`✓ Downloaded ${imported} users from ${device.name || device.ip}.`, 'success');
+        return { success: true, count: imported, users: cloudSync.getEmployees() };
+    } catch (e) {
+        await zk.disconnect();
+        sendLog(`User download failed: ${e.message}`, 'error');
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('push-users-to-device', async (_, device, employeeList) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    try {
+        sendLog(`Uploading staff profiles to ${device.name || device.ip}...`, 'info');
+        await zk.connect();
+        let uploaded = 0;
+        const list = employeeList || cloudSync.getEmployees();
+
+        for (const emp of list) {
+            await zk.setUser({
+                pin: emp.pin,
+                name: emp.name,
+                password: emp.password || '',
+                privilege: emp.privilege || 'User',
+                cardNo: emp.cardNo || ''
+            });
+            uploaded++;
+        }
+
+        await zk.disconnect();
+        sendLog(`✓ Successfully uploaded ${uploaded} staff profiles to ${device.name || device.ip}.`, 'success');
+        return { success: true, count: uploaded };
+    } catch (e) {
+        await zk.disconnect();
+        sendLog(`User upload failed: ${e.message}`, 'error');
+        return { success: false, message: e.message };
+    }
+});
 
 app.whenReady().then(() => {
     createWindow();

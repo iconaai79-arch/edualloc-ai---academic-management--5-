@@ -24,6 +24,9 @@ const CMD_GET_TIME = 201;
 const CMD_SET_TIME = 202;
 const CMD_UNLOCK = 31;
 const CMD_USERTEMP_RRQ = 9;
+const CMD_USERTEMP_WRQ = 10;
+const CMD_USER_WRQ = 8;
+const CMD_DELETE_USER = 18;
 const CMD_ATTLOG_RRQ = 13;
 const CMD_CLEAR_DATA = 14;
 const CMD_CLEAR_ATTLOG = 15;
@@ -283,6 +286,104 @@ class ZKTecoDevice {
         if (!this.isConnected) await this.connect();
         const res = await this.sendCommand(CMD_TESTVOICE);
         return res.responseCode === CMD_ACK_OK;
+    }
+
+    /**
+     * Get list of all enrolled users from the terminal
+     */
+    async getUsers() {
+        if (!this.isConnected) await this.connect();
+        const users = [];
+
+        try {
+            await this.sendCommand(CMD_DISABLEDEVICE).catch(() => {});
+            const res = await this.sendCommand(CMD_USERTEMP_RRQ, Buffer.from([5])); // 5: FScoding
+
+            if (res.responseCode === CMD_PREPARE_DATA || res.responseCode === CMD_ACK_OK) {
+                const raw = res.data;
+                const recordSize = 72; // Standard 72-byte SSR user structure
+
+                if (raw.length >= recordSize) {
+                    for (let i = 0; i + recordSize <= raw.length; i += recordSize) {
+                        const chunk = raw.slice(i, i + recordSize);
+                        const userPin = chunk.toString('ascii', 0, 24).replace(/\0/g, '').trim();
+                        const userName = chunk.toString('utf8', 24, 48).replace(/\0/g, '').trim();
+                        const password = chunk.toString('ascii', 48, 56).replace(/\0/g, '').trim();
+                        const privilege = chunk.readUInt8(56);
+                        const cardNo = chunk.readUInt32LE(60);
+
+                        if (userPin) {
+                            users.push({
+                                pin: userPin,
+                                name: userName || `Staff #${userPin}`,
+                                password: password,
+                                privilege: privilege === 14 ? 'Admin' : 'User',
+                                cardNo: cardNo > 0 ? String(cardNo) : ''
+                            });
+                        }
+                    }
+                }
+            }
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            return users;
+        } catch (err) {
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            throw err;
+        }
+    }
+
+    /**
+     * Upload / Enroll a user onto the ZKTeco terminal
+     */
+    async setUser(user) {
+        if (!this.isConnected) await this.connect();
+        try {
+            await this.sendCommand(CMD_DISABLEDEVICE).catch(() => {});
+            const buf = Buffer.alloc(72);
+            const pinBuf = Buffer.from(String(user.pin || '1'), 'ascii');
+            pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
+
+            const nameBuf = Buffer.from(String(user.name || ''), 'utf8');
+            nameBuf.copy(buf, 24, 0, Math.min(24, nameBuf.length));
+
+            if (user.password) {
+                const passBuf = Buffer.from(String(user.password), 'ascii');
+                passBuf.copy(buf, 48, 0, Math.min(8, passBuf.length));
+            }
+
+            buf.writeUInt8(user.privilege === 'Admin' ? 14 : 0, 56);
+
+            if (user.cardNo && !isNaN(Number(user.cardNo))) {
+                buf.writeUInt32LE(Number(user.cardNo), 60);
+            }
+
+            const res = await this.sendCommand(CMD_USER_WRQ, buf);
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            return res.responseCode === CMD_ACK_OK;
+        } catch (err) {
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            throw err;
+        }
+    }
+
+    /**
+     * Delete user from terminal
+     */
+    async deleteUser(pin) {
+        if (!this.isConnected) await this.connect();
+        try {
+            await this.sendCommand(CMD_DISABLEDEVICE).catch(() => {});
+            const buf = Buffer.alloc(24);
+            const pinBuf = Buffer.from(String(pin), 'ascii');
+            pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
+
+            const res = await this.sendCommand(CMD_DELETE_USER, buf);
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            return res.responseCode === CMD_ACK_OK;
+        } catch (err) {
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            throw err;
+        }
     }
 }
 
