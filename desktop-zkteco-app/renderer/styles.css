@@ -902,6 +902,170 @@ input:checked + .slider:before {
     display: none;
 }
 
+/* Fingerprint Biometric Enrollment Studio */
+.finger-selector-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.hand-column {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.hand-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+}
+
+.finger-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.finger-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.finger-chip:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-color);
+}
+
+.finger-chip.active {
+    background: rgba(79, 70, 229, 0.2);
+    border-color: #6366f1;
+    color: #818cf8;
+}
+
+.finger-chip input[type="radio"] {
+    display: none;
+}
+
+/* Biometric Scanner Box & Animation */
+.biometric-scanner-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.scanner-graphic-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.fingerprint-scan-icon {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    background: var(--bg-surface);
+    border: 2px solid var(--border-color);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--emerald);
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+}
+
+.fingerprint-scan-icon.scanning {
+    border-color: var(--emerald);
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
+    animation: scanPulse 1.5s infinite;
+}
+
+.scan-laser-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #34d399, transparent);
+    box-shadow: 0 0 10px #10b981;
+    animation: laserSweep 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes laserSweep {
+    0% { top: 4px; }
+    100% { top: 72px; }
+}
+
+@keyframes scanPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+}
+
+.enroll-steps-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.enroll-step-circle {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-sub);
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.enroll-step-circle.active {
+    background: var(--emerald);
+    color: #fff;
+    border-color: var(--emerald);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.enroll-step-connector {
+    width: 10px;
+    height: 2px;
+    background: var(--border-color);
+}
+
+.scanner-status-text h4 {
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.scanner-status-text p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.5;
+}
+
 /* Print Stylesheet */
 @media print {
     body {

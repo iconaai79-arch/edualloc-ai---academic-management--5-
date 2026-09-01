@@ -135,6 +135,29 @@ class CloudSyncService {
         return true;
     }
 
+    updateEmployeeBiometrics(pin, fingerName, remove = false) {
+        const emp = this.employees.find(e => String(e.pin).trim() === String(pin).trim());
+        if (!emp) return null;
+
+        if (!Array.isArray(emp.enrolledFingers)) {
+            emp.enrolledFingers = [];
+        }
+
+        if (remove) {
+            emp.enrolledFingers = emp.enrolledFingers.filter(f => f !== fingerName);
+            emp.fingerprintEnrolled = emp.enrolledFingers.length > 0;
+        } else {
+            if (!emp.enrolledFingers.includes(fingerName)) {
+                emp.enrolledFingers.push(fingerName);
+            }
+            emp.fingerprintEnrolled = true;
+        }
+
+        emp.lastBiometricUpdate = new Date().toISOString();
+        this.saveStorage();
+        return emp;
+    }
+
     /* ═══════════ CATEGORY CRUD ═══════════ */
     getCategories() {
         return this.categories;

@@ -432,6 +432,61 @@ ipcMain.handle('clear-device-logs', async (_, device) => {
     }
 });
 
+// ── LIVE BIOMETRIC FINGERPRINT ENROLLMENT ──
+ipcMain.handle('start-enroll-fingerprint', async (_, { device, pin, fingerId, employeeName, fingerName }) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 8000);
+    try {
+        sendLog(`Initiating live fingerprint capture on ${device.name || device.ip} for [${employeeName}] (PIN #${pin}, Finger: ${fingerName})...`, 'info');
+        await zk.connect();
+        // Ensure user exists on device
+        await zk.setUser({ pin, name: employeeName, privilege: 'User' }).catch(() => {});
+        
+        const started = await zk.startEnrollFingerprint(pin, fingerId);
+        await zk.disconnect();
+
+        if (started) {
+            // Update local staff profile
+            cloudSync.updateEmployeeBiometrics(pin, fingerName, false);
+            sendLog(`⚡ Live capture triggered on terminal! Prompting user: "Please place finger 3 times on sensor".`, 'success');
+            return { success: true, message: `Terminal LCD prompted: Place finger 3 times on ${device.name} sensor.` };
+        }
+        return { success: false, message: 'Device did not accept enrollment mode.' };
+    } catch (e) {
+        await zk.disconnect();
+        sendLog(`Enrollment trigger failed: ${e.message}`, 'error');
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('cancel-enroll-fingerprint', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 4000);
+    try {
+        await zk.connect();
+        await zk.cancelEnrollment();
+        await zk.disconnect();
+        sendLog(`Enrollment canceled on ${device.name || device.ip}.`, 'info');
+        return { success: true };
+    } catch (e) {
+        await zk.disconnect();
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('delete-fingerprint-template', async (_, { device, pin, fingerId, fingerName }) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    try {
+        await zk.connect();
+        await zk.deleteUserFingerprint(pin, fingerId);
+        await zk.disconnect();
+        cloudSync.updateEmployeeBiometrics(pin, fingerName, true);
+        sendLog(`Deleted fingerprint template (${fingerName}) for PIN #${pin}.`, 'warn');
+        return { success: true, message: `Fingerprint template removed from device.` };
+    } catch (e) {
+        await zk.disconnect();
+        return { success: false, message: e.message };
+    }
+});
+
 app.whenReady().then(() => {
     createWindow();
     createTray();

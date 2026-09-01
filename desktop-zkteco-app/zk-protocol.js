@@ -27,6 +27,10 @@ const CMD_USERTEMP_RRQ = 9;
 const CMD_USERTEMP_WRQ = 10;
 const CMD_USER_WRQ = 8;
 const CMD_DELETE_USER = 18;
+const CMD_DELETE_USER_TEMP = 19;
+const CMD_STARTENROLL = 1013;
+const CMD_STARTVERIFY = 1014;
+const CMD_CANCELCAPTURE = 1015;
 const CMD_ATTLOG_RRQ = 13;
 const CMD_CLEAR_DATA = 14;
 const CMD_CLEAR_ATTLOG = 15;
@@ -378,6 +382,88 @@ class ZKTecoDevice {
             pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
 
             const res = await this.sendCommand(CMD_DELETE_USER, buf);
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            return res.responseCode === CMD_ACK_OK;
+        } catch (err) {
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            throw err;
+        }
+    }
+
+    /**
+     * Remotely trigger live fingerprint enrollment on the ZKTeco hardware sensor
+     * The hardware LCD will prompt: "Please place your finger (3 times)"
+     * @param {string|number} pin User PIN
+     * @param {number} fingerId Finger index (0-9, default 0: Right Index)
+     */
+    async startEnrollFingerprint(pin, fingerId = 0) {
+        if (!this.isConnected) await this.connect();
+        try {
+            // Put terminal in enrollment capture mode for the specific PIN & Finger
+            const buf = Buffer.alloc(26);
+            const pinBuf = Buffer.from(String(pin || '1'), 'ascii');
+            pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
+            buf.writeUInt8(Number(fingerId) || 0, 24);
+            buf.writeUInt8(1, 25); // Flag
+
+            const res = await this.sendCommand(CMD_STARTENROLL, buf);
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            return res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA;
+        } catch (err) {
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            throw err;
+        }
+    }
+
+    /**
+     * Cancel active capture / enrollment mode on device
+     */
+    async cancelEnrollment() {
+        if (!this.isConnected) await this.connect();
+        try {
+            await this.sendCommand(CMD_CANCELCAPTURE).catch(() => {});
+            await this.sendCommand(CMD_STARTVERIFY).catch(() => {});
+            await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
+            return true;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    /**
+     * Read enrolled fingerprint template from device
+     */
+    async getUserFingerprint(pin, fingerId = 0) {
+        if (!this.isConnected) await this.connect();
+        try {
+            const buf = Buffer.alloc(26);
+            const pinBuf = Buffer.from(String(pin || '1'), 'ascii');
+            pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
+            buf.writeUInt8(Number(fingerId) || 0, 24);
+
+            const res = await this.sendCommand(CMD_USERTEMP_RRQ, buf);
+            if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_PREPARE_DATA) {
+                return { success: true, data: res.data };
+            }
+            return { success: false };
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+    }
+
+    /**
+     * Delete specific enrolled finger template from device
+     */
+    async deleteUserFingerprint(pin, fingerId = 0) {
+        if (!this.isConnected) await this.connect();
+        try {
+            await this.sendCommand(CMD_DISABLEDEVICE).catch(() => {});
+            const buf = Buffer.alloc(26);
+            const pinBuf = Buffer.from(String(pin || '1'), 'ascii');
+            pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
+            buf.writeUInt8(Number(fingerId) || 0, 24);
+
+            const res = await this.sendCommand(CMD_DELETE_USER_TEMP, buf);
             await this.sendCommand(CMD_ENABLEDEVICE).catch(() => {});
             return res.responseCode === CMD_ACK_OK;
         } catch (err) {

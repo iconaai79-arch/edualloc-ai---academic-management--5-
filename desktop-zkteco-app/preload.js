@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld('zkApi', {
     downloadDeviceLogs: (device) => ipcRenderer.invoke('download-device-logs', device),
     saveLogsFile: (options) => ipcRenderer.invoke('save-logs-file', options),
     clearDeviceLogs: (device) => ipcRenderer.invoke('clear-device-logs', device),
+
+    // Fingerprint Hardware Live Capture
+    startEnrollFingerprint: (params) => ipcRenderer.invoke('start-enroll-fingerprint', params),
+    cancelEnrollFingerprint: (device) => ipcRenderer.invoke('cancel-enroll-fingerprint', device),
+    deleteFingerprintTemplate: (params) => ipcRenderer.invoke('delete-fingerprint-template', params),
     
     // Event listeners
     onNewPunch: (callback) => ipcRenderer.on('new-punch', (_, punch) => callback(punch)),

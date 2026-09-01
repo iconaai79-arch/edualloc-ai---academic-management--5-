@@ -171,7 +171,7 @@
                                     <th>Department</th>
                                     <th>Assigned Shift</th>
                                     <th>Phone / ID</th>
-                                    <th>RFID Card</th>
+                                    <th>Biometrics</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -681,9 +681,143 @@
                             💾 Save as .CSV
                         </button>
                     </div>
-                    <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-hardware-logs" style="color: var(--rose); border-color: rgba(244, 63, 94, 0.3);">
-                        🧹 Clear Logs on Device
+    <!-- Modal 7: Live Fingerprint Biometric Enrollment Studio -->
+    <div class="modal-overlay" id="fingerprint-enroll-modal" style="display: none;">
+        <div class="modal-card" style="max-width: 660px;">
+            <div class="modal-header">
+                <h3>🖐️ Live Biometric Fingerprint Enrollment</h3>
+                <button class="btn-close" id="btn-close-fp-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Staff Profile Summary Banner -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 14px; display: flex; align-items: center; justify-content: space-between;">
+                    <div class="user-cell">
+                        <div class="user-avatar" id="fp-staff-avatar">JM</div>
+                        <div class="user-details">
+                            <h4 id="fp-staff-name" style="font-size: 15px; font-weight: 800;">James Mwangi</h4>
+                            <p id="fp-staff-meta" style="font-size: 12px; color: var(--text-muted);">PIN #101 • Teaching Faculty</p>
+                        </div>
+                    </div>
+                    <div id="fp-enrolled-badge">
+                        <span class="badge-status badge-ontime">Fingerprint Enrolled</span>
+                    </div>
+                </div>
+
+                <!-- Device Selector & Sensor Selection -->
+                <div class="form-group">
+                    <label>Target Enrollment Terminal (Hardware Sensor)</label>
+                    <select id="fp-target-device"></select>
+                    <small>The selected ZKTeco terminal sensor will activate and guide the employee to place their finger 3 times.</small>
+                </div>
+
+                <!-- Interactive Finger Selection -->
+                <div class="form-group">
+                    <label>Select Finger to Enroll</label>
+                    <div class="finger-selector-grid">
+                        <div class="hand-column">
+                            <div class="hand-label">Right Hand</div>
+                            <div class="finger-chips">
+                                <label class="finger-chip active" data-finger="0">
+                                    <input type="radio" name="finger_id" value="0" checked>
+                                    <span>👉 Right Index (#0)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="5">
+                                    <input type="radio" name="finger_id" value="5">
+                                    <span>👍 Right Thumb (#5)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="1">
+                                    <input type="radio" name="finger_id" value="1">
+                                    <span>🖕 Right Middle (#1)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="2">
+                                    <input type="radio" name="finger_id" value="2">
+                                    <span>💍 Right Ring (#2)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="3">
+                                    <input type="radio" name="finger_id" value="3">
+                                    <span>🖐️ Right Little (#3)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="hand-column">
+                            <div class="hand-label">Left Hand</div>
+                            <div class="finger-chips">
+                                <label class="finger-chip" data-finger="6">
+                                    <input type="radio" name="finger_id" value="6">
+                                    <span>👈 Left Index (#6)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="9">
+                                    <input type="radio" name="finger_id" value="9">
+                                    <span>👍 Left Thumb (#9)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="7">
+                                    <input type="radio" name="finger_id" value="7">
+                                    <span>🖕 Left Middle (#7)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="8">
+                                    <input type="radio" name="finger_id" value="8">
+                                    <span>💍 Left Ring (#8)</span>
+                                </label>
+                                <label class="finger-chip" data-finger="4">
+                                    <input type="radio" name="finger_id" value="4">
+                                    <span>🖐️ Left Little (#4)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Animated Biometric Live Capture Box -->
+                <div class="biometric-scanner-box">
+                    <div class="scanner-graphic-wrapper">
+                        <div class="fingerprint-scan-icon" id="fp-scan-icon">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/>
+                                <path d="M14 13.12c0 2.38 0 6.38-1 8.88"/>
+                                <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/>
+                                <path d="M2 12a10 10 0 0 1 18-6"/>
+                                <path d="M2 16h.01"/>
+                                <path d="M21.8 16c.2-2 .131-5.354 0-6"/>
+                                <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/>
+                                <path d="M8.65 22c.21-.66.45-1.32.57-2"/>
+                                <path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>
+                            </svg>
+                            <div class="scan-laser-line" id="fp-laser-line" style="display: none;"></div>
+                        </div>
+
+                        <!-- 3-Press Progress Indicator -->
+                        <div class="enroll-steps-row">
+                            <div class="enroll-step-circle" id="fp-step-1">1</div>
+                            <div class="enroll-step-connector"></div>
+                            <div class="enroll-step-circle" id="fp-step-2">2</div>
+                            <div class="enroll-step-connector"></div>
+                            <div class="enroll-step-circle" id="fp-step-3">3</div>
+                        </div>
+                    </div>
+
+                    <div class="scanner-status-text">
+                        <h4 id="fp-prompt-title">Ready to Capture Fingerprint</h4>
+                        <p id="fp-prompt-desc">Click "Trigger Live Capture on Device". The staff member will then place their selected finger 3 times on the terminal's optical sensor.</p>
+                    </div>
+                </div>
+
+                <!-- Modal Actions -->
+                <div class="modal-actions" style="justify-content: space-between; align-items: center;">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-delete-fp-template" style="color: var(--rose); border-color: rgba(244, 63, 94, 0.3);">
+                        🗑️ Delete Enrolled Finger
                     </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel-fp-capture" style="display: none;">
+                            Cancel Capture
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="btn-close-fp-action">
+                            Close
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btn-trigger-fp-enroll">
+                            ⚡ Trigger Live Capture on Device
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

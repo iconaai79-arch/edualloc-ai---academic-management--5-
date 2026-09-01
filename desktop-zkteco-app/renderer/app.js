@@ -139,7 +139,15 @@ function renderEmployees() {
                         <div style="color: var(--text-sub);">ID: ${escapeHtml(emp.nationalId || 'N/A')}</div>
                     </div>
                 </td>
-                <td><span style="font-family: var(--font-mono); font-size: 11px;">${escapeHtml(emp.cardNo || '--')}</span></td>
+                <td>
+                    ${emp.fingerprintEnrolled ? `
+                        <span class="badge-dept" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
+                            🖐️ ${emp.enrolledFingers && emp.enrolledFingers.length > 0 ? escapeHtml(emp.enrolledFingers[0]) : 'Enrolled'}
+                        </span>
+                    ` : `
+                        <span style="color: var(--text-sub); font-size: 11px;">⚪ Not Enrolled</span>
+                    `}
+                </td>
                 <td>
                     <span class="badge-status ${emp.active !== false ? 'badge-ontime' : 'badge-absent'}">
                         ${emp.active !== false ? 'Active' : 'Inactive'}
@@ -147,8 +155,9 @@ function renderEmployees() {
                 </td>
                 <td>
                     <div style="display: flex; gap: 4px;">
-                        <button class="btn btn-sm btn-secondary" onclick="editEmployee('${emp.id}')">✏️</button>
-                        <button class="btn btn-sm btn-secondary" style="color: var(--rose);" onclick="deleteEmployee('${emp.id}')">🗑️</button>
+                        <button class="btn btn-sm btn-primary" onclick="openFingerprintModal('${emp.id}')" title="Capture & Enroll Fingerprint on ZKTeco Sensor">🖐️ Enroll</button>
+                        <button class="btn btn-sm btn-secondary" onclick="editEmployee('${emp.id}')" title="Edit Profile">✏️</button>
+                        <button class="btn btn-sm btn-secondary" style="color: var(--rose);" onclick="deleteEmployee('${emp.id}')" title="Delete Staff">🗑️</button>
                     </div>
                 </td>
             </tr>
@@ -789,6 +798,211 @@ window.deleteDevice = async function(devId) {
     renderDeviceList();
 };
 
+/* ═══════════ LIVE BIOMETRIC FINGERPRINT ENROLLMENT STUDIO ═══════════ */
+let activeFpStaff = null;
+let activeFpFingerId = 0;
+let activeFpFingerName = 'Right Index (#0)';
+let isScanningFp = false;
+
+function openFingerprintModal(empId) {
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+
+    if (!appConfig.devices || appConfig.devices.length === 0) {
+        alert('Please configure at least one ZKTeco terminal in the "Terminals" tab before enrolling fingerprints.');
+        return;
+    }
+
+    activeFpStaff = emp;
+    activeFpFingerId = 0;
+    activeFpFingerName = 'Right Index (#0)';
+    isScanningFp = false;
+
+    // Staff Details
+    const cat = categories.find(c => c.id === emp.categoryId) || { name: 'General', color: '#4f46e5' };
+    const initials = (emp.name || 'Staff').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+    document.getElementById('fp-staff-avatar').textContent = initials;
+    document.getElementById('fp-staff-avatar').style.background = `linear-gradient(135deg, ${cat.color || '#4f46e5'}, #06b6d4)`;
+    document.getElementById('fp-staff-name').textContent = emp.name || 'Staff Member';
+    document.getElementById('fp-staff-meta').textContent = `Biometric PIN #${emp.pin} • Department: ${cat.name}`;
+
+    const badge = document.getElementById('fp-enrolled-badge');
+    if (emp.fingerprintEnrolled && emp.enrolledFingers && emp.enrolledFingers.length > 0) {
+        badge.innerHTML = `<span class="badge-status badge-ontime">🖐️ Enrolled: ${escapeHtml(emp.enrolledFingers.join(', '))}</span>`;
+        document.getElementById('btn-delete-fp-template').style.display = 'inline-flex';
+    } else {
+        badge.innerHTML = `<span class="badge-status badge-absent" style="background: rgba(148, 163, 184, 0.15); color: var(--text-sub);">⚪ No Fingerprint Enrolled</span>`;
+        document.getElementById('btn-delete-fp-template').style.display = 'none';
+    }
+
+    // Populate Device Dropdown
+    const devSelect = document.getElementById('fp-target-device');
+    devSelect.innerHTML = appConfig.devices.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.ip})</option>`).join('');
+
+    // Reset Finger Chips
+    document.querySelectorAll('.finger-chip').forEach(chip => {
+        const val = chip.getAttribute('data-finger');
+        if (val === '0') {
+            chip.classList.add('active');
+            chip.querySelector('input').checked = true;
+        } else {
+            chip.classList.remove('active');
+        }
+    });
+
+    // Reset Scanner UI
+    resetScannerGraphic();
+    document.getElementById('fingerprint-enroll-modal').style.display = 'flex';
+}
+
+window.openFingerprintModal = openFingerprintModal;
+
+function resetScannerGraphic() {
+    isScanningFp = false;
+    document.getElementById('fp-scan-icon')?.classList.remove('scanning');
+    const laser = document.getElementById('fp-laser-line');
+    if (laser) laser.style.display = 'none';
+
+    document.getElementById('fp-step-1')?.classList.remove('active');
+    document.getElementById('fp-step-2')?.classList.remove('active');
+    document.getElementById('fp-step-3')?.classList.remove('active');
+
+    document.getElementById('fp-prompt-title').textContent = 'Ready to Capture Fingerprint';
+    document.getElementById('fp-prompt-desc').textContent = 'Click "Trigger Live Capture on Device". The staff member will then place their selected finger 3 times on the terminal\'s optical sensor.';
+
+    document.getElementById('btn-trigger-fp-enroll').style.display = 'inline-flex';
+    document.getElementById('btn-cancel-fp-capture').style.display = 'none';
+}
+
+async function triggerLiveFingerprintEnrollment() {
+    if (!activeFpStaff || !window.zkApi) return;
+
+    const devId = document.getElementById('fp-target-device')?.value;
+    const dev = appConfig.devices.find(d => d.id === devId);
+    if (!dev) {
+        alert('Please select a valid ZKTeco terminal.');
+        return;
+    }
+
+    isScanningFp = true;
+    document.getElementById('btn-trigger-fp-enroll').style.display = 'none';
+    document.getElementById('btn-cancel-fp-capture').style.display = 'inline-flex';
+
+    // Start scanner animation
+    document.getElementById('fp-scan-icon')?.classList.add('scanning');
+    const laser = document.getElementById('fp-laser-line');
+    if (laser) laser.style.display = 'block';
+
+    document.getElementById('fp-prompt-title').textContent = `⚡ Activating Sensor on ${dev.name}...`;
+    document.getElementById('fp-prompt-desc').textContent = `Terminal LCD prompted: "Please place [${activeFpFingerName}] on the optical glass sensor (Press 1 of 3)"`;
+
+    // Step 1 active
+    document.getElementById('fp-step-1')?.classList.add('active');
+
+    appendLog({ type: 'info', message: `Activating optical sensor on ${dev.name} for ${activeFpStaff.name} (PIN #${activeFpStaff.pin}, ${activeFpFingerName})...` });
+
+    const res = await window.zkApi.startEnrollFingerprint({
+        device: dev,
+        pin: activeFpStaff.pin,
+        fingerId: activeFpFingerId,
+        employeeName: activeFpStaff.name,
+        fingerName: activeFpFingerName
+    });
+
+    if (res.success) {
+        // Step progression
+        setTimeout(() => {
+            if (!isScanningFp) return;
+            document.getElementById('fp-step-2')?.classList.add('active');
+            document.getElementById('fp-prompt-title').textContent = `Sensor Active: Place Finger Again (2/3)...`;
+        }, 1200);
+
+        setTimeout(async () => {
+            if (!isScanningFp) return;
+            document.getElementById('fp-step-3')?.classList.add('active');
+            document.getElementById('fp-prompt-title').textContent = `✓ Fingerprint Captured Successfully!`;
+            document.getElementById('fp-prompt-desc').textContent = `Biometric template for [${activeFpFingerName}] was compiled and stored in ${dev.name} hardware memory and local staff database.`;
+            
+            appendLog({ type: 'success', message: `✓ Fingerprint enrolled on ${dev.name} for PIN #${activeFpStaff.pin} (${activeFpStaff.name})!` });
+
+            // Refresh employees list
+            await loadEmployees();
+            const updated = employees.find(e => e.id === activeFpStaff.id);
+            if (updated) activeFpStaff = updated;
+
+            const badge = document.getElementById('fp-enrolled-badge');
+            if (badge) {
+                badge.innerHTML = `<span class="badge-status badge-ontime">🖐️ Enrolled: ${escapeHtml(activeFpStaff.enrolledFingers?.join(', ') || activeFpFingerName)}</span>`;
+            }
+            document.getElementById('btn-delete-fp-template').style.display = 'inline-flex';
+
+            setTimeout(() => {
+                resetScannerGraphic();
+                document.getElementById('fp-prompt-title').textContent = `✓ Fingerprint Enrolled & Ready!`;
+                document.getElementById('fp-prompt-desc').textContent = `${activeFpStaff.name} can now punch in/out on ${dev.name} using their ${activeFpFingerName}.`;
+            }, 1800);
+        }, 2600);
+    } else {
+        isScanningFp = false;
+        resetScannerGraphic();
+        document.getElementById('fp-prompt-title').textContent = `❌ Enrollment Failed`;
+        document.getElementById('fp-prompt-desc').textContent = `Error: ${res.message}. Ensure device is online on Port 4370 and try again.`;
+        appendLog({ type: 'error', message: `Fingerprint enrollment failed: ${res.message}` });
+        alert(`❌ Could not trigger enrollment: ${res.message}`);
+    }
+}
+
+async function cancelFingerprintCapture() {
+    if (!window.zkApi) return;
+    const devId = document.getElementById('fp-target-device')?.value;
+    const dev = appConfig.devices.find(d => d.id === devId);
+    if (dev) {
+        await window.zkApi.cancelEnrollFingerprint(dev);
+    }
+    resetScannerGraphic();
+    appendLog({ type: 'warn', message: 'Canceled live fingerprint enrollment.' });
+}
+
+async function deleteFingerprintTemplate() {
+    if (!activeFpStaff || !window.zkApi) return;
+
+    const devId = document.getElementById('fp-target-device')?.value;
+    const dev = appConfig.devices.find(d => d.id === devId);
+    if (!dev) return;
+
+    if (!confirm(`Are you sure you want to remove the enrolled ${activeFpFingerName} biometric template for ${activeFpStaff.name} (PIN #${activeFpStaff.pin}) from ${dev.name}?`)) {
+        return;
+    }
+
+    appendLog({ type: 'warn', message: `Removing fingerprint template for ${activeFpStaff.name}...` });
+    const res = await window.zkApi.deleteFingerprintTemplate({
+        device: dev,
+        pin: activeFpStaff.pin,
+        fingerId: activeFpFingerId,
+        fingerName: activeFpFingerName
+    });
+
+    if (res.success) {
+        alert(`✓ ${res.message}`);
+        await loadEmployees();
+        const updated = employees.find(e => e.id === activeFpStaff.id);
+        if (updated) activeFpStaff = updated;
+
+        const badge = document.getElementById('fp-enrolled-badge');
+        if (badge) {
+            if (activeFpStaff.fingerprintEnrolled && activeFpStaff.enrolledFingers && activeFpStaff.enrolledFingers.length > 0) {
+                badge.innerHTML = `<span class="badge-status badge-ontime">🖐️ Enrolled: ${escapeHtml(activeFpStaff.enrolledFingers.join(', '))}</span>`;
+            } else {
+                badge.innerHTML = `<span class="badge-status badge-absent" style="background: rgba(148, 163, 184, 0.15); color: var(--text-sub);">⚪ No Fingerprint Enrolled</span>`;
+                document.getElementById('btn-delete-fp-template').style.display = 'none';
+            }
+        }
+    } else {
+        alert(`❌ ${res.message}`);
+    }
+}
+
 /* ═══════════ TERMINAL PUSH / PULL USER MODAL ═══════════ */
 function openSyncTerminalModal(action) {
     if (!appConfig.devices || appConfig.devices.length === 0) {
@@ -886,6 +1100,31 @@ function setupEventListeners() {
     document.getElementById('btn-clear-hardware-logs')?.addEventListener('click', () => {
         const devId = document.getElementById('dl-target-device')?.value;
         if (devId) clearDeviceLogsPrompt(devId);
+    });
+
+    // Fingerprint Enrollment Studio Handlers
+    document.querySelectorAll('.finger-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            document.querySelectorAll('.finger-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            const radio = chip.querySelector('input');
+            if (radio) radio.checked = true;
+            activeFpFingerId = parseInt(chip.getAttribute('data-finger') || '0', 10);
+            activeFpFingerName = chip.querySelector('span')?.textContent?.trim() || `Finger #${activeFpFingerId}`;
+            resetScannerGraphic();
+        });
+    });
+
+    document.getElementById('btn-trigger-fp-enroll')?.addEventListener('click', triggerLiveFingerprintEnrollment);
+    document.getElementById('btn-cancel-fp-capture')?.addEventListener('click', cancelFingerprintCapture);
+    document.getElementById('btn-delete-fp-template')?.addEventListener('click', deleteFingerprintTemplate);
+    document.getElementById('btn-close-fp-modal')?.addEventListener('click', () => {
+        cancelFingerprintCapture();
+        document.getElementById('fingerprint-enroll-modal').style.display = 'none';
+    });
+    document.getElementById('btn-close-fp-action')?.addEventListener('click', () => {
+        cancelFingerprintCapture();
+        document.getElementById('fingerprint-enroll-modal').style.display = 'none';
     });
 
     // Confirm Push/Pull Device Action
