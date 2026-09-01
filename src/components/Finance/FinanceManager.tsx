@@ -1237,6 +1237,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balFilter, setBalFilter] = useState('');
     const [balClass, setBalClass] = useState('');
     const [balStream, setBalStream] = useState('');
+    const [balGraduatedFilter, setBalGraduatedFilter] = useState<'all' | 'active' | 'graduated'>('all');
     const [balCurrentPage, setBalCurrentPage] = useState(1);
     const [balItemsPerPage, setBalItemsPerPage] = useState(25);
     const [ledgerSubTab, setLedgerSubTab] = useState<'collection_summary' | 'cash_book' | 'fee_register' | 'cash_flow' | 'fee_installment'>('collection_summary');
@@ -2680,6 +2681,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [balanceClassFilter, setBalanceClassFilter] = useState('All');
     const [balanceStreamFilter, setBalanceStreamFilter] = useState('All');
     const [balanceStatusFilter, setBalanceStatusFilter] = useState('All');
+    const [balanceGraduationFilter, setBalanceGraduationFilter] = useState<'all' | 'active' | 'graduated'>('all');
     const [balanceSortOption, setBalanceSortOption] = useState<'latest' | 'highest_balance' | 'lowest_balance' | 'name'>('latest');
     const [balancesCurrentPage, setBalancesCurrentPage] = useState(1);
     const [balancesPerPage, setBalancesPerPage] = useState<number | 'All'>(15);
@@ -2816,7 +2818,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Reset pagination to page 1 whenever search, filters, or items per page change
     useEffect(() => {
         setBalancesCurrentPage(1);
-    }, [searchBalances, balanceClassFilter, balanceStreamFilter, balanceStatusFilter, balanceSortOption, balancesPerPage]);
+    }, [searchBalances, balanceClassFilter, balanceStreamFilter, balanceStatusFilter, balanceGraduationFilter, balanceSortOption, balancesPerPage]);
 
     // Fee Collection Report States
     const [collectionClassFilter, setCollectionClassFilter] = useState<string>('All');
@@ -2989,6 +2991,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (recTime > lastUpdatedTime) lastUpdatedTime = recTime;
             });
             
+            const isGraduated = String(s.status || '').toLowerCase() === 'graduated' ||
+                String((s as any).enrollmentStatus || '').toLowerCase() === 'graduated' ||
+                String(enrollment?.status || '').toLowerCase() === 'graduated' ||
+                (s as any).isGraduated === true ||
+                (s as any).is_graduated === true ||
+                (s as any).alumni === true ||
+                (s as any).isAlumni === true ||
+                String(cls || '').toLowerCase().includes('graduated') ||
+                String(cls || '').toLowerCase().includes('alumni');
+
             return {
                 ...s,
                 admissionNumber: adm,
@@ -2997,6 +3009,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 stream: stream,
                 openingBalance: openingBal,
                 lastUpdatedTime,
+                isGraduated: Boolean(isGraduated),
                 totals: {
                     openingBalance: openingBal,
                     invoicedWithoutOpening,
@@ -3078,9 +3091,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 matchesStatus = s.totals.prepayment > 0;
             } else if (balanceStatusFilter === 'no_payment') {
                 matchesStatus = s.totals.paid <= 0 && s.totals.invoiced > 0;
+            } else if (balanceStatusFilter === 'graduated') {
+                matchesStatus = s.isGraduated === true;
+            } else if (balanceStatusFilter === 'graduated_with_balance') {
+                matchesStatus = s.isGraduated === true && s.totals.balance > 0;
+            } else if (balanceStatusFilter === 'active_only') {
+                matchesStatus = s.isGraduated !== true;
             }
 
-            return matchesSearch && matchesClass && matchesStream && matchesStatus;
+            let matchesGraduation = true;
+            if (balanceGraduationFilter === 'graduated') {
+                matchesGraduation = s.isGraduated === true;
+            } else if (balanceGraduationFilter === 'active') {
+                matchesGraduation = s.isGraduated !== true;
+            }
+
+            return matchesSearch && matchesClass && matchesStream && matchesStatus && matchesGraduation;
         });
 
         return list.sort((a, b) => {
@@ -3095,7 +3121,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             return (b.lastUpdatedTime || 0) - (a.lastUpdatedTime || 0);
         });
-    }, [studentFinanceData, searchBalances, balanceClassFilter, balanceStreamFilter, balanceStatusFilter, balanceSortOption]);
+    }, [studentFinanceData, searchBalances, balanceClassFilter, balanceStreamFilter, balanceStatusFilter, balanceGraduationFilter, balanceSortOption]);
 
     const paginatedFinanceStudents = useMemo(() => {
         if (balancesPerPage === 'All') return filteredFinanceStudents;
@@ -7579,7 +7605,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             )}
 
             {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 shadow-sm items-center">
                 {/* Search Bar */}
                 <div className="lg:col-span-2 relative">
                     <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
@@ -7620,6 +7646,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </select>
                 </div>
 
+                {/* Graduation / Alumni Filter */}
+                <div>
+                    <select
+                        value={balanceGraduationFilter}
+                        onChange={(e) => setBalanceGraduationFilter(e.target.value as any)}
+                        className={`w-full py-3 px-3.5 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-black cursor-pointer transition-all ${
+                            balanceGraduationFilter === 'graduated'
+                                ? 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border border-purple-300 dark:border-purple-700 shadow-xs'
+                                : 'bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-none'
+                        }`}
+                        title="Filter active enrolled vs graduated alumni"
+                    >
+                        <option value="all">🎓 All (Active & Alumni)</option>
+                        <option value="graduated">🎓 Graduated Students Only</option>
+                        <option value="active">🟢 Active Students Only</option>
+                    </select>
+                </div>
+
                 {/* Status Filter */}
                 <div>
                     <select
@@ -7627,11 +7671,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         onChange={(e) => setBalanceStatusFilter(e.target.value)}
                         className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
                     >
-                        <option value="All">All Statuses</option>
+                        <option value="All">All Payment Statuses</option>
                         <option value="has_balance">Has Balance (Owing)</option>
                         <option value="fully_paid">Fully Paid</option>
                         <option value="prepaid">Prepaid / Credit</option>
                         <option value="no_payment">No Payment Made</option>
+                        <option value="graduated">🎓 Graduated (Alumni)</option>
+                        <option value="graduated_with_balance">🎓 Graduated with Balance</option>
+                        <option value="active_only">🟢 Active Students Only</option>
                     </select>
                 </div>
 
@@ -7711,6 +7758,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <div className="flex flex-col gap-1">
                                                             <div className="flex items-center gap-2 flex-wrap">
                                                                 <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
+                                                                {student.isGraduated && (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800/60 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
+                                                                        🎓 Graduated
+                                                                    </span>
+                                                                )}
                                                                 {getStudentStream(student) && (
                                                                     <span className="inline-flex items-center px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0">
                                                                         Stream: {getStudentStream(student)}
@@ -18439,6 +18491,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             
                                             const filteredList = studentFinanceData
                                                 .filter((s: any) => s.totals.balance > 0)
+                                                .filter((s: any) => {
+                                                    if (balGraduatedFilter === 'graduated') return s.isGraduated === true;
+                                                    if (balGraduatedFilter === 'active') return s.isGraduated !== true;
+                                                    return true;
+                                                })
                                                 .filter((s: any) => !balFilter || s.name?.toLowerCase().includes(balFilter.toLowerCase()) || (s.admissionNumber || '').toLowerCase().includes(balFilter.toLowerCase()))
                                                 .filter((s: any) => !balClass || normalizeClassName(s.className || studentClassGroup(s)).toLowerCase() === normalizeClassName(balClass).toLowerCase())
                                                 .filter((s: any) => !balStream || normalizeStreamName((s as any).stream || getStudentStream(s)).toLowerCase() === normalizeStreamName(balStream).toLowerCase())
@@ -18507,6 +18564,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             >
                                                                 <option value="">All Streams</option>
                                                                 {streams.map((st: string) => <option key={st} value={st}>{st}</option>)}
+                                                            </select>
+                                                            {/* Graduation / Alumni Filter */}
+                                                            <select
+                                                                value={balGraduatedFilter}
+                                                                onChange={e => {
+                                                                    setBalGraduatedFilter(e.target.value as any);
+                                                                    setBalCurrentPage(1);
+                                                                }}
+                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-black cursor-pointer transition-all ${
+                                                                    balGraduatedFilter === 'graduated'
+                                                                        ? 'bg-purple-900/90 text-purple-200 border border-purple-500 shadow-xs'
+                                                                        : themeMode === 'futuristic'
+                                                                            ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+                                                                            : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
+                                                                }`}
+                                                                title="Filter active students vs graduated alumni"
+                                                            >
+                                                                <option value="all">🎓 All (Active & Alumni)</option>
+                                                                <option value="graduated">🎓 Graduated Only</option>
+                                                                <option value="active">🟢 Active Students Only</option>
                                                             </select>
                                                             <select
                                                                 value={balItemsPerPage}
@@ -18593,7 +18670,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     return (
                                                                         <tr key={idx} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/60 transition-colors">
                                                                             <TD cls="text-slate-400 font-bold">{itemIndex}</TD>
-                                                                            <TD cls={`font-extrabold text-xs sm:text-sm tracking-tight ${themeMode === 'futuristic' ? 'text-cyan-300 drop-shadow-sm' : 'text-slate-900 dark:text-cyan-300'}`}>{s.name}</TD>
+                                                                            <TD cls={`font-extrabold text-xs sm:text-sm tracking-tight ${themeMode === 'futuristic' ? 'text-cyan-300 drop-shadow-sm' : 'text-slate-900 dark:text-cyan-300'}`}>
+                                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                                    <span>{s.name}</span>
+                                                                                    {s.isGraduated && (
+                                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800/60 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 shadow-xs">
+                                                                                            🎓 Graduated
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </TD>
                                                                             <TD cls={`font-mono font-bold ${themeMode === 'futuristic' ? 'text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{s.admissionNumber}</TD>
                                                                             <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>{s.className || studentClassGroup(s)}</TD>
                                                                             <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
