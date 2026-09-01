@@ -536,10 +536,12 @@ function renderDeviceList() {
             </div>
 
             <div class="card-actions" style="flex-wrap: wrap;">
+                <button class="btn btn-sm btn-primary" onclick="openDownloadLogsModal('${dev.id}')">📥 Download Logs</button>
                 <button class="btn btn-sm btn-secondary" onclick="testDevice('${dev.id}')">⚡ Test Link</button>
                 <button class="btn btn-sm btn-secondary" onclick="syncDevice('${dev.id}')">🔄 Sync Logs</button>
                 <button class="btn btn-sm btn-secondary" onclick="syncClock('${dev.id}')">🕒 Set Time</button>
                 <button class="btn btn-sm btn-secondary" onclick="unlockDoor('${dev.id}')">🚪 Unlock</button>
+                <button class="btn btn-sm btn-secondary" style="color: var(--rose);" onclick="clearDeviceLogsPrompt('${dev.id}')">🧹 Clear</button>
                 <button class="btn btn-sm btn-secondary" style="color: var(--rose);" onclick="deleteDevice('${dev.id}')">🗑️</button>
             </div>
         </div>
@@ -569,6 +571,175 @@ function openDeviceModal(dev = null) {
 }
 
 window.openDeviceModal = openDeviceModal;
+
+/* ═══════════ DOWNLOAD HARDWARE LOGS MODAL & ACTIONS ═══════════ */
+let downloadedRawLogs = [];
+
+function openDownloadLogsModal(devId = null) {
+    if (!appConfig.devices || appConfig.devices.length === 0) {
+        alert('Please configure at least one ZKTeco terminal first.');
+        return;
+    }
+
+    const select = document.getElementById('dl-target-device');
+    select.innerHTML = appConfig.devices.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.ip})</option>`).join('');
+
+    if (devId) {
+        select.value = devId;
+    }
+
+    downloadedRawLogs = [];
+    document.getElementById('dl-status-text').textContent = 'Ready to download logs from device.';
+    document.getElementById('dl-status-sub').textContent = 'Connects directly over UDP/TCP Port 4370';
+    document.getElementById('dl-log-counter').textContent = '0 Logs';
+
+    const tbody = document.getElementById('dl-preview-tbody');
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="4">Click "Fetch Logs from Device" to download raw logs.</td></tr>`;
+
+    document.getElementById('download-logs-modal').style.display = 'flex';
+}
+
+window.openDownloadLogsModal = openDownloadLogsModal;
+
+async function startDownloadLogs() {
+    const devId = document.getElementById('dl-target-device')?.value;
+    const dev = appConfig.devices.find(d => d.id === devId);
+    if (!dev || !window.zkApi) return;
+
+    const statusText = document.getElementById('dl-status-text');
+    const statusSub = document.getElementById('dl-status-sub');
+    const counter = document.getElementById('dl-log-counter');
+    const tbody = document.getElementById('dl-preview-tbody');
+
+    statusText.textContent = `Connecting to ${dev.name} (${dev.ip})...`;
+    statusSub.textContent = 'Downloading raw attendance packets...';
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="4">Fetching records over Port 4370...</td></tr>`;
+
+    const res = await window.zkApi.downloadDeviceLogs(dev);
+
+    if (res.success) {
+        downloadedRawLogs = res.logs || [];
+        statusText.textContent = `✓ Successfully downloaded ${res.count} records from ${dev.name}!`;
+        statusSub.textContent = `All records recorded into local database at ${new Date().toLocaleTimeString()}`;
+        counter.textContent = `${res.count} Logs`;
+
+        if (downloadedRawLogs.length === 0) {
+            tbody.innerHTML = `<tr class="empty-row"><td colspan="4">Device returned 0 punch logs. Hardware memory is empty.</td></tr>`;
+        } else {
+            const verifyNames = { 1: 'Fingerprint', 2: 'Password / PIN', 3: 'RFID Card', 15: 'Face Scan' };
+            const statusNames = { 0: 'Check In', 1: 'Check Out', 2: 'Break Out', 3: 'Break In', 4: 'Overtime In', 5: 'Overtime Out' };
+
+            tbody.innerHTML = downloadedRawLogs.slice(0, 100).map(p => `
+                <tr>
+                    <td><span class="badge-pin">#${escapeHtml(p.pin)}</span></td>
+                    <td style="font-family: var(--font-mono); font-size: 11px;">${escapeHtml(p.time)}</td>
+                    <td><span class="badge-verify">${verifyNames[p.verifyMode] || 'Biometric'}</span></td>
+                    <td><span class="badge-status badge-ontime">${statusNames[p.status] || 'Check In'}</span></td>
+                </tr>
+            `).join('');
+        }
+    } else {
+        statusText.textContent = `❌ Download failed: ${res.message}`;
+        statusSub.textContent = 'Please check device IP and network connection.';
+        tbody.innerHTML = `<tr class="empty-row"><td colspan="4" style="color: var(--rose);">Error connecting to ${dev.ip}: ${res.message}</td></tr>`;
+    }
+}
+
+async function saveDatFile() {
+    if (downloadedRawLogs.length === 0) {
+        alert('Please fetch logs from the device first before saving.');
+        return;
+    }
+
+    // Standard ZKTeco ATTLOG.DAT tab-separated format
+    const content = downloadedRawLogs.map(p => 
+        `${p.pin}\t${p.time}\t${p.status ?? 0}\t${p.verifyMode ?? 1}\t0\t0`
+    ).join('\r\n');
+
+    const res = await window.zkApi.saveLogsFile({
+        content,
+        defaultName: `attlog_${new Date().toISOString().split('T')[0]}.dat`,
+        format: 'dat'
+    });
+
+    if (res.saved) {
+        alert(`✓ ATTLOG.DAT saved successfully to: ${res.filePath}`);
+    }
+}
+
+async function saveTxtFile() {
+    if (downloadedRawLogs.length === 0) {
+        alert('Please fetch logs from the device first before saving.');
+        return;
+    }
+
+    const content = downloadedRawLogs.map(p => 
+        `PIN: ${p.pin.padEnd(8)} | Time: ${p.time} | Mode: ${p.verifyMode} | Status: ${p.status}`
+    ).join('\r\n');
+
+    const res = await window.zkApi.saveLogsFile({
+        content,
+        defaultName: `zkteco_attendance_logs_${new Date().toISOString().split('T')[0]}.txt`,
+        format: 'txt'
+    });
+
+    if (res.saved) {
+        alert(`✓ Text log file saved successfully to: ${res.filePath}`);
+    }
+}
+
+async function saveCsvFile() {
+    if (downloadedRawLogs.length === 0) {
+        alert('Please fetch logs from the device first before exporting.');
+        return;
+    }
+
+    const verifyNames = { 1: 'Fingerprint', 2: 'Password / PIN', 3: 'RFID Card', 15: 'Face Scan' };
+    const statusNames = { 0: 'Check In', 1: 'Check Out', 2: 'Break Out', 3: 'Break In', 4: 'Overtime In', 5: 'Overtime Out' };
+
+    const headers = ['PIN', 'Timestamp', 'Verification_Mode', 'Punch_State', 'Raw_Verify_Code', 'Raw_Status_Code'];
+    const lines = [headers.join(',')];
+
+    downloadedRawLogs.forEach(p => {
+        lines.push([
+            `"${p.pin}"`,
+            `"${p.time}"`,
+            `"${verifyNames[p.verifyMode] || 'Biometric'}"`,
+            `"${statusNames[p.status] || 'Check In'}"`,
+            p.verifyMode ?? 1,
+            p.status ?? 0
+        ].join(','));
+    });
+
+    const res = await window.zkApi.saveLogsFile({
+        content: lines.join('\r\n'),
+        defaultName: `zkteco_punches_${new Date().toISOString().split('T')[0]}.csv`,
+        format: 'csv'
+    });
+
+    if (res.saved) {
+        alert(`✓ CSV export saved successfully to: ${res.filePath}`);
+    }
+}
+
+window.clearDeviceLogsPrompt = async function(devId) {
+    const dev = appConfig.devices.find(d => d.id === devId);
+    if (!dev || !window.zkApi) return;
+
+    const confirmClear = confirm(`⚠️ WARNING: Are you sure you want to permanently clear all attendance logs stored in hardware memory on "${dev.name}" (${dev.ip})?\n\nMake sure you have downloaded or synced the logs first.`);
+    if (!confirmClear) return;
+
+    appendLog({ type: 'warn', message: `Clearing logs on ${dev.name}...` });
+    const res = await window.zkApi.clearDeviceLogs(dev);
+
+    if (res.success) {
+        alert(`✓ ${res.message}`);
+        appendLog({ type: 'success', message: res.message });
+    } else {
+        alert(`❌ ${res.message}`);
+        appendLog({ type: 'error', message: res.message });
+    }
+};
 
 window.testDevice = async function(devId) {
     const dev = appConfig.devices.find(d => d.id === devId);
@@ -704,6 +875,18 @@ function setupEventListeners() {
 
     document.getElementById('btn-close-sync-select')?.addEventListener('click', () => document.getElementById('sync-select-modal').style.display = 'none');
     document.getElementById('btn-cancel-sync-select')?.addEventListener('click', () => document.getElementById('sync-select-modal').style.display = 'none');
+
+    // Download Logs Modal Handlers
+    document.getElementById('btn-open-download-logs')?.addEventListener('click', () => openDownloadLogsModal());
+    document.getElementById('btn-close-download-logs')?.addEventListener('click', () => document.getElementById('download-logs-modal').style.display = 'none');
+    document.getElementById('btn-start-download-logs')?.addEventListener('click', startDownloadLogs);
+    document.getElementById('btn-save-dat-file')?.addEventListener('click', saveDatFile);
+    document.getElementById('btn-save-txt-file')?.addEventListener('click', saveTxtFile);
+    document.getElementById('btn-save-csv-file')?.addEventListener('click', saveCsvFile);
+    document.getElementById('btn-clear-hardware-logs')?.addEventListener('click', () => {
+        const devId = document.getElementById('dl-target-device')?.value;
+        if (devId) clearDeviceLogsPrompt(devId);
+    });
 
     // Confirm Push/Pull Device Action
     document.getElementById('btn-confirm-sync-action')?.addEventListener('click', async () => {

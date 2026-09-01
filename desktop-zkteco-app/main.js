@@ -360,6 +360,77 @@ ipcMain.handle('push-users-to-device', async (_, device, employeeList) => {
     }
 });
 
+// ── HARDWARE LOG DOWNLOAD & EXPORT ──
+ipcMain.handle('download-device-logs', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 8000);
+    try {
+        sendLog(`Connecting to ${device.name || device.ip} to fetch hardware attendance logs...`, 'info');
+        await zk.connect();
+        const logs = await zk.getAttendanceLogs();
+        await zk.disconnect();
+
+        // Ingest into local attendance engine for reporting
+        logs.forEach(p => {
+            cloudSync.recordLocalPunch(p, device.name);
+        });
+
+        sendLog(`✓ Successfully downloaded ${logs.length} raw attendance logs from ${device.name || device.ip}.`, 'success');
+        return { success: true, logs, count: logs.length };
+    } catch (e) {
+        await zk.disconnect();
+        sendLog(`Hardware log download failed: ${e.message}`, 'error');
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('save-logs-file', async (_, { content, defaultName, format }) => {
+    const { dialog } = require('electron');
+    let filters = [{ name: 'Text Document', extensions: ['txt', 'log'] }, { name: 'All Files', extensions: ['*'] }];
+    if (format === 'dat') {
+        filters = [{ name: 'ZKTeco DAT File', extensions: ['dat'] }, { name: 'All Files', extensions: ['*'] }];
+    } else if (format === 'csv') {
+        filters = [{ name: 'CSV Document', extensions: ['csv'] }, { name: 'All Files', extensions: ['*'] }];
+    }
+
+    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Biometric Attendance Log File',
+        defaultPath: defaultName || (format === 'dat' ? 'attlog.dat' : (format === 'csv' ? 'attendance_logs.csv' : 'attlog.txt')),
+        filters
+    });
+
+    if (canceled || !filePath) {
+        return { saved: false };
+    }
+
+    try {
+        fs.writeFileSync(filePath, content, 'utf8');
+        sendLog(`✓ Saved attendance log file to: ${filePath}`, 'success');
+        return { saved: true, filePath };
+    } catch (err) {
+        sendLog(`Failed to write log file: ${err.message}`, 'error');
+        return { saved: false, error: err.message };
+    }
+});
+
+ipcMain.handle('clear-device-logs', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    try {
+        sendLog(`Clearing attendance logs on hardware ${device.name || device.ip}...`, 'warn');
+        await zk.connect();
+        const success = await zk.clearAttendanceLogs();
+        await zk.disconnect();
+        if (success) {
+            sendLog(`✓ Cleared attendance logs on ${device.name || device.ip}.`, 'success');
+            return { success: true, message: 'Hardware attendance logs cleared successfully.' };
+        }
+        return { success: false, message: 'Device returned error while clearing logs.' };
+    } catch (e) {
+        await zk.disconnect();
+        sendLog(`Clear logs failed: ${e.message}`, 'error');
+        return { success: false, message: e.message };
+    }
+});
+
 app.whenReady().then(() => {
     createWindow();
     createTray();

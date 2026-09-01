@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('zkApi', {
     // Terminal Hardware User Push / Pull
     pullUsersFromDevice: (device) => ipcRenderer.invoke('pull-users-from-device', device),
     pushUsersToDevice: (device, employeeList) => ipcRenderer.invoke('push-users-to-device', device, employeeList),
+    downloadDeviceLogs: (device) => ipcRenderer.invoke('download-device-logs', device),
+    saveLogsFile: (options) => ipcRenderer.invoke('save-logs-file', options),
+    clearDeviceLogs: (device) => ipcRenderer.invoke('clear-device-logs', device),
     
     // Event listeners
     onNewPunch: (callback) => ipcRenderer.on('new-punch', (_, punch) => callback(punch)),

@@ -335,7 +335,12 @@
                             <h2>Configured ZKTeco Terminals</h2>
                             <p>Manage hardware terminals on your local network (Port 4370)</p>
                         </div>
-                        <button id="btn-add-device" class="btn btn-secondary">+ Add Terminal</button>
+                        <div class="action-btn-group">
+                            <button id="btn-open-download-logs" class="btn btn-secondary btn-sm">
+                                📥 Download Hardware Logs
+                            </button>
+                            <button id="btn-add-device" class="btn btn-primary btn-sm">+ Add Terminal</button>
+                        </div>
                     </div>
 
                     <div class="device-grid" id="device-grid">
@@ -601,6 +606,84 @@
                 <div class="modal-actions" style="margin-top: 24px;">
                     <button type="button" class="btn btn-secondary" id="btn-cancel-sync-select">Cancel</button>
                     <button type="button" class="btn btn-primary" id="btn-confirm-sync-action">Proceed</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 6: Download Device Hardware Logs Modal -->
+    <div class="modal-overlay" id="download-logs-modal" style="display: none;">
+        <div class="modal-card" style="max-width: 680px;">
+            <div class="modal-header">
+                <h3>📥 Download Logs from Biometric Device</h3>
+                <button class="btn-close" id="btn-close-download-logs">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Select Target ZKTeco Terminal</label>
+                        <select id="dl-target-device"></select>
+                    </div>
+                    <div class="form-group" style="justify-content: flex-end;">
+                        <button type="button" class="btn btn-primary" id="btn-start-download-logs" style="height: 42px;">
+                            ⚡ Fetch Logs from Device
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Download Progress & Status Box -->
+                <div id="dl-status-box" style="padding: 14px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div id="dl-status-text" style="font-size: 13px; font-weight: 700; color: var(--text-main);">
+                            Ready to download from hardware.
+                        </div>
+                        <div id="dl-status-sub" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                            Connects directly over Port 4370 (TCP/UDP)
+                        </div>
+                    </div>
+                    <div id="dl-log-counter" style="font-family: var(--font-mono); font-size: 14px; font-weight: 800; color: var(--emerald);">
+                        0 Logs
+                    </div>
+                </div>
+
+                <!-- Logs Table Preview -->
+                <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">
+                    Downloaded Punches Preview
+                </div>
+                <div class="table-container" style="max-height: 220px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>User PIN</th>
+                                <th>Timestamp</th>
+                                <th>Verification Mode</th>
+                                <th>State</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dl-preview-tbody">
+                            <tr class="empty-row">
+                                <td colspan="4">No logs fetched yet. Click "Fetch Logs from Device" above.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Action Export Buttons -->
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-save-dat-file">
+                            💾 Save as ATTLOG.DAT
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-save-txt-file">
+                            💾 Save as .TXT
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-save-csv-file">
+                            💾 Save as .CSV
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-hardware-logs" style="color: var(--rose); border-color: rgba(244, 63, 94, 0.3);">
+                        🧹 Clear Logs on Device
+                    </button>
                 </div>
             </div>
         </div>
