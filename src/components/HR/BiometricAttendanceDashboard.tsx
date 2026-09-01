@@ -83,6 +83,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     // ZKTeco Log Import states
     const [showImportModal, setShowImportModal] = useState(false);
+    const [showDesktopAgentModal, setShowDesktopAgentModal] = useState(false);
     const [importLogText, setImportLogText] = useState('');
     const [isImporting, setIsImporting] = useState(false);
 
@@ -811,6 +812,12 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             </div>
                             <div className="flex items-center gap-3">
                                 <button
+                                    onClick={() => setShowDesktopAgentModal(true)}
+                                    className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md flex items-center gap-2"
+                                >
+                                    💻 Desktop Bridge Agent
+                                </button>
+                                <button
                                     onClick={() => setShowGuideModal(true)}
                                     className="px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2"
                                 >
@@ -1302,6 +1309,78 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                         <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
                             <button onClick={() => setTestModalResult(null)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md">
                                 Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ═══════════ DESKTOP BRIDGE AGENT MODAL ═══════════ */}
+            {showDesktopAgentModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center font-black text-lg">
+                                    ZK
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight">EduAI ZKTeco Desktop Bridge Agent</h3>
+                                    <p className="text-[11px] opacity-90 font-medium">Windows Desktop App for Local Network ZKTeco Terminals (Port 4370)</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowDesktopAgentModal(false)} className="p-2 bg-black/20 hover:bg-black/40 text-white rounded-xl transition-all">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <div className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl space-y-2">
+                                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                                    🚀 Why Use the Desktop Bridge Agent?
+                                </h4>
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    If your ZKTeco terminals (K40, F18, MB20, IN01, uFace, etc.) are connected to your school or office Local Area Network (LAN) without public cloud access, the Desktop Agent runs on your local gate/office PC, connects directly to devices via <strong>Port 4370 (TCP/UDP)</strong>, and automatically syncs attendance punches to the EduAI Cloud in real time.
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                    Quick 3-Step Setup Instructions
+                                </h4>
+
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                    <span className="px-2.5 py-0.5 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase">1. Location & Startup</span>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                                        The desktop agent package is located in the repository folder:
+                                    </p>
+                                    <code className="block p-3 bg-slate-900 text-emerald-400 font-mono text-xs rounded-xl break-all">
+                                        desktop-zkteco-app/run-agent.bat
+                                    </code>
+                                    <p className="text-[11px] text-slate-500">
+                                        Double-click <code>run-agent.bat</code> to automatically install dependencies and launch the app.
+                                    </p>
+                                </div>
+
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                    <span className="px-2.5 py-0.5 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase">2. Configure Cloud Gateway</span>
+                                    <div className="space-y-1 text-xs font-mono text-slate-700 dark:text-slate-300">
+                                        <div>• Cloud URL: <strong className="text-indigo-500">{typeof window !== 'undefined' ? window.location.origin : 'https://portal.eduai.co.ke'}</strong></div>
+                                        <div>• Institution ID: <strong className="text-emerald-500">{institution.id}</strong></div>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-2">
+                                    <span className="px-2.5 py-0.5 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase">3. Add Local Terminal IP</span>
+                                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                                        In the Desktop App, click <strong>+ Add Terminal</strong>, enter your terminal IP (e.g. <code>192.168.1.201</code>, Port <code>4370</code>), and click <strong>Test Link</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                            <button onClick={() => setShowDesktopAgentModal(false)} className="px-8 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md">
+                                Got It
                             </button>
                         </div>
                     </div>

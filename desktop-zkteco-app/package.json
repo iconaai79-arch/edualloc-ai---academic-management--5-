@@ -1,0 +1,36 @@
+{
+  "name": "eduai-zkteco-sync-agent",
+  "version": "1.0.0",
+  "description": "EduAI ZKTeco Desktop Attendance & Cloud Sync Bridge",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "package:win": "electron-packager . \"EduAI ZKTeco Sync Agent\" --platform=win32 --arch=x64 --out=dist-package --overwrite",
+    "build:win": "npm run package:win"
+  },
+  "keywords": [
+    "zkteco",
+    "biometric",
+    "attendance",
+    "cloud-sync",
+    "eduai",
+    "electron"
+  ],
+  "author": "EduAI Platform",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "ke.co.eduai.zkteco.sync",
+    "productName": "EduAI ZKTeco Sync Agent",
+    "directories": {
+      "output": "dist-installer"
+    },
+    "win": {
+      "target": "dir"
+    }
+  }
+}

@@ -1,0 +1,287 @@
+const { app, BrowserWindow, ipcMain, Tray, Menu, Notification } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const { ZKTecoDevice } = require('./zk-protocol');
+const { CloudSyncService } = require('./cloud-sync');
+
+let mainWindow = null;
+let tray = null;
+let autoSyncTimer = null;
+let isQuitting = false;
+
+const configPath = path.join(app.getPath('userData'), 'config.json');
+
+const defaultConfig = {
+    cloudUrl: 'https://portal.eduai.co.ke',
+    institutionId: '',
+    apiKey: '',
+    autoSyncEnabled: true,
+    syncIntervalSec: 15,
+    devices: [
+        {
+            id: 'dev_1',
+            name: 'Main Gate Terminal',
+            ip: '192.168.1.201',
+            port: 4370,
+            serialNumber: 'ZK_MAIN_GATE'
+        }
+    ]
+};
+
+function loadConfig() {
+    try {
+        if (fs.existsSync(configPath)) {
+            const raw = fs.readFileSync(configPath, 'utf8');
+            return { ...defaultConfig, ...JSON.parse(raw) };
+        }
+    } catch (e) {
+        console.error('Failed to load config:', e);
+    }
+    return defaultConfig;
+}
+
+function saveConfig(cfg) {
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf8');
+    } catch (e) {
+        console.error('Failed to save config:', e);
+    }
+}
+
+let appConfig = loadConfig();
+const cloudSync = new CloudSyncService(appConfig);
+let recentPunches = [];
+
+function sendLog(message, type = 'info') {
+    const timestamp = new Date().toLocaleTimeString();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app-log', { message, type, timestamp });
+    }
+    console.log(`[${type.toUpperCase()}] ${message}`);
+}
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1080,
+        height: 720,
+        minWidth: 900,
+        minHeight: 600,
+        title: 'EduAI ZKTeco Sync Agent',
+        backgroundColor: '#090d16',
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false
+        }
+    });
+
+    mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+    mainWindow.on('close', (event) => {
+        if (!isQuitting) {
+            event.preventDefault();
+            mainWindow.hide();
+            if (Notification.isSupported()) {
+                new Notification({
+                    title: 'EduAI ZKTeco Agent',
+                    body: 'Agent is running in the background and syncing attendance logs.'
+                }).show();
+            }
+        }
+        return false;
+    });
+}
+
+function createTray() {
+    // Basic tray icon fallback
+    try {
+        tray = new Tray(path.join(__dirname, 'renderer', 'icon.png'));
+    } catch (e) {
+        // Create simple context menu tray if icon missing
+    }
+
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Open Dashboard', click: () => { mainWindow.show(); } },
+        { label: 'Sync Now', click: () => { runSyncCycle(); } },
+        { type: 'separator' },
+        { label: 'Quit Agent', click: () => { isQuitting = true; app.quit(); } }
+    ]);
+
+    if (tray) {
+        tray.setToolTip('EduAI ZKTeco Attendance Sync Agent');
+        tray.setContextMenu(contextMenu);
+        tray.on('double-click', () => mainWindow.show());
+    }
+}
+
+async function runSyncCycle() {
+    if (!appConfig.devices || appConfig.devices.length === 0) return;
+
+    for (const dev of appConfig.devices) {
+        if (!dev.ip) continue;
+        const zk = new ZKTecoDevice(dev.ip, dev.port || 4370, 4000);
+
+        try {
+            sendLog(`Connecting to ${dev.name || dev.ip} (${dev.ip}:${dev.port || 4370})...`, 'info');
+            await zk.connect();
+            sendLog(`Connected to ${dev.name}! Fetching logs...`, 'success');
+
+            const logs = await zk.getAttendanceLogs();
+            sendLog(`Retrieved ${logs.length} total attendance punches from ${dev.name}.`, 'info');
+
+            if (logs.length > 0) {
+                // Take latest punches
+                const syncRes = await cloudSync.syncAttendanceLogs(logs, dev.serialNumber || dev.ip);
+                if (syncRes.count > 0) {
+                    sendLog(`✓ Successfully uploaded ${syncRes.count} new punches to EduAI Cloud!`, 'success');
+                    
+                    // Add to live UI feed
+                    logs.slice(-syncRes.count).forEach(p => {
+                        const punchItem = {
+                            pin: p.pin,
+                            time: p.time,
+                            deviceName: dev.name,
+                            verifyMode: p.verifyMode
+                        };
+                        recentPunches.unshift(punchItem);
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            mainWindow.webContents.send('new-punch', punchItem);
+                        }
+                    });
+                } else {
+                    sendLog(`Device is up to date (0 new punches).`, 'info');
+                }
+            }
+
+            // Cloud heartbeat
+            await cloudSync.sendHeartbeat(dev.serialNumber || dev.ip, dev.name, dev.ip);
+            await zk.disconnect();
+
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('status-change', { deviceId: dev.id, online: true });
+            }
+        } catch (err) {
+            sendLog(`Connection to ${dev.name} (${dev.ip}) failed: ${err.message}`, 'error');
+            await zk.disconnect();
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('status-change', { deviceId: dev.id, online: false });
+            }
+        }
+    }
+
+    // Flush any offline buffered logs
+    try {
+        const flushed = await cloudSync.flushOfflineQueue();
+        if (flushed.count > 0) {
+            sendLog(`✓ Flushed ${flushed.count} offline punches to cloud.`, 'success');
+        }
+    } catch (e) {}
+}
+
+function startAutoSyncTimer(intervalSec = 15) {
+    if (autoSyncTimer) clearInterval(autoSyncTimer);
+    const intervalMs = Math.max(5, intervalSec) * 1000;
+    autoSyncTimer = setInterval(runSyncCycle, intervalMs);
+    sendLog(`Automated background sync started (every ${intervalSec}s).`, 'info');
+}
+
+function stopAutoSyncTimer() {
+    if (autoSyncTimer) {
+        clearInterval(autoSyncTimer);
+        autoSyncTimer = null;
+        sendLog(`Automated sync paused.`, 'warn');
+    }
+}
+
+// ── IPC HANDLERS ──
+ipcMain.handle('get-config', () => appConfig);
+
+ipcMain.handle('save-config', (_, newConfig) => {
+    appConfig = { ...appConfig, ...newConfig };
+    saveConfig(appConfig);
+    cloudSync.updateConfig(appConfig);
+    if (appConfig.autoSyncEnabled) {
+        startAutoSyncTimer(appConfig.syncIntervalSec);
+    } else {
+        stopAutoSyncTimer();
+    }
+    return { success: true };
+});
+
+ipcMain.handle('test-connection', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    try {
+        await zk.connect();
+        await zk.testVoice().catch(() => {});
+        await zk.disconnect();
+        return { success: true, message: `Successfully connected to ${device.ip}!` };
+    } catch (e) {
+        await zk.disconnect();
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('sync-logs-now', async (_, device) => {
+    await runSyncCycle();
+    return { success: true };
+});
+
+ipcMain.handle('unlock-door', async (_, device, seconds = 5) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    try {
+        await zk.connect();
+        await zk.unlockDoor(seconds);
+        await zk.disconnect();
+        return { success: true, message: `Door unlocked for ${seconds} seconds.` };
+    } catch (e) {
+        await zk.disconnect();
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('sync-time', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    try {
+        await zk.connect();
+        await zk.setDeviceTime(new Date());
+        await zk.disconnect();
+        return { success: true, message: `Clock synced to ${new Date().toLocaleString()}.` };
+    } catch (e) {
+        await zk.disconnect();
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('start-auto-sync', (_, interval) => {
+    startAutoSyncTimer(interval);
+    return true;
+});
+
+ipcMain.handle('stop-auto-sync', () => {
+    stopAutoSyncTimer();
+    return true;
+});
+
+ipcMain.handle('get-recent-punches', () => recentPunches);
+
+app.whenReady().then(() => {
+    createWindow();
+    createTray();
+
+    if (appConfig.autoSyncEnabled) {
+        setTimeout(() => {
+            runSyncCycle();
+            startAutoSyncTimer(appConfig.syncIntervalSec);
+        }, 2000);
+    }
+});
+
+app.on('before-quit', () => {
+    isQuitting = true;
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        // Keep running in tray
+    }
+});

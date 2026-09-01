@@ -41,3 +41,6 @@ test_tenant.js
 test_tenant.mjs
 check_schema.js
 fix.cjs
+desktop-zkteco-app/dist-package/
+desktop-zkteco-app/dist-installer/
+desktop-zkteco-app/node_modules/
