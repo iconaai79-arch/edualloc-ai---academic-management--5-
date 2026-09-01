@@ -7547,7 +7547,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </button>
                         <button
                             type="button"
-                            onClick={() => window.print()}
+                            onClick={() => {
+                                const list = filteredFinanceStudents;
+                                setPdfPreviewModal({
+                                    title: `FEE BALANCES REGISTER REPORT`,
+                                    subtitle: `${props.institution.name} — ${list.length} Students (${balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter}${balanceStreamFilter !== 'All' ? ` - ${balanceStreamFilter}` : ''})`,
+                                    studentName: `Batch Register (${list.length} Students)`,
+                                    admNo: `COUNT: ${list.length}`,
+                                    className: balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter,
+                                    invoiced: list.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
+                                    paid: list.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
+                                    balance: list.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
+                                    items: list.map((s: any) => ({
+                                        name: s.name,
+                                        adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
+                                        cls: s.className || studentClassGroup(s) || '—',
+                                        inv: s.totals?.invoiced || 0,
+                                        pd: s.totals?.paid || 0,
+                                        bal: s.totals?.balance || 0
+                                    }))
+                                });
+                                setTimeout(() => window.print(), 350);
+                            }}
                             className="py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
                         >
                             <PrinterIcon className="w-4 h-4" />
@@ -7647,7 +7668,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </button>
                         <button
                             type="button"
-                            onClick={() => window.print()}
+                            onClick={() => {
+                                const list = filteredFinanceStudents;
+                                setPdfPreviewModal({
+                                    title: `FEE BALANCES REGISTER REPORT`,
+                                    subtitle: `${props.institution.name} — ${list.length} Students (${balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter}${balanceStreamFilter !== 'All' ? ` - ${balanceStreamFilter}` : ''})`,
+                                    studentName: `Batch Register (${list.length} Students)`,
+                                    admNo: `COUNT: ${list.length}`,
+                                    className: balanceClassFilter === 'All' ? 'All Classes' : balanceClassFilter,
+                                    invoiced: list.reduce((acc: number, s: any) => acc + (s.totals?.invoiced || 0), 0),
+                                    paid: list.reduce((acc: number, s: any) => acc + (s.totals?.paid || 0), 0),
+                                    balance: list.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
+                                    items: list.map((s: any) => ({
+                                        name: s.name,
+                                        adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
+                                        cls: s.className || studentClassGroup(s) || '—',
+                                        inv: s.totals?.invoiced || 0,
+                                        pd: s.totals?.paid || 0,
+                                        bal: s.totals?.balance || 0
+                                    }))
+                                });
+                                setTimeout(() => window.print(), 350);
+                            }}
                             className="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
                         >
                             <PrinterIcon className="w-3.5 h-3.5" />
@@ -20401,7 +20443,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             >
                                                                 📥 Export CSV
                                                             </button>
-                                                            <button onClick={() => window.print()} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">🖨️ Print Cash Book</button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `CASH BOOK REPORT (${cbPeriod.toUpperCase()})`,
+                                                                        subtitle: `${props.institution.name} — Total Inflow: KSh ${cbTotalDebit.toLocaleString()} | Total Outflow: KSh ${cbTotalCredit.toLocaleString()} | Net Balance: KSh ${cbNetBalance.toLocaleString()}`,
+                                                                        studentName: `General Cash Ledger (${activeCbList.length} Entries)`,
+                                                                        admNo: `PERIOD: ${cbPeriod}`,
+                                                                        className: `View: ${cbViewType.toUpperCase()}`,
+                                                                        invoiced: cbTotalDebit,
+                                                                        paid: cbTotalCredit,
+                                                                        balance: cbNetBalance,
+                                                                        items: activeCbList.map((d: any) => ({
+                                                                            name: `Date: ${d.date}`,
+                                                                            adm: `${d.receiptsList?.length || 0} Inflows / ${d.expensesList?.length || 0} Outflows`,
+                                                                            cls: `B/F: ${d.bf.toLocaleString()}`,
+                                                                            inv: d.debit,
+                                                                            pd: d.credit,
+                                                                            bal: d.cf
+                                                                        }))
+                                                                    });
+                                                                    setTimeout(() => window.print(), 350);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                🖨️ Print Cash Book
+                                                            </button>
                                                         </div>
                                                     </div>
 
@@ -20850,7 +20917,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             >
                                                                 📥 Export CSV
                                                             </button>
-                                                            <button onClick={() => window.print()} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">🖨️ Print Report</button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `FEE REGISTER AUDIT REPORT`,
+                                                                        subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} (${filteredStudentFeeSummary.length} Students)`,
+                                                                        studentName: `Batch Register (${filteredStudentFeeSummary.length} Students)`,
+                                                                        admNo: `COUNT: ${filteredStudentFeeSummary.length}`,
+                                                                        className: feeRegClass || 'All Classes',
+                                                                        invoiced: totalRegPaid + totalRegArrears,
+                                                                        paid: totalRegPaid,
+                                                                        balance: totalRegArrears,
+                                                                        items: filteredStudentFeeSummary.map((s: any) => ({
+                                                                            name: s.name,
+                                                                            adm: s.admissionNumber,
+                                                                            cls: s.className,
+                                                                            inv: s.totalPaid + s.arrears,
+                                                                            pd: s.totalPaid,
+                                                                            bal: s.arrears
+                                                                        }))
+                                                                    });
+                                                                    setTimeout(() => window.print(), 350);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                🖨️ Print Report
+                                                            </button>
                                                         </div>
                                                     </div>
 
@@ -21450,7 +21542,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 📥 Export CSV
                                                             </button>
                                                             <button onClick={handleDownloadPDF} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">📥 Download PDF</button>
-                                                            <button onClick={() => window.print()} className="px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95">🖨️ Print</button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPdfPreviewModal({
+                                                                        title: `FEES INSTALLMENTS SUMMARY REPORT`,
+                                                                        subtitle: `${props.institution.name} — Class: ${installmentClass} (${searchedStudentInstallments.length} Students)`,
+                                                                        studentName: `Batch Installments (${searchedStudentInstallments.length} Students)`,
+                                                                        admNo: `COUNT: ${searchedStudentInstallments.length}`,
+                                                                        className: installmentClass,
+                                                                        invoiced: totalExpectedSum,
+                                                                        paid: totalPaidSum,
+                                                                        balance: totalBalSum,
+                                                                        items: searchedStudentInstallments.map((s: any) => ({
+                                                                            name: s.name,
+                                                                            adm: s.admissionNumber,
+                                                                            cls: `${s.pctPaid}% Paid`,
+                                                                            inv: s.expectedFees,
+                                                                            pd: s.totals,
+                                                                            bal: s.balance
+                                                                        }))
+                                                                    });
+                                                                    setTimeout(() => window.print(), 350);
+                                                                }}
+                                                                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                                                            >
+                                                                🖨️ Print
+                                                            </button>
                                                         </div>
                                                     </div>
 
