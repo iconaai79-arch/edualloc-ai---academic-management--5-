@@ -21350,7 +21350,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                             const handleDownloadPDF = async () => {
                                                 const { jsPDF } = await import('jspdf');
-                                                await import('jspdf-autotable');
+                                                const autoTableModule = await import('jspdf-autotable');
+                                                const autoTable = (autoTableModule as any).default || autoTableModule;
 
                                                 const doc = new jsPDF({
                                                     orientation: 'landscape',
@@ -21392,7 +21393,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     `${avgPctPaid}%`
                                                 ]);
 
-                                                (doc as any).autoTable({
+                                                autoTable(doc, {
                                                     head: headers,
                                                     body: rows,
                                                     startY: 26,
@@ -22913,7 +22914,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     onClick={async () => {
                                         try {
                                             const { jsPDF } = await import('jspdf');
-                                            await import('jspdf-autotable');
+                                            const autoTableModule = await import('jspdf-autotable');
+                                            const autoTable = (autoTableModule as any).default || autoTableModule;
+
                                             const doc = new jsPDF({
                                                 orientation: 'portrait',
                                                 unit: 'mm',
@@ -22961,7 +22964,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     Number(it.bal || 0).toLocaleString()
                                                 ]);
 
-                                                (doc as any).autoTable({
+                                                autoTable(doc, {
                                                     head,
                                                     body,
                                                     startY: 50,
