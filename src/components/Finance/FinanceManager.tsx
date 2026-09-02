@@ -22924,14 +22924,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     if (rawItems.length === 0) {
                         return [{ pageNumber: 1, items: [] as any[], isFirst: true, isLast: true }];
                     }
-                    if (rawItems.length <= 13) {
+                    if (rawItems.length <= 18) {
                         return [{ pageNumber: 1, items: rawItems, isFirst: true, isLast: true }];
                     }
 
                     const pagesResult: { pageNumber: number; items: any[]; isFirst: boolean; isLast: boolean }[] = [];
-                    const PAGE_1_LIMIT = 14;
-                    const SUBSEQUENT_PAGE_LIMIT = 20;
-                    const LAST_PAGE_WITH_TOTALS_LIMIT = 12;
+                    const PAGE_1_LIMIT = 24;
+                    const SUBSEQUENT_PAGE_LIMIT = 30;
+                    const LAST_PAGE_WITH_TOTALS_LIMIT = 20;
 
                     let idx = 0;
                     // Page 1
@@ -23048,7 +23048,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     min-height: 275mm !important;
                                     height: auto !important;
                                     margin: 0 !important;
-                                    padding: 10mm 14mm !important;
+                                    padding: 8mm 12mm !important;
                                     background: white !important;
                                     color: black !important;
                                     box-shadow: none !important;
@@ -23114,7 +23114,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div
                                         key={pIdx}
                                         id={page.isFirst ? "printable-pdf-document" : undefined}
-                                        className="pdf-page-sheet mx-auto bg-white text-slate-900 p-8 md:p-12 rounded-2xl shadow-2xl max-w-3xl font-sans relative border border-slate-200 flex flex-col justify-between min-h-[950px] transition-all"
+                                        className="pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl max-w-3xl font-sans relative border border-slate-200 flex flex-col justify-between min-h-[950px] transition-all"
                                     >
                                         {/* Watermark */}
                                         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none no-print">
@@ -23127,7 +23127,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {/* Header: Full letterhead on Page 1; Compact running header on Subsequent Pages */}
                                             {page.isFirst ? (
                                                 <>
-                                                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-5 mb-5">
+                                                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-4">
                                                         <div>
                                                             <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
                                                                 {props.institution.name}
@@ -23151,7 +23151,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
 
                                                     {/* Metadata Header Card */}
-                                                    <div className="grid grid-cols-2 gap-4 mb-5 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                                                    <div className="grid grid-cols-2 gap-3 mb-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
                                                         <div>
                                                             <p className="font-bold text-slate-400 uppercase text-[9px] tracking-wider">Report / Account</p>
                                                             <p className="font-black text-slate-900 text-sm">{pdfPreviewModal.studentName}</p>
@@ -23171,7 +23171,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="flex justify-between items-center border-b border-slate-300 pb-3 mb-4 text-xs">
+                                                <div className="flex justify-between items-center border-b border-slate-300 pb-2.5 mb-3 text-xs">
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-black text-slate-900 uppercase tracking-tight">{props.institution.name}</span>
                                                         <span className="text-slate-400">•</span>
@@ -23186,7 +23186,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                             {/* Items Table for this page */}
                                             {page.items && page.items.length > 0 && (
-                                                <div className="mb-6 overflow-x-auto">
+                                                <div className="mb-4 overflow-x-auto">
                                                     <table className="w-full text-left text-xs border-collapse">
                                                         <thead>
                                                             <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
@@ -23222,9 +23222,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                             {/* Final Page Summary Totals & Official Verification */}
                                             {page.isLast && (
-                                                <div className="space-y-5 mt-4">
+                                                <div className="space-y-4 mt-3">
                                                     {/* Summary Totals Box */}
-                                                    <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2 text-xs shadow-md">
+                                                    <div className="p-3.5 bg-slate-900 text-white rounded-xl space-y-2 text-xs shadow-md">
                                                         <div className="flex justify-between">
                                                             <span className="font-bold text-slate-400 uppercase tracking-widest text-[9px]">Total Billed / Invoiced</span>
                                                             <span className="font-mono font-bold">KSh {Number(pdfPreviewModal.invoiced || 0).toLocaleString()}</span>
@@ -23240,14 +23240,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
 
                                                     {/* Digital Signature & Footer */}
-                                                    <div className="pt-4 border-t border-slate-200 flex justify-between items-end text-xs">
+                                                    <div className="pt-3 border-t border-slate-200 flex justify-between items-end text-xs">
                                                         <div>
                                                             <p className="text-[9px] font-bold text-slate-400 uppercase">Verified By</p>
                                                             <p className="font-black text-slate-800">{props.currentUser?.name || 'Chief Accountant'}</p>
                                                             <p className="text-[9px] text-slate-500 font-mono">Digital Signature ID: #FIN-{Math.floor(100000 + Math.random() * 900000)}</p>
                                                         </div>
                                                         <div className="text-right flex flex-col items-end">
-                                                            <KenyanOfficialStamp institution={props.institution} size={85} className="mb-1" />
+                                                            <KenyanOfficialStamp institution={props.institution} size={80} className="mb-1" />
                                                             <p className="text-[9px] font-bold text-slate-400 uppercase">Authorized Official Stamp</p>
                                                         </div>
                                                     </div>
@@ -23256,7 +23256,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
 
                                         {/* Page Number & Document Footer Bar on every page */}
-                                        <div className="mt-8 pt-3 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                                        <div className="mt-6 pt-3 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400 font-mono">
                                             <span className="truncate max-w-[280px]">
                                                 {props.institution.name} • {pdfPreviewModal.title}
                                             </span>
