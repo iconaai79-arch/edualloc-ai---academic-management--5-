@@ -1206,25 +1206,44 @@ function setupEventListeners() {
 
     document.getElementById('device-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const id = document.getElementById('dev-id').value || 'dev_' + Date.now();
-        const devData = {
-            id,
-            name: document.getElementById('dev-name').value,
-            ip: document.getElementById('dev-ip').value,
-            port: Number(document.getElementById('dev-port').value) || 4370,
-            serialNumber: document.getElementById('dev-sn').value
-        };
+        try {
+            if (!appConfig) {
+                appConfig = (await window.zkApi?.getConfig()) || { devices: [] };
+            }
+            if (!Array.isArray(appConfig.devices)) {
+                appConfig.devices = [];
+            }
 
-        const existingIdx = appConfig.devices.findIndex(d => d.id === id);
-        if (existingIdx >= 0) {
-            appConfig.devices[existingIdx] = devData;
-        } else {
-            appConfig.devices.push(devData);
+            const id = document.getElementById('dev-id').value || 'dev_' + Date.now();
+            const devData = {
+                id,
+                name: (document.getElementById('dev-name').value || '').trim(),
+                ip: (document.getElementById('dev-ip').value || '').trim(),
+                port: Number(document.getElementById('dev-port').value) || 4370,
+                serialNumber: (document.getElementById('dev-sn').value || '').trim()
+            };
+
+            const existingIdx = appConfig.devices.findIndex(d => d.id === id);
+            if (existingIdx >= 0) {
+                appConfig.devices[existingIdx] = devData;
+            } else {
+                appConfig.devices.push(devData);
+            }
+
+            if (window.zkApi && typeof window.zkApi.saveConfig === 'function') {
+                const res = await window.zkApi.saveConfig(appConfig);
+                if (res && res.success === false) {
+                    throw new Error(res.message || 'Save failed in backend service.');
+                }
+            }
+
+            document.getElementById('device-modal').style.display = 'none';
+            renderDeviceList();
+            appendLog({ type: 'success', message: `✓ Saved terminal "${devData.name}" (${devData.ip}:${devData.port}) successfully!` });
+        } catch (err) {
+            console.error('Failed to save terminal:', err);
+            alert(`Error saving terminal: ${err.message || err}`);
         }
-
-        await window.zkApi.saveConfig(appConfig);
-        document.getElementById('device-modal').style.display = 'none';
-        renderDeviceList();
     });
 
     // Cloud Form Submit

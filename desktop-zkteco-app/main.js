@@ -205,15 +205,22 @@ function stopAutoSyncTimer() {
 ipcMain.handle('get-config', () => appConfig);
 
 ipcMain.handle('save-config', (_, newConfig) => {
-    appConfig = { ...appConfig, ...newConfig };
-    saveConfig(appConfig);
-    cloudSync.updateConfig(appConfig);
-    if (appConfig.autoSyncEnabled) {
-        startAutoSyncTimer(appConfig.syncIntervalSec);
-    } else {
-        stopAutoSyncTimer();
+    try {
+        appConfig = { ...appConfig, ...newConfig };
+        saveConfig(appConfig);
+        if (typeof cloudSync.updateConfig === 'function') {
+            cloudSync.updateConfig(appConfig);
+        }
+        if (appConfig.autoSyncEnabled) {
+            startAutoSyncTimer(appConfig.syncIntervalSec);
+        } else {
+            stopAutoSyncTimer();
+        }
+        return { success: true };
+    } catch (err) {
+        console.error('Error saving config:', err);
+        return { success: false, message: err.message };
     }
-    return { success: true };
 });
 
 ipcMain.handle('test-connection', async (_, device) => {
@@ -223,6 +230,19 @@ ipcMain.handle('test-connection', async (_, device) => {
         await zk.testVoice().catch(() => {});
         await zk.disconnect();
         return { success: true, message: `Successfully connected to ${device.ip}!` };
+    } catch (e) {
+        await zk.disconnect();
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('test-voice', async (_, device) => {
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    try {
+        await zk.connect();
+        await zk.testVoice();
+        await zk.disconnect();
+        return { success: true, message: `Voice played on ${device.ip}.` };
     } catch (e) {
         await zk.disconnect();
         return { success: false, message: e.message };
