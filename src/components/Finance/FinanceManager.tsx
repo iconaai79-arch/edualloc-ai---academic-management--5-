@@ -206,6 +206,118 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
     const [enrollments, setEnrollments] = useState<any[]>([]);
 
+    const printElementViaIframe = useCallback((elementId: string) => {
+        const el = document.getElementById(elementId);
+        if (!el) {
+            window.print();
+            return;
+        }
+
+        let iframe = document.getElementById('eduai-print-iframe') as HTMLIFrameElement;
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'eduai-print-iframe';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            iframe.style.visibility = 'hidden';
+            document.body.appendChild(iframe);
+        }
+
+        const doc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (!doc) {
+            window.print();
+            return;
+        }
+
+        const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+            .map(s => s.outerHTML)
+            .join('\n');
+
+        doc.open();
+        doc.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${document.title || 'Official Fee Balance Statement'}</title>
+                <meta charset="utf-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                ${styles}
+                <style>
+                    @page {
+                        size: A4 portrait;
+                        margin: 8mm 10mm;
+                    }
+                    html, body {
+                        background: white !important;
+                        color: black !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+                    }
+                    .pdf-page-sheet {
+                        position: relative !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        justify-content: space-between !important;
+                        box-sizing: border-box !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        min-height: 270mm !important;
+                        padding: 4mm 6mm !important;
+                        margin: 0 !important;
+                        background: white !important;
+                        color: black !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                        border-radius: 0 !important;
+                        page-break-after: always !important;
+                        break-after: page !important;
+                    }
+                    .pdf-page-sheet:last-child {
+                        page-break-after: auto !important;
+                        break-after: auto !important;
+                    }
+                    table {
+                        width: 100% !important;
+                        border-collapse: collapse !important;
+                        page-break-inside: auto !important;
+                    }
+                    tr {
+                        page-break-inside: avoid !important;
+                        page-break-after: auto !important;
+                    }
+                    thead {
+                        display: table-header-group !important;
+                    }
+                    .no-print {
+                        display: none !important;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-content-wrapper">
+                    ${el.innerHTML}
+                </div>
+            </body>
+            </html>
+        `);
+        doc.close();
+
+        setTimeout(() => {
+            try {
+                iframe.contentWindow?.focus();
+                iframe.contentWindow?.print();
+            } catch (e) {
+                console.error('Iframe print error, falling back to window.print', e);
+                window.print();
+            }
+        }, 150);
+    }, []);
+
     useEffect(() => {
         const fetchEnrollments = async () => {
             try {
@@ -7567,7 +7679,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         bal: s.totals?.balance || 0
                                     }))
                                 });
-                                setTimeout(() => window.print(), 350);
+                                setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
                             }}
                             className="py-3 px-4 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
                         >
@@ -7688,7 +7800,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         bal: s.totals?.balance || 0
                                     }))
                                 });
-                                setTimeout(() => window.print(), 350);
+                                setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
                             }}
                             className="py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
                         >
@@ -20463,7 +20575,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             bal: d.cf
                                                                         }))
                                                                     });
-                                                                    setTimeout(() => window.print(), 350);
+                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
                                                                 }}
                                                                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                             >
@@ -20937,7 +21049,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             bal: s.arrears
                                                                         }))
                                                                     });
-                                                                    setTimeout(() => window.print(), 350);
+                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
                                                                 }}
                                                                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                             >
@@ -21562,7 +21674,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             bal: s.balance
                                                                         }))
                                                                     });
-                                                                    setTimeout(() => window.print(), 350);
+                                                                    setTimeout(() => printElementViaIframe('printable-pdf-pages-container'), 250);
                                                                 }}
                                                                 className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                             >
@@ -22997,7 +23109,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
 
                             {/* Live On-Screen Printable PDF Paper Sheets (Paginated A4 Pages) */}
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar bg-slate-950/80 print-scroll-area space-y-8">
+                            <div id="printable-pdf-pages-container" className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 custom-scrollbar bg-slate-950/80 print-scroll-area space-y-8">
                                 {previewPages.map((page, pIdx) => (
                                     <div
                                         key={pIdx}
@@ -23288,7 +23400,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         📥 Download PDF
                                     </button>
                                     <button
-                                        onClick={() => window.print()}
+                                        onClick={() => printElementViaIframe('printable-pdf-pages-container')}
                                         className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-600/30 active:scale-95 flex items-center gap-2"
                                     >
                                         🖨️ Print PDF
