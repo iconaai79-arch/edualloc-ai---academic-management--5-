@@ -321,8 +321,47 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
             );
             ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS priority text DEFAULT 'Routine';
             ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS token_no text;
-            ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS wait_mins integer DEFAULT 0;
             ALTER TABLE public.his_queue_calls ADD COLUMN IF NOT EXISTS room_no text DEFAULT 'Waiting Area';
+
+            CREATE TABLE IF NOT EXISTS public.his_financial_records (
+                id TEXT PRIMARY KEY,
+                institution_id TEXT NOT NULL,
+                patient_id TEXT,
+                patient_name TEXT,
+                invoice_number TEXT,
+                type TEXT DEFAULT 'invoice',
+                category TEXT,
+                items JSONB DEFAULT '[]'::jsonb,
+                amount NUMERIC(15,2) DEFAULT 0,
+                total_amount NUMERIC(15,2) DEFAULT 0,
+                amount_paid NUMERIC(15,2) DEFAULT 0,
+                balance NUMERIC(15,2) DEFAULT 0,
+                status TEXT DEFAULT 'Pending',
+                payment_method TEXT,
+                department TEXT,
+                notes TEXT,
+                date DATE DEFAULT CURRENT_DATE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS patient_name TEXT;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'invoice';
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS category TEXT;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS amount NUMERIC(15, 2) DEFAULT 0;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS total_amount NUMERIC(15, 2) DEFAULT 0;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(15, 2) DEFAULT 0;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS balance NUMERIC(15, 2) DEFAULT 0;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Pending';
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS payment_method TEXT;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS department TEXT;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS notes TEXT;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS date DATE DEFAULT CURRENT_DATE;
+            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+            NOTIFY pgrst, 'reload schema';
         `;
         apiService.runMigration(autoMigratePatientSql).catch(() => {});
         loadInst();

@@ -21,6 +21,9 @@ import { FunnelIcon as Filter } from '../icons/FunnelIcon';
 import { StoreIcon as StoreIcon } from '../icons/StoreIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { DownloadIcon } from '../icons/DownloadIcon';
+import { PrinterIcon } from '../icons/PrinterIcon';
+import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 
 interface RetailReportsDashboardProps {
     institutionId: string;
@@ -40,56 +43,186 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
     const [stores, setStores] = useState<RetailStore[]>([]);
     const [stockReceipts, setStockReceipts] = useState<StockReceipt[]>([]);
 
-    useEffect(() => {
-        const fetchReportData = async () => {
-            setIsLoading(true);
+    const fetchReportData = async () => {
+        setIsLoading(true);
+        try {
+            // Auto-migration to ensure retail_stock_receipts table exists with flexible RLS
+            const migrationSql = `
+                CREATE TABLE IF NOT EXISTS public.retail_stock_receipts (
+                    id TEXT PRIMARY KEY,
+                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+                    supplier_id TEXT REFERENCES public.suppliers(id) ON DELETE SET NULL,
+                    supplier_name TEXT,
+                    reference_number TEXT NOT NULL,
+                    receipt_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    recorded_by TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+                    status TEXT DEFAULT 'completed',
+                    notes TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+
+                ALTER TABLE public.retail_stock_receipts ENABLE ROW LEVEL SECURITY;
+
+                DROP POLICY IF EXISTS "Users can view their institution''s retail_stock_receipts" ON public.retail_stock_receipts;
+                CREATE POLICY "Users can view their institution''s retail_stock_receipts"
+                    ON public.retail_stock_receipts FOR SELECT
+                    USING (
+                        institution_id::text = public.get_curr_user_inst_id()
+                        OR (public.get_curr_user_inst_id() IS NULL AND (auth.role() = 'anon' OR auth.role() = 'authenticated'))
+                    );
+
+                DROP POLICY IF EXISTS "Admins/Agents can manage their institution''s retail_stock_receipts" ON public.retail_stock_receipts;
+                CREATE POLICY "Admins/Agents can manage their institution''s retail_stock_receipts"
+                    ON public.retail_stock_receipts FOR ALL
+                    USING (
+                        institution_id::text = public.get_curr_user_inst_id()
+                        OR (public.get_curr_user_inst_id() IS NULL AND (auth.role() = 'anon' OR auth.role() = 'authenticated'))
+                    );
+
+                GRANT ALL ON TABLE public.retail_stock_receipts TO anon, authenticated, service_role;
+                NOTIFY pgrst, 'reload schema';
+            `;
+            await apiService.runMigration(migrationSql).catch(() => {});
+
+            const [salesData, invData, commData, storesData, insts, receiptsData, stockTxData, genInvData] = await Promise.all([
+                apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<RetailCommissionLedger>('retail_commission_ledger', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId).catch(() => []),
+                apiService.fetchInstitutions(institutionId).catch(() => []),
+                apiService.fetchModuleRecords<StockReceipt>('retail_stock_receipts', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('stock_transactions', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('inventory', institutionId).catch(() => [])
+            ]);
+
+            const instData = insts[0] || null;
+            const currentUser = apiService.getSession();
+            const adminRoles = ['admin', 'super_admin', 'store_manager', 'store_keeper', 'principal', 'director', 'bursar'];
+            const isAdmin = adminRoles.includes(currentUser?.role || '') || isEducation;
+            const userAssignedStoreId = currentUser?.departmentId;
+
+            const filteredSales = isAdmin
+                ? (salesData || [])
+                : (salesData || []).filter((s: RetailSale) => s.storeId === userAssignedStoreId);
+
+            const filteredStores = isAdmin
+                ? (storesData || [])
+                : (storesData || []).filter((s: RetailStore) => s.id === userAssignedStoreId);
+
+            // Merge retail_inventory_items with general inventory items for comprehensive resolution
+            const combinedInventoryMap = new Map<string, any>();
+            (invData || []).forEach(item => { if (item?.id) combinedInventoryMap.set(item.id, item); });
+            (genInvData || []).forEach(item => {
+                if (item?.id && !combinedInventoryMap.has(item.id)) {
+                    combinedInventoryMap.set(item.id, {
+                        ...item,
+                        id: item.id,
+                        name: item.name || item.itemName || 'Inventory Item',
+                        quantity: Number(item.quantity || item.qty || 0),
+                        costPrice: Number(item.costPrice || item.unitCost || item.cost || 0),
+                        sellingPrice: Number(item.sellingPrice || item.price || 0)
+                    });
+                }
+            });
+            const unifiedInventory = Array.from(combinedInventoryMap.values());
+
+            // Merge stock receipts from DB, local fallback storage, and stock_transactions
+            let mergedReceipts: StockReceipt[] = [...(receiptsData || [])];
+            
+            // Check fallback local storage
             try {
-                const [salesData, invData, commData, storesData, insts, receiptsData] = await Promise.all([
-                    apiService.fetchModuleRecords<RetailSale>('retail_sales', institutionId),
-                    apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId),
-                    apiService.fetchModuleRecords<RetailCommissionLedger>('retail_commission_ledger', institutionId),
-                    apiService.fetchModuleRecords<RetailStore>('retail_stores', institutionId),
-                    apiService.fetchInstitutions(institutionId),
-                    apiService.fetchModuleRecords<StockReceipt>('retail_stock_receipts', institutionId)
-                ]);
-
-                const instData = insts[0] || null;
-                const currentUser = apiService.getSession();
-                const adminRoles = ['admin', 'super_admin', 'store_manager', 'store_keeper', 'principal', 'director', 'bursar'];
-                const isAdmin = adminRoles.includes(currentUser?.role || '') || isEducation;
-                const userAssignedStoreId = currentUser?.departmentId;
-
-                const filteredSales = isAdmin
-                    ? (salesData || [])
-                    : (salesData || []).filter((s: RetailSale) => s.storeId === userAssignedStoreId);
-
-                const filteredStores = isAdmin
-                    ? (storesData || [])
-                    : (storesData || []).filter((s: RetailStore) => s.id === userAssignedStoreId);
-
-                // Sort sales by newest first for better processing
-                setSales(filteredSales.sort((a: RetailSale, b: RetailSale) => {
-                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                    return dateB - dateA;
-                }));
-                setInventory(invData);
-                setCommissions(commData);
-                setStores(filteredStores);
-                setInstitution(instData);
-                setStockReceipts((receiptsData || []).sort((a: StockReceipt, b: StockReceipt) => {
-                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                    return dateB - dateA;
-                }));
-            } catch (error) {
-                console.error("Failed to fetch retail reports data:", error);
-            } finally {
-                setIsLoading(false);
+                const localReceipts = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                if (Array.isArray(localReceipts) && localReceipts.length > 0) {
+                    const existingIds = new Set(mergedReceipts.map(r => r.id));
+                    const uniqueLocal = localReceipts.filter((r: any) => !existingIds.has(r.id));
+                    mergedReceipts = [...mergedReceipts, ...uniqueLocal];
+                }
+            } catch (e) {
+                console.error("Failed to parse local fallback receipts:", e);
             }
+
+            // Convert stock_transactions with 'Receipt' / 'Stock_In' / 'In' / 'Restock' / 'Receive' into StockReceipts if missing
+            if (Array.isArray(stockTxData) && stockTxData.length > 0) {
+                const existingIds = new Set(mergedReceipts.map(r => r.id));
+                const inTx = stockTxData.filter((t: any) => {
+                    const type = (t.type || '').toLowerCase();
+                    return type === 'receipt' || type === 'in' || type === 'stock_in' || type === 'restock' || type === 'receive';
+                });
+
+                inTx.forEach((tx: any) => {
+                    if (!existingIds.has(tx.id)) {
+                        const rawDate = tx.date || tx.created_at || tx.createdAt || new Date().toISOString();
+                        const qty = Number(tx.quantity || tx.qty || 1);
+                        const cost = Number(tx.unitCost || tx.unit_cost || tx.price || 0);
+                        const invMatch = unifiedInventory.find((i: any) => i.id === (tx.itemId || tx.item_id));
+                        const itemName = tx.itemName || tx.item_name || invMatch?.name || 'Inventory Item';
+
+                        mergedReceipts.push({
+                            id: tx.id || `st-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                            institutionId,
+                            supplierId: tx.supplierId || tx.supplier_id || '',
+                            supplierName: tx.supplierName || tx.supplier_name || tx.source || tx.receivedFrom || tx.recipient || 'Store Restock Delivery',
+                            referenceNumber: tx.referenceNumber || tx.reference_number || tx.batchNumber || tx.batch_number || `TX-${tx.id?.slice(-6) || 'REC'}`,
+                            receiptDate: rawDate,
+                            totalAmount: qty * cost,
+                            items: [{
+                                itemId: tx.itemId || tx.item_id || invMatch?.id || '',
+                                itemName,
+                                quantity: qty,
+                                unitCost: cost
+                            }],
+                            recordedBy: tx.userId || tx.recordedBy || tx.recorded_by || '',
+                            status: 'completed',
+                            notes: tx.notes || '',
+                            createdAt: rawDate,
+                            signature: tx.signature || null
+                        } as any);
+                    }
+                });
+            }
+
+            // Sort sales by newest first for better processing
+            setSales(filteredSales.sort((a: RetailSale, b: RetailSale) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return dateB - dateA;
+            }));
+            setInventory(unifiedInventory);
+            setCommissions(commData);
+            setStores(filteredStores);
+            setInstitution(instData);
+            setStockReceipts(mergedReceipts.sort((a: any, b: any) => {
+                const dateA = new Date(a.receiptDate || a.receipt_date || a.createdAt || a.created_at || 0).getTime();
+                const dateB = new Date(b.receiptDate || b.receipt_date || b.createdAt || b.created_at || 0).getTime();
+                return dateB - dateA;
+            }));
+        } catch (error) {
+            console.error("Failed to fetch retail reports data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchReportData();
+
+        const handleInventoryUpdated = () => {
+            fetchReportData();
         };
 
-        fetchReportData();
+        if (typeof window !== 'undefined') {
+            window.addEventListener('inventory_updated', handleInventoryUpdated);
+            window.addEventListener('storage', handleInventoryUpdated);
+        }
+
+        return () => {
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('inventory_updated', handleInventoryUpdated);
+                window.removeEventListener('storage', handleInventoryUpdated);
+            }
+        };
     }, [institutionId]);
 
     // --- REVENUE Calculations ---
@@ -673,54 +806,133 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
     };
 
     // ----------------------------------------------------------------
-    // RECEIPT LEDGER — sourced from retail_stock_receipts
+    // RECEIPT LEDGER — sourced from retail_stock_receipts & inventory transactions
     // ----------------------------------------------------------------
     const ReceiptLedgerManager = () => {
         const [searchQuery, setSearchQuery] = useState('');
-        const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+        const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]);
         const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+        const [allTime, setAllTime] = useState(false);
 
-        // Flatten stock receipts into one row per item received
-        const receiptRows = stockReceipts
+        // Normalize and flatten stock receipts into one row per item received
+        const receiptRows = (stockReceipts || [])
             .filter(receipt => {
-                const date = (receipt.receiptDate || receipt.createdAt || '').split('T')[0];
-                return date >= startDate && date <= endDate;
+                if (allTime) return true;
+                const rawDate = receipt.receiptDate || (receipt as any).receipt_date || receipt.createdAt || (receipt as any).created_at || (receipt as any).date || '';
+                let dateStr = '';
+                if (rawDate) {
+                    if (typeof rawDate === 'string') {
+                        dateStr = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+                    } else if (rawDate instanceof Date) {
+                        dateStr = rawDate.toISOString().split('T')[0];
+                    }
+                }
+                if (!dateStr) return true; // Do not drop records with empty dates
+                if (startDate && dateStr < startDate) return false;
+                if (endDate && dateStr > endDate) return false;
+                return true;
             })
-            .flatMap(receipt =>
-                (receipt.items || []).map(item => {
-                    const invItem = inventory.find(i => i.id === item.itemId);
-                    const totalEnding = invItem ? invItem.quantity : 0;
+            .flatMap(receipt => {
+                let itemsList: any[] = [];
+                const rawItems = receipt.items;
+                if (Array.isArray(rawItems)) {
+                    itemsList = rawItems;
+                } else if (typeof rawItems === 'string') {
+                    try {
+                        const parsed = JSON.parse(rawItems);
+                        if (Array.isArray(parsed)) itemsList = parsed;
+                    } catch (e) {}
+                }
+
+                // If receipt has direct item fields rather than items array (e.g. from stock_transactions)
+                if (itemsList.length === 0 && ((receipt as any).itemId || (receipt as any).item_id || (receipt as any).itemName || (receipt as any).item_name)) {
+                    itemsList = [{
+                        itemId: (receipt as any).itemId || (receipt as any).item_id,
+                        itemName: (receipt as any).itemName || (receipt as any).item_name || (receipt as any).name,
+                        quantity: (receipt as any).quantity || (receipt as any).qty || 1,
+                        unitCost: (receipt as any).unitCost || (receipt as any).unit_cost || 0
+                    }];
+                }
+
+                const supplierName = receipt.supplierName || (receipt as any).supplier_name || (receipt as any).supplier || (receipt as any).source || (receipt as any).receivedFrom || 'Supplier / Delivery';
+                const refNum = receipt.referenceNumber || (receipt as any).reference_number || (receipt as any).reference || receipt.id || '—';
+                const rawDate = receipt.receiptDate || (receipt as any).receipt_date || receipt.createdAt || (receipt as any).created_at || (receipt as any).date || '';
+                const formattedDate = rawDate ? (
+                    typeof rawDate === 'string' && rawDate.includes('T')
+                        ? new Date(rawDate).toLocaleDateString()
+                        : String(rawDate).split('T')[0]
+                ) : '—';
+
+                return itemsList.map((item, idx) => {
+                    const itemId = item.itemId || item.item_id || item.id || '';
+                    const invItem = inventory.find(i => i.id === itemId || (i.name && item.itemName && i.name.toLowerCase() === item.itemName.toLowerCase()));
+                    const totalEnding = invItem ? Number(invItem.quantity || 0) : 0;
+                    const itemName = item.itemName || item.item_name || item.name || invItem?.name || 'Unnamed Item';
+                    const qtyReceived = Number(item.quantity ?? item.qty ?? item.receivedQuantity ?? item.received_quantity ?? 0);
+                    const unitCost = Number(item.unitCost ?? item.unit_cost ?? item.costPrice ?? 0);
+
                     return {
-                        id: `${receipt.id}-${item.itemId}`,
-                        receiptFrom: receipt.supplierName || 'Unknown Supplier',
-                        itemName: item.itemName,
-                        qtyReceived: item.quantity,
+                        id: `${receipt.id || 'rec'}-${itemId || idx}-${idx}`,
+                        receiptFrom: supplierName,
+                        itemName,
+                        qtyReceived,
                         totalEnding,
-                        signature: (receipt as any).signature,
-                        date: receipt.receiptDate
-                            ? new Date(receipt.receiptDate).toLocaleDateString()
-                            : receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : '—',
-                        reference: receipt.referenceNumber
+                        unitCost,
+                        totalCost: qtyReceived * unitCost,
+                        signature: (receipt as any).signature || (receipt as any).recipient_signature,
+                        date: formattedDate,
+                        rawDate: rawDate ? String(rawDate) : '',
+                        reference: refNum,
+                        notes: receipt.notes || (receipt as any).notes || ''
                     };
-                })
-            )
+                });
+            })
             .filter(row => {
                 if (!searchQuery) return true;
                 const q = searchQuery.toLowerCase();
                 return (
-                    row.receiptFrom.toLowerCase().includes(q) ||
-                    row.itemName.toLowerCase().includes(q) ||
-                    row.reference.toLowerCase().includes(q)
+                    (row.receiptFrom || '').toLowerCase().includes(q) ||
+                    (row.itemName || '').toLowerCase().includes(q) ||
+                    (row.reference || '').toLowerCase().includes(q) ||
+                    (row.notes || '').toLowerCase().includes(q)
                 );
             });
 
         const totalQtyReceived = receiptRows.reduce((sum, r) => sum + r.qtyReceived, 0);
+        const totalValueReceived = receiptRows.reduce((sum, r) => sum + r.totalCost, 0);
+
+        const handleExportCSV = () => {
+            if (receiptRows.length === 0) {
+                alert('No stock receipt records to export.');
+                return;
+            }
+            const headers = ['Receipt From', 'Received Item Name', 'Qty Received', 'Unit Cost (KES)', 'Total Cost (KES)', 'Total Ending Stock', 'Reference Number', 'Date', 'Notes'];
+            const rows = receiptRows.map(r => [
+                `"${r.receiptFrom.replace(/"/g, '""')}"`,
+                `"${r.itemName.replace(/"/g, '""')}"`,
+                r.qtyReceived,
+                r.unitCost,
+                r.totalCost,
+                r.totalEnding,
+                `"${r.reference.replace(/"/g, '""')}"`,
+                `"${r.date}"`,
+                `"${(r.notes || '').replace(/"/g, '""')}"`
+            ]);
+            const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Stock_Receipt_Ledger_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
 
         return (
             <div className="space-y-8 animate-in fade-in duration-500">
                 {/* Filters */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Search Ledger</label>
                             <div className="relative">
@@ -741,8 +953,9 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                 <input
                                     type="date"
                                     value={startDate}
+                                    disabled={allTime}
                                     onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm disabled:opacity-50"
                                 />
                             </div>
                         </div>
@@ -753,10 +966,32 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                 <input
                                     type="date"
                                     value={endDate}
+                                    disabled={allTime}
                                     onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-emerald-500 rounded-2xl pl-12 pr-4 py-3 font-bold outline-none transition-all text-sm disabled:opacity-50"
                                 />
                             </div>
+                        </div>
+                        <div className="flex items-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setAllTime(!allTime)}
+                                className={`flex-1 py-3 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition-all border ${
+                                    allTime 
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' 
+                                        : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                }`}
+                            >
+                                {allTime ? '✓ All Records' : 'Show All Time'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleExportCSV}
+                                className="p-3 bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 hover:text-emerald-600 rounded-2xl border border-slate-200 dark:border-slate-700 transition-all active:scale-95 flex items-center gap-1.5 font-bold text-xs"
+                                title="Export CSV"
+                            >
+                                <DownloadIcon className="w-4 h-4" /> CSV
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -764,14 +999,22 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                 {/* Ledger Table */}
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                     <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-wrap justify-between items-center gap-4">
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Stock Receipt Ledger</h3>
-                        <div className="flex items-center gap-3">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">Stock Receipt Ledger</h3>
+                            <p className="text-xs font-bold text-slate-400 mt-0.5">Comprehensive audit trail of inwards stock, deliveries & supplier receipts</p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
                             <span className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest">
                                 {receiptRows.length} Line Items
                             </span>
                             <span className="px-4 py-1.5 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-full text-[10px] font-black uppercase tracking-widest">
                                 {totalQtyReceived.toLocaleString()} Units Received
                             </span>
+                            {totalValueReceived > 0 && (
+                                <span className="px-4 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                    KES {totalValueReceived.toLocaleString()} Total Value
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -782,7 +1025,7 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Receipt From</th>
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Received Item Name</th>
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Qty Received</th>
-                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Total Ending</th>
+                                    <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Total Ending Stock</th>
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Signature</th>
                                     <th className="p-6 text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref / Date</th>
                                 </tr>
@@ -792,9 +1035,13 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                                     <tr key={row.id} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors">
                                         <td className="p-6">
                                             <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic">{row.receiptFrom}</p>
+                                            {row.notes && <p className="text-[10px] text-slate-400 italic mt-0.5 max-w-xs truncate">{row.notes}</p>}
                                         </td>
                                         <td className="p-6">
                                             <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{row.itemName}</p>
+                                            {row.unitCost > 0 && (
+                                                <p className="text-[10px] font-semibold text-slate-400">@ KES {row.unitCost.toLocaleString()} = KES {row.totalCost.toLocaleString()}</p>
+                                            )}
                                         </td>
                                         <td className="p-6 text-center">
                                             <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400">
@@ -900,14 +1147,12 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
                         <FileText className="w-4 h-4" /> Issuance Ledger
                     </button>
                 )}
-                {isEducation && (
-                    <button
-                        onClick={() => setActiveTab('receipt')}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'receipt' ? 'bg-white text-emerald-600 shadow-md border border-emerald-100' : 'text-slate-500 hover:text-emerald-500'}`}
-                    >
-                        <FileText className="w-4 h-4" /> Receipt Ledger
-                    </button>
-                )}
+                <button
+                    onClick={() => setActiveTab('receipt')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'receipt' ? 'bg-white text-emerald-600 shadow-md border border-emerald-100' : 'text-slate-500 hover:text-emerald-500'}`}
+                >
+                    <FileText className="w-4 h-4" /> Receipt Ledger
+                </button>
             </div>
 
             {/* Content Area */}

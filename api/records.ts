@@ -1095,7 +1095,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let data: any = null;
             let error: any = null;
-            let maxRetries = 5;
+            let maxRetries = 15;
 
             while (maxRetries >= 0) {
                 const queryRes = await supabase.from(targetDbTable).upsert(currentPayload).select();
@@ -1359,7 +1359,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 let data: any = null;
                 let error: any = null;
-                let patchRetries = 5;
+                let patchRetries = 15;
 
                 while (patchRetries >= 0) {
                     let q = supabase.from(targetDbTable).update(currentUpdateData);

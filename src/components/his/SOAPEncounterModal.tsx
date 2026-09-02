@@ -182,18 +182,17 @@ export function SOAPEncounterModal({
                 institutionId,
                 patientId: patient.id,
                 patientName: patient.fullName,
-                patient_name: patient.fullName,
                 invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
                 items: invoiceItems,
+                amount: totalInvoiceAmount,
                 totalAmount: totalInvoiceAmount,
-                total_amount: totalInvoiceAmount,
                 amountPaid: 0,
-                amount_paid: 0,
                 balance: totalInvoiceAmount,
                 status: 'Pending',
+                type: 'invoice',
+                category: 'Doctor Clinical Consultation',
                 date: new Date().toISOString().slice(0, 10),
-                createdAt: new Date().toISOString(),
-                created_at: new Date().toISOString()
+                createdAt: new Date().toISOString()
             }).catch(() => null);
 
             alert(`✓ EMR Consultation Encounter saved for ${patient.fullName}!`);

@@ -354,11 +354,22 @@ CREATE TABLE IF NOT EXISTS his_financial_records (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL,
     patient_id TEXT REFERENCES his_patients(id),
-    type TEXT, -- Bill, Payment
-    amount DECIMAL(12,2) NOT NULL,
-    description TEXT,
+    patient_name TEXT,
+    invoice_number TEXT,
+    type TEXT DEFAULT 'invoice', -- Bill, Payment, invoice
+    category TEXT,
+    items JSONB DEFAULT '[]'::jsonb,
+    amount DECIMAL(15,2) DEFAULT 0,
+    total_amount DECIMAL(15,2) DEFAULT 0,
+    amount_paid DECIMAL(15,2) DEFAULT 0,
+    balance DECIMAL(15,2) DEFAULT 0,
     status TEXT DEFAULT 'Pending',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    payment_method TEXT,
+    department TEXT,
+    notes TEXT,
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS his_broadcasts (
