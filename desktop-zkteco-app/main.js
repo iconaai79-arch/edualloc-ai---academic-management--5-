@@ -258,6 +258,101 @@ ipcMain.handle('delete-device', (_, devId) => {
     }
 });
 
+
+ipcMain.handle('ping-device', async (_, target) => {
+    const ip = typeof target === 'string' ? target.trim() : (target?.ip || '').trim();
+    const port = typeof target === 'object' && target?.port ? Number(target.port) : 4370;
+
+    if (!ip) {
+        return { success: false, message: 'Please specify a valid IP address to ping.' };
+    }
+
+    sendLog(`Pinging ${ip} (ICMP Ping + Port ${port} probe)...`, 'info');
+
+    // 1. TCP Port Reachability Check
+    const checkPort = new Promise((resolve) => {
+        const net = require('net');
+        const sock = new net.Socket();
+        sock.setTimeout(2500);
+        sock.on('connect', () => {
+            sock.destroy();
+            resolve({ open: true, msg: `Port ${port} is OPEN and REACHABLE.` });
+        });
+        sock.on('timeout', () => {
+            sock.destroy();
+            resolve({ open: false, msg: `Port ${port} timed out (Firewall or device unreachable).` });
+        });
+        sock.on('error', (err) => {
+            sock.destroy();
+            resolve({ open: false, msg: `Port ${port} error: ${err.message}` });
+        });
+        sock.connect(port, ip);
+    });
+
+    // 2. OS ICMP Ping Check
+    const checkPing = new Promise((resolve) => {
+        const { exec } = require('child_process');
+        const isWin = process.platform === 'win32';
+        const cmd = isWin ? `ping -n 4 -w 1500 ${ip}` : `ping -c 4 -W 2 ${ip}`;
+
+        exec(cmd, (error, stdout, stderr) => {
+            const rawOutput = (stdout || stderr || '').trim();
+            const isSuccess = !error && (rawOutput.includes('Reply from') || rawOutput.includes('bytes from') || rawOutput.includes('0% packet loss') || (rawOutput.includes('loss') && !rawOutput.includes('100% loss')));
+
+            // Extract latency or loss
+            let stats = '';
+            const matchLoss = rawOutput.match(/(\d+)% loss/i) || rawOutput.match(/(\d+)% packet loss/i);
+            const lossPct = matchLoss ? matchLoss[1] + '%' : '0%';
+
+            const matchAvg = rawOutput.match(/Average = (\d+ms)/i) || rawOutput.match(/avg = [^/]+\/([^/]+)/i);
+            const avgLatency = matchAvg ? (matchAvg[1].includes('ms') ? matchAvg[1] : matchAvg[1] + 'ms') : 'N/A';
+
+            if (isSuccess) {
+                stats = `Packet Loss: ${lossPct}, Avg Roundtrip: ${avgLatency}`;
+            }
+
+            resolve({
+                success: isSuccess,
+                rawOutput,
+                stats,
+                lossPct,
+                avgLatency
+            });
+        });
+    });
+
+    try {
+        const [portRes, pingRes] = await Promise.all([checkPort, checkPing]);
+
+        let summaryMsg = '';
+        if (pingRes.success) {
+            summaryMsg = `✓ Host ${ip} is ONLINE (${pingRes.stats}). ${portRes.msg}`;
+            sendLog(summaryMsg, 'success');
+        } else if (portRes.open) {
+            summaryMsg = `✓ Host ${ip} responds on Port ${port}! (ICMP Ping blocked by firewall).`;
+            sendLog(summaryMsg, 'success');
+        } else {
+            summaryMsg = `✗ Host ${ip} is UNREACHABLE. (100% packet loss, Port ${port} closed). Check IP assignment, network cable, and power.`;
+            sendLog(summaryMsg, 'error');
+        }
+
+        return {
+            success: pingRes.success || portRes.open,
+            ip,
+            port,
+            portOpen: portRes.open,
+            portMessage: portRes.msg,
+            pingSuccess: pingRes.success,
+            pingStats: pingRes.stats,
+            pingOutput: pingRes.rawOutput,
+            message: summaryMsg
+        };
+    } catch (e) {
+        sendLog(`Ping failed for ${ip}: ${e.message}`, 'error');
+        return { success: false, message: e.message };
+    }
+});
+
 ipcMain.handle('test-connection', async (_, device) => {
     const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {

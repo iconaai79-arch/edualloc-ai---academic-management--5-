@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('zkApi', {
     getConfig: () => ipcRenderer.invoke('get-config'),
     saveConfig: (cfg) => ipcRenderer.invoke('save-config', cfg),
     testConnection: (device) => ipcRenderer.invoke('test-connection', device),
+    pingDevice: (target) => ipcRenderer.invoke('ping-device', target),
     syncLogsNow: (device) => ipcRenderer.invoke('sync-logs-now', device),
     unlockDoor: (device, seconds) => ipcRenderer.invoke('unlock-door', device, seconds),
     syncTime: (device) => ipcRenderer.invoke('sync-time', device),

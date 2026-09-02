@@ -546,6 +546,7 @@ function renderDeviceList() {
 
             <div class="card-actions" style="flex-wrap: wrap;">
                 <button class="btn btn-sm btn-primary" onclick="openDownloadLogsModal('${dev.id}')">📥 Download Logs</button>
+                <button class="btn btn-sm btn-secondary" onclick="pingDevice('${dev.id}')" title="Ping IP & Check Port 4370">📡 Ping</button>
                 <button class="btn btn-sm btn-secondary" onclick="testDevice('${dev.id}')">⚡ Test Link</button>
                 <button class="btn btn-sm btn-secondary" onclick="syncDevice('${dev.id}')">🔄 Sync Logs</button>
                 <button class="btn btn-sm btn-secondary" onclick="syncClock('${dev.id}')">🕒 Set Time</button>
@@ -1418,3 +1419,139 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 }
+
+
+/* ═══════════ PING & NETWORK DIAGNOSTIC ═══════════ */
+async function pingDevice(devIdOrIp) {
+    if (!window.zkApi) return;
+    let target = null;
+
+    if (typeof devIdOrIp === 'string' && devIdOrIp.startsWith('dev_')) {
+        target = appConfig?.devices?.find(d => String(d.id) === String(devIdOrIp));
+    } else if (typeof devIdOrIp === 'string') {
+        target = { ip: devIdOrIp, port: 4370 };
+    } else {
+        target = devIdOrIp;
+    }
+
+    if (!target || !target.ip) {
+        alert('Please specify a valid IP address.');
+        return;
+    }
+
+    appendLog({ type: 'info', message: `📡 Pinging ${target.name || target.ip} (${target.ip}:${target.port || 4370})...` });
+    
+    try {
+        const res = await window.zkApi.pingDevice({ ip: target.ip, port: target.port || 4370 });
+        if (res.success) {
+            appendLog({ type: 'success', message: res.message });
+            alert(res.message);
+        } else {
+            appendLog({ type: 'error', message: res.message });
+            alert(res.message);
+        }
+    } catch (e) {
+        appendLog({ type: 'error', message: `Ping error: ${e.message}` });
+        alert(`Ping error: ${e.message}`);
+    }
+}
+window.pingDevice = pingDevice;
+
+async function pingModalIp() {
+    const ip = (document.getElementById('dev-ip')?.value || '').trim();
+    const port = Number(document.getElementById('dev-port')?.value) || 4370;
+    const btn = document.getElementById('btn-ping-modal');
+
+    if (!ip) {
+        alert('Please enter an IP address first.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Pinging...';
+    }
+
+    try {
+        const res = await window.zkApi.pingDevice({ ip, port });
+        alert(res.message);
+    } catch (e) {
+        alert(`Ping failed: ${e.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📡 Ping IP';
+        }
+    }
+}
+window.pingModalIp = pingModalIp;
+
+function openQuickPingModal() {
+    const modal = document.getElementById('ping-modal');
+    const sel = document.getElementById('quick-ping-select');
+    const resBox = document.getElementById('ping-result-box');
+    if (resBox) resBox.style.display = 'none';
+
+    if (sel && appConfig?.devices) {
+        sel.innerHTML = '<option value="">-- Choose Saved Terminal --</option>' + 
+            appConfig.devices.map(d => `<option value="${escapeHtml(d.ip)}|${d.port || 4370}">${escapeHtml(d.name)} (${escapeHtml(d.ip)}:${d.port || 4370})</option>`).join('');
+    }
+
+    if (modal) modal.style.display = 'flex';
+}
+window.openQuickPingModal = openQuickPingModal;
+
+function onSelectPingDevice(val) {
+    if (!val) return;
+    const [ip, port] = val.split('|');
+    if (ip) document.getElementById('quick-ping-ip').value = ip;
+    if (port) document.getElementById('quick-ping-port').value = port;
+}
+window.onSelectPingDevice = onSelectPingDevice;
+
+async function runQuickPing() {
+    const ip = (document.getElementById('quick-ping-ip')?.value || '').trim();
+    const port = Number(document.getElementById('quick-ping-port')?.value) || 4370;
+    const btn = document.getElementById('btn-run-quick-ping');
+    const resBox = document.getElementById('ping-result-box');
+
+    if (!ip) {
+        alert('Please enter a target IP address.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '📡 Testing Link...';
+    }
+    if (resBox) {
+        resBox.style.display = 'block';
+        resBox.innerHTML = `<span style="color: var(--indigo);">[TESTING] Sending ICMP ping packets and testing TCP port ${port} on ${ip}...</span>`;
+    }
+
+    try {
+        const res = await window.zkApi.pingDevice({ ip, port });
+        const color = res.success ? '#10b981' : '#f43f5e';
+        if (resBox) {
+            resBox.innerHTML = `
+<strong style="color: ${color}; font-size: 12px;">${res.message}</strong>
+
+--- ICMP Ping Terminal Output ---
+${escapeHtml(res.pingOutput || 'No ping response')}
+
+--- ZK Port ${port} Status ---
+${escapeHtml(res.portMessage || '')}
+            `.trim();
+        }
+    } catch (e) {
+        if (resBox) {
+            resBox.innerHTML = `<span style="color: #f43f5e;">Error executing ping: ${escapeHtml(e.message)}</span>`;
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📡 Start Ping Test';
+        }
+    }
+}
+window.runQuickPing = runQuickPing;
