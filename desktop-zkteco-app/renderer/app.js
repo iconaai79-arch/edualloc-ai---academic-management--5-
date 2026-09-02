@@ -565,23 +565,32 @@ function openDeviceModal(dev = null) {
 
     if (dev) {
         title.textContent = 'Edit ZKTeco Terminal';
-        document.getElementById('dev-id').value = dev.id;
-        document.getElementById('dev-name').value = dev.name;
-        document.getElementById('dev-ip').value = dev.ip;
+        document.getElementById('dev-id').value = dev.id || '';
+        document.getElementById('dev-name').value = dev.name || '';
+        document.getElementById('dev-ip').value = dev.ip || '';
         document.getElementById('dev-port').value = dev.port || 4370;
         document.getElementById('dev-protocol').value = dev.protocol || 'auto';
         document.getElementById('dev-comm-key').value = dev.commKey ?? 0;
         document.getElementById('dev-sn').value = dev.serialNumber || '';
     } else {
         title.textContent = 'Add ZKTeco Terminal';
-        form.reset();
+        if (form) form.reset();
         document.getElementById('dev-id').value = '';
+        document.getElementById('dev-name').value = '';
+        document.getElementById('dev-ip').value = '192.168.1.201';
         document.getElementById('dev-port').value = 4370;
         document.getElementById('dev-protocol').value = 'auto';
         document.getElementById('dev-comm-key').value = 0;
+        document.getElementById('dev-sn').value = '';
     }
 
     modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+        const nameInp = document.getElementById('dev-name');
+        if (nameInp) {
+            nameInp.focus();
+        }
+    });
 }
 
 window.openDeviceModal = openDeviceModal;

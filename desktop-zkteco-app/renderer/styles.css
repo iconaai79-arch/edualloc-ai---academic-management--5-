@@ -765,13 +765,12 @@ input:checked + .slider:before {
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    background: rgba(4, 7, 16, 0.85);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 100;
-    animation: fadeIn 0.15s ease-out;
+    z-index: 1000;
+    pointer-events: auto;
 }
 
 .modal-card {
@@ -829,14 +828,17 @@ input:checked + .slider:before {
 }
 
 .form-group input, .form-group select {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    background: #0d1222;
+    border: 1px solid #1e293b;
     padding: 10px 14px;
     border-radius: 12px;
-    color: var(--text-main);
+    color: #f8fafc;
     font-size: 13px;
     outline: none;
-    transition: border-color 0.2s;
+    pointer-events: auto;
+    user-select: text;
+    cursor: text;
+    transition: border-color 0.15s ease;
 }
 
 .form-group input:focus, .form-group select:focus {

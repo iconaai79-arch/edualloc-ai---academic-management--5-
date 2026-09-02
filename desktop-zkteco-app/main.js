@@ -120,7 +120,7 @@ async function runSyncCycle() {
 
     for (const dev of appConfig.devices) {
         if (!dev.ip) continue;
-        const zk = new ZKTecoDevice(dev.ip, dev.port || 4370, 5000, dev.commKey || 0, dev.protocol || 'auto');
+        const zk = new ZKTecoDevice(dev.ip, dev.port || 4370, 2000, dev.commKey || 0, dev.protocol || 'auto');
 
         try {
             sendLog(`Connecting to ${dev.name || dev.ip} (${dev.ip}:${dev.port || 4370})...`, 'info');
