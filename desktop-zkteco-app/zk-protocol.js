@@ -1,16 +1,17 @@
 /**
- * Pure Node.js ZKTeco Protocol Implementation (UDP/TCP Port 4370)
+ * Pure Node.js ZKTeco Protocol Implementation (Dual TCP / UDP on Port 4370)
  * 
- * Supports ZKTeco Standalone Biometric Terminals:
- * K40, F18, MB20, IN01, uFace, SilkBio, G3, S922, etc.
+ * Supports ZKTeco Standalone Biometric & Access Control Terminals:
+ * K40, F18, MB20, MB100, IN01, uFace, SilkBio, G3, S922, Horus, SenseFace, etc.
  * 
- * No native C++ dependencies required (pure socket).
+ * Includes Dual-Mode transport (Automatic fallback between TCP and UDP)
+ * and support for Communication Keys (CommKey).
  */
 
 const dgram = require('dgram');
 const net = require('net');
 
-// ZK Protocol Constants
+// ZK Protocol Commands
 const CMD_CONNECT = 1000;
 const CMD_EXIT = 1001;
 const CMD_ENABLEDEVICE = 1002;
@@ -41,15 +42,21 @@ const CMD_ACK_DATA = 2002;
 const CMD_PREPARE_DATA = 1500;
 const CMD_DATA = 1501;
 
+// ZK TCP Magic Header: 0x50 0x50 0x82 0x7D ('PP\x82}')
+const ZK_TCP_MAGIC = Buffer.from([0x50, 0x50, 0x82, 0x7D]);
+
 class ZKTecoDevice {
-    constructor(ip, port = 4370, timeout = 5000, commKey = 0) {
-        this.ip = ip;
-        this.port = port;
+    constructor(ip, port = 4370, timeout = 4000, commKey = 0, preferredProtocol = 'auto') {
+        this.ip = (ip || '').trim();
+        this.port = Number(port) || 4370;
         this.timeout = timeout;
-        this.commKey = commKey;
+        this.commKey = Number(commKey) || 0;
+        this.preferredProtocol = preferredProtocol || 'auto'; // 'auto', 'tcp', 'udp'
+        this.protocolMode = null; // 'tcp' or 'udp' after successful connect
         this.sessionId = 0;
         this.replyId = 0;
-        this.socket = null;
+        this.udpSocket = null;
+        this.tcpSocket = null;
         this.isConnected = false;
     }
 
@@ -91,10 +98,10 @@ class ZKTecoDevice {
     /**
      * Send command packet over UDP and await response
      */
-    sendCommand(command, data = Buffer.alloc(0)) {
+    sendUdpCommand(command, data = Buffer.alloc(0)) {
         return new Promise((resolve, reject) => {
-            if (!this.socket) {
-                return reject(new Error('Socket is not initialized'));
+            if (!this.udpSocket) {
+                return reject(new Error('UDP socket is not initialized'));
             }
 
             const packet = this.createHeader(command, data);
@@ -102,10 +109,10 @@ class ZKTecoDevice {
 
             const onMessage = (msg) => {
                 clearTimeout(timer);
-                this.socket.removeListener('message', onMessage);
+                this.udpSocket.removeListener('message', onMessage);
 
                 if (msg.length < 8) {
-                    return reject(new Error('Received truncated packet'));
+                    return reject(new Error('Received truncated UDP packet'));
                 }
 
                 const responseCode = msg.readUInt16LE(0);
@@ -118,15 +125,15 @@ class ZKTecoDevice {
             };
 
             timer = setTimeout(() => {
-                this.socket.removeListener('message', onMessage);
-                reject(new Error(`Command ${command} timed out after ${this.timeout}ms`));
+                if (this.udpSocket) this.udpSocket.removeListener('message', onMessage);
+                reject(new Error(`UDP Command ${command} timed out after ${this.timeout}ms`));
             }, this.timeout);
 
-            this.socket.on('message', onMessage);
-            this.socket.send(packet, 0, packet.length, this.port, this.ip, (err) => {
+            this.udpSocket.on('message', onMessage);
+            this.udpSocket.send(packet, 0, packet.length, this.port, this.ip, (err) => {
                 if (err) {
                     clearTimeout(timer);
-                    this.socket.removeListener('message', onMessage);
+                    if (this.udpSocket) this.udpSocket.removeListener('message', onMessage);
                     reject(err);
                 }
             });
@@ -134,23 +141,164 @@ class ZKTecoDevice {
     }
 
     /**
-     * Connect to ZKTeco terminal
+     * Send command packet over TCP and await response
      */
-    async connect() {
-        if (this.isConnected) return true;
+    sendTcpCommand(command, data = Buffer.alloc(0)) {
+        return new Promise((resolve, reject) => {
+            if (!this.tcpSocket || this.tcpSocket.destroyed) {
+                return reject(new Error('TCP socket is not connected'));
+            }
 
-        this.socket = dgram.createSocket('udp4');
+            const zkPacket = this.createHeader(command, data);
+            // ZKTeco TCP Frame: 4 bytes Magic + 4 bytes Length + ZK Packet
+            const tcpHeader = Buffer.alloc(8);
+            ZK_TCP_MAGIC.copy(tcpHeader, 0);
+            tcpHeader.writeUInt32LE(zkPacket.length, 4);
+            const fullFrame = Buffer.concat([tcpHeader, zkPacket]);
+
+            let incoming = Buffer.alloc(0);
+            let timer = null;
+
+            const onData = (chunk) => {
+                incoming = Buffer.concat([incoming, chunk]);
+
+                // Check for standard ZK TCP frame (min 16 bytes: 8 header + 8 ZK packet)
+                if (incoming.length >= 16) {
+                    // Check magic
+                    if (incoming.slice(0, 4).equals(ZK_TCP_MAGIC)) {
+                        const payloadLen = incoming.readUInt32LE(4);
+                        if (incoming.length >= 8 + payloadLen) {
+                            cleanup();
+                            const msg = incoming.slice(8, 8 + payloadLen);
+                            const responseCode = msg.readUInt16LE(0);
+                            const sessionId = msg.readUInt16LE(4);
+                            const replyId = msg.readUInt16LE(6);
+                            const responseData = msg.slice(8);
+
+                            this.replyId = replyId;
+                            resolve({ responseCode, sessionId, replyId, data: responseData, raw: msg });
+                        }
+                    } else if (incoming.length >= 8) {
+                        // Some TCP implementations reply without magic
+                        cleanup();
+                        const responseCode = incoming.readUInt16LE(0);
+                        const sessionId = incoming.readUInt16LE(4);
+                        const replyId = incoming.readUInt16LE(6);
+                        const responseData = incoming.slice(8);
+
+                        this.replyId = replyId;
+                        resolve({ responseCode, sessionId, replyId, data: responseData, raw: incoming });
+                    }
+                }
+            };
+
+            const cleanup = () => {
+                clearTimeout(timer);
+                if (this.tcpSocket) {
+                    this.tcpSocket.removeListener('data', onData);
+                    this.tcpSocket.removeListener('error', onError);
+                    this.tcpSocket.removeListener('close', onClose);
+                }
+            };
+
+            const onError = (err) => {
+                cleanup();
+                reject(err);
+            };
+
+            const onClose = () => {
+                cleanup();
+                reject(new Error('TCP connection closed unexpectedly'));
+            };
+
+            timer = setTimeout(() => {
+                cleanup();
+                reject(new Error(`TCP Command ${command} timed out after ${this.timeout}ms`));
+            }, this.timeout);
+
+            this.tcpSocket.on('data', onData);
+            this.tcpSocket.on('error', onError);
+            this.tcpSocket.on('close', onClose);
+
+            this.tcpSocket.write(fullFrame, (err) => {
+                if (err) {
+                    cleanup();
+                    reject(err);
+                }
+            });
+        });
+    }
+
+    /**
+     * Send command using currently active protocol
+     */
+    sendCommand(command, data = Buffer.alloc(0)) {
+        if (this.protocolMode === 'tcp') {
+            return this.sendTcpCommand(command, data);
+        }
+        return this.sendUdpCommand(command, data);
+    }
+
+    /**
+     * Attempt TCP Connection
+     */
+    async connectTcp() {
+        await this.disconnect();
+        return new Promise((resolve, reject) => {
+            const socket = new net.Socket();
+            let timer = setTimeout(() => {
+                socket.destroy();
+                reject(new Error(`TCP connection to ${this.ip}:${this.port} timed out`));
+            }, Math.min(this.timeout, 3000));
+
+            socket.connect(this.port, this.ip, async () => {
+                clearTimeout(timer);
+                this.tcpSocket = socket;
+                this.sessionId = 0;
+                this.replyId = 0;
+                this.protocolMode = 'tcp';
+
+                try {
+                    const res = await this.sendTcpCommand(CMD_CONNECT);
+                    if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
+                        this.sessionId = res.sessionId;
+                        this.isConnected = true;
+                        resolve(true);
+                    } else {
+                        reject(new Error(`Device rejected TCP connection (Code: ${res.responseCode})`));
+                    }
+                } catch (err) {
+                    this.disconnect();
+                    reject(err);
+                }
+            });
+
+            socket.on('error', (err) => {
+                clearTimeout(timer);
+                socket.destroy();
+                reject(err);
+            });
+        });
+    }
+
+    /**
+     * Attempt UDP Connection
+     */
+    async connectUdp() {
+        await this.disconnect();
+        this.udpSocket = dgram.createSocket('udp4');
         this.sessionId = 0;
         this.replyId = 0;
+        this.protocolMode = 'udp';
 
         try {
-            const res = await this.sendCommand(CMD_CONNECT);
+            const res = await this.sendUdpCommand(CMD_CONNECT);
             if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
                 this.sessionId = res.sessionId;
                 this.isConnected = true;
                 return true;
             }
-            throw new Error(`Device rejected connection (Response Code: ${res.responseCode})`);
+            throw new Error(`Device rejected UDP connection (Code: ${res.responseCode})`);
         } catch (err) {
             this.disconnect();
             throw err;
@@ -158,22 +306,56 @@ class ZKTecoDevice {
     }
 
     /**
-     * Disconnect and release socket
+     * Dual-Mode Connect (Tries Preferred Protocol, then auto-falls back)
+     */
+    async connect() {
+        if (this.isConnected) return true;
+
+        if (this.preferredProtocol === 'tcp') {
+            return await this.connectTcp();
+        } else if (this.preferredProtocol === 'udp') {
+            return await this.connectUdp();
+        }
+
+        // Auto-detect mode: Try TCP first (modern terminals), then fall back to UDP
+        try {
+            return await this.connectTcp();
+        } catch (tcpErr) {
+            try {
+                return await this.connectUdp();
+            } catch (udpErr) {
+                throw new Error(`Failed to connect over TCP (${tcpErr.message}) and UDP (${udpErr.message}). Check Port 4370 and firewall.`);
+            }
+        }
+    }
+
+    /**
+     * Disconnect and release both TCP and UDP sockets
      */
     async disconnect() {
-        if (this.isConnected && this.socket) {
+        if (this.isConnected) {
             try {
                 await this.sendCommand(CMD_EXIT).catch(() => {});
             } catch (e) {}
         }
-        if (this.socket) {
+
+        if (this.tcpSocket) {
             try {
-                this.socket.close();
+                this.tcpSocket.destroy();
             } catch (e) {}
-            this.socket = null;
+            this.tcpSocket = null;
         }
+
+        if (this.udpSocket) {
+            try {
+                this.udpSocket.close();
+            } catch (e) {}
+            this.udpSocket = null;
+        }
+
         this.isConnected = false;
         this.sessionId = 0;
+        this.protocolMode = null;
     }
 
     /**
@@ -207,8 +389,7 @@ class ZKTecoDevice {
             await this.sendCommand(CMD_DISABLEDEVICE).catch(() => {});
             const res = await this.sendCommand(CMD_ATTLOG_RRQ);
 
-            if (res.responseCode === CMD_PREPARE_DATA || res.responseCode === CMD_ACK_OK) {
-                // If records are embedded in the response data
+            if (res.responseCode === CMD_PREPARE_DATA || res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
                 const raw = res.data;
                 const recordSize = 40; // 40-byte standard extended record or 8-byte small
 
@@ -303,7 +484,7 @@ class ZKTecoDevice {
             await this.sendCommand(CMD_DISABLEDEVICE).catch(() => {});
             const res = await this.sendCommand(CMD_USERTEMP_RRQ, Buffer.from([5])); // 5: FScoding
 
-            if (res.responseCode === CMD_PREPARE_DATA || res.responseCode === CMD_ACK_OK) {
+            if (res.responseCode === CMD_PREPARE_DATA || res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
                 const raw = res.data;
                 const recordSize = 72; // Standard 72-byte SSR user structure
 
@@ -392,14 +573,10 @@ class ZKTecoDevice {
 
     /**
      * Remotely trigger live fingerprint enrollment on the ZKTeco hardware sensor
-     * The hardware LCD will prompt: "Please place your finger (3 times)"
-     * @param {string|number} pin User PIN
-     * @param {number} fingerId Finger index (0-9, default 0: Right Index)
      */
     async startEnrollFingerprint(pin, fingerId = 0) {
         if (!this.isConnected) await this.connect();
         try {
-            // Put terminal in enrollment capture mode for the specific PIN & Finger
             const buf = Buffer.alloc(26);
             const pinBuf = Buffer.from(String(pin || '1'), 'ascii');
             pinBuf.copy(buf, 0, 0, Math.min(24, pinBuf.length));
@@ -442,7 +619,7 @@ class ZKTecoDevice {
             buf.writeUInt8(Number(fingerId) || 0, 24);
 
             const res = await this.sendCommand(CMD_USERTEMP_RRQ, buf);
-            if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_PREPARE_DATA) {
+            if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_PREPARE_DATA || res.responseCode === CMD_ACK_DATA) {
                 return { success: true, data: res.data };
             }
             return { success: false };

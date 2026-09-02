@@ -120,7 +120,7 @@ async function runSyncCycle() {
 
     for (const dev of appConfig.devices) {
         if (!dev.ip) continue;
-        const zk = new ZKTecoDevice(dev.ip, dev.port || 4370, 4000);
+        const zk = new ZKTecoDevice(dev.ip, dev.port || 4370, 5000, dev.commKey || 0, dev.protocol || 'auto');
 
         try {
             sendLog(`Connecting to ${dev.name || dev.ip} (${dev.ip}:${dev.port || 4370})...`, 'info');
@@ -259,12 +259,13 @@ ipcMain.handle('delete-device', (_, devId) => {
 });
 
 ipcMain.handle('test-connection', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         await zk.connect();
+        const modeUsed = zk.protocolMode ? zk.protocolMode.toUpperCase() : 'TCP/UDP';
         await zk.testVoice().catch(() => {});
         await zk.disconnect();
-        return { success: true, message: `Successfully connected to ${device.ip}!` };
+        return { success: true, message: `Successfully connected to ${device.ip}:${device.port || 4370} (${modeUsed})!` };
     } catch (e) {
         await zk.disconnect();
         return { success: false, message: e.message };
@@ -272,7 +273,7 @@ ipcMain.handle('test-connection', async (_, device) => {
 });
 
 ipcMain.handle('test-voice', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         await zk.connect();
         await zk.testVoice();
@@ -290,7 +291,7 @@ ipcMain.handle('sync-logs-now', async (_, device) => {
 });
 
 ipcMain.handle('unlock-door', async (_, device, seconds = 5) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         await zk.connect();
         await zk.unlockDoor(seconds);
@@ -303,7 +304,7 @@ ipcMain.handle('unlock-door', async (_, device, seconds = 5) => {
 });
 
 ipcMain.handle('sync-time', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         await zk.connect();
         await zk.setDeviceTime(new Date());
@@ -356,7 +357,7 @@ ipcMain.handle('sync-cloud-staff', async () => {
 
 // ── DEVICE USER SYNC ──
 ipcMain.handle('pull-users-from-device', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         sendLog(`Downloading enrolled users from ${device.name || device.ip}...`, 'info');
         await zk.connect();
@@ -388,7 +389,7 @@ ipcMain.handle('pull-users-from-device', async (_, device) => {
 });
 
 ipcMain.handle('push-users-to-device', async (_, device, employeeList) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         sendLog(`Uploading staff profiles to ${device.name || device.ip}...`, 'info');
         await zk.connect();
@@ -418,7 +419,7 @@ ipcMain.handle('push-users-to-device', async (_, device, employeeList) => {
 
 // ── HARDWARE LOG DOWNLOAD & EXPORT ──
 ipcMain.handle('download-device-logs', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 8000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 8000, device.commKey || 0, device.protocol || 'auto');
     try {
         sendLog(`Connecting to ${device.name || device.ip} to fetch hardware attendance logs...`, 'info');
         await zk.connect();
@@ -469,7 +470,7 @@ ipcMain.handle('save-logs-file', async (_, { content, defaultName, format }) => 
 });
 
 ipcMain.handle('clear-device-logs', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         sendLog(`Clearing attendance logs on hardware ${device.name || device.ip}...`, 'warn');
         await zk.connect();
@@ -489,7 +490,7 @@ ipcMain.handle('clear-device-logs', async (_, device) => {
 
 // ── LIVE BIOMETRIC FINGERPRINT ENROLLMENT ──
 ipcMain.handle('start-enroll-fingerprint', async (_, { device, pin, fingerId, employeeName, fingerName }) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 8000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 8000, device.commKey || 0, device.protocol || 'auto');
     try {
         sendLog(`Initiating live fingerprint capture on ${device.name || device.ip} for [${employeeName}] (PIN #${pin}, Finger: ${fingerName})...`, 'info');
         await zk.connect();
@@ -514,7 +515,7 @@ ipcMain.handle('start-enroll-fingerprint', async (_, { device, pin, fingerId, em
 });
 
 ipcMain.handle('cancel-enroll-fingerprint', async (_, device) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 4000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 4000, device.commKey || 0, device.protocol || 'auto');
     try {
         await zk.connect();
         await zk.cancelEnrollment();
@@ -528,7 +529,7 @@ ipcMain.handle('cancel-enroll-fingerprint', async (_, device) => {
 });
 
 ipcMain.handle('delete-fingerprint-template', async (_, { device, pin, fingerId, fingerName }) => {
-    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000);
+    const zk = new ZKTecoDevice(device.ip, device.port || 4370, 5000, device.commKey || 0, device.protocol || 'auto');
     try {
         await zk.connect();
         await zk.deleteUserFingerprint(pin, fingerId);

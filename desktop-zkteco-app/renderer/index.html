@@ -427,9 +427,23 @@
                         <input type="number" id="dev-port" value="4370" required>
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Connection Protocol</label>
+                        <select id="dev-protocol">
+                            <option value="auto">Auto-Detect (TCP & UDP)</option>
+                            <option value="tcp">TCP (Port 4370)</option>
+                            <option value="udp">UDP (Port 4370)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Comm Key / Password</label>
+                        <input type="number" id="dev-comm-key" value="0" placeholder="Default: 0">
+                    </div>
+                </div>
                 <div class="form-group">
                     <label>Serial Number (Optional)</label>
-                    <input type="text" id="dev-sn" placeholder="e.g. BZ89201948">
+                    <input type="text" id="dev-sn" placeholder="e.g. FDDW240614048">
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="btn-cancel-modal">Cancel</button>

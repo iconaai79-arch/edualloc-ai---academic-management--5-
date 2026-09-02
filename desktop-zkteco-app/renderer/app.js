@@ -568,12 +568,16 @@ function openDeviceModal(dev = null) {
         document.getElementById('dev-name').value = dev.name;
         document.getElementById('dev-ip').value = dev.ip;
         document.getElementById('dev-port').value = dev.port || 4370;
+        document.getElementById('dev-protocol').value = dev.protocol || 'auto';
+        document.getElementById('dev-comm-key').value = dev.commKey ?? 0;
         document.getElementById('dev-sn').value = dev.serialNumber || '';
     } else {
         title.textContent = 'Add ZKTeco Terminal';
         form.reset();
         document.getElementById('dev-id').value = '';
         document.getElementById('dev-port').value = 4370;
+        document.getElementById('dev-protocol').value = 'auto';
+        document.getElementById('dev-comm-key').value = 0;
     }
 
     modal.style.display = 'flex';
@@ -1237,6 +1241,8 @@ function setupEventListeners() {
                 name: (document.getElementById('dev-name').value || '').trim(),
                 ip: (document.getElementById('dev-ip').value || '').trim(),
                 port: Number(document.getElementById('dev-port').value) || 4370,
+                protocol: document.getElementById('dev-protocol')?.value || 'auto',
+                commKey: Number(document.getElementById('dev-comm-key')?.value) || 0,
                 serialNumber: (document.getElementById('dev-sn').value || '').trim()
             };
 
