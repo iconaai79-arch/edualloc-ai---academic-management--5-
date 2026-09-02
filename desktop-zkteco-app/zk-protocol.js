@@ -71,9 +71,9 @@ class ZKTecoDevice {
             } else {
                 sum += buffer.readUInt16LE(i);
             }
-            while (sum > 0xFFFF) {
-                sum = (sum & 0xFFFF) + (sum >> 16);
-            }
+        }
+        while (sum > 0xFFFF) {
+            sum = (sum & 0xFFFF) + (sum >> 16);
         }
         return (~sum) & 0xFFFF;
     }
