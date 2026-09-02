@@ -163,18 +163,26 @@ class ZKTecoDevice {
     /**
      * Send command packet over TCP and await response
      */
-    sendTcpCommand(command, data = Buffer.alloc(0)) {
+        /**
+     * Send command packet over TCP and await response
+     */
+    sendTcpCommand(command, data = Buffer.alloc(0), useMagicHeader = true) {
         return new Promise((resolve, reject) => {
             if (!this.tcpSocket || this.tcpSocket.destroyed) {
                 return reject(new Error('TCP socket is not connected'));
             }
 
             const zkPacket = this.createHeader(command, data);
-            // ZKTeco TCP Frame: 4 bytes Magic + 4 bytes Length + ZK Packet
-            const tcpHeader = Buffer.alloc(8);
-            ZK_TCP_MAGIC.copy(tcpHeader, 0);
-            tcpHeader.writeUInt32LE(zkPacket.length, 4);
-            const fullFrame = Buffer.concat([tcpHeader, zkPacket]);
+            let fullFrame;
+            if (useMagicHeader) {
+                // ZKTeco TCP Frame: 4 bytes Magic + 4 bytes Length + ZK Packet
+                const tcpHeader = Buffer.alloc(8);
+                ZK_TCP_MAGIC.copy(tcpHeader, 0);
+                tcpHeader.writeUInt32LE(zkPacket.length, 4);
+                fullFrame = Buffer.concat([tcpHeader, zkPacket]);
+            } else {
+                fullFrame = zkPacket;
+            }
 
             let incoming = Buffer.alloc(0);
             let timer = null;
@@ -182,67 +190,49 @@ class ZKTecoDevice {
             const onData = (chunk) => {
                 incoming = Buffer.concat([incoming, chunk]);
 
-                // Check for standard ZK TCP frame (min 16 bytes: 8 header + 8 ZK packet)
-                if (incoming.length >= 16) {
-                    // Check magic
-                    if (incoming.slice(0, 4).equals(ZK_TCP_MAGIC)) {
-                        const payloadLen = incoming.readUInt32LE(4);
-                        if (incoming.length >= 8 + payloadLen) {
-                            cleanup();
-                            const msg = incoming.slice(8, 8 + payloadLen);
-                            const responseCode = msg.readUInt16LE(0);
-                            const sessionId = msg.readUInt16LE(4);
-                            const replyId = msg.readUInt16LE(6);
-                            const responseData = msg.slice(8);
+                // Case 1: Magic Header Frame
+                if (incoming.length >= 16 && incoming.slice(0, 4).equals(ZK_TCP_MAGIC)) {
+                    const payloadLen = incoming.readUInt32LE(4);
+                    if (incoming.length >= 8 + payloadLen) {
+                        clearTimeout(timer);
+                        if (this.tcpSocket) this.tcpSocket.removeListener('data', onData);
 
-                            this.replyId = replyId;
-                            resolve({ responseCode, sessionId, replyId, data: responseData, raw: msg });
-                        }
-                    } else if (incoming.length >= 8) {
-                        // Some TCP implementations reply without magic
-                        cleanup();
-                        const responseCode = incoming.readUInt16LE(0);
-                        const sessionId = incoming.readUInt16LE(4);
-                        const replyId = incoming.readUInt16LE(6);
-                        const responseData = incoming.slice(8);
+                        const zkResponse = incoming.slice(8, 8 + payloadLen);
+                        const responseCode = zkResponse.readUInt16LE(0);
+                        const sessionId = zkResponse.readUInt16LE(4);
+                        const replyId = zkResponse.readUInt16LE(6);
+                        const responseData = zkResponse.slice(8);
 
                         this.replyId = replyId;
-                        resolve({ responseCode, sessionId, replyId, data: responseData, raw: incoming });
+                        resolve({ responseCode, sessionId, replyId, data: responseData, raw: zkResponse });
                     }
+                } 
+                // Case 2: Raw 8-byte ZK Header over TCP (Older firmware)
+                else if (incoming.length >= 8 && !incoming.slice(0, 4).equals(ZK_TCP_MAGIC)) {
+                    clearTimeout(timer);
+                    if (this.tcpSocket) this.tcpSocket.removeListener('data', onData);
+
+                    const responseCode = incoming.readUInt16LE(0);
+                    const sessionId = incoming.readUInt16LE(4);
+                    const replyId = incoming.readUInt16LE(6);
+                    const responseData = incoming.slice(8);
+
+                    this.replyId = replyId;
+                    resolve({ responseCode, sessionId, replyId, data: responseData, raw: incoming });
                 }
             };
 
-            const cleanup = () => {
-                clearTimeout(timer);
-                if (this.tcpSocket) {
-                    this.tcpSocket.removeListener('data', onData);
-                    this.tcpSocket.removeListener('error', onError);
-                    this.tcpSocket.removeListener('close', onClose);
-                }
-            };
-
-            const onError = (err) => {
-                cleanup();
-                reject(err);
-            };
-
-            const onClose = () => {
-                cleanup();
-                reject(new Error('TCP connection closed unexpectedly'));
-            };
-
+            const cmdTimeout = Math.min(this.timeout, 3000);
             timer = setTimeout(() => {
-                cleanup();
-                reject(new Error(`TCP Command ${command} timed out after ${this.timeout}ms`));
-            }, this.timeout);
+                if (this.tcpSocket) this.tcpSocket.removeListener('data', onData);
+                reject(new Error(`TCP Command ${command} timed out after ${cmdTimeout}ms`));
+            }, cmdTimeout);
 
             this.tcpSocket.on('data', onData);
-            this.tcpSocket.on('error', onError);
-            this.tcpSocket.on('close', onClose);
-
             this.tcpSocket.write(fullFrame, (err) => {
                 if (err) {
-                    cleanup();
+                    clearTimeout(timer);
+                    if (this.tcpSocket) this.tcpSocket.removeListener('data', onData);
                     reject(err);
                 }
             });
@@ -254,22 +244,23 @@ class ZKTecoDevice {
      */
     sendCommand(command, data = Buffer.alloc(0)) {
         if (this.protocolMode === 'tcp') {
-            return this.sendTcpCommand(command, data);
+            return this.sendTcpCommand(command, data, this.useTcpMagic !== false);
         }
         return this.sendUdpCommand(command, data);
     }
 
     /**
-     * Attempt TCP Connection
+     * Attempt TCP Connection (Tries with Magic Header, then Raw TCP)
      */
     async connectTcp() {
         await this.disconnect();
         return new Promise((resolve, reject) => {
             const socket = new net.Socket();
+            const connectTimeout = Math.min(this.timeout, 2500);
             let timer = setTimeout(() => {
                 socket.destroy();
-                reject(new Error(`TCP connection to ${this.ip}:${this.port} timed out`));
-            }, Math.min(this.timeout, 3000));
+                reject(new Error(`TCP connection to ${this.ip}:${this.port} timed out after ${connectTimeout}ms`));
+            }, connectTimeout);
 
             socket.connect(this.port, this.ip, async () => {
                 clearTimeout(timer);
@@ -277,9 +268,18 @@ class ZKTecoDevice {
                 this.sessionId = 0;
                 this.replyId = 0;
                 this.protocolMode = 'tcp';
+                this.useTcpMagic = true;
 
                 try {
-                    const res = await this.sendTcpCommand(CMD_CONNECT);
+                    let res;
+                    try {
+                        res = await this.sendTcpCommand(CMD_CONNECT, Buffer.alloc(0), true);
+                    } catch (magicErr) {
+                        // Fallback to Raw TCP without magic header
+                        this.useTcpMagic = false;
+                        res = await this.sendTcpCommand(CMD_CONNECT, Buffer.alloc(0), false);
+                    }
+
                     if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA || res.responseCode === CMD_ACK_UNAUTH) {
                         this.sessionId = res.sessionId;
                         if (res.responseCode === CMD_ACK_UNAUTH || (this.commKey && this.commKey !== 0)) {
@@ -287,7 +287,7 @@ class ZKTecoDevice {
                                 throw new Error(`Terminal requires a Comm Key / Password (Code: 2005). Please edit the terminal in settings and enter its Comm Key.`);
                             }
                             const authBuf = makeCommKey(this.commKey, this.sessionId);
-                            const authRes = await this.sendTcpCommand(CMD_AUTH, authBuf);
+                            const authRes = await this.sendTcpCommand(CMD_AUTH, authBuf, this.useTcpMagic);
                             if (authRes.responseCode !== CMD_ACK_OK && authRes.responseCode !== CMD_ACK_DATA) {
                                 throw new Error(`Authentication failed (Code: ${authRes.responseCode}): Incorrect Comm Key / Password. Please check the terminal settings.`);
                             }
@@ -346,32 +346,41 @@ class ZKTecoDevice {
     }
 
     /**
-     * Dual-Mode Connect (Tries Preferred Protocol, then auto-falls back)
+     * Dual-Mode Connect (Tries Preferred Protocol, with automatic fallback)
      */
     async connect() {
         if (this.isConnected) return true;
 
-        if (this.preferredProtocol === 'tcp') {
-            return await this.connectTcp();
-        } else if (this.preferredProtocol === 'udp') {
-            return await this.connectUdp();
-        }
-
-        // Auto-detect mode: Try TCP first (modern terminals), then fall back to UDP
-        try {
-            return await this.connectTcp();
-        } catch (tcpErr) {
+        if (this.preferredProtocol === 'udp') {
             try {
                 return await this.connectUdp();
             } catch (udpErr) {
-                throw new Error(`Failed to connect over TCP (${tcpErr.message}) and UDP (${udpErr.message}). Check Port 4370 and firewall.`);
+                // Try TCP fallback if UDP fails
+                return await this.connectTcp();
+            }
+        }
+
+        if (this.preferredProtocol === 'tcp') {
+            try {
+                return await this.connectTcp();
+            } catch (tcpErr) {
+                // Try UDP fallback if TCP fails
+                return await this.connectUdp();
+            }
+        }
+
+        // Auto-detect mode: Try UDP first (most reliable for ZKTeco standalone), then TCP
+        try {
+            return await this.connectUdp();
+        } catch (udpErr) {
+            try {
+                return await this.connectTcp();
+            } catch (tcpErr) {
+                throw new Error(`Failed to connect over UDP (${udpErr.message}) and TCP (${tcpErr.message}). Check Port 4370 and Comm Key.`);
             }
         }
     }
 
-    /**
-     * Disconnect and release both TCP and UDP sockets
-     */
     async disconnect() {
         if (this.isConnected) {
             try {
