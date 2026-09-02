@@ -62,6 +62,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         deviceName: '',
         deviceModel: '',
         ipAddress: '',
+        port: 4370,
+        commKey: 0,
         locationDescription: '',
         protocol: 'adms' as 'adms' | 'pull' | 'biotime' | 'dahua' | 'dahua_cgi' | 'http_push',
     });
@@ -186,11 +188,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 device_model: deviceForm.deviceModel || null,
                 ip_address: deviceForm.ipAddress || null,
                 location_description: deviceForm.locationDescription || null,
+                port: deviceForm.port || 4370,
+                comm_key: deviceForm.commKey || 0,
                 protocol: deviceForm.protocol,
                 is_active: true,
             });
             setShowDeviceModal(false);
-            setDeviceForm({ serialNumber: '', deviceName: '', deviceModel: '', ipAddress: '', locationDescription: '', protocol: 'adms' });
+            setDeviceForm({ serialNumber: '', deviceName: '', deviceModel: '', ipAddress: '', port: 4370, commKey: 0, locationDescription: '', protocol: 'adms' });
             loadDevices();
         } catch (err: any) {
             alert('Failed to add device: ' + err.message);
@@ -1059,10 +1063,24 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                     </select>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">IP Address</label>
+                                    <input type="text" value={deviceForm.ipAddress} onChange={e => setDeviceForm(f => ({ ...f, ipAddress: e.target.value }))}
+                                        placeholder="192.168.1.201"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Port</label>
+                                    <input type="number" value={deviceForm.port} onChange={e => setDeviceForm(f => ({ ...f, port: Number(e.target.value) || 4370 }))}
+                                        placeholder="4370"
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+                                </div>
+                            </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">IP Address</label>
-                                <input type="text" value={deviceForm.ipAddress} onChange={e => setDeviceForm(f => ({ ...f, ipAddress: e.target.value }))}
-                                    placeholder="192.168.1.201"
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Comm Key / Password (Default: 0)</label>
+                                <input type="number" value={deviceForm.commKey} onChange={e => setDeviceForm(f => ({ ...f, commKey: Number(e.target.value) || 0 }))}
+                                    placeholder="0 (or device communication key)"
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div>

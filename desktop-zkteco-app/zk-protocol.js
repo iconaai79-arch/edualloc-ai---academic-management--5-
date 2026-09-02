@@ -36,11 +36,30 @@ const CMD_ATTLOG_RRQ = 13;
 const CMD_CLEAR_DATA = 14;
 const CMD_CLEAR_ATTLOG = 15;
 const CMD_GET_FREE_SIZES = 1011;
+const CMD_AUTH = 1102;
 const CMD_ACK_OK = 2000;
 const CMD_ACK_ERROR = 2001;
 const CMD_ACK_DATA = 2002;
 const CMD_PREPARE_DATA = 1500;
 const CMD_DATA = 1501;
+
+
+function makeCommKey(key, sessionId) {
+    key = Number(key) || 0;
+    let k = 0;
+    for (let i = 0; i < 32; i++) {
+        if ((key & (1 << i)) !== 0) {
+            k = ((k << 1) | 1) >>> 0;
+        } else {
+            k = (k << 1) >>> 0;
+        }
+    }
+    k = (k + sessionId) >>> 0;
+    const kXor = (k ^ 0x4F534B5A) >>> 0;
+    const buf = Buffer.alloc(4);
+    buf.writeUInt32LE(kXor, 0);
+    return buf;
+}
 
 // ZK TCP Magic Header: 0x50 0x50 0x82 0x7D ('PP\x82}')
 const ZK_TCP_MAGIC = Buffer.from([0x50, 0x50, 0x82, 0x7D]);
@@ -259,9 +278,16 @@ class ZKTecoDevice {
                 this.protocolMode = 'tcp';
 
                 try {
-                    const res = await this.sendTcpCommand(CMD_CONNECT);
+                                        const res = await this.sendTcpCommand(CMD_CONNECT);
                     if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
                         this.sessionId = res.sessionId;
+                        if (this.commKey && this.commKey !== 0) {
+                            const authBuf = makeCommKey(this.commKey, this.sessionId);
+                            const authRes = await this.sendTcpCommand(CMD_AUTH, authBuf);
+                            if (authRes.responseCode !== CMD_ACK_OK && authRes.responseCode !== CMD_ACK_DATA) {
+                                throw new Error(`Authentication failed: Incorrect Comm Key / Password (Code: ${authRes.responseCode})`);
+                            }
+                        }
                         this.isConnected = true;
                         resolve(true);
                     } else {
@@ -292,9 +318,16 @@ class ZKTecoDevice {
         this.protocolMode = 'udp';
 
         try {
-            const res = await this.sendUdpCommand(CMD_CONNECT);
+                        const res = await this.sendUdpCommand(CMD_CONNECT);
             if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
                 this.sessionId = res.sessionId;
+                if (this.commKey && this.commKey !== 0) {
+                    const authBuf = makeCommKey(this.commKey, this.sessionId);
+                    const authRes = await this.sendUdpCommand(CMD_AUTH, authBuf);
+                    if (authRes.responseCode !== CMD_ACK_OK && authRes.responseCode !== CMD_ACK_DATA) {
+                        throw new Error(`Authentication failed: Incorrect Comm Key / Password (Code: ${authRes.responseCode})`);
+                    }
+                }
                 this.isConnected = true;
                 return true;
             }
