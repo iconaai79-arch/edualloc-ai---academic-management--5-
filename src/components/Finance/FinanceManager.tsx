@@ -22181,7 +22181,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const openingBalForStmt = (rawOpeningBalForStmt < 0 && (stmtHasMatchingReceipt || allStudentReceipts.some((r: any) => isPurePrepaymentReceipt(r))))
                                     ? 0
                                     : rawOpeningBalForStmt;
-```
+
                                 const studentReceipts = allStudentReceipts;
                                 const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
                                 const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
