@@ -107,6 +107,8 @@ class CloudSyncService {
         } catch (e) {
             console.warn('[CloudSync] Storage save error:', e.message);
         }
+    }
+
     updateConfig(config = {}) {
         if (config.cloudUrl) this.cloudUrl = config.cloudUrl;
         if (config.institutionId) this.institutionId = config.institutionId;
