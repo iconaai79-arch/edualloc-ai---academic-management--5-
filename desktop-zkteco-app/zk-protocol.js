@@ -40,6 +40,7 @@ const CMD_AUTH = 1102;
 const CMD_ACK_OK = 2000;
 const CMD_ACK_ERROR = 2001;
 const CMD_ACK_DATA = 2002;
+const CMD_ACK_UNAUTH = 2005;
 const CMD_PREPARE_DATA = 1500;
 const CMD_DATA = 1501;
 
@@ -278,14 +279,17 @@ class ZKTecoDevice {
                 this.protocolMode = 'tcp';
 
                 try {
-                                        const res = await this.sendTcpCommand(CMD_CONNECT);
-                    if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
+                    const res = await this.sendTcpCommand(CMD_CONNECT);
+                    if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA || res.responseCode === CMD_ACK_UNAUTH) {
                         this.sessionId = res.sessionId;
-                        if (this.commKey && this.commKey !== 0) {
+                        if (res.responseCode === CMD_ACK_UNAUTH || (this.commKey && this.commKey !== 0)) {
+                            if (!this.commKey || this.commKey === 0) {
+                                throw new Error(`Terminal requires a Comm Key / Password (Code: 2005). Please edit the terminal in settings and enter its Comm Key.`);
+                            }
                             const authBuf = makeCommKey(this.commKey, this.sessionId);
                             const authRes = await this.sendTcpCommand(CMD_AUTH, authBuf);
                             if (authRes.responseCode !== CMD_ACK_OK && authRes.responseCode !== CMD_ACK_DATA) {
-                                throw new Error(`Authentication failed: Incorrect Comm Key / Password (Code: ${authRes.responseCode})`);
+                                throw new Error(`Authentication failed (Code: ${authRes.responseCode}): Incorrect Comm Key / Password. Please check the terminal settings.`);
                             }
                         }
                         this.isConnected = true;
@@ -318,14 +322,17 @@ class ZKTecoDevice {
         this.protocolMode = 'udp';
 
         try {
-                        const res = await this.sendUdpCommand(CMD_CONNECT);
-            if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA) {
+            const res = await this.sendUdpCommand(CMD_CONNECT);
+            if (res.responseCode === CMD_ACK_OK || res.responseCode === CMD_ACK_DATA || res.responseCode === CMD_ACK_UNAUTH) {
                 this.sessionId = res.sessionId;
-                if (this.commKey && this.commKey !== 0) {
+                if (res.responseCode === CMD_ACK_UNAUTH || (this.commKey && this.commKey !== 0)) {
+                    if (!this.commKey || this.commKey === 0) {
+                        throw new Error(`Terminal requires a Comm Key / Password (Code: 2005). Please edit the terminal in settings and enter its Comm Key.`);
+                    }
                     const authBuf = makeCommKey(this.commKey, this.sessionId);
                     const authRes = await this.sendUdpCommand(CMD_AUTH, authBuf);
                     if (authRes.responseCode !== CMD_ACK_OK && authRes.responseCode !== CMD_ACK_DATA) {
-                        throw new Error(`Authentication failed: Incorrect Comm Key / Password (Code: ${authRes.responseCode})`);
+                        throw new Error(`Authentication failed (Code: ${authRes.responseCode}): Incorrect Comm Key / Password. Please check the terminal settings.`);
                     }
                 }
                 this.isConnected = true;
