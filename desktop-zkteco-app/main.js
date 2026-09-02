@@ -223,6 +223,41 @@ ipcMain.handle('save-config', (_, newConfig) => {
     }
 });
 
+ipcMain.handle('save-device', (_, devData) => {
+    try {
+        if (!appConfig) appConfig = loadConfig();
+        if (!Array.isArray(appConfig.devices)) appConfig.devices = [];
+        
+        const id = devData.id || 'dev_' + Date.now();
+        const existingIdx = appConfig.devices.findIndex(d => String(d.id) === String(id));
+        if (existingIdx >= 0) {
+            appConfig.devices[existingIdx] = { ...devData, id };
+        } else {
+            appConfig.devices.push({ ...devData, id });
+        }
+        
+        saveConfig(appConfig);
+        return { success: true, devices: appConfig.devices };
+    } catch (err) {
+        console.error('Error saving device:', err);
+        return { success: false, message: err.message };
+    }
+});
+
+ipcMain.handle('delete-device', (_, devId) => {
+    try {
+        if (!appConfig) appConfig = loadConfig();
+        if (!Array.isArray(appConfig.devices)) appConfig.devices = [];
+        
+        appConfig.devices = appConfig.devices.filter(d => String(d.id) !== String(devId));
+        saveConfig(appConfig);
+        return { success: true, devices: appConfig.devices };
+    } catch (err) {
+        console.error('Error deleting device:', err);
+        return { success: false, message: err.message };
+    }
+});
+
 ipcMain.handle('test-connection', async (_, device) => {
     const zk = new ZKTecoDevice(device.ip, device.port || 4370, 3000);
     try {

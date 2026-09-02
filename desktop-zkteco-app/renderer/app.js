@@ -793,9 +793,33 @@ window.unlockDoor = async function(devId) {
 
 window.deleteDevice = async function(devId) {
     if (!confirm('Are you sure you want to remove this terminal configuration?')) return;
-    appConfig.devices = appConfig.devices.filter(d => d.id !== devId);
-    await window.zkApi.saveConfig(appConfig);
-    renderDeviceList();
+    try {
+        const devToDelete = appConfig?.devices?.find(d => String(d.id) === String(devId));
+        const devName = devToDelete?.name || devId;
+
+        if (window.zkApi && typeof window.zkApi.deleteDevice === 'function') {
+            const res = await window.zkApi.deleteDevice(devId);
+            if (res && res.success === false) {
+                throw new Error(res.message || 'Failed to remove device.');
+            }
+        } else if (window.zkApi && typeof window.zkApi.saveConfig === 'function') {
+            if (!appConfig) appConfig = { devices: [] };
+            appConfig.devices = (appConfig.devices || []).filter(d => String(d.id) !== String(devId));
+            await window.zkApi.saveConfig(appConfig);
+        }
+
+        if (window.zkApi && typeof window.zkApi.getConfig === 'function') {
+            appConfig = await window.zkApi.getConfig();
+        } else if (appConfig) {
+            appConfig.devices = (appConfig.devices || []).filter(d => String(d.id) !== String(devId));
+        }
+
+        renderDeviceList();
+        appendLog({ type: 'warn', message: `✓ Removed terminal "${devName}" from configuration.` });
+    } catch (err) {
+        console.error('Failed to delete device:', err);
+        alert(`Error removing terminal: ${err.message || err}`);
+    }
 };
 
 /* ═══════════ LIVE BIOMETRIC FINGERPRINT ENROLLMENT STUDIO ═══════════ */
@@ -1207,13 +1231,6 @@ function setupEventListeners() {
     document.getElementById('device-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
-            if (!appConfig) {
-                appConfig = (await window.zkApi?.getConfig()) || { devices: [] };
-            }
-            if (!Array.isArray(appConfig.devices)) {
-                appConfig.devices = [];
-            }
-
             const id = document.getElementById('dev-id').value || 'dev_' + Date.now();
             const devData = {
                 id,
@@ -1223,18 +1240,27 @@ function setupEventListeners() {
                 serialNumber: (document.getElementById('dev-sn').value || '').trim()
             };
 
-            const existingIdx = appConfig.devices.findIndex(d => d.id === id);
-            if (existingIdx >= 0) {
-                appConfig.devices[existingIdx] = devData;
-            } else {
-                appConfig.devices.push(devData);
-            }
-
-            if (window.zkApi && typeof window.zkApi.saveConfig === 'function') {
-                const res = await window.zkApi.saveConfig(appConfig);
+            if (window.zkApi && typeof window.zkApi.saveDevice === 'function') {
+                const res = await window.zkApi.saveDevice(devData);
                 if (res && res.success === false) {
                     throw new Error(res.message || 'Save failed in backend service.');
                 }
+            } else {
+                if (!appConfig) appConfig = { devices: [] };
+                if (!Array.isArray(appConfig.devices)) appConfig.devices = [];
+                const existingIdx = appConfig.devices.findIndex(d => String(d.id) === String(id));
+                if (existingIdx >= 0) {
+                    appConfig.devices[existingIdx] = devData;
+                } else {
+                    appConfig.devices.push(devData);
+                }
+                if (window.zkApi && typeof window.zkApi.saveConfig === 'function') {
+                    await window.zkApi.saveConfig(appConfig);
+                }
+            }
+
+            if (window.zkApi && typeof window.zkApi.getConfig === 'function') {
+                appConfig = await window.zkApi.getConfig();
             }
 
             document.getElementById('device-modal').style.display = 'none';

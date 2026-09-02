@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('zkApi', {
     startAutoSync: (intervalSec) => ipcRenderer.invoke('start-auto-sync', intervalSec),
     stopAutoSync: () => ipcRenderer.invoke('stop-auto-sync'),
     getRecentPunches: () => ipcRenderer.invoke('get-recent-punches'),
+    saveDevice: (device) => ipcRenderer.invoke('save-device', device),
+    deleteDevice: (id) => ipcRenderer.invoke('delete-device', id),
     
     // Employee APIs
     getEmployees: () => ipcRenderer.invoke('get-employees'),
