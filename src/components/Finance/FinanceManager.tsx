@@ -7616,12 +7616,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     s.name,
                                     s.className || studentClassGroup(s),
                                     getStudentStream(s) || '—',
+                                    s.totals.openingBalance || 0,
                                     s.totals.invoiced,
                                     s.totals.paid,
                                     s.totals.balance,
                                     s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
                                 ]);
-                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Stream', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Stream', 'Arrears / Prepayment', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
                             }}
                             className="py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
                         >
@@ -7645,6 +7646,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         name: s.name,
                                         adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
                                         cls: s.className || studentClassGroup(s) || '—',
+                                        arrears: s.totals?.openingBalance || 0,
                                         inv: s.totals?.invoiced || 0,
                                         pd: s.totals?.paid || 0,
                                         bal: s.totals?.balance || 0
@@ -7674,6 +7676,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         name: s.name,
                                         adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
                                         cls: s.className || studentClassGroup(s) || '—',
+                                        arrears: s.totals?.openingBalance || 0,
                                         inv: s.totals?.invoiced || 0,
                                         pd: s.totals?.paid || 0,
                                         bal: s.totals?.balance || 0
@@ -7737,12 +7740,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     s.name,
                                     s.className || studentClassGroup(s),
                                     getStudentStream(s) || '—',
+                                    s.totals.openingBalance || 0,
                                     s.totals.invoiced,
                                     s.totals.paid,
                                     s.totals.balance,
                                     s.totals.prepayment > 0 ? 'Prepaid' : s.totals.balance <= 0 ? 'Fully Paid' : s.totals.paid > 0 ? 'Partial' : 'No Payment'
                                 ]);
-                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Stream', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
+                                exportCSV('fee_balances_registry', ['Adm No', 'Student Name', 'Class', 'Stream', 'Arrears / Prepayment', 'Invoiced Amount', 'Paid Amount', 'Outstanding Balance', 'Payment Status'], exportData);
                             }}
                             className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
                         >
@@ -7766,6 +7770,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         name: s.name,
                                         adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
                                         cls: s.className || studentClassGroup(s) || '—',
+                                        arrears: s.totals?.openingBalance || 0,
                                         inv: s.totals?.invoiced || 0,
                                         pd: s.totals?.paid || 0,
                                         bal: s.totals?.balance || 0
@@ -7795,6 +7800,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         name: s.name,
                                         adm: s.admissionNumber || studentAdmissionNumber(s) || '—',
                                         cls: s.className || studentClassGroup(s) || '—',
+                                        arrears: s.totals?.openingBalance || 0,
                                         inv: s.totals?.invoiced || 0,
                                         pd: s.totals?.paid || 0,
                                         bal: s.totals?.balance || 0
@@ -7929,6 +7935,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 ) : (
                     Object.entries(groupedStudents).map(([className, classData]) => {
+                        const totalOpening = classData.reduce((acc, s) => acc + (s.totals.openingBalance || 0), 0);
                         const totalInvoiced = classData.reduce((acc, s) => acc + s.totals.invoiced, 0);
                         const totalPaid = classData.reduce((acc, s) => acc + s.totals.paid, 0);
                         const totalBal = classData.reduce((acc, s) => acc + s.totals.balance, 0);
@@ -7942,6 +7949,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold">{classData.length} Students enrolled</p>
                                     </div>
                                     <div className="flex gap-6">
+                                        <div>
+                                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Arrears / Prepay</span>
+                                            <span className={`text-xs font-black ${totalOpening > 0 ? 'text-amber-600 dark:text-amber-400' : totalOpening < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>
+                                                {totalOpening > 0 ? `KSh ${totalOpening.toLocaleString()}` : totalOpening < 0 ? `-KSh ${Math.abs(totalOpening).toLocaleString()}` : 'KSh 0'}
+                                            </span>
+                                        </div>
                                         <div>
                                             <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Invoiced</span>
                                             <span className="text-xs font-black text-slate-700 dark:text-slate-300">KSh {totalInvoiced.toLocaleString()}</span>
@@ -7965,6 +7978,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <th className="px-8 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Last Updated</th>
+                                                <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Arrears / Prepayment</th>
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Invoiced</th>
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Paid</th>
                                                 <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</th>
@@ -8039,6 +8053,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
+                                                        {student.totals.openingBalance > 0 ? (
+                                                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400" title="Brought forward fee arrears">
+                                                                KSh {student.totals.openingBalance.toLocaleString()}
+                                                            </span>
+                                                        ) : student.totals.openingBalance < 0 ? (
+                                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400" title="Brought forward prepayment / credit">
+                                                                -KSh {Math.abs(student.totals.openingBalance).toLocaleString()}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                                                                —
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
                                                         <span className="text-xs font-bold text-slate-800 dark:text-slate-200">KSh {student.totals.invoiced.toLocaleString()}</span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
@@ -8074,11 +8103,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    setBalPreviewStudentId(prev => prev === student.id ? '' : student.id);
-                                                                    setBalPreviewViewMode('preview');
+                                                                    setBalPreviewStudentId(student.id);
+                                                                    setBalPreviewViewMode('table');
                                                                 }}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm cursor-pointer"
-                                                                title="View & Print Student Statement of Account"
+                                                                title="View & Edit Student Ledger (Table Mode)"
                                                             >
                                                                 <PrinterIcon className="w-3.5 h-3.5" />
                                                                 Statement
@@ -8086,37 +8115,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    setPdfPreviewModal({
-                                                                        title: `OFFICIAL FEE BALANCE STATEMENT`,
-                                                                        subtitle: props.institution.name,
-                                                                        studentName: student.name,
-                                                                        admNo: student.admissionNumber || studentAdmissionNumber(student) || '—',
-                                                                        className: `${student.className || studentClassGroup(student)}${getStudentStream(student) ? ` (${getStudentStream(student)})` : ''}`,
-                                                                        invoiced: student.totals.invoiced,
-                                                                        paid: student.totals.paid,
-                                                                        balance: student.totals.balance,
-                                                                        items: [
-                                                                            {
-                                                                                name: 'Opening Balance Arrears',
-                                                                                adm: student.admissionNumber || studentAdmissionNumber(student) || '—',
-                                                                                cls: student.className || studentClassGroup(student) || '—',
-                                                                                inv: student.openingBalance || 0,
-                                                                                pd: 0,
-                                                                                bal: student.openingBalance || 0
-                                                                            },
-                                                                            {
-                                                                                name: 'Current Term Invoiced Fees',
-                                                                                adm: student.admissionNumber || studentAdmissionNumber(student) || '—',
-                                                                                cls: student.className || studentClassGroup(student) || '—',
-                                                                                inv: Math.max(0, student.totals.invoiced - (student.openingBalance || 0)),
-                                                                                pd: student.totals.paid,
-                                                                                bal: student.totals.balance
-                                                                            }
-                                                                        ]
-                                                                    });
+                                                                    setBalPreviewStudentId(student.id);
+                                                                    setBalPreviewViewMode('preview');
                                                                 }}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-900/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-rose-200 dark:border-rose-800/40 shadow-xs active:scale-95 hover:shadow-sm cursor-pointer"
-                                                                title="Open On-Screen PDF Balance Statement Preview"
+                                                                title="Open Official On-Screen PDF Statement Preview with Transactions & Stamp"
                                                             >
                                                                 <EyeIcon className="w-3.5 h-3.5" />
                                                                 PDF Preview
@@ -8331,7 +8334,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             balPrevRunning += amt;
                             return {
                                 date: formattedDate,
-                                description: 'Opening Balance Brought Forward (Arrears)',
+                                reference: 'B/F',
+                                description: 'Opening Balance Brought Forward (Fee Arrears)',
                                 debit: amt,
                                 credit: 0,
                                 balance: balPrevRunning,
@@ -8342,7 +8346,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             balPrevRunning -= creditAmt;
                             return {
                                 date: formattedDate,
-                                description: 'Opening Balance Brought Forward (Prepayment / Credit)',
+                                reference: 'B/F',
+                                description: 'Opening Balance Brought Forward (Prepayment Credit)',
                                 debit: 0,
                                 credit: creditAmt,
                                 balance: balPrevRunning,
@@ -8352,12 +8357,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     } else if (entry.eType === 'invoice') {
                         const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
                         balPrevRunning += invAmt;
-                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} — ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: balPrevRunning, eType: 'invoice' as const };
+                        const invNum = entry.data.invoiceNumber || (entry.data as any).invoice_number || (entry.data as any).id?.slice(-8) || 'INV';
+                        const invTitle = entry.data.title || entry.data.description || 'School Fees Assessment';
+                        return { 
+                            date: formattedDate, 
+                            reference: invNum,
+                            description: invTitle, 
+                            debit: invAmt, 
+                            credit: 0, 
+                            balance: balPrevRunning, 
+                            eType: 'invoice' as const 
+                        };
                     } else {
                         const paidAmt = parseMoneyAmount(entry.data.amountPaid || (entry.data as any).amount_paid || (entry.data as any).amount || 0);
                         balPrevRunning -= paidAmt;
+                        const rcptNum = entry.data.receiptNumber || (entry.data as any).receipt_number || (entry.data as any).id?.slice(-8) || 'RCPT';
                         const mode = entry.data.excelPaymentMode || entry.data.paymentMethod || (entry.data as any).payment_method || entry.data.method || 'Payment';
-                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: balPrevRunning, eType: 'payment' as const };
+                        const txRef = entry.data.relatedTransactionId || (entry.data as any).related_transaction_id || entry.data.transactionId || '';
+                        const desc = `Fee Payment · ${mode}${txRef ? ` (Ref: ${txRef})` : ''}`;
+                        return { 
+                            date: formattedDate, 
+                            reference: rcptNum,
+                            description: desc, 
+                            debit: 0, 
+                            credit: paidAmt, 
+                            balance: balPrevRunning, 
+                            eType: 'payment' as const 
+                        };
                     }
                 });
 
@@ -8454,7 +8480,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <button type="button" disabled={isGeneratingStmtPdf} onClick={handleBalPrevDownloadPdf} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-md disabled:opacity-50">
                                         {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
                                     </button>
-                                    <button type="button" onClick={() => { exportCSV(`statement_${balPrevStudent!.name.replace(/\s+/g, '_')}`, ['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'], balPrevLedger.map(e => [e.date, e.description, e.debit, e.credit, e.balance])); }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95">📥 CSV</button>
+                                    <button type="button" onClick={() => { exportCSV(`statement_${balPrevStudent!.name.replace(/\s+/g, '_')}`, ['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'], balPrevLedger.map(e => [e.date, (e as any).reference || '—', e.description, e.debit, e.credit, e.balance])); }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95">📥 CSV</button>
                                     <button type="button" onClick={() => setBalPreviewStudentId('')} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">✕ Close</button>
                                 </div>
                             </div>
@@ -8498,13 +8524,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 <table className="w-full text-left text-xs">
                                                     <thead>
                                                         <tr className="border-b-2 border-slate-200 dark:border-slate-700">
-                                                            {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance','Action'].map(h=><th key={h} className="py-2.5 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>)}
+                                                            {['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance', 'Action'].map(h => (
+                                                                <th key={h} className="py-2.5 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>
+                                                            ))}
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {balPrevLedger.map((entry, i) => (
                                                             <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
-                                                                <td className="py-2 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
+                                                                <td className="py-2 px-3 text-slate-500 whitespace-nowrap font-mono text-[10px]">{entry.date}</td>
+                                                                <td className="py-2 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap text-[10px]">{(entry as any).reference || '—'}</td>
                                                                 <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
                                                                 <td className="py-2 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
                                                                 <td className="py-2 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
@@ -8546,7 +8575,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </tr>
                                                         ))}
                                                         <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
-                                                            <td className="py-2.5 px-3" /><td className="py-2.5 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
+                                                            <td className="py-2.5 px-3" />
+                                                            <td className="py-2.5 px-3" />
+                                                            <td className="py-2.5 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
                                                             <td className="py-2.5 px-3 text-slate-900 dark:text-white">KSh {balPrevTotalInvoiced.toLocaleString()}</td>
                                                             <td className="py-2.5 px-3 text-emerald-600">KSh {balPrevTotalPaid.toLocaleString()}</td>
                                                             <td className={`py-2.5 px-3 ${balPrevBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balPrevBalance).toLocaleString()} <span className="text-[10px] opacity-70">{balPrevBalance > 0 ? 'Dr' : 'Cr'}</span></td>
@@ -8653,13 +8684,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
                                                 <thead>
                                                     <tr className="bg-indigo-600 text-white">
-                                                        {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=><th key={h} className="py-2 px-3 font-black uppercase tracking-widest text-[9px]">{h}</th>)}
+                                                        {['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'].map(h => (
+                                                            <th key={h} className="py-2 px-3 font-black uppercase tracking-widest text-[9px]">{h}</th>
+                                                        ))}
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {balPrevLedger.map((entry, i) => (
                                                         <tr key={i} className={`border-b border-slate-100 ${entry.eType === 'payment' ? 'bg-emerald-50/60' : i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
                                                             <td className="py-2 px-3 text-slate-500 whitespace-nowrap font-mono text-[10px]">{entry.date}</td>
+                                                            <td className="py-2 px-3 font-mono font-bold text-slate-700 whitespace-nowrap text-[10px]">{(entry as any).reference || '—'}</td>
                                                             <td className="py-2 px-3 font-medium text-slate-800 text-[11px]">{entry.description}</td>
                                                             <td className="py-2 px-3 font-black text-slate-700 text-[11px]">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
                                                             <td className="py-2 px-3 font-black text-emerald-600 text-[11px]">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
@@ -8667,7 +8701,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </tr>
                                                     ))}
                                                     <tr className="bg-indigo-50 border-t-2 border-indigo-300 font-black text-xs">
-                                                        <td className="py-2 px-3" /><td className="py-2 px-3 text-indigo-700 uppercase tracking-widest text-[9px]">TOTALS</td>
+                                                        <td className="py-2 px-3" />
+                                                        <td className="py-2 px-3" />
+                                                        <td className="py-2 px-3 text-indigo-700 uppercase tracking-widest text-[9px]">TOTALS</td>
                                                         <td className="py-2 px-3 text-slate-800 text-[11px]">KSh {balPrevTotalInvoiced.toLocaleString()}</td>
                                                         <td className="py-2 px-3 text-emerald-700 text-[11px]">KSh {balPrevTotalPaid.toLocaleString()}</td>
                                                         <td className={`py-2 px-3 text-[11px] ${balPrevBalance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>KSh {Math.abs(balPrevBalance).toLocaleString()} <span className="text-[9px] opacity-70">{balPrevBalance > 0 ? 'Dr' : 'Cr'}</span></td>
@@ -18949,7 +18985,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <option value={100000}>All ({totalItems})</option>
                                                             </select>
                                                             <button
-                                                                onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.invoiced, s.totals.paid, s.totals.balance]))}
+                                                                onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Arrears / Prepayment', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.openingBalance || 0, s.totals.invoiced, s.totals.paid, s.totals.balance]))}
                                                                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                                                             >
                                                                 📥 CSV Export
@@ -18968,6 +19004,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         name: s.name,
                                                                         adm: s.admissionNumber || '—',
                                                                         cls: s.className || studentClassGroup(s),
+                                                                        arrears: s.totals?.openingBalance || 0,
                                                                         inv: s.totals.invoiced,
                                                                         pd: s.totals.paid,
                                                                         bal: s.totals.balance
@@ -18992,6 +19029,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             name: s.name,
                                                                             adm: s.admissionNumber || '—',
                                                                             cls: s.className || studentClassGroup(s),
+                                                                            arrears: s.totals?.openingBalance || 0,
                                                                             inv: s.totals.invoiced,
                                                                             pd: s.totals.paid,
                                                                             bal: s.totals.balance
@@ -19008,7 +19046,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                     <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Invoiced', 'Paid', 'Balance Owed'].map(h => TH(h))}</tr></thead>
+                                                            <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Arrears / Prepay', 'Invoiced', 'Paid', 'Balance Owed'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
                                                                 {paginatedList.map((s: any, idx: number) => {
                                                                     const itemIndex = startIndex + idx + 1;
@@ -19027,6 +19065,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             </TD>
                                                                             <TD cls={`font-mono font-bold ${themeMode === 'futuristic' ? 'text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{s.admissionNumber}</TD>
                                                                             <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>{s.className || studentClassGroup(s)}</TD>
+                                                                            <TD cls="font-bold text-right text-slate-700 dark:text-slate-300">
+                                                                                {(s.totals?.openingBalance || 0) > 0 ? (
+                                                                                    <span className="text-amber-600 dark:text-amber-400 font-black">KSh {(s.totals.openingBalance).toLocaleString()}</span>
+                                                                                ) : (s.totals?.openingBalance || 0) < 0 ? (
+                                                                                    <span className="text-emerald-600 dark:text-emerald-400 font-black">-KSh {Math.abs(s.totals.openingBalance).toLocaleString()}</span>
+                                                                                ) : (
+                                                                                    <span className="text-slate-400 font-normal">—</span>
+                                                                                )}
+                                                                            </TD>
                                                                             <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
                                                                             <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
                                                                             <TD cls="font-black text-rose-600 dark:text-rose-400">
@@ -19038,7 +19085,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     );
                                                                 })}
                                                                 {paginatedList.length === 0 && (
-                                                                    <tr><td colSpan={7} className="py-8 text-center text-slate-400 font-medium text-xs">No outstanding balances found matching filter criteria.</td></tr>
+                                                                    <tr><td colSpan={8} className="py-8 text-center text-slate-400 font-medium text-xs">No outstanding balances found matching filter criteria.</td></tr>
                                                                 )}
                                                             </tbody>
                                                         </table>
@@ -22134,7 +22181,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const openingBalForStmt = (rawOpeningBalForStmt < 0 && (stmtHasMatchingReceipt || allStudentReceipts.some((r: any) => isPurePrepaymentReceipt(r))))
                                     ? 0
                                     : rawOpeningBalForStmt;
-
+```
                                 const studentReceipts = allStudentReceipts;
                                 const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
                                 const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
@@ -22161,7 +22208,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             running += amt;
                                             return {
                                                 date: formattedDate,
-                                                description: 'Opening Balance Brought Forward (Arrears)',
+                                                reference: 'B/F',
+                                                description: 'Opening Balance Brought Forward (Fee Arrears)',
                                                 debit: amt,
                                                 credit: 0,
                                                 balance: running,
@@ -22172,7 +22220,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             running -= creditAmt;
                                             return {
                                                 date: formattedDate,
-                                                description: 'Opening Balance Brought Forward (Prepayment / Credit)',
+                                                reference: 'B/F',
+                                                description: 'Opening Balance Brought Forward (Prepayment Credit)',
                                                 debit: 0,
                                                 credit: creditAmt,
                                                 balance: running,
@@ -22182,12 +22231,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     } else if (entry.eType === 'invoice') {
                                         const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
                                         running += invAmt;
-                                        return { date: formattedDate, description: `Invoice ${entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8)} — ${entry.data.title || entry.data.description || 'School Fees'}`, debit: invAmt, credit: 0, balance: running, eType: 'invoice' as const };
+                                        const invNum = entry.data.invoiceNumber || (entry.data as any).invoice_number || entry.data.id?.slice(-8) || 'INV';
+                                        const invTitle = entry.data.title || entry.data.description || 'School Fees Assessment';
+                                        return { 
+                                            date: formattedDate, 
+                                            reference: invNum,
+                                            description: invTitle, 
+                                            debit: invAmt, 
+                                            credit: 0, 
+                                            balance: running, 
+                                            eType: 'invoice' as const 
+                                        };
                                     } else {
                                         const paidAmt = parseMoneyAmount(entry.data.amountPaid || (entry.data as any).amount_paid || (entry.data as any).amount || 0);
                                         running -= paidAmt;
+                                        const rcptNum = entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8) || 'RCPT';
                                         const mode = entry.data.excelPaymentMode || entry.data.paymentMethod || (entry.data as any).payment_method || entry.data.method || 'Payment';
-                                        return { date: formattedDate, description: `Payment Rcpt ${entry.data.receiptNumber || (entry.data as any).receipt_number || entry.data.id?.slice(-8)} · ${mode}`, debit: 0, credit: paidAmt, balance: running, eType: 'payment' as const };
+                                        const txRef = entry.data.relatedTransactionId || (entry.data as any).related_transaction_id || entry.data.transactionId || '';
+                                        const desc = `Fee Payment · ${mode}${txRef ? ` (Ref: ${txRef})` : ''}`;
+                                        return { 
+                                            date: formattedDate, 
+                                            reference: rcptNum,
+                                            description: desc, 
+                                            debit: 0, 
+                                            credit: paidAmt, 
+                                            balance: running, 
+                                            eType: 'payment' as const 
+                                        };
                                     }
                                 });
 
@@ -22328,7 +22398,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             onClick={handleOpenPdfModal}
                                                             className="px-3.5 py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                                                         >
-                                                            👥 PDF Viewer Modal
+                                                            👥 PDF Viewer
                                                         </button>
                                                         <button
                                                             type="button"
@@ -22341,9 +22411,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <button
                                                             type="button"
                                                             onClick={() => {
-                                                                const headers = ['Date', 'Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'];
-                                                                const rows = ledger.map(e => [e.date, e.description, e.debit, e.credit, e.balance]);
-                                                                exportCSV(`statement_${selectedStudent.name.replace(/\s+/g, '_')}`, headers, rows);
+                                                                exportCSV(
+                                                                    `statement_${selectedStudent.name.replace(/\s+/g, '_')}`,
+                                                                    ['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'],
+                                                                    ledger.map(e => [e.date, (e as any).reference || '—', e.description, e.debit, e.credit, e.balance])
+                                                                );
                                                             }}
                                                             className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                                                         >
@@ -22398,13 +22470,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <table className="w-full text-left text-xs">
                                                                         <thead>
                                                                             <tr className="border-b-2 border-slate-200 dark:border-slate-700">
-                                                                                {['Date','Description','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=>(<th key={h} className="py-3 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>))}
+                                                                                {['Date','Reference','Particulars','Charges (Dr)','Payments (Cr)','Running Balance'].map(h=>(<th key={h} className="py-3 px-3 font-black text-slate-500 uppercase tracking-widest text-[10px]">{h}</th>))}
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody>
                                                                             {ledger.map((entry, i) => (
                                                                                 <tr key={i} className={`border-b border-slate-50 dark:border-slate-800/50 ${entry.eType === 'payment' ? 'bg-emerald-50/40 dark:bg-emerald-900/10' : ''}`}>
                                                                                     <td className="py-3 px-3 text-slate-500 whitespace-nowrap">{entry.date}</td>
+                                                                                    <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300 font-bold">{(entry as any).reference || '—'}</td>
                                                                                     <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{entry.description}</td>
                                                                                     <td className="py-3 px-3 font-black text-slate-700 dark:text-slate-300">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
                                                                                     <td className="py-3 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
@@ -22412,7 +22485,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 </tr>
                                                                             ))}
                                                                             <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
-                                                                                <td className="py-3 px-3" /><td className="py-3 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
+                                                                                <td className="py-3 px-3" /><td className="py-3 px-3" /><td className="py-3 px-3 text-[10px] uppercase tracking-widest text-slate-700 dark:text-white">TOTALS</td>
                                                                                 <td className="py-3 px-3 text-slate-900 dark:text-white">KSh {totalInvoiced.toLocaleString()}</td>
                                                                                 <td className="py-3 px-3 text-emerald-600">KSh {totalPaid.toLocaleString()}</td>
                                                                                 <td className={`py-3 px-3 ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balance).toLocaleString()} <span className="text-[10px] opacity-70">{balance > 0 ? 'Dr' : 'Cr'}</span></td>
@@ -22531,6 +22604,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <thead>
                                                                         <tr className="bg-indigo-600 text-white">
                                                                             <th className="py-2 px-3 font-black text-[9px] uppercase tracking-wider">Date</th>
+                                                                            <th className="py-2 px-3 font-black text-[9px] uppercase tracking-wider">Reference</th>
                                                                             <th className="py-2 px-3 font-black text-[9px] uppercase tracking-wider">Particulars / Description</th>
                                                                             <th className="py-2 px-3 font-black text-[9px] uppercase tracking-wider text-right">Debit (KSh)</th>
                                                                             <th className="py-2 px-3 font-black text-[9px] uppercase tracking-wider text-right">Credit (KSh)</th>
@@ -22541,6 +22615,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         {ledger.map((entry, idx) => (
                                                                             <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
                                                                                 <td className="py-2 px-3 text-slate-500 font-semibold text-[10px]">{entry.date}</td>
+                                                                                <td className="py-2 px-3 font-mono font-bold text-slate-700 whitespace-nowrap text-[10px]">{(entry as any).reference || '—'}</td>
                                                                                 <td className="py-2 px-3 font-semibold text-slate-800 text-[11px]">{entry.description}</td>
                                                                                 <td className="py-2 px-3 text-right font-bold text-slate-900 text-[11px]">{entry.debit > 0 ? entry.debit.toLocaleString() : '—'}</td>
                                                                                 <td className="py-2 px-3 text-right font-bold text-emerald-600 text-[11px]">{entry.credit > 0 ? entry.credit.toLocaleString() : '—'}</td>
@@ -22548,6 +22623,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             </tr>
                                                                         ))}
                                                                         <tr className="bg-slate-100 font-black border-t-2 border-slate-300">
+                                                                            <td className="py-2 px-3" />
                                                                             <td className="py-2 px-3" />
                                                                             <td className="py-2 px-3 text-[9px] uppercase tracking-widest text-slate-700">ACCOUNT TOTALS</td>
                                                                             <td className="py-2 px-3 text-right text-slate-900 text-[11px]">KSh {totalInvoiced.toLocaleString()}</td>
@@ -23185,40 +23261,56 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             )}
 
                                             {/* Items Table for this page */}
-                                            {page.items && page.items.length > 0 && (
-                                                <div className="mb-4 overflow-x-auto">
-                                                    <table className="w-full text-left text-xs border-collapse">
-                                                        <thead>
-                                                            <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
-                                                                <th className="py-2 px-2">#</th>
-                                                                <th className="py-2 px-2">Student Name</th>
-                                                                <th className="py-2 px-2">Adm No</th>
-                                                                <th className="py-2 px-2">Class</th>
-                                                                <th className="py-2 px-2 text-right">Invoiced</th>
-                                                                <th className="py-2 px-2 text-right">Paid</th>
-                                                                <th className="py-2 px-2 text-right">Balance</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-200 text-[11px]">
-                                                            {page.items.map((it: any, idx: number) => {
-                                                                const globalIdx = rawItems.indexOf(it);
-                                                                const displayIdx = globalIdx >= 0 ? globalIdx + 1 : idx + 1;
-                                                                return (
-                                                                    <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/60">
-                                                                        <td className="py-1.5 px-2 font-mono text-slate-400">{displayIdx}</td>
-                                                                        <td className="py-1.5 px-2 font-bold text-slate-900">{it.name}</td>
-                                                                        <td className="py-1.5 px-2 font-mono text-slate-600">{it.adm}</td>
-                                                                        <td className="py-1.5 px-2 font-medium text-slate-700">{it.cls}</td>
-                                                                        <td className="py-1.5 px-2 text-right font-bold">KSh {Number(it.inv || 0).toLocaleString()}</td>
-                                                                        <td className="py-1.5 px-2 text-right font-bold text-emerald-700">KSh {Number(it.pd || 0).toLocaleString()}</td>
-                                                                        <td className="py-1.5 px-2 text-right font-bold text-rose-700">KSh {Number(it.bal || 0).toLocaleString()}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
+                                            {page.items && page.items.length > 0 && (() => {
+                                                const hasArrearsCol = page.items.some((it: any) => it.arrears !== undefined);
+                                                return (
+                                                    <div className="mb-4 overflow-x-auto">
+                                                        <table className="w-full text-left text-xs border-collapse">
+                                                            <thead>
+                                                                <tr className="border-b-2 border-slate-900 text-[10px] font-black uppercase tracking-wider text-slate-700 bg-slate-50">
+                                                                    <th className="py-2 px-2">#</th>
+                                                                    <th className="py-2 px-2">Student Name</th>
+                                                                    <th className="py-2 px-2">Adm No</th>
+                                                                    <th className="py-2 px-2">Class</th>
+                                                                    {hasArrearsCol && <th className="py-2 px-2 text-right">Arrears / Prepay</th>}
+                                                                    <th className="py-2 px-2 text-right">Invoiced</th>
+                                                                    <th className="py-2 px-2 text-right">Paid</th>
+                                                                    <th className="py-2 px-2 text-right">Balance</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-200 text-[11px]">
+                                                                {page.items.map((it: any, idx: number) => {
+                                                                    const globalIdx = rawItems.indexOf(it);
+                                                                    const displayIdx = globalIdx >= 0 ? globalIdx + 1 : idx + 1;
+                                                                    const arrVal = Number(it.arrears || 0);
+                                                                    return (
+                                                                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/60">
+                                                                            <td className="py-1.5 px-2 font-mono text-slate-400">{displayIdx}</td>
+                                                                            <td className="py-1.5 px-2 font-bold text-slate-900">{it.name}</td>
+                                                                            <td className="py-1.5 px-2 font-mono text-slate-600">{it.adm}</td>
+                                                                            <td className="py-1.5 px-2 font-medium text-slate-700">{it.cls}</td>
+                                                                            {hasArrearsCol && (
+                                                                                <td className="py-1.5 px-2 text-right font-bold">
+                                                                                    {arrVal > 0 ? (
+                                                                                        <span className="text-amber-700">KSh {arrVal.toLocaleString()}</span>
+                                                                                    ) : arrVal < 0 ? (
+                                                                                        <span className="text-emerald-700">-KSh {Math.abs(arrVal).toLocaleString()}</span>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-400 font-normal">—</span>
+                                                                                    )}
+                                                                                </td>
+                                                                            )}
+                                                                            <td className="py-1.5 px-2 text-right font-bold">KSh {Number(it.inv || 0).toLocaleString()}</td>
+                                                                            <td className="py-1.5 px-2 text-right font-bold text-emerald-700">KSh {Number(it.pd || 0).toLocaleString()}</td>
+                                                                            <td className="py-1.5 px-2 text-right font-bold text-rose-700">KSh {Number(it.bal || 0).toLocaleString()}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                );
+                                            })()}
 
                                             {/* Final Page Summary Totals & Official Verification */}
                                             {page.isLast && (
@@ -23322,25 +23414,54 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 let currentY = 52;
 
                                                 if (pdfPreviewModal.items && pdfPreviewModal.items.length > 0) {
-                                                    const head = [['#', 'Student Name', 'Adm No', 'Class', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']];
-                                                    const body = pdfPreviewModal.items.map((it: any, idx: number) => [
-                                                        idx + 1,
-                                                        it.name,
-                                                        it.adm,
-                                                        it.cls,
-                                                        Number(it.inv || 0).toLocaleString(),
-                                                        Number(it.pd || 0).toLocaleString(),
-                                                        Number(it.bal || 0).toLocaleString()
-                                                    ]);
+                                                    const hasArrearsCol = pdfPreviewModal.items.some((it: any) => it.arrears !== undefined);
+                                                    const head = hasArrearsCol
+                                                        ? [['#', 'Student Name', 'Adm No', 'Class', 'Arrears / Prepay (KSh)', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']]
+                                                        : [['#', 'Student Name', 'Adm No', 'Class', 'Invoiced (KSh)', 'Paid (KSh)', 'Balance (KSh)']];
+                                                    
+                                                    const body = pdfPreviewModal.items.map((it: any, idx: number) => {
+                                                        if (hasArrearsCol) {
+                                                            const arrVal = Number(it.arrears || 0);
+                                                            const arrStr = arrVal > 0 ? Number(arrVal).toLocaleString() : arrVal < 0 ? `-${Math.abs(arrVal).toLocaleString()}` : '—';
+                                                            return [
+                                                                idx + 1,
+                                                                it.name,
+                                                                it.adm,
+                                                                it.cls,
+                                                                arrStr,
+                                                                Number(it.inv || 0).toLocaleString(),
+                                                                Number(it.pd || 0).toLocaleString(),
+                                                                Number(it.bal || 0).toLocaleString()
+                                                            ];
+                                                        }
+                                                        return [
+                                                            idx + 1,
+                                                            it.name,
+                                                            it.adm,
+                                                            it.cls,
+                                                            Number(it.inv || 0).toLocaleString(),
+                                                            Number(it.pd || 0).toLocaleString(),
+                                                            Number(it.bal || 0).toLocaleString()
+                                                        ];
+                                                    });
 
                                                     autoTable(doc, {
                                                         head,
                                                         body,
                                                         startY: 50,
                                                         theme: 'grid',
-                                                        styles: { fontSize: 8, cellPadding: 2 },
+                                                        styles: { fontSize: 7.5, cellPadding: 2 },
                                                         headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
-                                                        columnStyles: {
+                                                        columnStyles: hasArrearsCol ? {
+                                                            0: { halign: 'center', cellWidth: 8 },
+                                                            1: { halign: 'left', fontStyle: 'bold' },
+                                                            2: { halign: 'left' },
+                                                            3: { halign: 'left' },
+                                                            4: { halign: 'right', fontStyle: 'bold', textColor: [217, 119, 6] },
+                                                            5: { halign: 'right' },
+                                                            6: { halign: 'right', textColor: [16, 185, 129] },
+                                                            7: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] }
+                                                        } : {
                                                             0: { halign: 'center', cellWidth: 10 },
                                                             1: { halign: 'left', fontStyle: 'bold' },
                                                             2: { halign: 'left' },

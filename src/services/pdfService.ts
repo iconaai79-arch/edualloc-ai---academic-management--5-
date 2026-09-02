@@ -11310,9 +11310,10 @@ export const generateStudentStatementPdfDataUri = async (
     yPos += 22;
 
     // 3. Itemized AutoTable Ledger
-    const tableHead = [['Date', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance']];
+    const tableHead = [['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance']];
     const tableBody = ledgerEntries.map(e => [
         e.date,
+        (e as any).reference || '—',
         e.description,
         e.debit > 0 ? `KSh ${e.debit.toLocaleString()}` : '—',
         e.credit > 0 ? `KSh ${e.credit.toLocaleString()}` : '—',
@@ -11321,6 +11322,7 @@ export const generateStudentStatementPdfDataUri = async (
 
     // Totals row at bottom
     tableBody.push([
+        '',
         '',
         'ACCOUNT TOTALS',
         `KSh ${summary.totalInvoiced.toLocaleString()}`,
@@ -11336,11 +11338,12 @@ export const generateStudentStatementPdfDataUri = async (
         headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
         styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: {
-            0: { cellWidth: 26 },
-            1: { cellWidth: 72 },
-            2: { halign: 'right' },
+            0: { cellWidth: 22 },
+            1: { cellWidth: 26 },
+            2: { cellWidth: 56 },
             3: { halign: 'right' },
-            4: { halign: 'right', fontStyle: 'bold' }
+            4: { halign: 'right' },
+            5: { halign: 'right', fontStyle: 'bold' }
         },
         didParseCell: (data: any) => {
             if (data.row.index === tableBody.length - 1) {
