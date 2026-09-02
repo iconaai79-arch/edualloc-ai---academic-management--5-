@@ -761,11 +761,18 @@ window.testDevice = async function(devId) {
 
     appendLog({ type: 'info', message: `Testing link to ${dev.name} (${dev.ip})...` });
     const res = await window.zkApi.testConnection(dev);
+    const badge = document.getElementById(`badge-${dev.id}`);
 
     if (res.success) {
+        if (badge) {
+            badge.innerHTML = `<span class="badge-ontime" style="font-size: 10px; font-weight: 800;">ONLINE</span>`;
+        }
         appendLog({ type: 'success', message: res.message });
         alert(`✓ ${res.message}`);
     } else {
+        if (badge) {
+            badge.innerHTML = `<span class="badge-late" style="font-size: 10px; font-weight: 800;">OFFLINE</span>`;
+        }
         appendLog({ type: 'error', message: `Connection test failed: ${res.message}` });
         alert(`❌ Connection failed: ${res.message}`);
     }
@@ -1443,6 +1450,14 @@ async function pingDevice(devIdOrIp) {
     
     try {
         const res = await window.zkApi.pingDevice({ ip: target.ip, port: target.port || 4370 });
+        if (target.id) {
+            const badge = document.getElementById(`badge-${target.id}`);
+            if (badge) {
+                badge.innerHTML = res.success 
+                    ? `<span class="badge-ontime" style="font-size: 10px; font-weight: 800; background: #059669;">REACHABLE</span>`
+                    : `<span class="badge-late" style="font-size: 10px; font-weight: 800;">OFFLINE</span>`;
+            }
+        }
         if (res.success) {
             appendLog({ type: 'success', message: res.message });
             alert(res.message);
