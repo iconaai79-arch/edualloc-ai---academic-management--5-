@@ -29,6 +29,7 @@ import { ConstructionManager } from './ConstructionManager';
 import { ConstructionProjectView } from './ConstructionProjectView';
 
 import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
+import { syncInventoryWithReceipt } from '../utils/inventorySync';
 import { BuildingSecurityManager } from './BuildingSecurityManager';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
@@ -2632,15 +2633,58 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     const handleMarkInventoryReceived = useCallback(async (id: string) => {
         const item = (countyInventory || []).find(i => i.id === id);
         if (item) {
+            const nowIso = new Date().toISOString();
             await apiService.saveModuleRecord('county_inventory', {
                 ...item,
                 status: 'received',
-                lastUpdated: new Date().toISOString()
+                lastUpdated: nowIso
             });
+
+            // Automatically update or create institutional inventory
+            const instId = item.targetInstitutionId || activeInstitution?.id || currentUser?.institutionId || 'default_inst';
+            try {
+                await syncInventoryWithReceipt(instId, [{
+                    itemName: item.name,
+                    quantity: Number(item.quantity || 0),
+                    unit: item.unit || 'pcs',
+                    category: item.category || 'County Supplied',
+                    description: `County consignment received: ${item.supplierName || 'County Headquarters'}`
+                }]);
+
+                // Also record in retail_stock_receipts for Action History tracking
+                const autoReceipt: any = {
+                    id: `SR-CTY-${Date.now()}`,
+                    institutionId: instId,
+                    supplierId: 'county-headquarters',
+                    supplierName: item.supplierName || 'County Headquarters',
+                    referenceNumber: `CTY-DISP-${Date.now().toString().slice(-6)}`,
+                    receiptDate: nowIso,
+                    totalAmount: 0,
+                    items: [{
+                        itemId: `cty-${Date.now()}`,
+                        itemName: item.name,
+                        quantity: Number(item.quantity || 0),
+                        unitCost: 0
+                    }],
+                    recordedBy: currentUser?.name || 'Stores Master',
+                    status: 'completed',
+                    notes: `County consignment received and added to inventory`,
+                    createdAt: nowIso
+                };
+                await apiService.saveModuleRecord('retail_stock_receipts', autoReceipt).catch(() => {});
+                try {
+                    const localRec = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                    localRec.unshift(autoReceipt);
+                    localStorage.setItem('eduai_fallback_stock_receipts', JSON.stringify(localRec));
+                } catch (e) {}
+            } catch (invErr) {
+                console.warn('[App] Error auto-stocking received inventory item:', invErr);
+            }
+
             loadData();
-            success("Inventory received and acknowledged.");
+            success(`Inventory received. Stocked ${item.quantity} ${item.unit || 'units'} of "${item.name}" into inventory.`);
         }
-    }, [countyInventory, loadData, success]);
+    }, [countyInventory, activeInstitution, currentUser, loadData, success]);
 
     const onImportStudents = useCallback(async (data: any[]) => {
         if (!currentUser) return;
@@ -4411,18 +4455,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
     const handleGenerateReceipt = onGenerateReceipt;
 
-    const onMarkInventoryReceived = useCallback(async (id: string) => {
-        const item = countyInventory.find(i => i.id === id);
-        if (item) {
-            await apiService.saveModuleRecord('county_inventory', {
-                ...item,
-                status: 'received',
-                lastUpdated: new Date().toISOString()
-            });
-            loadData();
-            success("Inventory received and acknowledged.");
-        }
-    }, [countyInventory, loadData, success]);
+    const onMarkInventoryReceived = handleMarkInventoryReceived;
 
     const onUpdateDemoStatus = useCallback(async (id: string, status: DemoRequest['status']) => {
         try {

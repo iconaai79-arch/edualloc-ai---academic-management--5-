@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Truck, CheckCircle, Clock, Package, MapPin, Phone, User as UserIcon, Calendar, FileText, ArrowRight, ShieldCheck, Printer, RefreshCw, AlertTriangle, Building, Search, Filter, Check, Eye, Plus, Send, X } from 'lucide-react';
-import { CountyDispatchManifest, CountyDispatchDropItem, RetailStore, Institution, User, RetailInventoryItem, CountySchoolRequisition } from '../types';
+import { CountyDispatchManifest, CountyDispatchDropItem, RetailStore, Institution, User, RetailInventoryItem, CountySchoolRequisition, StockReceipt } from '../types';
 import { apiService } from '../services/apiService';
+import { syncInventoryWithReceipt } from '../utils/inventorySync';
 
 interface InboundCountyConsignmentsViewProps {
     institutionId: string;
@@ -335,26 +336,42 @@ export const InboundCountyConsignmentsView: React.FC<InboundCountyConsignmentsVi
             const targetStore = stores.find(s => s.id === selectedStoreId) || stores[0];
 
             // 1. Create or Increment local retail inventory item in this institution
-            const autoSku = `CTY-${verifyingDropItem.category ? verifyingDropItem.category.substring(0, 3).toUpperCase() : 'GEN'}-${Math.floor(1000 + Math.random() * 9000)}`;
-            const localInventoryPayload: Partial<RetailInventoryItem> = {
-                id: `rinv_cty_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                institutionId,
-                name: verifyingDropItem.name,
-                category: verifyingDropItem.category || 'County Supplied',
+            await syncInventoryWithReceipt(institutionId, [{
+                itemName: verifyingDropItem.name,
                 quantity: receivedQty,
                 unit: verifyingDropItem.unit || 'pcs',
-                costPrice: 0,
-                srpPrice: 0,
-                basePrice: 0,
-                storeId: targetStore?.id || undefined,
+                category: verifyingDropItem.category || 'County Supplied',
+                storeId: targetStore?.id,
                 storeName: targetStore?.name || 'Main School Store',
-                description: `County Allocated Goods from Manifest ${verifyingManifest.manifestNumber}. Driver: ${verifyingManifest.driverName} (${verifyingManifest.vehicleReg}). Notes: ${receiverNotes}`,
-                sku: autoSku,
-                barcode: `CTY-${verifyingManifest.manifestNumber.replace(/[^A-Z0-9]/gi, '')}-${Date.now().toString().slice(-4)}`
-            };
+                description: `County Allocated Goods from Manifest ${verifyingManifest.manifestNumber}. Driver: ${verifyingManifest.driverName} (${verifyingManifest.vehicleReg}). Notes: ${receiverNotes}`
+            }]);
 
-            await apiService.saveModuleRecord('retail_inventory_items', localInventoryPayload)
-                .catch(err => console.warn("Local inventory save note:", err));
+            // 1b. Record in retail_stock_receipts for Action History & Ledger tracking
+            const autoReceipt: StockReceipt = {
+                id: `SR-CTY-${Date.now()}`,
+                institutionId,
+                supplierId: 'county-headquarters',
+                supplierName: `County Government (${verifyingManifest.departureDepot || 'Central Depot'})`,
+                referenceNumber: verifyingManifest.manifestNumber,
+                receiptDate: nowIso,
+                totalAmount: 0,
+                items: [{
+                    itemId: `cty-${Date.now()}`,
+                    itemName: verifyingDropItem.name,
+                    quantity: receivedQty,
+                    unitCost: 0
+                }],
+                recordedBy: receiverName,
+                status: 'completed',
+                notes: `Consignment from Manifest ${verifyingManifest.manifestNumber}. Driver: ${verifyingManifest.driverName} (${verifyingManifest.vehicleReg}). Notes: ${receiverNotes}`,
+                createdAt: nowIso
+            };
+            await apiService.saveModuleRecord('retail_stock_receipts', autoReceipt).catch(() => {});
+            try {
+                const localRec = JSON.parse(localStorage.getItem('eduai_fallback_stock_receipts') || '[]');
+                localRec.unshift(autoReceipt);
+                localStorage.setItem('eduai_fallback_stock_receipts', JSON.stringify(localRec));
+            } catch (e) {}
 
             // 2. Update the Manifest drop item status to 'received'
             const updatedManifests = manifests.map(m => {

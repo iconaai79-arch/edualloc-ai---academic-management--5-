@@ -388,6 +388,20 @@ export function RetailStockActionHistory({
             };
 
             await apiService.saveModuleRecord('retail_inventory_items', updatedItem);
+            targetItem.quantity = newQty;
+            if (cost > 0) targetItem.costPrice = cost;
+
+            // Also update local inventory fallback
+            try {
+                const localInv = JSON.parse(localStorage.getItem('eduai_fallback_retail_inventory') || '[]');
+                const idx = localInv.findIndex((i: any) => i.id === targetItem.id);
+                if (idx >= 0) {
+                    localInv[idx] = updatedItem;
+                } else {
+                    localInv.push(updatedItem);
+                }
+                localStorage.setItem('eduai_fallback_retail_inventory', JSON.stringify(localInv));
+            } catch (e) {}
 
             // 2. Create Stock Receipt record
             const newReceipt: StockReceipt = {
@@ -488,6 +502,19 @@ export function RetailStockActionHistory({
             };
 
             await apiService.saveModuleRecord('retail_inventory_items', updatedItem);
+            targetItem.quantity = newQty;
+
+            // Also update local inventory fallback
+            try {
+                const localInv = JSON.parse(localStorage.getItem('eduai_fallback_retail_inventory') || '[]');
+                const idx = localInv.findIndex((i: any) => i.id === targetItem.id);
+                if (idx >= 0) {
+                    localInv[idx] = updatedItem;
+                } else {
+                    localInv.push(updatedItem);
+                }
+                localStorage.setItem('eduai_fallback_retail_inventory', JSON.stringify(localInv));
+            } catch (e) {}
 
             // 2. Create Stock Issue record
             const newIssue: StockIssue = {

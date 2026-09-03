@@ -192,6 +192,15 @@ export function ItemActionHistoryModal({
                 } catch (e) {}
 
                 item.quantity = newQty;
+
+                // Update local storage fallback
+                try {
+                    const localInv = JSON.parse(localStorage.getItem('eduai_fallback_retail_inventory') || '[]');
+                    const idx = localInv.findIndex((i: any) => i.id === item.id);
+                    if (idx >= 0) { localInv[idx] = updated; } else { localInv.push(updated); }
+                    localStorage.setItem('eduai_fallback_retail_inventory', JSON.stringify(localInv));
+                } catch (e) {}
+
                 alert(`✅ Received ${qty} ${item.unit || 'pcs'}. New balance: ${newQty}`);
             } else if (quickMode === 'issue') {
                 if (qty > currentQty) {
@@ -206,6 +215,14 @@ export function ItemActionHistoryModal({
                     lastUpdated: new Date().toISOString()
                 };
                 await apiService.saveModuleRecord('retail_inventory_items', updated);
+
+                // Update local storage fallback
+                try {
+                    const localInv = JSON.parse(localStorage.getItem('eduai_fallback_retail_inventory') || '[]');
+                    const idx = localInv.findIndex((i: any) => i.id === item.id);
+                    if (idx >= 0) { localInv[idx] = updated; } else { localInv.push(updated); }
+                    localStorage.setItem('eduai_fallback_retail_inventory', JSON.stringify(localInv));
+                } catch (e) {}
 
                 const newIss: StockIssue = {
                     id: `SI-${Date.now()}`,

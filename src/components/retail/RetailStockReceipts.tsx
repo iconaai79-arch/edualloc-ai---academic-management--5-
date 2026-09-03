@@ -7,6 +7,7 @@ import { TrashIcon } from '../icons/TrashIcon';
 import { MagnifyingGlassIcon as SearchIcon } from '../icons/MagnifyingGlassIcon';
 import { TruckIcon } from '../icons/TruckIcon';
 import { DocumentTextIcon as ReceiptIcon } from '../icons/DocumentTextIcon';
+import { syncInventoryWithReceipt } from '../../utils/inventorySync';
 
 interface RetailStockReceiptsProps {
     institutionId: string;
@@ -290,22 +291,17 @@ export function RetailStockReceipts({ institutionId, currentUser }: RetailStockR
                 }
             }
 
-            // Update inventory quantities with new receipt values
+            // Automatically update or create inventory quantities with new receipt values
             try {
-                const inventoryItemArr = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId) || [];
-                for (const receiptItem of (receipt.items || [])) {
-                    const item = inventoryItemArr.find(i => i.id === receiptItem.itemId);
-                    if (item) {
-                        const currentQty = Number(item.quantity || 0);
-                        const addedQty = Number(receiptItem.quantity || 0);
-                        const updatedItem = {
-                            ...item,
-                            quantity: currentQty + addedQty,
-                            lastUpdated: new Date().toISOString()
-                        };
-                        await apiService.saveModuleRecord('retail_inventory_items', updatedItem);
-                    }
-                }
+                await syncInventoryWithReceipt(
+                    institutionId,
+                    (receipt.items || []).map(item => ({
+                        itemId: item.itemId,
+                        itemName: item.itemName,
+                        quantity: Number(item.quantity || 0),
+                        unitCost: Number(item.unitCost || 0)
+                    }))
+                );
             } catch (stockUpdateErr) {
                 console.error("Failed to update inventory stock levels:", stockUpdateErr);
             }
