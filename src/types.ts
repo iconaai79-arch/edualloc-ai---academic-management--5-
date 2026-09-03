@@ -3639,6 +3639,37 @@ export interface StockReceipt {
     createdAt: string;
 }
 
+export interface StockIssueItem {
+    itemId: string;
+    itemName: string;
+    sku?: string;
+    quantity: number;
+    unit?: string;
+    unitCost?: number;
+    totalCost?: number;
+    balanceBefore?: number;
+    balanceAfter?: number;
+    storeId?: string;
+    storeName?: string;
+}
+
+export interface StockIssue {
+    id: string;
+    institutionId: string;
+    voucherNumber: string;
+    issuedDate: string;
+    issuedTo: string;
+    department?: string;
+    purpose?: string;
+    items: StockIssueItem[];
+    totalQuantity: number;
+    totalValue: number;
+    recordedBy?: string;
+    status: 'completed' | 'pending' | 'cancelled';
+    notes?: string;
+    createdAt: string;
+}
+
 // A junction table to show how much of a RetailInventoryItem is in a specific RetailStore
 export interface RetailStoreStock {
     id: string;

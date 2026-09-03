@@ -22,6 +22,9 @@ import { InboundCountyConsignmentsView } from '../InboundCountyConsignmentsView'
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PdfViewer } from '../PdfViewer';
+import { RetailStockActionHistory } from './RetailStockActionHistory';
+import { ItemActionHistoryModal } from './ItemActionHistoryModal';
+import { History as HistoryIcon } from 'lucide-react';
 
 interface RetailInventoryManagerProps {
     institutionId: string;
@@ -49,8 +52,10 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [lastSaved, setLastSaved] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState('all');
 
-    // Subtab state: School store stock, Inbound county consignments pipeline, or Sickbay/Pharmacy
-    const [inventorySubTab, setInventorySubTab] = useState<'school' | 'county_consignments' | 'pharmacy'>('school');
+    // Subtab state: School store stock, Inbound county consignments pipeline, Sickbay/Pharmacy, or Action History
+    const [inventorySubTab, setInventorySubTab] = useState<'school' | 'county_consignments' | 'pharmacy' | 'history'>('school');
+    const [historyModalItem, setHistoryModalItem] = useState<RetailInventoryItem | null>(null);
+    const [historySubTabInitialItemId, setHistorySubTabInitialItemId] = useState<string | null>(null);
     const [pharmacyDrugs, setPharmacyDrugs] = useState<HISPharmacyInventory[]>([]);
     const [editingPharmacyDrug, setEditingPharmacyDrug] = useState<HISPharmacyInventory | null>(null);
     const [pharmacySearch, setPharmacySearch] = useState('');
@@ -870,6 +875,25 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                         </span>
                     )}
                 </button>
+
+                <button
+                    onClick={() => {
+                        setInventorySubTab('history');
+                        setHistorySubTabInitialItemId(null);
+                    }}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        inventorySubTab === 'history'
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                            : 'text-slate-500 hover:text-indigo-500 dark:text-slate-400'
+                    }`}
+                >
+                    <HistoryIcon className="w-3.5 h-3.5" />
+                    Action History & Ledger
+                    <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-md text-[9px] font-black flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                        Movements
+                    </span>
+                </button>
             </div>
 
             {/* ─ INBOUND COUNTY CONSIGNMENTS PANEL ─ */}
@@ -1095,18 +1119,27 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                         )}
 
                                         {/* Hover Action Bar */}
-                                        <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center gap-4 backdrop-blur-sm">
+                                        <div className="absolute inset-0 bg-indigo-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center gap-3 backdrop-blur-sm">
+                                            <button
+                                                onClick={() => setHistoryModalItem(item)}
+                                                title="Action History (Receipts & Issues)"
+                                                className="p-4 bg-indigo-600 text-white rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all"
+                                            >
+                                                <HistoryIcon className="w-5 h-5" />
+                                            </button>
                                             <button
                                                 onClick={() => openEdit(item)}
-                                                className="p-5 bg-white text-indigo-600 rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                                                className="p-4 bg-white text-indigo-600 rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all"
+                                                title="Edit"
                                             >
-                                                <Pencil className="w-6 h-6" />
+                                                <Pencil className="w-5 h-5" />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(item.id)}
-                                                className="p-5 bg-rose-600 text-white rounded-3xl shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                                                className="p-4 bg-rose-600 text-white rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all"
+                                                title="Delete"
                                             >
-                                                <Trash className="w-6 h-6" />
+                                                <Trash className="w-5 h-5" />
                                             </button>
                                         </div>
                                     </div>
@@ -1173,7 +1206,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right hidden sm:table-cell" style={{ minWidth: '100px' }}>Cost (KES)</th>
                                             {!isEducation && <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-right" style={{ minWidth: '100px' }}>Price (KES)</th>}
                                             <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center hidden sm:table-cell">Visibility</th>
-                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-16">Del</th>
+                                            <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center w-20">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1346,15 +1379,24 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                                         </button>
                                                     </td>
 
-                                                    {/* Delete */}
+                                                    {/* Actions (History & Delete) */}
                                                     <td className="px-1 py-1 text-center">
-                                                        <button
-                                                            onClick={() => handleDelete(item.id)}
-                                                            className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
-                                                            title="Delete item"
-                                                        >
-                                                            <Trash className="w-3.5 h-3.5" />
-                                                        </button>
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                                onClick={() => setHistoryModalItem(item)}
+                                                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition-all"
+                                                                title={`Action History (receipts & issues) for ${item.name}`}
+                                                            >
+                                                                <HistoryIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(item.id)}
+                                                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                                                                title="Delete item"
+                                                            >
+                                                                <Trash className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -1477,6 +1519,19 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             )}
         </>
         )}
+
+            {/* ─ ACTION HISTORY & STOCK MOVEMENT TAB ─ */}
+            {inventorySubTab === 'history' && (
+                <RetailStockActionHistory
+                    institutionId={institutionId}
+                    inventoryItems={items}
+                    stores={effectiveStores}
+                    currentUser={currentInstitution}
+                    selectedItemId={historySubTabInitialItemId}
+                    onClearSelectedItem={() => setHistorySubTabInitialItemId(null)}
+                    onInventoryUpdated={fetchInventory}
+                />
+            )}
 
             {/* Redesigned Modal */}
             {isAddModalOpen && (
@@ -1955,6 +2010,16 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
 
                     </div>
                 </div>
+            )}
+
+            {/* ─ PER-ITEM ACTION HISTORY MODAL ─ */}
+            {historyModalItem && (
+                <ItemActionHistoryModal
+                    item={historyModalItem}
+                    institutionId={institutionId}
+                    onClose={() => setHistoryModalItem(null)}
+                    onItemUpdated={fetchInventory}
+                />
             )}
         </div>
     );
