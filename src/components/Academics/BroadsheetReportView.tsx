@@ -302,6 +302,114 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return stStr === 'published' || isPubBool === true;
     }, [selectedExamObj]);
 
+    // Resolve active broadsheet rows with multi-tier fallback (localStorage store -> exam unit payload -> snapshot backups -> props marks)
+    const resolveEffectiveExamRows = useCallback((examId: string): any[] => {
+        if (!examId) return [];
+
+        // Tier 1: Direct lookup in savedBroadsheets state
+        if (savedBroadsheets[examId] && Array.isArray(savedBroadsheets[examId]) && savedBroadsheets[examId].length > 0) {
+            return savedBroadsheets[examId];
+        }
+
+        // Tier 2: Check active exam object's broadsheetData or rows
+        const matchedExam = allExamsList.find(e => e.id === examId);
+        if (matchedExam) {
+            const exData = (matchedExam as any).broadsheetData || (matchedExam as any).rows;
+            if (Array.isArray(exData) && exData.length > 0) return exData;
+        }
+
+        // Tier 3: Check snapshot backups in localStorage
+        try {
+            const indexKey = `eduai_marks_snapshot_index_${instId}_${examId}`;
+            const keys: string[] = JSON.parse(localStorage.getItem(indexKey) || '[]');
+            for (const k of keys.slice().reverse()) {
+                const snapRaw = localStorage.getItem(k);
+                if (snapRaw) {
+                    const parsed = JSON.parse(snapRaw);
+                    if (Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+                        return parsed.rows;
+                    }
+                }
+            }
+        } catch (e) { }
+
+        // Tier 4: Direct individual broadsheet key
+        try {
+            const singleKey = localStorage.getItem(`eduai_exam_broadsheet_${examId}`) || localStorage.getItem(`eduai_exam_marks_${examId}`);
+            if (singleKey) {
+                const parsed = JSON.parse(singleKey);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
+            }
+        } catch (e) { }
+
+        // Tier 5: Construct from props.marks if matching records exist
+        if (marks && marks.length > 0) {
+            const examMarks = marks.filter((m: any) => m.assessmentId === examId || m.assessment_id === examId || m.examId === examId);
+            if (examMarks.length > 0) {
+                const studentMap = new Map<string, any>();
+                examMarks.forEach((m: any) => {
+                    const sId = m.studentId || m.student_id;
+                    if (!sId) return;
+                    if (!studentMap.has(sId)) {
+                        const stObj = activeStudents.find(s => s.id === sId);
+                        studentMap.set(sId, {
+                            id: sId,
+                            admNo: (stObj as any)?.admissionNumber || (stObj as any)?.admNo || sId,
+                            name: stObj?.name || 'Student',
+                            class: (stObj as any)?.studentClass || selectedYearGroup || 'Class'
+                        });
+                    }
+                    const row = studentMap.get(sId);
+                    const subId = m.subjectId || m.subject_id || m.subject;
+                    if (subId && m.marks !== null && m.marks !== undefined) {
+                        row[subId] = Number(m.marks);
+                    }
+                });
+                if (studentMap.size > 0) {
+                    return Array.from(studentMap.values());
+                }
+            }
+        }
+
+        return [];
+    }, [savedBroadsheets, allExamsList, instId, marks, activeStudents, selectedYearGroup]);
+
+    // Auto-select published exam or the exam with broadsheet rows
+    useEffect(() => {
+        if (allExamsList.length > 0) {
+            const currentObj = allExamsList.find(e => e.id === selectedExamId);
+            const currentHasData = resolveEffectiveExamRows(selectedExamId).length > 0;
+            const currentIsPub = currentObj && (currentObj.isPublished || String(currentObj.status || '').toLowerCase().trim() === 'published');
+
+            // If current selected exam is published and has data, stay on it
+            if (currentIsPub && currentHasData) return;
+
+            // 1. Prioritize a published exam that has broadsheet data
+            const pubWithData = allExamsList.find(e =>
+                (e.isPublished || String(e.status || '').toLowerCase().trim() === 'published') &&
+                resolveEffectiveExamRows(e.id).length > 0
+            );
+            if (pubWithData && pubWithData.id !== selectedExamId) {
+                setSelectedExamId(pubWithData.id);
+                return;
+            }
+
+            // 2. Prioritize ANY published exam
+            const anyPub = allExamsList.find(e => e.isPublished || String(e.status || '').toLowerCase().trim() === 'published');
+            if (anyPub && (!currentIsPub || !currentObj) && anyPub.id !== selectedExamId) {
+                setSelectedExamId(anyPub.id);
+                return;
+            }
+
+            // 3. Prioritize any exam that has data
+            const anyWithData = allExamsList.find(e => resolveEffectiveExamRows(e.id).length > 0);
+            if (anyWithData && !currentHasData && anyWithData.id !== selectedExamId) {
+                setSelectedExamId(anyWithData.id);
+            }
+        }
+    }, [allExamsList, resolveEffectiveExamRows, selectedExamId]);
+
     const isPrimarySchool = useMemo(() => {
         const type = (currentInstitution?.institutionType || '').toLowerCase();
         const instName = (currentInstitution?.name || '').toLowerCase();
@@ -582,7 +690,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         });
 
         // 3. Filter by active marks entered for this exam & class
-        const savedRows = savedBroadsheets[selectedExamId];
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
         if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
             const classRows = yGrpClean && yGrpClean !== 'all'
                 ? savedRows.filter((r: any) => {
@@ -617,7 +725,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
 
         return candidateList;
-    }, [subjects, selectedExamObj, savedBroadsheets, selectedExamId, isPrimarySchool, selectedYearGroup, classAllocationsStore]);
+    }, [subjects, selectedExamObj, resolveEffectiveExamRows, selectedExamId, isPrimarySchool, selectedYearGroup, classAllocationsStore]);
 
     // Student broadsheet list (combining real saved marks and student registry)
     const sampleStudents = useMemo(() => {
@@ -626,7 +734,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             return [];
         }
 
-        const savedRows = savedBroadsheets[selectedExamId];
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
 
         // 2. If an empty exam was published (no marks saved yet), return empty array so broadsheet is empty!
         if (!savedRows || !Array.isArray(savedRows) || savedRows.length === 0) {
@@ -692,7 +800,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [activeStudents, broadsheetSubjects, isPrimarySchool, savedBroadsheets, selectedExamId, selectedYearGroup, isExamPublished]);
+    }, [activeStudents, broadsheetSubjects, isPrimarySchool, resolveEffectiveExamRows, selectedExamId, selectedYearGroup, isExamPublished]);
 
     // Filtered student rows (sorted by total marks descending and re-ranked 1, 2, 3, 4...)
     const filteredBroadsheetRows = useMemo(() => {

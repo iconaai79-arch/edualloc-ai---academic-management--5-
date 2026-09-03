@@ -2521,6 +2521,41 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         const newStatus = isCurrentlyPublished ? ('in_progress' as const) : ('published' as const);
 
+        // Commit active broadsheet student rows into examMarksStore, local storage, and database
+        const rowsToSave = (broadsheetStudentRows && broadsheetStudentRows.length > 0)
+            ? broadsheetStudentRows
+            : (examMarksStore[activeExam.id] || []);
+
+        const updatedStore = { ...examMarksStore, [activeExam.id]: rowsToSave };
+        setExamMarksStore(updatedStore);
+
+        try {
+            localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
+            window.dispatchEvent(new CustomEvent('eduai_broadsheets_updated', { detail: { examId: activeExam.id, store: updatedStore } }));
+        } catch (e) { }
+
+        // Also save a snapshot backup
+        if (activeExam && rowsToSave.length > 0) {
+            const classesForSnap = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
+            snapshotMarks(activeExam.id, classesForSnap, rowsToSave);
+        }
+
+        // Save to institution_module_states in Supabase so broadsheet is persistent across devices
+        if (currentInstitution?.id && newStatus === 'published' && rowsToSave.length > 0) {
+            apiService.saveModuleRecord('institution_module_states', {
+                id: `broadsheets_${currentInstitution.id}`,
+                institution_id: currentInstitution.id,
+                institutionId: currentInstitution.id,
+                module_id: 'exam_broadsheets',
+                moduleId: 'exam_broadsheets',
+                module_name: 'Exam Broadsheets',
+                moduleName: 'Exam Broadsheets',
+                status: 'active',
+                settings: updatedStore,
+                stateData: updatedStore
+            }).catch(() => { });
+        }
+
         setExams(prev => {
             const nextExams = prev.map(e => {
                 if (e.id === activeExam.id) {
@@ -2528,7 +2563,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         ...e,
                         status: newStatus,
                         isPublished: newStatus === 'published',
-                        published: newStatus === 'published'
+                        published: newStatus === 'published',
+                        studentsEnrolled: rowsToSave.length || e.studentsEnrolled
                     };
                 }
                 return e;
@@ -2539,14 +2575,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             const updatedExam = nextExams.find(e => e.id === activeExam.id);
             if (updatedExam && currentInstitution?.id) {
-                apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
+                apiService.saveModuleRecord('exam_units', {
+                    ...updatedExam,
+                    studentsEnrolled: rowsToSave.length || updatedExam.studentsEnrolled,
+                    broadsheetData: rowsToSave
+                }).catch(() => { });
             }
 
             return nextExams;
         });
 
         try {
-            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'exam_publish', instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'exam_publish', instId: currentInstitution?.id, examId: activeExam.id } }));
         } catch (e) { }
 
         setSaveToastMessage(newStatus === 'published' ? `🚀 Published "${activeExam.name}" results to the Broadsheet!` : `🔒 Unpublished "${activeExam.name}". Broadsheet hidden.`);
