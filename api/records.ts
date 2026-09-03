@@ -1023,12 +1023,100 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanVisitorRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const copy = { ...item };
-                    if (copy.host_id === '' || copy.host_id === undefined) {
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    // 1. Host ID
+                    const hId = copy.host_id ?? copy.hostId;
+                    if (!hId || hId === '' || hId === 'null' || hId === 'undefined') {
                         copy.host_id = null;
+                    } else {
+                        copy.host_id = hId;
                     }
-                    if (copy.hostId === '' || copy.hostId === undefined) {
-                        copy.hostId = null;
+                    delete copy.hostId;
+
+                    // 2. ID Number
+                    const idNum = copy.id_number ?? copy.idNumber;
+                    if (idNum !== undefined && idNum !== null && idNum !== '') {
+                        copy.id_number = String(idNum);
+                        meta.id_number = String(idNum);
                     }
+                    delete copy.idNumber;
+
+                    // 3. Name & Full Name
+                    const fName = copy.full_name ?? copy.fullName ?? copy.name;
+                    if (fName) {
+                        copy.full_name = fName;
+                        if (!copy.name) copy.name = fName;
+                    }
+                    delete copy.fullName;
+
+                    // 4. Phone Number
+                    const phone = copy.phone_number ?? copy.phoneNumber ?? copy.phone;
+                    if (phone) {
+                        copy.phone_number = phone;
+                    }
+                    delete copy.phoneNumber;
+
+                    // 5. Date & Time
+                    if ('visitDate' in copy) {
+                        copy.visit_date = copy.visit_date || copy.visitDate;
+                        delete copy.visitDate;
+                    }
+                    if ('timeIn' in copy) {
+                        copy.time_in = copy.time_in || copy.timeIn;
+                        delete copy.timeIn;
+                    }
+                    if ('timeOut' in copy) {
+                        copy.time_out = copy.time_out || copy.timeOut;
+                        delete copy.timeOut;
+                    }
+                    if ('checkIn' in copy) {
+                        copy.check_in = copy.check_in || copy.checkIn;
+                        delete copy.checkIn;
+                    }
+                    if ('entryTime' in copy) {
+                        if (!copy.time_in) copy.time_in = copy.entryTime;
+                        delete copy.entryTime;
+                    }
+
+                    // 6. Host & Vehicle details
+                    if ('hostName' in copy) {
+                        copy.host_name = copy.host_name || copy.hostName;
+                        delete copy.hostName;
+                    }
+                    if ('vehiclePlate' in copy) {
+                        copy.vehicle_plate = copy.vehicle_plate || copy.vehiclePlate;
+                        delete copy.vehiclePlate;
+                    }
+                    if ('vehicleModel' in copy) {
+                        copy.vehicle_model = copy.vehicle_model || copy.vehicleModel;
+                        delete copy.vehicleModel;
+                    }
+
+                    // 7. Signatures & Security
+                    if ('visitorSignature' in copy) {
+                        copy.visitor_signature = copy.visitor_signature || copy.visitorSignature;
+                        delete copy.visitorSignature;
+                    }
+                    if ('hostSignature' in copy) {
+                        copy.host_signature = copy.host_signature || copy.hostSignature;
+                        delete copy.hostSignature;
+                    }
+                    if ('securityOfficerName' in copy) {
+                        copy.security_officer_name = copy.security_officer_name || copy.securityOfficerName;
+                        delete copy.securityOfficerName;
+                    }
+                    if ('institutionId' in copy) {
+                        copy.institution_id = copy.institution_id || copy.institutionId;
+                        delete copy.institutionId;
+                    }
+
+                    // 8. Status
+                    if (copy.status) {
+                        meta.status = copy.status;
+                    }
+
+                    copy.metadata = meta;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVisitorRecord) : cleanVisitorRecord(currentPayload);
@@ -1111,6 +1199,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const stripCol = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
+                        if (copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            meta[offendingCol] = copy[offendingCol];
+                            copy.metadata = meta;
+                        }
                         delete copy[offendingCol];
                         return copy;
                     };
@@ -1301,6 +1394,103 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     });
                     currentUpdateData = copy;
+                } else if (moduleName === 'visitors') {
+                    const copy = { ...currentUpdateData };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    // 1. Host ID
+                    const hId = copy.host_id ?? copy.hostId;
+                    if (!hId || hId === '' || hId === 'null' || hId === 'undefined') {
+                        copy.host_id = null;
+                    } else {
+                        copy.host_id = hId;
+                    }
+                    delete copy.hostId;
+
+                    // 2. ID Number
+                    const idNum = copy.id_number ?? copy.idNumber;
+                    if (idNum !== undefined && idNum !== null && idNum !== '') {
+                        copy.id_number = String(idNum);
+                        meta.id_number = String(idNum);
+                    }
+                    delete copy.idNumber;
+
+                    // 3. Name & Full Name
+                    const fName = copy.full_name ?? copy.fullName ?? copy.name;
+                    if (fName) {
+                        copy.full_name = fName;
+                        if (!copy.name) copy.name = fName;
+                    }
+                    delete copy.fullName;
+
+                    // 4. Phone Number
+                    const phone = copy.phone_number ?? copy.phoneNumber ?? copy.phone;
+                    if (phone) {
+                        copy.phone_number = phone;
+                    }
+                    delete copy.phoneNumber;
+
+                    // 5. Date & Time
+                    if ('visitDate' in copy) {
+                        copy.visit_date = copy.visit_date || copy.visitDate;
+                        delete copy.visitDate;
+                    }
+                    if ('timeIn' in copy) {
+                        copy.time_in = copy.time_in || copy.timeIn;
+                        delete copy.timeIn;
+                    }
+                    if ('timeOut' in copy) {
+                        copy.time_out = copy.time_out || copy.timeOut;
+                        delete copy.timeOut;
+                    }
+                    if ('checkIn' in copy) {
+                        copy.check_in = copy.check_in || copy.checkIn;
+                        delete copy.checkIn;
+                    }
+                    if ('entryTime' in copy) {
+                        if (!copy.time_in) copy.time_in = copy.entryTime;
+                        delete copy.entryTime;
+                    }
+
+                    // 6. Host & Vehicle details
+                    if ('hostName' in copy) {
+                        copy.host_name = copy.host_name || copy.hostName;
+                        delete copy.hostName;
+                    }
+                    if ('vehiclePlate' in copy) {
+                        copy.vehicle_plate = copy.vehicle_plate || copy.vehiclePlate;
+                        delete copy.vehiclePlate;
+                    }
+                    if ('vehicleModel' in copy) {
+                        copy.vehicle_model = copy.vehicle_model || copy.vehicleModel;
+                        delete copy.vehicleModel;
+                    }
+
+                    // 7. Signatures & Security
+                    if ('visitorSignature' in copy) {
+                        copy.visitor_signature = copy.visitor_signature || copy.visitorSignature;
+                        delete copy.visitorSignature;
+                    }
+                    if ('hostSignature' in copy) {
+                        copy.host_signature = copy.host_signature || copy.hostSignature;
+                        delete copy.hostSignature;
+                    }
+                    if ('securityOfficerName' in copy) {
+                        copy.security_officer_name = copy.security_officer_name || copy.securityOfficerName;
+                        delete copy.securityOfficerName;
+                    }
+                    if ('institutionId' in copy) {
+                        copy.institution_id = copy.institution_id || copy.institutionId;
+                        delete copy.institutionId;
+                    }
+
+                    // 8. Status
+                    if (copy.status) {
+                        meta.status = copy.status;
+                    }
+
+                    copy.metadata = meta;
+                    currentUpdateData = copy;
                 } else if (moduleName === 'users') {
                     const copy = { ...currentUpdateData };
                     const meta = { ...(copy.metadata || {}) };
@@ -1400,6 +1590,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const offendingCol = colMatch[1];
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
                         const copy = { ...currentUpdateData };
+                        if (copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            meta[offendingCol] = copy[offendingCol];
+                            copy.metadata = meta;
+                        }
                         delete copy[offendingCol];
                         currentUpdateData = copy;
                         patchRetries--;

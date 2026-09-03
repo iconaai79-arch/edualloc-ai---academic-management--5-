@@ -19,7 +19,7 @@ import { XIcon } from '../icons/XIcon';
 import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
 import { ModernStudentProgressGraph, ProgressPeriodRecord } from './ModernStudentProgressGraph';
 import { apiService } from '../../services/apiService';
-import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
+import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 
 interface FuturisticReportCardViewProps {
@@ -49,10 +49,40 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
     }, [currentInstitution]);
 
+    // Student enrollments registry for real admission numbers & classes
+    const [enrollmentRegistry, setEnrollmentRegistry] = useState<any[]>(() => {
+        try {
+            const instKey = currentInstitution?.id || 'default';
+            const cached = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_students_default') ||
+                           (instKey ? localStorage.getItem(`eduai_enrollments_${instKey}`) : null);
+            if (cached) return JSON.parse(cached) || [];
+        } catch(e) {}
+        return [];
+    });
+
     const activeStudents = useMemo(() => {
-        if (students.length > 0) return students;
-        return users.filter(u => u.role === 'student');
-    }, [students, users]);
+        const base = students.length > 0 ? students : users.filter(u => u.role === 'student');
+
+        return base.map(s => {
+            const resolvedAdm = resolveRealStudentAdmNo(s, undefined, enrollmentRegistry);
+            const resolvedClass = resolveRealStudentClass(s, enrollmentRegistry, courses);
+            const resolvedStream = resolveRealStudentStream(s, enrollmentRegistry);
+
+            return {
+                ...s,
+                admissionNo: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : s.admissionNo,
+                admissionNumber: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : s.admissionNumber,
+                admission_number: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : s.admission_number,
+                admNo: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : (s as any).admNo,
+                studentClass: (resolvedClass && resolvedClass !== 'Unclassified')
+                    ? (resolvedStream && !resolvedClass.toLowerCase().includes(resolvedStream.toLowerCase()) ? `${resolvedClass} ${resolvedStream}` : resolvedClass)
+                    : s.studentClass
+            };
+        });
+    }, [students, users, enrollmentRegistry, courses]);
 
     // Navigation & Layout States
     const [activeNavItem, setActiveNavItem] = useState<string>('report_cards');
@@ -93,6 +123,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
     useEffect(() => {
         if (currentInstitution?.id) {
+            // 1. Fetch broadsheet state
             apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
                 .then(records => {
                     const match = (records || []).find(r => 
@@ -113,6 +144,32 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                     }
                 })
                 .catch(() => {});
+
+            // 2. Fetch student enrollments and students for genuine admission numbers
+            Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => [])
+            ]).then(([enrList, stList]) => {
+                const combined = [...(enrList || []), ...(stList || [])];
+                if (combined.length > 0) {
+                    setEnrollmentRegistry(prev => {
+                        const existingMap = new Map<string, any>();
+                        prev.forEach(item => {
+                            const key = item.id || item.userId || item.user_id;
+                            if (key) existingMap.set(key, item);
+                        });
+                        combined.forEach(item => {
+                            const key = item.id || item.userId || item.user_id;
+                            if (key) existingMap.set(key, { ...existingMap.get(key), ...item });
+                        });
+                        const updated = Array.from(existingMap.values());
+                        try {
+                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(updated));
+                        } catch(e) {}
+                        return updated;
+                    });
+                }
+            }).catch(() => {});
         }
 
         const handleSync = () => {
@@ -120,13 +177,21 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 const instKey = currentInstitution?.id || 'default';
                 const saved = localStorage.getItem(`eduai_exam_broadsheets_${instKey}`);
                 if (saved) setSavedBroadsheets(JSON.parse(saved) || {});
+
+                const cachedEnr = localStorage.getItem(`eduai_student_enrollments_${instKey}`) ||
+                                  localStorage.getItem(`eduai_students_${instKey}`);
+                if (cachedEnr) setEnrollmentRegistry(JSON.parse(cachedEnr) || []);
             } catch(e) {}
         };
         window.addEventListener('eduai_broadsheets_updated', handleSync);
         window.addEventListener('eduai_academics_synced', handleSync);
+        window.addEventListener('eduai_students_updated', handleSync);
+        window.addEventListener('eduai_enrollments_updated', handleSync);
         return () => {
             window.removeEventListener('eduai_broadsheets_updated', handleSync);
             window.removeEventListener('eduai_academics_synced', handleSync);
+            window.removeEventListener('eduai_students_updated', handleSync);
+            window.removeEventListener('eduai_enrollments_updated', handleSync);
         };
     }, [currentInstitution]);
 
@@ -226,12 +291,12 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
         let cleanClass = rawClass;
         let stream = rawStream;
 
-        // Extract stream from class name if embedded (e.g., "Grade 1 East", "PP1 Blue", "Form 3 Central")
+        // Extract stream from class name if embedded (e.g., "Grade 1 East", "PP1 Blue", "Form 3 Central", "Form 1 Main")
         if (!stream && rawClass) {
-            const match = rawClass.match(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i);
+            const match = rawClass.match(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|main|[a-d])$/i);
             if (match && match[1]) {
                 stream = match[1].trim();
-                cleanClass = rawClass.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                cleanClass = rawClass.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|main|[a-d])$/i, '').trim();
             }
         }
 
@@ -254,7 +319,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
             courses.forEach(c => {
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
                 if (name && typeof name === 'string' && name.trim()) {
-                    const clean = name.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                    const clean = name.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|main|[a-d])$/i, '').trim();
                     if (clean) classSet.add(clean);
                 }
             });
@@ -278,7 +343,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
             ).trim();
 
             if (raw) {
-                const clean = raw.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
+                const clean = raw.replace(/\s+(east|west|north|south|central|red|blue|green|yellow|stream\s*[a-z0-9]*|main|[a-d])$/i, '').trim();
                 if (clean) classSet.add(clean);
             }
         });
@@ -452,16 +517,41 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
             // Search query match
             if (searchStudentQuery.trim()) {
-                const q = searchStudentQuery.toLowerCase();
+                const q = searchStudentQuery.toLowerCase().trim();
                 const matchesName = s.name.toLowerCase().includes(q);
-                const matchesAdm = (s.admissionNo && s.admissionNo.toLowerCase().includes(q)) || (s.id && s.id.toLowerCase().includes(q));
-                const matchesCls = cleanClass.toLowerCase().includes(q) || stream.toLowerCase().includes(q);
+                const resolvedAdm = resolveRealStudentAdmNo(s, undefined, enrollmentRegistry).toLowerCase();
+                const matchesAdm = (s.admissionNo && s.admissionNo.toLowerCase().includes(q)) || 
+                                   (s.admissionNumber && s.admissionNumber.toLowerCase().includes(q)) || 
+                                   (s.admission_number && s.admission_number.toLowerCase().includes(q)) || 
+                                   (s.admNo && s.admNo.toLowerCase().includes(q)) || 
+                                   resolvedAdm.includes(q) || 
+                                   (s.id && s.id.toLowerCase().includes(q));
+                const matchesCls = cleanClass.toLowerCase().includes(q) || stream.toLowerCase().includes(q) || rawClass.toLowerCase().includes(q);
                 if (!matchesName && !matchesAdm && !matchesCls) return false;
             }
 
             return true;
         });
-    }, [activeStudents, courses, selectedClass, selectedStream, searchStudentQuery, getStudentClassInfo]);
+    }, [activeStudents, courses, selectedClass, selectedStream, searchStudentQuery, getStudentClassInfo, enrollmentRegistry]);
+
+    // Dedicated search dropdown results querying activeStudents across all classes for instant student discovery
+    const searchDropdownResults = useMemo(() => {
+        if (!searchStudentQuery.trim()) return [];
+        const q = searchStudentQuery.toLowerCase().trim();
+        return activeStudents.filter(s => {
+            const { cleanClass, rawClass, stream } = getStudentClassInfo(s);
+            const resolvedAdm = resolveRealStudentAdmNo(s, undefined, enrollmentRegistry).toLowerCase();
+            const matchesName = s.name.toLowerCase().includes(q);
+            const matchesAdm = (s.admissionNo && s.admissionNo.toLowerCase().includes(q)) || 
+                               (s.admissionNumber && s.admissionNumber.toLowerCase().includes(q)) || 
+                               (s.admission_number && s.admission_number.toLowerCase().includes(q)) || 
+                               (s.admNo && s.admNo.toLowerCase().includes(q)) || 
+                               resolvedAdm.includes(q) || 
+                               (s.id && s.id.toLowerCase().includes(q));
+            const matchesCls = cleanClass.toLowerCase().includes(q) || stream.toLowerCase().includes(q) || rawClass.toLowerCase().includes(q);
+            return matchesName || matchesAdm || matchesCls;
+        });
+    }, [searchStudentQuery, activeStudents, enrollmentRegistry, getStudentClassInfo]);
 
 
     // Ensure selectedStudentId points to a valid student in filtered list
@@ -1056,22 +1146,26 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
                                 {searchStudentQuery.trim() && (
                                     <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto">
-                                        {filteredStudents.length === 0 ? (
+                                        {searchDropdownResults.length === 0 ? (
                                             <div className="px-4 py-3 text-center text-xs text-slate-400 font-medium">
-                                                No students match "{searchStudentQuery}" in {selectedClass !== 'all' ? selectedClass : 'all classes'}
+                                                No students match "{searchStudentQuery}"
                                             </div>
                                         ) : (
-                                            filteredStudents.map(st => (
+                                            searchDropdownResults.map(st => (
                                                 <button
                                                     key={st.id}
                                                     onClick={() => {
+                                                        const sInfo = getStudentClassInfo(st);
+                                                        if (sInfo.cleanClass && selectedClass !== 'all' && selectedClass.toLowerCase() !== sInfo.cleanClass.toLowerCase()) {
+                                                            setSelectedClass(sInfo.cleanClass);
+                                                        }
                                                         setSelectedStudentId(st.id);
                                                         setSearchStudentQuery('');
                                                     }}
                                                     className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 border-b border-slate-50 dark:border-slate-700/50 cursor-pointer"
                                                 >
                                                     <div className="font-black uppercase">{st.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono">Adm: {resolveRealStudentAdmNo(st)} &bull; {getStudentClassInfo(st).rawClass}</div>
+                                                    <div className="text-[10px] text-slate-400 font-mono">Adm: {resolveRealStudentAdmNo(st, undefined, enrollmentRegistry)} &bull; {getStudentClassInfo(st).rawClass}</div>
                                                 </button>
                                             ))
                                         )}
@@ -1130,7 +1224,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                             <div className="min-w-0">
                                 <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
                                 <h3 className="text-sm sm:text-base font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
-                                <p className="text-[11px] font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent)}</span></p>
+                                <p className="text-[11px] font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent, undefined, enrollmentRegistry)}</span></p>
                                 <p className="text-[11px] text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
                             </div>
                         </div>
@@ -1383,7 +1477,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                         Official Student Report Card &mdash; A4 PDF Preview
                                     </h3>
                                     <p className="text-[11px] text-slate-400 font-semibold">
-                                        {currentStudent.name} ({resolveRealStudentAdmNo(currentStudent)}) &bull; {currentStudentClassInfo.rawClass} &bull; {selectedTerm} {selectedYear}
+                                        {currentStudent.name} ({resolveRealStudentAdmNo(currentStudent, undefined, enrollmentRegistry)}) &bull; {currentStudentClassInfo.rawClass} &bull; {selectedTerm} {selectedYear}
                                     </p>
                                 </div>
                             </div>
@@ -1476,7 +1570,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                         <div className="min-w-0">
                                             <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
                                             <h3 className="text-sm sm:text-base font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
-                                            <p className="text-[11px] font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent)}</span></p>
+                                            <p className="text-[11px] font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent, undefined, enrollmentRegistry)}</span></p>
                                             <p className="text-[11px] text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
                                         </div>
                                     </div>

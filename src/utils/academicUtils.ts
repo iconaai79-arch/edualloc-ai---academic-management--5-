@@ -124,6 +124,22 @@ export const aggregateSubjectMarks = (
  */
 export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: any[]): string => {
     if (!student) return 'N/A';
+
+    // Safely parse metadata if stored as JSON string
+    let meta = student.metadata;
+    if (typeof meta === 'string' && meta.trim().startsWith('{')) {
+        try {
+            meta = JSON.parse(meta);
+        } catch (e) {}
+    }
+
+    let userMeta = student.user?.metadata;
+    if (typeof userMeta === 'string' && userMeta.trim().startsWith('{')) {
+        try {
+            userMeta = JSON.parse(userMeta);
+        } catch (e) {}
+    }
+
     const candidates = [
         student.admissionNumber,
         student.admission_number,
@@ -131,39 +147,63 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
         student.admission_no,
         student.admNo,
         student.adm_no,
+        student.adm,
+        student.admission,
+        student.admNumber,
+        student.adm_number,
+        student.assessmentNo,
+        student.assessment_no,
+        student.assessmentNumber,
+        student.assessment_number,
         student.registrationNo,
         student.registration_number,
         student.regNo,
         student.reg_no,
+        student.regNumber,
+        student.reg_number,
         student.studentId,
         student.student_id,
+        student.studentNumber,
+        student.student_number,
         student.staffId,
         student.staff_id,
         student.customId,
         student.custom_id,
-        student.metadata?.admissionNumber,
-        student.metadata?.admission_number,
-        student.metadata?.admissionNo,
-        student.metadata?.admission_no,
-        student.metadata?.admNo,
-        student.metadata?.adm_no,
-        student.metadata?.registrationNo,
-        student.metadata?.studentId,
+        student.upi,
+        student.nemis,
+        meta?.admissionNumber,
+        meta?.admission_number,
+        meta?.admissionNo,
+        meta?.admission_no,
+        meta?.admNo,
+        meta?.adm_no,
+        meta?.adm,
+        meta?.admission,
+        meta?.registrationNo,
+        meta?.registration_number,
+        meta?.regNo,
+        meta?.studentId,
+        meta?.student_id,
+        meta?.assessmentNo,
+        meta?.assessment_no,
         student.user?.admissionNumber,
         student.user?.admission_number,
         student.user?.admissionNo,
+        student.user?.admission_no,
         student.user?.admNo,
         student.user?.adm_no,
         student.user?.staffId,
-        student.user?.metadata?.admissionNumber,
-        student.user?.metadata?.admNo
+        userMeta?.admissionNumber,
+        userMeta?.admission_number,
+        userMeta?.admissionNo,
+        userMeta?.admNo
     ];
 
     for (const cand of candidates) {
         if (cand !== null && cand !== undefined) {
             const strVal = String(cand).trim();
             const isSynthetic = /^ADM-10\d{2,}$/i.test(strVal);
-            if (strVal && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && !isSynthetic && strVal !== 'undefined' && strVal !== 'null' && strVal !== '') {
+            if (strVal && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && !isSynthetic && strVal !== 'undefined' && strVal !== 'null' && strVal !== '' && strVal !== 'N/A') {
                 return strVal;
             }
         }
@@ -173,32 +213,66 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
     if (student.id && typeof student.id === 'string') {
         const cleanId = student.id.trim();
         const isSynthetic = /^ADM-10\d{2,}$/i.test(cleanId);
-        if (!cleanId.startsWith('usr_') && !cleanId.startsWith('user_') && !cleanId.startsWith('st_') && !cleanId.startsWith('enr_') && !isSynthetic && cleanId !== 'undefined' && cleanId !== 'null') {
+        if (!cleanId.startsWith('usr_') && !cleanId.startsWith('user_') && !cleanId.startsWith('st_') && !cleanId.startsWith('enr_') && !isSynthetic && cleanId !== 'undefined' && cleanId !== 'null' && cleanId !== 'N/A') {
             return cleanId;
         }
     }
 
-    // Match by ID or exact full name in registry / enrollments if provided
-    if (registry && Array.isArray(registry) && registry.length > 0) {
-        const studentId = student.id;
+    // If registry not supplied, attempt to check cached enrollments in localStorage
+    let effectiveRegistry = registry;
+    if (!effectiveRegistry || !Array.isArray(effectiveRegistry) || effectiveRegistry.length === 0) {
+        try {
+            const instKey = student.institutionId || student.institution_id || '';
+            const rawEnr = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_students_default') ||
+                           (instKey ? localStorage.getItem(`eduai_enrollments_${instKey}`) : null);
+            if (rawEnr) {
+                const parsed = JSON.parse(rawEnr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    effectiveRegistry = parsed;
+                }
+            }
+        } catch (e) {}
+    }
+
+    // Match by ID or exact name in registry / enrollments
+    if (effectiveRegistry && Array.isArray(effectiveRegistry) && effectiveRegistry.length > 0) {
+        const studentId = String(student.id || student.userId || student.user_id || '').trim();
         const cleanName = student.name ? String(student.name).trim().toLowerCase() : '';
         const nameTokens = cleanName.split(/\s+/).filter(Boolean);
 
-        const matched = registry.find(s => {
-            if (studentId && (s.userId === studentId || s.studentId === studentId || s.id === studentId)) {
+        const matched = effectiveRegistry.find((s: any) => {
+            if (!s) return false;
+            const sId = String(s.id || '').trim();
+            const sUserId = String(s.userId || s.user_id || '').trim();
+            const sStudentId = String(s.studentId || s.student_id || '').trim();
+
+            if (studentId && (sUserId === studentId || sStudentId === studentId || sId === studentId)) {
                 return true;
             }
-            // Only match by name if exact full name matches and has at least 2 words (never partial first-name matches)
-            if (cleanName && nameTokens.length >= 2) {
-                const sName = String(s.name || s.fullName || '').trim().toLowerCase();
-                if (sName && sName === cleanName) {
+
+            // Match by name
+            if (cleanName) {
+                const sName = String(s.name || s.fullName || s.studentName || s.student_name || '').trim().toLowerCase();
+                if (sName && (sName === cleanName || (nameTokens.length >= 2 && (sName.includes(cleanName) || cleanName.includes(sName))))) {
                     return true;
                 }
             }
             return false;
         });
+
         if (matched) {
-            const realAdm = matched.admissionNumber || matched.admission_number || matched.admissionNo || matched.admNo || matched.registrationNo || matched.studentId || matched.customId || matched.metadata?.admissionNumber || matched.metadata?.admission_number || matched.metadata?.admNo;
+            let mMeta = matched.metadata;
+            if (typeof mMeta === 'string' && mMeta.trim().startsWith('{')) {
+                try { mMeta = JSON.parse(mMeta); } catch (e) {}
+            }
+
+            const realAdm = matched.admissionNumber || matched.admission_number || matched.admissionNo || matched.admission_no ||
+                            matched.admNo || matched.adm_no || matched.registrationNo || matched.registration_number ||
+                            matched.studentId || matched.student_id || matched.customId ||
+                            mMeta?.admissionNumber || mMeta?.admission_number || mMeta?.admissionNo || mMeta?.admNo;
             const strAdm = String(realAdm || '').trim();
             if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm) && strAdm !== 'N/A' && strAdm !== 'undefined' && strAdm !== 'null') {
                 return strAdm;
@@ -210,7 +284,7 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
     for (const cand of candidates) {
         if (cand) {
             const s = String(cand).trim();
-            if (s && !s.startsWith('usr_') && !s.startsWith('user_')) return s;
+            if (s && !s.startsWith('usr_') && !s.startsWith('user_') && s !== 'N/A') return s;
         }
     }
 

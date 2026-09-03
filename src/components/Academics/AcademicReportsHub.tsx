@@ -21,6 +21,7 @@ import { BroadsheetReportView } from './BroadsheetReportView';
 import { OfficialResultSlipView } from './OfficialResultSlipView';
 import { AcademicTranscriptView } from './AcademicTranscriptView';
 import { RawMarksheetView } from './RawMarksheetView';
+import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream } from '../../utils/academicUtils';
 
 interface AcademicReportsHubProps {
     assessments?: Assessment[];
@@ -186,10 +187,67 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
         return type === 'primary' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
     }, [currentInstitution]);
 
+    // Dynamic state for student enrollments & real admission numbers
+    const [enrollmentsRegistry, setEnrollmentsRegistry] = useState<any[]>(() => {
+        try {
+            const cached = (instId ? localStorage.getItem(`eduai_student_enrollments_${instId}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instId ? localStorage.getItem(`eduai_students_${instId}`) : null) ||
+                           localStorage.getItem('eduai_students_default');
+            if (cached) return JSON.parse(cached) || [];
+        } catch(e) {}
+        return [];
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => [])
+            ]).then(([enrList, stList]) => {
+                const combined = [...(enrList || []), ...(stList || [])];
+                if (combined.length > 0) {
+                    setEnrollmentsRegistry(prev => {
+                        const existingMap = new Map<string, any>();
+                        prev.forEach(item => {
+                            const key = item.id || item.userId || item.user_id;
+                            if (key) existingMap.set(key, item);
+                        });
+                        combined.forEach(item => {
+                            const key = item.id || item.userId || item.user_id;
+                            if (key) existingMap.set(key, { ...existingMap.get(key), ...item });
+                        });
+                        const updated = Array.from(existingMap.values());
+                        try {
+                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(updated));
+                        } catch(e) {}
+                        return updated;
+                    });
+                }
+            }).catch(() => {});
+        }
+    }, [currentInstitution]);
+
     const activeStudents = useMemo(() => {
-        if (students.length > 0) return students.filter(Boolean);
-        return users.filter(u => u && u.role === 'student');
-    }, [students, users]);
+        const base = (students && students.length > 0) ? students.filter(Boolean) : users.filter(u => u && u.role === 'student');
+
+        return base.map((s, idx) => {
+            const resolvedAdm = resolveRealStudentAdmNo(s, undefined, enrollmentsRegistry);
+            const resolvedClass = resolveRealStudentClass(s, enrollmentsRegistry, courses);
+            const resolvedStream = resolveRealStudentStream(s, enrollmentsRegistry);
+
+            return {
+                ...s,
+                admissionNo: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : s.admissionNo,
+                admissionNumber: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : s.admissionNumber,
+                admission_number: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : s.admission_number,
+                admNo: (resolvedAdm && resolvedAdm !== 'N/A') ? resolvedAdm : (s as any).admNo,
+                studentClass: (resolvedClass && resolvedClass !== 'Unclassified')
+                    ? (resolvedStream && !resolvedClass.toLowerCase().includes(resolvedStream.toLowerCase()) ? `${resolvedClass} ${resolvedStream}` : resolvedClass)
+                    : s.studentClass
+            };
+        });
+    }, [students, users, enrollmentsRegistry, courses]);
 
     // Dynamic list of registered classes
     const classOptions = useMemo(() => {
