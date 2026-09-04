@@ -119,8 +119,28 @@ export const aggregateSubjectMarks = (
 };
 
 /**
+ * Detects whether a string is a synthetic fallback admission number
+ * (e.g. ADM-1000, ADM-2026-89CG, STF-2026-89CG, ADM-50966, internal IDs like usr_..., st_..., enr_...).
+ */
+export const isSyntheticAdmNo = (val: any): boolean => {
+    if (!val) return true;
+    const strVal = String(val).trim();
+    if (!strVal || strVal === '—' || strVal === '-' || strVal === 'N/A' || strVal === 'undefined' || strVal === 'null' || strVal.toLowerCase() === 'pending') {
+        return true;
+    }
+    if (strVal.startsWith('usr_') || strVal.startsWith('user_') || strVal.startsWith('st_') || strVal.startsWith('enr_')) {
+        return true;
+    }
+    if (/^ADM-10\d{2,}$/i.test(strVal)) return true; // ADM-1000 synthetic
+    if (/^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(strVal)) return true; // ADM-2026-89CG generated fallback
+    if (/^STF-\d{4}-[A-Za-z0-9]{4}$/i.test(strVal)) return true; // STF-2026-89CG generated fallback
+    if (/^ADM-\d{5,}$/i.test(strVal)) return true; // ADM-50966 generated fallback
+    return false;
+};
+
+/**
  * Resolves the genuine admission number for a student, scanning all canonical candidate keys
- * and filtering out placeholder/synthetic fallbacks (such as ADM-1000).
+ * and filtering out placeholder/synthetic fallbacks (such as ADM-1000, ADM-2026-89CG).
  */
 export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: any[]): string => {
     if (!student) return 'N/A';
@@ -202,8 +222,7 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
     for (const cand of candidates) {
         if (cand !== null && cand !== undefined) {
             const strVal = String(cand).trim();
-            const isSynthetic = /^ADM-10\d{2,}$/i.test(strVal);
-            if (strVal && !strVal.startsWith('usr_') && !strVal.startsWith('user_') && !isSynthetic && strVal !== 'undefined' && strVal !== 'null' && strVal !== '' && strVal !== 'N/A') {
+            if (!isSyntheticAdmNo(strVal)) {
                 return strVal;
             }
         }
@@ -212,8 +231,7 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
     // Direct ID check if it is a real custom admission number and not an internal UUID / prefix
     if (student.id && typeof student.id === 'string') {
         const cleanId = student.id.trim();
-        const isSynthetic = /^ADM-10\d{2,}$/i.test(cleanId);
-        if (!cleanId.startsWith('usr_') && !cleanId.startsWith('user_') && !cleanId.startsWith('st_') && !cleanId.startsWith('enr_') && !isSynthetic && cleanId !== 'undefined' && cleanId !== 'null' && cleanId !== 'N/A') {
+        if (!isSyntheticAdmNo(cleanId)) {
             return cleanId;
         }
     }
@@ -274,17 +292,17 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
                             matched.studentId || matched.student_id || matched.customId ||
                             mMeta?.admissionNumber || mMeta?.admission_number || mMeta?.admissionNo || mMeta?.admNo;
             const strAdm = String(realAdm || '').trim();
-            if (strAdm && !strAdm.startsWith('usr_') && !strAdm.startsWith('user_') && !/^ADM-10\d{2,}$/i.test(strAdm) && strAdm !== 'N/A' && strAdm !== 'undefined' && strAdm !== 'null') {
+            if (!isSyntheticAdmNo(strAdm)) {
                 return strAdm;
             }
         }
     }
 
-    // If any non-empty candidate was found even if starts with ADM-
+    // If any non-empty candidate was found even if synthetic
     for (const cand of candidates) {
         if (cand) {
             const s = String(cand).trim();
-            if (s && !s.startsWith('usr_') && !s.startsWith('user_') && s !== 'N/A') return s;
+            if (s && !s.startsWith('usr_') && !s.startsWith('user_') && s !== 'N/A' && s !== 'undefined' && s !== 'null') return s;
         }
     }
 

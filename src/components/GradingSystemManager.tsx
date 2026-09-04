@@ -7,6 +7,7 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { apiService } from '../services/apiService';
 import { isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+import { extractClassAndStream } from '../utils/academicUtils';
 
 interface GradingSystemManagerProps {
     currentInstitution?: Institution | null;
@@ -379,9 +380,11 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             }
 
             // --- PRIORITY 2: From classAllocationsStore (Subject Allocation Manager) ---
+            const baseCls = extractClassAndStream(clsName).className;
+            const baseClsNorm = (baseCls || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const allocKey = Object.keys(classAllocationsStore || {}).find(k => {
                 const kNorm = (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                return kNorm === clsNorm || k.toLowerCase().trim() === clsLower;
+                return kNorm === clsNorm || k.toLowerCase().trim() === clsLower || (baseClsNorm && kNorm === baseClsNorm);
             });
 
             const storedAllocations = allocKey ? classAllocationsStore[allocKey] : null;

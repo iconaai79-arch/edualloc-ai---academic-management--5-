@@ -6,6 +6,7 @@ import { PlusIcon } from '../icons/PlusIcon';
 import { ChartBarIcon } from '../icons/ChartBarIcon';
 import { BellIcon } from '../icons/BellIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
+import { getPatientAdmNo } from './EduPulsePatientsList';
 
 interface Patient {
     id: string;
@@ -15,6 +16,7 @@ interface Patient {
     contact?: string;
     admissionNumber?: string;
     insuranceProvider?: string;
+    [key: string]: any;
 }
 
 interface ClinicalEvent {
@@ -45,6 +47,8 @@ interface EduPulseHomeDashboardProps {
     patients: Patient[];
     clinicalEvents: ClinicalEvent[];
     appointments: Appointment[];
+    users?: any[];
+    enrollments?: any[];
     onRegisterPatient: () => void;
     onAddVisit: () => void;
     onScheduleAppointment: () => void;
@@ -55,6 +59,8 @@ export function EduPulseHomeDashboard({
     patients,
     clinicalEvents,
     appointments,
+    users = [],
+    enrollments = [],
     onRegisterPatient,
     onAddVisit,
     onScheduleAppointment,
@@ -313,6 +319,7 @@ export function EduPulseHomeDashboard({
                         <tbody className="divide-y divide-slate-100 dark:divide-white/5 text-[11px]">
                             {clinicalEvents.slice(0, 5).map((item, idx) => {
                                 const matchedPatient = patients.find(p => p.id === item.patientId);
+                                const admNo = matchedPatient ? getPatientAdmNo(matchedPatient, users, enrollments) : '';
                                 return (
                                     <tr key={idx} className="hover:bg-slate-100/30 dark:hover:bg-white/5 transition-colors">
                                         <td className="px-6 py-4">
@@ -321,7 +328,7 @@ export function EduPulseHomeDashboard({
                                                     {matchedPatient?.fullName || 'Registry Student'}
                                                 </p>
                                                 <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
-                                                    {matchedPatient?.admissionNumber || 'ADM-N/A'}
+                                                    {admNo || matchedPatient?.admissionNumber || 'ADM-N/A'}
                                                 </p>
                                             </button>
                                         </td>

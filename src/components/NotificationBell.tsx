@@ -88,42 +88,56 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                     <div className="max-h-96 overflow-y-auto">
                         {sortedNotifications.length > 0 ? (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-700">
-                                {sortedNotifications.map(notification => (
-                                    <li 
-                                        key={notification.id} 
-                                        className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${!notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}
-                                    >
-                                        <div className="flex justify-between items-start gap-3">
-                                            <div className="flex-grow">
-                                                {notification.type === 'guest_arrival' && (
-                                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 mb-1">
-                                                        GUEST ARRIVAL
-                                                    </span>
-                                                )}
-                                                <p className={`text-sm ${!notification.isRead ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
-                                                    {notification.message}
-                                                </p>
-                                                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{formatTimeAgo(notification.timestamp)}</p>
-                                            </div>
-                                            {!notification.isRead && (
-                                                <button 
-                                                    onClick={() => handleItemAction(notification)}
-                                                    className={`flex-shrink-0 p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors ${notification.type === 'guest_arrival' ? 'text-green-600 bg-green-50 dark:bg-green-900/30' : 'text-slate-400'}`}
-                                                    title={notification.type === 'guest_arrival' ? "Acknowledge & Mark Seen" : "Mark as Read"}
-                                                >
-                                                    {notification.type === 'guest_arrival' ? (
-                                                        <div className="flex items-center gap-1 px-2 py-1 rounded-md">
-                                                             <CheckIcon className="w-4 h-4" />
-                                                             <span className="text-xs font-bold">Met</span>
+                                {sortedNotifications.map(notification => {
+                                    const isVisitorNotif = notification.type === 'guest_arrival' || notification.type === 'visitor';
+                                    return (
+                                        <li 
+                                            key={notification.id} 
+                                            className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
+                                                !notification.isRead 
+                                                    ? (isVisitorNotif ? 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-amber-500' : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500') 
+                                                    : ''
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start gap-3">
+                                                <div className="flex-grow">
+                                                    {isVisitorNotif && (
+                                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                                                VISITOR AT GATE
+                                                            </span>
                                                         </div>
-                                                    ) : (
-                                                        <span className="block w-2 h-2 bg-blue-500 rounded-full"></span>
                                                     )}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
+                                                    <p className={`text-sm ${!notification.isRead ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                        {notification.message}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{formatTimeAgo(notification.timestamp)}</p>
+                                                </div>
+                                                {!notification.isRead && (
+                                                    <button 
+                                                        onClick={() => handleItemAction(notification)}
+                                                        className={`flex-shrink-0 p-1.5 rounded-xl transition-all ${
+                                                            isVisitorNotif 
+                                                                ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' 
+                                                                : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                                        }`}
+                                                        title={isVisitorNotif ? "Acknowledge & Mark Met" : "Mark as Read"}
+                                                    >
+                                                        {isVisitorNotif ? (
+                                                            <div className="flex items-center gap-1 px-1.5 py-0.5">
+                                                                 <CheckIcon className="w-3.5 h-3.5" />
+                                                                 <span className="text-[11px] font-black uppercase">Met</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="block w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
+                                                        )}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         ) : (
                             <div className="px-4 py-8 text-center">

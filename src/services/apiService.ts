@@ -2062,6 +2062,11 @@ export const apiService = {
             }
         }
 
+        // Local storage mode for unsupported server modules - do not query Supabase tables that do not exist
+        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module)) {
+            return;
+        }
+
         // Direct Supabase delete if _supabase is present
         if (_supabase) {
             try {
@@ -2073,11 +2078,6 @@ export const apiService = {
             } catch (err) {
                 console.warn(`[deleteModuleRecord] Direct Supabase delete for ${module}:`, err);
             }
-        }
-
-        // Local storage mode for unsupported server modules
-        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module)) {
-            return;
         }
 
         // All database operations are proxied through backend API to protect database path from browser exposure

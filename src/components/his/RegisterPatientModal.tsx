@@ -9,12 +9,14 @@ import { SearchIcon } from '../icons/SearchIcon';
 import { HeartIcon, IdentificationIcon, ShieldCheckIcon, CalendarIcon } from './HealthIcons';
 import { HISPatient, User } from '../../types';
 import { generateNextPatientId, advancePatientIdSequence } from '../../utils/hisPatientIdGenerator';
+import { isSyntheticAdmNo, isPlaceholderEmail } from '../../utils/academicUtils';
 
 interface RegisterPatientModalProps {
     isOpen: boolean;
     onClose: () => void;
     onRegister: (patient: Omit<HISPatient, 'id' | 'institutionId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
     users?: User[];
+    enrollments?: any[];
     isEdu?: boolean;
     institutionId?: string;
     existingPatients?: any[];
@@ -36,7 +38,7 @@ function ChevronLeftIcon(props: any) {
     );
 }
 
-export function getStudentResolvedAdm(u: any, generateFallback: boolean = false): string {
+export function getStudentResolvedAdm(u: any, generateFallback: boolean = false, enrollments: any[] = []): string {
     if (!u) return '';
     const adm = (
         u.admissionNumber ||
@@ -79,9 +81,49 @@ export function getStudentResolvedAdm(u: any, generateFallback: boolean = false)
         ''
     );
     const cleaned = adm ? String(adm).trim() : '';
-    if (cleaned && cleaned !== '—' && cleaned !== '-' && cleaned.toLowerCase() !== 'pending') {
+    if (cleaned && !isSyntheticAdmNo(cleaned)) {
         return cleaned;
     }
+
+    // Try finding genuine admission number in enrollments
+    let effectiveEnrollments = enrollments;
+    if (!effectiveEnrollments || !Array.isArray(effectiveEnrollments) || effectiveEnrollments.length === 0) {
+        try {
+            const instKey = u.institutionId || u.institution_id || '';
+            const rawEnr = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_students_default');
+            if (rawEnr) {
+                const parsed = JSON.parse(rawEnr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    effectiveEnrollments = parsed;
+                }
+            }
+        } catch (e) {}
+    }
+
+    if (effectiveEnrollments && Array.isArray(effectiveEnrollments) && effectiveEnrollments.length > 0) {
+        const uId = String(u.id || '').trim();
+        const uName = String(u.name || u.fullName || '').trim().toLowerCase();
+        const matchedEnr = effectiveEnrollments.find((e: any) => {
+            if (!e) return false;
+            if (uId && (e.userId === uId || e.studentId === uId || e.id === uId)) return true;
+            if (uName) {
+                const eName = String(e.name || e.fullName || e.studentName || e.metadata?.studentName || '').trim().toLowerCase();
+                if (eName && (eName === uName || eName.includes(uName) || uName.includes(eName))) return true;
+            }
+            return false;
+        });
+
+        if (matchedEnr) {
+            const enrAdm = matchedEnr.admissionNumber || matchedEnr.admission_number || matchedEnr.metadata?.admissionNumber || matchedEnr.assessmentNo;
+            if (enrAdm && !isSyntheticAdmNo(enrAdm)) {
+                return String(enrAdm).trim();
+            }
+        }
+    }
+
     if (generateFallback) {
         const idSeed = String(u.id || u.email || Math.random().toString(36).substring(2, 7)).replace(/[^a-zA-Z0-9]/g, '');
         const suffix = idSeed.length >= 4 ? idSeed.slice(-4).toUpperCase() : idSeed.toUpperCase().padStart(4, '0');
@@ -137,7 +179,7 @@ export function getStudentResolvedClass(u: any): string {
     return gradeStr || streamStr || '';
 }
 
-export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], isEdu = false, institutionId, existingPatients = [] }: RegisterPatientModalProps) {
+export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], enrollments = [], isEdu = false, institutionId, existingPatients = [] }: RegisterPatientModalProps) {
     const [currentStep, setCurrentStep] = useState(1);
     const [formData, setFormData] = useState({
         customPatientId: '',
@@ -215,7 +257,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
         const parentId = user.metadata?.guardianNationalId || user.metadata?.parentId || (user as any).guardianNationalId || (user as any).parentId || '';
         
         // Auto-generate a clean, unique admission/staff ID if not already assigned
-        const adm = getStudentResolvedAdm(user, true);
+        const adm = getStudentResolvedAdm(user, false, enrollments) || getStudentResolvedAdm(user, true, enrollments);
         const resolvedClass = getStudentResolvedClass(user);
         
         const grade = (user as any).metadata?.gradeLevel || 
@@ -230,13 +272,17 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
             
         const stream = (user as any).metadata?.stream || (user as any).metadata?.streamName || (user as any).metadata?.stream_name || (user as any).stream || '';
 
+        // Avoid using synthetic/placeholder email as contact
+        const validUserEmail = (user.email && !isPlaceholderEmail(user.email)) ? user.email : '';
+        const resolvedContact = user.phoneNumber || parentPhone || validUserEmail || '';
+
         setFormData(prev => ({
             ...prev,
             fullName: user.name,
             dob: user.metadata?.dob || (user as any).dob || '',
             gender: (user.metadata?.gender === 'Female' || (user as any).gender === 'Female' ? 'Female' : 'Male'),
             bloodGroup: user.metadata?.bloodGroup || (user as any).bloodGroup || '',
-            contact: user.phoneNumber || user.email || parentPhone || '',
+            contact: resolvedContact,
             insuranceProvider: isEdu ? 'School Coverage / EduPulse Free Student Care' : 'School Coverage',
             shaNumber: user.metadata?.shaNumber || '',
             emergencyContactName: user.metadata?.emergencyContactName || parentName || '',

@@ -40,7 +40,8 @@ import { LabDiagnosticsView } from './LabDiagnosticsView';
 import { ModernPharmacyManager } from './ModernPharmacyManager';
 import { PharmacyView } from './PharmacyView';
 import { EduPulseHomeDashboard } from './EduPulseHomeDashboard';
-import { EduPulsePatientsList } from './EduPulsePatientsList';
+import { EduPulsePatientsList, getPatientAdmNo, getPatientContact } from './EduPulsePatientsList';
+import { isSyntheticAdmNo, isPlaceholderEmail } from '../../utils/academicUtils';
 import { ReceptionistView } from './ReceptionistView';
 import { DoctorDashboard } from './DoctorDashboard';
 import { HISQueueManagerView } from './HISQueueManagerView';
@@ -64,6 +65,10 @@ interface HealthCoreProps {
     userName?: string;
     institutionId?: string;
     users?: User[];
+    currentInstitution?: any;
+    currentUser?: any;
+    institutionData?: any;
+    enrollments?: any[];
 }
 
 function GeneralMedicineView({ activePatient, vitals, events, onOpenVitals, onOpenRegister, onAddVisit, onAddPrescription, onOpenTransferLetter }: { activePatient?: HISPatient | null, vitals?: any[], events?: any[], onOpenVitals: () => void, onOpenRegister: () => void, onAddVisit: () => void, onAddPrescription: () => void, onOpenTransferLetter: () => void }) {
@@ -76,6 +81,37 @@ function GeneralMedicineView({ activePatient, vitals, events, onOpenVitals, onOp
                 </div>
                 <button onClick={onOpenRegister} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-indigo-500/20"><PlusIcon className="w-4 h-4" /> Register Patient</button>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div className="bg-slate-900/60 p-6 rounded-3xl border border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Total Active Patients</p>
+                    <p className="text-3xl font-black text-indigo-400">1,248</p>
+                </div>
+                <div className="bg-slate-900/60 p-6 rounded-3xl border border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Today's Encounters</p>
+                    <p className="text-3xl font-black text-emerald-400">42</p>
+                </div>
+                <div className="bg-slate-900/60 p-6 rounded-3xl border border-slate-800">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Critical Flags</p>
+                    <p className="text-3xl font-black text-rose-500">3</p>
+                </div>
+            </div>
+
+            {/* Quick Action Matrix */}
+            {activePatient && (
+                <div className="p-8 rounded-3xl bg-indigo-950/30 border border-indigo-500/20 mb-10 flex flex-wrap gap-4 items-center justify-between">
+                    <div>
+                        <h4 className="text-lg font-black text-white">{activePatient.fullName}</h4>
+                        <p className="text-xs text-indigo-300 font-bold">SHA: {activePatient.shaNumber || 'N/A'} • Blood: {activePatient.bloodGroup || 'O+'} • Age: 24</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <button onClick={onOpenVitals} className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"><HeartIcon className="w-3.5 h-3.5 text-rose-400" /> Log Vitals</button>
+                        <button onClick={onAddVisit} className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"><DocumentTextIcon className="w-3.5 h-3.5 text-indigo-400" /> Record Encounter</button>
+                        <button onClick={onAddPrescription} className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"><BeakerIcon className="w-3.5 h-3.5 text-amber-400" /> Prescribe Rx</button>
+                        <button onClick={onOpenTransferLetter} className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-indigo-600/30"><DocumentTextIcon className="w-3.5 h-3.5" /> Transfer Document</button>
+                    </div>
+                </div>
+            )}
 
             {activePatient ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-slate-900 dark:text-white">
@@ -168,15 +204,16 @@ function GeneralMedicineView({ activePatient, vitals, events, onOpenVitals, onOp
     );
 }
 
-export function HealthCoreView({ activeRole, userName, institutionId, users = [] }: HealthCoreProps) {
+export function HealthCoreView({ activeRole, userName, institutionId, users = [], currentInstitution, institutionData: propInstData, currentUser, enrollments: propEnrollments }: HealthCoreProps) {
     const [activeModule, setActiveModule] = useState<HISModule>('general');
     const [searchTerm, setSearchTerm] = useState('');
     const [patients, setPatients] = useState<HISPatient[]>([]);
+    const [enrollments, setEnrollments] = useState<any[]>(propEnrollments || []);
     const [isLoading, setIsLoading] = useState(false);
     const [activePatientId, setActivePatientId] = useState<string | null>(null);
     const [activePatientVitals, setActivePatientVitals] = useState<any[]>([]);
     const [activePatientEvents, setActivePatientEvents] = useState<any[]>([]);
-    const [institutionData, setInstitutionData] = useState<any>(null);
+    const [institutionData, setInstitutionData] = useState<any>(propInstData || currentInstitution || null);
 
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [isUpdateVitalsOpen, setIsUpdateVitalsOpen] = useState(false);
@@ -192,7 +229,19 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
     const [hisPayrollRecords, setHisPayrollRecords] = useState<PayrollRecord[]>([]);
     const [hisLeaveRequests, setHisLeaveRequests] = useState<LeaveRequest[]>([]);
 
-    const isEdu = isEduInstitution(institutionData);
+    const effectiveInstitution = propInstData || currentInstitution || institutionData;
+    // An institution is EduPulse if:
+    // 1. Explicitly an educational institution according to isEduInstitution(effectiveInstitution)
+    // 2. OR current user role is an educational role
+    // 3. OR it is NOT an explicit dedicated Hospital/Clinic HIS
+    const isEduRole = ['head_teacher', 'deputy', 'dos', 'hod', 'teacher', 'student', 'parent', 'class_supervisor', 'academics_officer', 'boarding_master', 'operation_manager', 'librarian'].includes(activeRole || '');
+    const isDedicatedHospital = effectiveInstitution && (
+        effectiveInstitution.institutionType === 'HIS' || 
+        effectiveInstitution.institutionType === 'Hospital' || 
+        effectiveInstitution.institutionType === 'Clinic' ||
+        (effectiveInstitution.category && effectiveInstitution.category.toLowerCase().includes('hospital'))
+    );
+    const isEdu = isEduRole || (effectiveInstitution ? (isEduInstitution(effectiveInstitution) || !isDedicatedHospital) : true);
 
     const fetchAllWellnessData = React.useCallback(async () => {
         if (!institutionId) return;
@@ -259,6 +308,9 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
 
     React.useEffect(() => {
         const loadInst = async () => {
+            if (propInstData || currentInstitution) {
+                setInstitutionData(propInstData || currentInstitution);
+            }
             if (institutionId) {
                 const results = await apiService.fetchModuleRecords('institutions', institutionId);
                 if (results && results.length > 0) {
@@ -428,18 +480,74 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
     const fetchPatients = React.useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords('his_patients', institutionId || undefined);
+            const [data, enrollmentsData] = await Promise.all([
+                apiService.fetchModuleRecords('his_patients', institutionId || undefined),
+                apiService.fetchModuleRecords('student_enrollments', institutionId || undefined).catch(() => [])
+            ]);
+
+            // Combine API enrollments with cached localStorage enrollments
+            let allEnrollments: any[] = Array.isArray(enrollmentsData) ? [...enrollmentsData] : [];
+            try {
+                const instKey = institutionId || '';
+                const cached = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
+                               localStorage.getItem('eduai_student_enrollments_default') ||
+                               (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
+                               localStorage.getItem('eduai_students_default') ||
+                               (instKey ? localStorage.getItem(`eduai_enrollments_${instKey}`) : null);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const seenKeys = new Set(allEnrollments.map(e => e.id || e.userId).filter(Boolean));
+                        parsed.forEach(e => {
+                            const key = e.id || e.userId;
+                            if (!key || !seenKeys.has(key)) {
+                                allEnrollments.push(e);
+                                if (key) seenKeys.add(key);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {}
+            setEnrollments(allEnrollments);
+
             const rawList = (data && data.length > 0) ? data : (!institutionId && demoData?.hisPatients ? demoData.hisPatients : (data || []));
 
-            // Enrich patients with school directory user data (student admission numbers, class/grade, etc.)
+            // Enrich patients with genuine admission numbers, clean contacts, and academic details
             const enrichedList = (rawList || []).map((p: any) => {
-                if (!users || users.length === 0) return p;
+                const currentAdm = (
+                    p.admissionNumber ||
+                    p.admission_number ||
+                    p.customPatientId ||
+                    p.custom_patient_id ||
+                    p.patientNumber ||
+                    p.patient_number ||
+                    p.opNumber ||
+                    p.op_number ||
+                    ''
+                );
+
+                const genuineAdm = getPatientAdmNo(p, users, allEnrollments);
+                const effectiveAdm = (genuineAdm && !isSyntheticAdmNo(genuineAdm))
+                    ? genuineAdm
+                    : (!isSyntheticAdmNo(currentAdm) ? currentAdm : (genuineAdm || currentAdm));
+
+                // If his_patients in storage had a synthetic fallback hash, automatically heal it
+                if (isSyntheticAdmNo(currentAdm) && effectiveAdm && !isSyntheticAdmNo(effectiveAdm) && p.id) {
+                    apiService.saveModuleRecord('his_patients', {
+                        id: p.id,
+                        institution_id: p.institutionId || institutionId,
+                        admission_number: effectiveAdm,
+                        admissionNumber: effectiveAdm
+                    }).catch(() => {});
+                }
+
+                // Match user and enrollment for extra academic and guardian details
                 const pName = (p.fullName || p.name || '').trim().toLowerCase();
                 const pUserId = p.userId || p.user_id || p.id;
                 const pContact = (p.contact || p.phoneNumber || '').trim();
                 const pEmail = (p.email || '').trim().toLowerCase();
 
-                const matchedUser = users.find(u => {
+                const matchedUser = (users || []).find(u => {
                     if (!u) return false;
                     if (pUserId && u.id === pUserId) return true;
                     if (pName && u.name && u.name.trim().toLowerCase() === pName) return true;
@@ -448,53 +556,41 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                     return false;
                 });
 
-                if (matchedUser) {
-                    const userAdm = (
-                        matchedUser.admissionNumber ||
-                        matchedUser.admission_number ||
-                        matchedUser.admissionNo ||
-                        (matchedUser as any).admission_no ||
-                        (matchedUser as any).admNo ||
-                        (matchedUser as any).adm_no ||
-                        matchedUser.metadata?.admissionNumber ||
-                        matchedUser.metadata?.admission_number ||
-                        matchedUser.metadata?.admissionNo ||
-                        matchedUser.metadata?.admNo ||
-                        matchedUser.metadata?.adm_no ||
-                        matchedUser.metadata?.student_admission_number ||
-                        matchedUser.metadata?.studentId ||
-                        matchedUser.metadata?.student_id ||
-                        ''
-                    );
-                    const userGrade = matchedUser.metadata?.gradeLevel || matchedUser.metadata?.class_level || matchedUser.metadata?.grade_level || (matchedUser as any).gradeLevel;
-                    const userStream = matchedUser.metadata?.stream || (matchedUser as any).stream;
-                    const userDob = matchedUser.metadata?.dob || matchedUser.metadata?.dateOfBirth;
-                    const userGender = matchedUser.gender || matchedUser.metadata?.gender;
-                    const userContact = matchedUser.phoneNumber || matchedUser.email;
-                    const userBlood = matchedUser.metadata?.bloodGroup || matchedUser.metadata?.blood_group;
-                    const userEmergencyName = matchedUser.metadata?.emergencyContactName || matchedUser.metadata?.guardianName || matchedUser.metadata?.parentName;
-                    const userEmergencyPhone = matchedUser.metadata?.emergencyContactPhone || matchedUser.metadata?.guardianPhone || matchedUser.metadata?.parentPhone;
+                const matchedEnr = (allEnrollments || []).find(e => {
+                    if (!e) return false;
+                    if (pUserId && (e.userId === pUserId || e.studentId === pUserId || e.id === pUserId)) return true;
+                    if (pName) {
+                        const eName = (e.name || e.fullName || e.studentName || e.metadata?.studentName || '').trim().toLowerCase();
+                        if (eName && (eName === pName || eName.includes(pName) || pName.includes(eName))) return true;
+                    }
+                    return false;
+                });
 
-                    const effectiveAdm = p.admissionNumber || p.admission_number || p.customPatientId || p.patientNumber || p.opNumber || userAdm || '';
+                const userGrade = matchedUser?.metadata?.gradeLevel || matchedUser?.metadata?.class_level || matchedUser?.metadata?.grade_level || (matchedUser as any)?.gradeLevel || matchedEnr?.metadata?.gradeLevel || matchedEnr?.metadata?.className;
+                const userStream = matchedUser?.metadata?.stream || (matchedUser as any)?.stream || matchedEnr?.metadata?.stream;
+                const userDob = matchedUser?.metadata?.dob || matchedUser?.metadata?.dateOfBirth || matchedEnr?.metadata?.dob;
+                const userGender = matchedUser?.gender || matchedUser?.metadata?.gender || matchedEnr?.gender;
+                const userEmergencyName = matchedUser?.metadata?.emergencyContactName || matchedUser?.metadata?.guardianName || matchedUser?.metadata?.parentName || matchedEnr?.metadata?.guardianName || matchedEnr?.metadata?.parentName;
+                const userEmergencyPhone = matchedUser?.metadata?.emergencyContactPhone || matchedUser?.metadata?.guardianPhone || matchedUser?.metadata?.parentPhone || matchedEnr?.metadata?.parentPhone;
 
-                    return {
-                        ...p,
-                        admissionNumber: effectiveAdm,
-                        admission_number: effectiveAdm,
-                        customPatientId: p.customPatientId || p.custom_patient_id || effectiveAdm,
-                        patientNumber: p.patientNumber || p.patient_number || effectiveAdm,
-                        opNumber: p.opNumber || p.op_number || effectiveAdm,
-                        gradeLevel: p.gradeLevel || (p as any).grade_level || userGrade || '',
-                        stream: p.stream || userStream || '',
-                        dob: p.dob || userDob || '',
-                        gender: p.gender || userGender || 'Unknown',
-                        bloodGroup: p.bloodGroup || (p as any).blood_group || userBlood || '',
-                        contact: p.contact || userContact || '',
-                        emergencyContactName: p.emergencyContactName || (p as any).emergency_contact_name || userEmergencyName || '',
-                        emergencyContactPhone: p.emergencyContactPhone || (p as any).emergency_contact_phone || userEmergencyPhone || ''
-                    };
-                }
-                return p;
+                const cleanContact = getPatientContact(p, users, allEnrollments);
+
+                return {
+                    ...p,
+                    admissionNumber: effectiveAdm,
+                    admission_number: effectiveAdm,
+                    customPatientId: p.customPatientId || p.custom_patient_id || effectiveAdm,
+                    patientNumber: p.patientNumber || p.patient_number || effectiveAdm,
+                    opNumber: p.opNumber || p.op_number || effectiveAdm,
+                    gradeLevel: p.gradeLevel || (p as any).grade_level || userGrade || '',
+                    stream: p.stream || userStream || '',
+                    dob: p.dob || userDob || '',
+                    gender: p.gender || userGender || 'Unknown',
+                    bloodGroup: p.bloodGroup || (p as any).blood_group || matchedUser?.metadata?.bloodGroup || '',
+                    contact: cleanContact || p.contact || '',
+                    emergencyContactName: p.emergencyContactName || (p as any).emergency_contact_name || userEmergencyName || '',
+                    emergencyContactPhone: p.emergencyContactPhone || (p as any).emergency_contact_phone || userEmergencyPhone || ''
+                };
             });
 
             setPatients(enrichedList);
@@ -1169,6 +1265,8 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                     return (
                                         <EduPulseHomeDashboard 
                                             patients={patients} 
+                                            users={users}
+                                            enrollments={enrollments}
                                             clinicalEvents={allClinicalEvents} 
                                             appointments={allAppointments} 
                                             onRegisterPatient={() => setIsRegisterModalOpen(true)} 
@@ -1189,6 +1287,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                         <EduPulsePatientsList
                                             patients={patients as any}
                                             users={users}
+                                            enrollments={enrollments}
                                             onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                             onSelectPatient={(pId) => setActivePatientId(pId)}
                                             onPatientUpdated={fetchPatients}
@@ -1244,7 +1343,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <BiometricAttendanceDashboard 
                                     staff={staffList}
                                     institution={currentInst}
-                                />
+                                    />
                             );
                             case 'receptionist': return <ReceptionistView institutionId={institutionId} userName={userName} users={users} isEdu={isEdu} onPatientsUpdated={fetchPatients} />;
                             case 'queuing': return <HISQueueManagerView institutionId={institutionId} userName={userName} activeRole={activeRole} />;
@@ -1252,6 +1351,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                                 <EduPulsePatientsList
                                     patients={patients as any}
                                     users={users}
+                                    enrollments={enrollments}
                                     onRegisterPatient={() => setIsRegisterModalOpen(true)}
                                     onSelectPatient={(p: any) => {
                                         const pId = typeof p === 'string' ? p : p?.id;
@@ -1281,6 +1381,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
                 onClose={() => setIsRegisterModalOpen(false)} 
                 onRegister={handleRegisterPatient} 
                 users={users} 
+                enrollments={enrollments}
                 isEdu={isEdu} 
                 institutionId={institutionId}
                 existingPatients={patients}

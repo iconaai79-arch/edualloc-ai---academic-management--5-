@@ -25,6 +25,7 @@ interface ClassSubjectAllocationModalProps {
 }
 
 import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+import { extractClassAndStream, naturalClassSort } from '../utils/academicUtils';
 export { isSubjectApplicableToClass, isSubjectAssignedToClassStream };
 
 export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalProps> = ({
@@ -39,7 +40,38 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     onAddSubject,
     onDeleteSubject
 }) => {
-    const [selectedClass, setSelectedClass] = useState<string>(classOptions[0] || 'Form 1 Central');
+    // Normalize and deduplicate class options so they represent pure classes / grades (not individual streams)
+    const effectiveClassOptions = useMemo(() => {
+        const set = new Set<string>();
+        (classOptions || []).forEach(c => {
+            if (!c) return;
+            const parsed = extractClassAndStream(c);
+            const base = (parsed.className || c).trim();
+            if (base) set.add(base);
+        });
+        (courses || []).forEach(c => {
+            const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
+            if (name) {
+                const parsed = extractClassAndStream(name);
+                const base = (parsed.className || name).trim();
+                if (base) set.add(base);
+            }
+        });
+        const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
+        const cleaned = Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
+        return naturalClassSort(cleaned);
+    }, [classOptions, courses]);
+
+    const [selectedClass, setSelectedClass] = useState<string>(() => {
+        if (classOptions.length > 0) {
+            const parsed = extractClassAndStream(classOptions[0]);
+            return (parsed.className || classOptions[0]).trim();
+        }
+        return 'Grade 1';
+    });
+    const [selectedStream, setSelectedStream] = useState<string>('all');
+    const [customStreamInput, setCustomStreamInput] = useState<string>('');
+    const [isAddingCustomStream, setIsAddingCustomStream] = useState<boolean>(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [copyFromClass, setCopyFromClass] = useState<string>('');
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -59,12 +91,71 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setLocalSubjects(subjects);
     }, [subjects]);
 
+    // Available streams for the currently selected class
+    const availableStreamsForClass = useMemo(() => {
+        const set = new Set<string>();
+        const targetClean = selectedClass.trim().toLowerCase();
+
+        (courses || []).forEach((c: any) => {
+            const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
+            const parsed = extractClassAndStream(cName);
+            const baseName = (parsed.className || cName).trim().toLowerCase();
+
+            if (baseName === targetClean) {
+                if (Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = String(l.name || '').trim();
+                        if (lName) {
+                            if (lName.toLowerCase().startsWith(baseName)) {
+                                set.add(lName);
+                            } else {
+                                set.add(`${selectedClass} ${lName}`);
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        (classOptions || []).forEach(co => {
+            const parsed = extractClassAndStream(co);
+            if ((parsed.className || '').toLowerCase().trim() === targetClean && co.toLowerCase().trim() !== targetClean) {
+                set.add(co);
+            }
+        });
+
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            const parsed = extractClassAndStream(k);
+            if ((parsed.className || '').toLowerCase().trim() === targetClean && k.toLowerCase().trim() !== targetClean) {
+                set.add(k);
+            }
+        });
+
+        return naturalClassSort(Array.from(set));
+    }, [selectedClass, courses, classOptions, classAllocationsStore]);
+
+    // Reset stream selection whenever active base class changes
+    useEffect(() => {
+        setSelectedStream('all');
+        setIsAddingCustomStream(false);
+        setCustomStreamInput('');
+    }, [selectedClass]);
+
+    const isStreamSpecific = selectedStream !== 'all' && Boolean(selectedStream);
+    const activeAllocationTarget = isStreamSpecific ? selectedStream : selectedClass;
+
+    const isStreamCustomized = useMemo(() => {
+        if (!isStreamSpecific) return false;
+        const targetClean = activeAllocationTarget.trim();
+        return Boolean(classAllocationsStore[targetClean] || classAllocationsStore[targetClean.toLowerCase()]);
+    }, [isStreamSpecific, activeAllocationTarget, classAllocationsStore]);
+
     // Map of subjectId -> set of classNames assigned
     const [assignments, setAssignments] = useState<Record<string, Set<string>>>(() => {
         const initial: Record<string, Set<string>> = {};
         subjects.forEach(s => {
             const set = new Set<string>();
-            classOptions.forEach(c => {
+            effectiveClassOptions.forEach(c => {
                 if (isSubjectAssignedToClassStream(s, c, courses)) {
                     set.add(c);
                 }
@@ -143,6 +234,74 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         } catch(e) {}
     };
 
+    // Helper to find all stream / course level names associated with a class
+    const getRelatedStreamKeys = (className: string): string[] => {
+        const keys = new Set<string>();
+        const targetClean = className.trim().toLowerCase();
+        
+        (courses || []).forEach((c: any) => {
+            const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
+            const parsed = extractClassAndStream(cName);
+            const baseName = (parsed.className || cName).trim().toLowerCase();
+            
+            if (baseName === targetClean) {
+                if (Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = String(l.name || '').trim();
+                        if (lName) {
+                            if (lName.toLowerCase().startsWith(baseName)) {
+                                keys.add(lName);
+                            } else {
+                                keys.add(`${cName} ${lName}`);
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            const parsed = extractClassAndStream(k);
+            if ((parsed.className || '').toLowerCase().trim() === targetClean && k.toLowerCase().trim() !== targetClean) {
+                keys.add(k);
+            }
+        });
+
+        return Array.from(keys);
+    };
+
+    const syncAllocationsForClass = (
+        currentStore: Record<string, string[]>,
+        clsName: string,
+        subjectIds: string[]
+    ): Record<string, string[]> => {
+        const nextStore = { ...currentStore };
+        const clean = clsName.trim();
+        const lower = clean.toLowerCase();
+        
+        nextStore[clean] = subjectIds;
+        nextStore[lower] = subjectIds;
+
+        const relatedStreams = getRelatedStreamKeys(clsName);
+        relatedStreams.forEach(streamKey => {
+            nextStore[streamKey] = subjectIds;
+            nextStore[streamKey.toLowerCase().trim()] = subjectIds;
+        });
+
+        return nextStore;
+    };
+
+    const allEvaluationKeys = useMemo(() => {
+        const keys = new Set<string>(effectiveClassOptions);
+        effectiveClassOptions.forEach(c => {
+            const streams = getRelatedStreamKeys(c);
+            streams.forEach(s => keys.add(s));
+        });
+        availableStreamsForClass.forEach(s => keys.add(s));
+        if (activeAllocationTarget) keys.add(activeAllocationTarget);
+        return Array.from(keys);
+    }, [effectiveClassOptions, availableStreamsForClass, activeAllocationTarget]);
+
     // Re-sync assignments when subjects/dbAllocations/classAllocationsStore update
     // Priority 0: Ground Truth Persistent Per-Class Store (classAllocationsStore)
     // Priority 1: Explicit targetClasses / assignedClasses array on subject
@@ -171,15 +330,22 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 const sCodeLower = (s.code || '').toLowerCase().trim();
                 const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
 
-                classOptions.forEach(c => {
-                    const cKey = (c || '').trim();
-                    const cLower = cKey.toLowerCase();
-                    
-                    // Case 0: Ground Truth Persistent Per-Class Store
-                    const storedAssignedIds = classAllocationsStore[cKey] ?? classAllocationsStore[cLower];
+                allEvaluationKeys.forEach(cKey => {
+                    const cClean = (cKey || '').trim();
+                    const cLower = cClean.toLowerCase();
+                    const parsed = extractClassAndStream(cClean);
+                    const baseClass = (parsed.className || '').trim();
+                    const baseLower = baseClass.toLowerCase();
+
+                    // Case 0: Ground Truth Persistent Per-Class / Per-Stream Store
+                    let storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
+                    if (!storedAssignedIds && baseClass && baseClass.toLowerCase() !== cLower) {
+                        storedAssignedIds = classAllocationsStore[baseClass] ?? classAllocationsStore[baseLower];
+                    }
+
                     if (Array.isArray(storedAssignedIds)) {
                         if (storedAssignedIds.includes(s.id) || storedAssignedIds.includes(sNameLower) || (sCodeLower && storedAssignedIds.includes(sCodeLower))) {
-                            set.add(cKey);
+                            set.add(cClean);
                         }
                         return;
                     }
@@ -188,26 +354,28 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                     if (Array.isArray(targetCls)) {
                         const hasExplicitMatch = targetCls.some(tc => {
                             const cleanTC = (tc || '').toLowerCase().trim();
-                            return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower);
+                            const parsedTC = extractClassAndStream(cleanTC).className.toLowerCase().trim();
+                            return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower) ||
+                                   (parsedTC && (parsedTC === cLower || parsedTC === baseLower));
                         });
                         if (hasExplicitMatch) {
-                            set.add(cKey);
+                            set.add(cClean);
                         }
                         return;
                     }
 
-                    // Case B: DB allocations exist for this specific class (from Lessons & Allocation)
-                    const classDbSet = dbAllocationsByClass[cLower];
+                    // Case B: DB allocations exist for this specific class/stream (from Lessons & Allocation)
+                    const classDbSet = dbAllocationsByClass[cLower] || (baseLower ? dbAllocationsByClass[baseLower] : undefined);
                     if (classDbSet && classDbSet.size > 0) {
                         if (classDbSet.has(sNameLower)) {
-                            set.add(cKey);
+                            set.add(cClean);
                         }
                         return;
                     }
 
                     // Case C: Fallback to standard grade-level applicability rules
-                    if (isSubjectAssignedToClassStream(s, cKey, courses)) {
-                        set.add(cKey);
+                    if (isSubjectAssignedToClassStream(s, cClean, courses)) {
+                        set.add(cClean);
                     }
                 });
 
@@ -215,13 +383,13 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             });
             return updated;
         });
-    }, [subjects, localSubjects, classOptions, courses, dbAllocations, classAllocationsStore]);
+    }, [subjects, localSubjects, allEvaluationKeys, courses, dbAllocations, classAllocationsStore]);
 
     useEffect(() => {
-        if (classOptions.length > 0 && !selectedClass) {
-            setSelectedClass(classOptions[0]);
+        if (effectiveClassOptions.length > 0 && (!selectedClass || !effectiveClassOptions.includes(selectedClass))) {
+            setSelectedClass(effectiveClassOptions[0]);
         }
-    }, [classOptions, selectedClass]);
+    }, [effectiveClassOptions, selectedClass]);
 
     // Deduplicate subjects by ID or Name/Code combination to prevent subject replication
     const deduplicatedSubjects = useMemo(() => {
@@ -249,18 +417,18 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         return deduplicatedSubjects.filter(s => (s.name || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q));
     }, [deduplicatedSubjects, searchQuery]);
 
-    // Count assigned subjects for selectedClass
-    const assignedCountForSelectedClass = useMemo(() => {
-        return deduplicatedSubjects.filter(s => assignments[s.id]?.has(selectedClass)).length;
-    }, [deduplicatedSubjects, assignments, selectedClass]);
+    // Count assigned subjects for activeAllocationTarget
+    const assignedCountForActiveTarget = useMemo(() => {
+        return deduplicatedSubjects.filter(s => assignments[s.id]?.has(activeAllocationTarget)).length;
+    }, [deduplicatedSubjects, assignments, activeAllocationTarget]);
 
     const handleToggleSubject = async (subjectId: string) => {
         const currentSet = new Set(assignments[subjectId] || []);
-        const isCurrentlyAssigned = currentSet.has(selectedClass);
+        const isCurrentlyAssigned = currentSet.has(activeAllocationTarget);
         if (isCurrentlyAssigned) {
-            currentSet.delete(selectedClass);
+            currentSet.delete(activeAllocationTarget);
         } else {
-            currentSet.add(selectedClass);
+            currentSet.add(activeAllocationTarget);
         }
 
         const updatedAssignments = {
@@ -283,25 +451,54 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             }
         }
 
-        // Calculate and save exact active subject IDs for selectedClass to persistent store
-        const activeIdsForSelectedClass = localSubjects
-            .filter(s => s.id === subjectId ? !isCurrentlyAssigned : (assignments[s.id]?.has(selectedClass) ?? false))
+        // Calculate and save exact active subject IDs for target
+        const activeIdsForTarget = localSubjects
+            .filter(s => s.id === subjectId ? !isCurrentlyAssigned : (assignments[s.id]?.has(activeAllocationTarget) ?? false))
             .map(s => s.id);
 
-        const updatedStore = {
-            ...classAllocationsStore,
-            [selectedClass]: activeIdsForSelectedClass,
-            [selectedClass.toLowerCase().trim()]: activeIdsForSelectedClass
-        };
-        saveClassAllocationsStore(updatedStore);
+        if (isStreamSpecific) {
+            // Save specifically for this stream
+            const updatedStore = {
+                ...classAllocationsStore,
+                [activeAllocationTarget]: activeIdsForTarget,
+                [activeAllocationTarget.toLowerCase().trim()]: activeIdsForTarget
+            };
+            saveClassAllocationsStore(updatedStore);
 
-        // Sync with Course Levels in Courses table
-        const matchingLevel = (courses || []).flatMap((c: any) => c.levels || []).find((l: any) => l.name === selectedClass || (l.name || '').toLowerCase().trim() === selectedClass.toLowerCase().trim());
-        if (matchingLevel) {
-            if (!isCurrentlyAssigned) {
-                await apiService.onAssociateSubjectToCourseLevel(subjectId, matchingLevel.id).catch(() => {});
-            } else {
-                await apiService.onDisassociateSubjectFromCourseLevel(subjectId, matchingLevel.id).catch(() => {});
+            // Sync with matching course level for this stream
+            const matchingLevel = (courses || [])
+                .flatMap((c: any) => (c.levels || []).map((l: any) => ({ ...l, courseName: c.name })))
+                .find((l: any) => {
+                    const lName = (l.name || '').toLowerCase().trim();
+                    const targetLow = activeAllocationTarget.toLowerCase().trim();
+                    return lName === targetLow || `${(l.courseName || '').toLowerCase()} ${lName}`.trim() === targetLow;
+                });
+            if (matchingLevel) {
+                if (!isCurrentlyAssigned) {
+                    await apiService.onAssociateSubjectToCourseLevel(subjectId, matchingLevel.id).catch(() => {});
+                } else {
+                    await apiService.onDisassociateSubjectFromCourseLevel(subjectId, matchingLevel.id).catch(() => {});
+                }
+            }
+        } else {
+            // Whole class allocation -> sync class and all its streams
+            const updatedStore = syncAllocationsForClass(classAllocationsStore, selectedClass, activeIdsForTarget);
+            saveClassAllocationsStore(updatedStore);
+
+            const matchingLevels = (courses || [])
+                .filter((c: any) => {
+                    const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
+                    const parsed = extractClassAndStream(cName);
+                    return (parsed.className || cName).toLowerCase().trim() === selectedClass.toLowerCase().trim();
+                })
+                .flatMap((c: any) => c.levels || []);
+
+            for (const lvl of matchingLevels) {
+                if (!isCurrentlyAssigned) {
+                    await apiService.onAssociateSubjectToCourseLevel(subjectId, lvl.id).catch(() => {});
+                } else {
+                    await apiService.onDisassociateSubjectFromCourseLevel(subjectId, lvl.id).catch(() => {});
+                }
             }
         }
     };
@@ -310,7 +507,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         const next = { ...assignments };
         localSubjects.forEach(s => {
             const set = new Set(next[s.id] || []);
-            set.add(selectedClass);
+            set.add(activeAllocationTarget);
             next[s.id] = set;
         });
         setAssignments(next);
@@ -322,12 +519,17 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setLocalSubjects(updatedLocal);
 
         const allIds = localSubjects.map(s => s.id);
-        const updatedStore = {
-            ...classAllocationsStore,
-            [selectedClass]: allIds,
-            [selectedClass.toLowerCase().trim()]: allIds
-        };
-        saveClassAllocationsStore(updatedStore);
+        if (isStreamSpecific) {
+            const updatedStore = {
+                ...classAllocationsStore,
+                [activeAllocationTarget]: allIds,
+                [activeAllocationTarget.toLowerCase().trim()]: allIds
+            };
+            saveClassAllocationsStore(updatedStore);
+        } else {
+            const updatedStore = syncAllocationsForClass(classAllocationsStore, selectedClass, allIds);
+            saveClassAllocationsStore(updatedStore);
+        }
 
         for (const s of updatedLocal) {
             const targetClassesArr = s.targetClasses || [];
@@ -338,7 +540,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 await apiService.saveSubject(s as Subject).catch(() => {});
             }
         }
-        setToastMessage(`Assigned all ${localSubjects.length} subjects to ${selectedClass}`);
+        setToastMessage(`Assigned all ${localSubjects.length} subjects to ${activeAllocationTarget}`);
         setTimeout(() => setToastMessage(null), 3000);
     };
 
@@ -346,7 +548,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         const next = { ...assignments };
         localSubjects.forEach(s => {
             const set = new Set(next[s.id] || []);
-            set.delete(selectedClass);
+            set.delete(activeAllocationTarget);
             next[s.id] = set;
         });
         setAssignments(next);
@@ -357,12 +559,17 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         });
         setLocalSubjects(updatedLocal);
 
-        const updatedStore = {
-            ...classAllocationsStore,
-            [selectedClass]: [],
-            [selectedClass.toLowerCase().trim()]: []
-        };
-        saveClassAllocationsStore(updatedStore);
+        if (isStreamSpecific) {
+            const updatedStore = {
+                ...classAllocationsStore,
+                [activeAllocationTarget]: [],
+                [activeAllocationTarget.toLowerCase().trim()]: []
+            };
+            saveClassAllocationsStore(updatedStore);
+        } else {
+            const updatedStore = syncAllocationsForClass(classAllocationsStore, selectedClass, []);
+            saveClassAllocationsStore(updatedStore);
+        }
 
         for (const s of updatedLocal) {
             const targetClassesArr = s.targetClasses || [];
@@ -377,7 +584,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         if (currentInstitution?.id) {
             const existingDbAllocations = await apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id).catch(() => []);
             const matchingAllocations = (existingDbAllocations || []).filter((a: any) => 
-                a.className === selectedClass || (a.className || '').toLowerCase().trim() === selectedClass.toLowerCase().trim()
+                a.className === activeAllocationTarget || (a.className || '').toLowerCase().trim() === activeAllocationTarget.toLowerCase().trim()
             );
             for (const alloc of matchingAllocations) {
                 if (alloc.id) {
@@ -386,33 +593,62 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             }
         }
 
-        setToastMessage(`Removed all subjects from ${selectedClass}`);
+        setToastMessage(`Removed all subjects from ${activeAllocationTarget}`);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    const handleResetStreamToClass = async () => {
+        if (!isStreamSpecific) return;
+        const updatedStore = { ...classAllocationsStore };
+        delete updatedStore[activeAllocationTarget];
+        delete updatedStore[activeAllocationTarget.toLowerCase().trim()];
+        saveClassAllocationsStore(updatedStore);
+
+        const classIds = classAllocationsStore[selectedClass] || classAllocationsStore[selectedClass.toLowerCase().trim()] || [];
+        const next = { ...assignments };
+        localSubjects.forEach(s => {
+            const set = new Set(next[s.id] || []);
+            if (classIds.includes(s.id)) {
+                set.add(activeAllocationTarget);
+            } else {
+                set.delete(activeAllocationTarget);
+            }
+            next[s.id] = set;
+        });
+        setAssignments(next);
+        setToastMessage(`Reset ${activeAllocationTarget} to inherit curriculum directly from ${selectedClass}`);
         setTimeout(() => setToastMessage(null), 3000);
     };
 
     const handleCopyFromClass = async () => {
-        if (!copyFromClass || copyFromClass === selectedClass) return;
+        if (!copyFromClass || copyFromClass === activeAllocationTarget) return;
         const next = { ...assignments };
         
         localSubjects.forEach(s => {
             const sourceSet = assignments[s.id] || new Set();
             const targetSet = new Set(next[s.id] || []);
             if (sourceSet.has(copyFromClass)) {
-                targetSet.add(selectedClass);
+                targetSet.add(activeAllocationTarget);
             } else {
-                targetSet.delete(selectedClass);
+                targetSet.delete(activeAllocationTarget);
             }
             next[s.id] = targetSet;
         });
         setAssignments(next);
 
         const sourceIds = classAllocationsStore[copyFromClass] || classAllocationsStore[copyFromClass.toLowerCase().trim()] || localSubjects.filter(s => assignments[s.id]?.has(copyFromClass)).map(s => s.id);
-        const updatedStore = {
-            ...classAllocationsStore,
-            [selectedClass]: [...sourceIds],
-            [selectedClass.toLowerCase().trim()]: [...sourceIds]
-        };
-        saveClassAllocationsStore(updatedStore);
+        
+        if (isStreamSpecific) {
+            const updatedStore = {
+                ...classAllocationsStore,
+                [activeAllocationTarget]: [...sourceIds],
+                [activeAllocationTarget.toLowerCase().trim()]: [...sourceIds]
+            };
+            saveClassAllocationsStore(updatedStore);
+        } else {
+            const updatedStore = syncAllocationsForClass(classAllocationsStore, selectedClass, [...sourceIds]);
+            saveClassAllocationsStore(updatedStore);
+        }
 
         for (const s of localSubjects) {
             const targetClassesArr = Array.from(next[s.id]);
@@ -423,9 +659,39 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 await apiService.saveSubject({ ...s, targetClasses: targetClassesArr } as Subject).catch(() => {});
             }
         }
-        setToastMessage(`Copied subject allocations from ${copyFromClass} to ${selectedClass}`);
+        setToastMessage(`Copied subject allocations from ${copyFromClass} to ${activeAllocationTarget}`);
         setTimeout(() => setToastMessage(null), 3000);
     };
+
+    const copySources = useMemo(() => {
+        const classesList: string[] = [];
+        const streamsList: string[] = [];
+
+        effectiveClassOptions.forEach(c => {
+            if (c !== activeAllocationTarget) {
+                classesList.push(c);
+            }
+        });
+
+        const seenStreams = new Set<string>();
+        availableStreamsForClass.forEach(st => {
+            if (st !== activeAllocationTarget) {
+                seenStreams.add(st);
+                streamsList.push(st);
+            }
+        });
+
+        effectiveClassOptions.forEach(c => {
+            getRelatedStreamKeys(c).forEach(st => {
+                if (st !== activeAllocationTarget && !seenStreams.has(st)) {
+                    seenStreams.add(st);
+                    streamsList.push(st);
+                }
+            });
+        });
+
+        return { classes: classesList, streams: streamsList };
+    }, [effectiveClassOptions, activeAllocationTarget, availableStreamsForClass]);
 
     // Add / Edit Handlers
     const handleOpenAdd = () => {
@@ -482,7 +748,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             setLocalSubjects(prev => prev.map(s => s.id === editingSubject.id ? ({ ...s, ...updatedData } as Subject) : s));
             setToastMessage(`Subject "${formData.name.trim()}" updated successfully.`);
         } else {
-            // Add new subject & allocate to selectedClass
+            // Add new subject & allocate to activeAllocationTarget
             const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
             const newSubjData: any = {
                 id: newId,
@@ -491,11 +757,11 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 departmentId: formData.departmentId || departments[0]?.id || 'dept_1',
                 lessonStructure,
                 isComplete: true,
-                targetClasses: [selectedClass],
-                assignedClasses: [selectedClass]
+                targetClasses: [activeAllocationTarget],
+                assignedClasses: [activeAllocationTarget]
             };
 
-            const matchingLevel = (courses || []).flatMap((c: any) => c.levels || []).find((l: any) => l.name === selectedClass || (l.name || '').toLowerCase().trim() === selectedClass.toLowerCase().trim());
+            const matchingLevel = (courses || []).flatMap((c: any) => c.levels || []).find((l: any) => l.name === activeAllocationTarget || (l.name || '').toLowerCase().trim() === activeAllocationTarget.toLowerCase().trim());
 
             if (onAddSubject) {
                 await onAddSubject(newSubjData, matchingLevel ? [matchingLevel.id] : undefined);
@@ -510,18 +776,26 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             setLocalSubjects(prev => [...prev, fullCreated]);
             setAssignments(prev => ({
                 ...prev,
-                [newId]: new Set([selectedClass])
+                [newId]: new Set([activeAllocationTarget])
             }));
 
-            // Sync with classAllocationsStore
-            const updatedStore = {
-                ...classAllocationsStore,
-                [selectedClass]: Array.from(new Set([...(classAllocationsStore[selectedClass] || []), newId])),
-                [selectedClass.toLowerCase().trim()]: Array.from(new Set([...(classAllocationsStore[selectedClass.toLowerCase().trim()] || []), newId]))
-            };
-            saveClassAllocationsStore(updatedStore);
+            if (isStreamSpecific) {
+                const updatedStore = {
+                    ...classAllocationsStore,
+                    [activeAllocationTarget]: Array.from(new Set([...(classAllocationsStore[activeAllocationTarget] || []), newId])),
+                    [activeAllocationTarget.toLowerCase().trim()]: Array.from(new Set([...(classAllocationsStore[activeAllocationTarget.toLowerCase().trim()] || []), newId]))
+                };
+                saveClassAllocationsStore(updatedStore);
+            } else {
+                const updatedStore = syncAllocationsForClass(
+                    classAllocationsStore,
+                    selectedClass,
+                    Array.from(new Set([...(classAllocationsStore[selectedClass] || []), newId]))
+                );
+                saveClassAllocationsStore(updatedStore);
+            }
 
-            setToastMessage(`New subject "${formData.name.trim()}" created and allocated to ${selectedClass}.`);
+            setToastMessage(`New subject "${formData.name.trim()}" created and allocated to ${activeAllocationTarget}.`);
         }
 
         setIsAddModalOpen(false);
@@ -569,14 +843,23 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                     <div>
                         <div className="flex items-center gap-2">
                             <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">
-                                Class Curriculum Allocation
+                                Class & Stream Curriculum Allocation
                             </span>
+                            {isStreamSpecific && (
+                                <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                                    isStreamCustomized 
+                                        ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700' 
+                                        : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700'
+                                }`}>
+                                    {isStreamCustomized ? 'Custom Stream Allocation' : `Inheriting from ${selectedClass}`}
+                                </span>
+                            )}
                         </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mt-1">
-                            Manage Subjects per Class Stream
+                            Manage Subjects per Class / Stream
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Configure, edit, add, or delete learning areas and subject allocations for each specific class grade/stream.
+                            Configure learning areas for the entire class grade, or select a specific stream for tailored subject allocations.
                         </p>
                     </div>
 
@@ -589,22 +872,59 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 </div>
 
                 {/* Top Controls Bar */}
-                <div className="p-6 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                <div className="p-6 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+                    {/* Control 1: Select Active Class */}
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">
                             Select Active Class
                         </label>
                         <select
                             value={selectedClass}
-                            onChange={e => setSelectedClass(e.target.value)}
+                            onChange={e => {
+                                setSelectedClass(e.target.value);
+                                setSelectedStream('all');
+                            }}
                             className="form-select font-bold text-indigo-600 dark:text-indigo-400"
                         >
-                            {classOptions.map(c => (
+                            {effectiveClassOptions.map(c => (
                                 <option key={c} value={c}>{c}</option>
                             ))}
                         </select>
                     </div>
 
+                    {/* Control 2: Stream Allocation (Optional) */}
+                    <div>
+                        <div className="flex items-center justify-between mb-1.5 ml-1">
+                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                Stream Allocation
+                            </label>
+                            {isStreamSpecific && (
+                                <span className="text-[9px] font-bold text-amber-500 uppercase">Stream Override</span>
+                            )}
+                        </div>
+                        <select
+                            value={selectedStream}
+                            onChange={e => setSelectedStream(e.target.value)}
+                            className={`form-select font-bold ${
+                                isStreamSpecific 
+                                    ? 'text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20' 
+                                    : 'text-slate-700 dark:text-slate-300'
+                            }`}
+                        >
+                            <option value="all">Entire Class (All Streams)</option>
+                            {availableStreamsForClass.length > 0 && (
+                                <optgroup label={`${selectedClass} Streams`}>
+                                    {availableStreamsForClass.map(stream => (
+                                        <option key={stream} value={stream}>
+                                            {stream}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            )}
+                        </select>
+                    </div>
+
+                    {/* Control 3: Search Subjects */}
                     <div className="relative">
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">
                             Search Subjects
@@ -621,6 +941,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                         </div>
                     </div>
 
+                    {/* Control 4: Copy Settings From */}
                     <div>
                         <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">
                             Copy Settings From
@@ -631,10 +952,21 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                                 onChange={e => setCopyFromClass(e.target.value)}
                                 className="form-select text-xs"
                             >
-                                <option value="">Select source class...</option>
-                                {classOptions.filter(c => c !== selectedClass).map(c => (
-                                    <option key={c} value={c}>{c}</option>
-                                ))}
+                                <option value="">Select source...</option>
+                                {copySources.classes.length > 0 && (
+                                    <optgroup label="Classes">
+                                        {copySources.classes.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                {copySources.streams.length > 0 && (
+                                    <optgroup label="Specific Streams">
+                                        {copySources.streams.map(st => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
                             </select>
                             <button
                                 onClick={handleCopyFromClass}
@@ -650,12 +982,33 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 {/* Stats & Quick Actions Bar */}
                 <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/30 border-b border-slate-100 dark:border-slate-700 flex flex-wrap justify-between items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl border border-indigo-100 dark:border-indigo-800">
-                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block">Active for {selectedClass}</span>
-                            <span className="text-lg font-black text-indigo-700 dark:text-indigo-300">
-                                {assignedCountForSelectedClass} / {deduplicatedSubjects.length} Subjects
+                        <div className={`px-4 py-2 rounded-2xl border ${
+                            isStreamSpecific
+                                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                                : 'bg-indigo-50 dark:bg-indigo-900/40 border-indigo-100 dark:border-indigo-800'
+                        }`}>
+                            <span className={`text-[10px] font-black uppercase tracking-widest block ${
+                                isStreamSpecific ? 'text-amber-600 dark:text-amber-400' : 'text-indigo-400'
+                            }`}>
+                                {isStreamSpecific ? `Stream: ${activeAllocationTarget}` : `Active for ${selectedClass} (All Streams)`}
+                            </span>
+                            <span className={`text-lg font-black ${
+                                isStreamSpecific ? 'text-amber-700 dark:text-amber-300' : 'text-indigo-700 dark:text-indigo-300'
+                            }`}>
+                                {assignedCountForActiveTarget} / {deduplicatedSubjects.length} Subjects
                             </span>
                         </div>
+
+                        {isStreamSpecific && isStreamCustomized && (
+                            <button
+                                type="button"
+                                onClick={handleResetStreamToClass}
+                                title={`Revert ${activeAllocationTarget} to inherit ${selectedClass} class allocations`}
+                                className="px-3 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                            >
+                                ↺ Reset to Class Defaults
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -671,7 +1024,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                             onClick={handleSelectAll}
                             className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                         >
-                            ✓ Assign All to {selectedClass}
+                            ✓ Assign All to {activeAllocationTarget}
                         </button>
                         <button
                             onClick={handleClearAll}
@@ -706,7 +1059,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {filteredSubjects.map(subject => {
-                                const isAssigned = assignments[subject.id]?.has(selectedClass);
+                                const isAssigned = assignments[subject.id]?.has(activeAllocationTarget);
                                 return (
                                     <div
                                         key={subject.id}
@@ -791,7 +1144,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-4">
                                 <h4 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                     {editingSubject ? <PencilIcon className="w-5 h-5 text-indigo-500" /> : <PlusIcon className="w-5 h-5 text-indigo-500" />}
-                                    {editingSubject ? 'Edit Subject' : `Add Subject for ${selectedClass}`}
+                                    {editingSubject ? 'Edit Subject' : `Add Subject for ${activeAllocationTarget}`}
                                 </h4>
                                 <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                                     <XIcon className="w-5 h-5" />

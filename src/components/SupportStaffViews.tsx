@@ -488,14 +488,21 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                     if (matchedHost) {
                         const link = `${window.location.origin}/?view=visitor-auth&id=${visitorId}`;
 
-                        // 1. Dispatch SMS
+                        // 1. In-App Notification (Bell Icon Alert)
+                        const bellMsg = `You have a visitor: ${visitorPayload.name} is waiting at the security gate for ${visitorPayload.purpose}.`;
+                        apiService.createNotification(matchedHost.id, bellMsg, 'guest_arrival').catch(console.error);
+                        window.dispatchEvent(new CustomEvent('app_notification_created', {
+                            detail: { userId: matchedHost.id, message: bellMsg, type: 'guest_arrival' }
+                        }));
+
+                        // 2. Dispatch SMS
                         if (matchedHost.phoneNumber && props.onSendSms) {
                             const smsMsg = `Hi ${matchedHost.name}, guest ${visitorPayload.name} is at the gate. Purpose: ${visitorPayload.purpose}. Tap here to authorize: ${link}`;
                             await props.onSendSms(matchedHost.phoneNumber, smsMsg, props.smsConfig, 1, user?.institutionId || '');
                             console.info('[Security Notification] Sent SMS authorization request to host:', matchedHost.phoneNumber);
                         }
 
-                        // 2. Dispatch Email
+                        // 3. Dispatch Email
                         if (matchedHost.email && props.companyDetails?.emailConfig?.username) {
                             const emailSubject = `Visitor Authorization Request: ${visitorPayload.name}`;
                             const emailBody = `Dear ${matchedHost.name},\n\nA visitor has registered at the security gate and requested to see you.\n\nVisitor Name: ${visitorPayload.name}\nPurpose of Visit: ${visitorPayload.purpose}\nArrival Time: ${visitorPayload.timeIn}\n\nPlease click the secure link below to review, sign, and authorize or deny entry:\n${link}\n\nBest Regards,\nSecurity Operations`;

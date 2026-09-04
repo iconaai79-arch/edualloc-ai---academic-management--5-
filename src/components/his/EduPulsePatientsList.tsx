@@ -12,6 +12,7 @@ import { apiService } from '../../services/apiService';
 import { generatePatientHistoryPdf } from '../../services/pdfService';
 import { isEduInstitution } from '../../utils/roleUtils';
 import { SmartHISPatientImporterModal } from './SmartHISPatientImporterModal';
+import { isSyntheticAdmNo, isPlaceholderEmail } from '../../utils/academicUtils';
 import { User } from '../../types';
 
 export interface Patient {
@@ -34,7 +35,7 @@ export interface Patient {
     [key: string]: any;
 }
 
-export function getPatientAdmNo(p: any, users: User[] = []): string {
+export function getPatientAdmNo(p: any, users: User[] = [], enrollments: any[] = []): string {
     if (!p) return '';
     const direct = (
         p.admissionNumber ||
@@ -63,14 +64,90 @@ export function getPatientAdmNo(p: any, users: User[] = []): string {
         p.metadata?.admNo ||
         p.metadata?.adm_no
     );
-    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—' && String(direct).trim() !== '-' && String(direct).trim().toLowerCase() !== 'pending') {
+
+    // If direct candidate is valid and genuinely non-synthetic, return immediately
+    if (direct && !isSyntheticAdmNo(direct)) {
         return String(direct).trim();
     }
+
+    // Try finding genuine admission number in student_enrollments
+    let effectiveEnrollments = enrollments;
+    if (!effectiveEnrollments || !Array.isArray(effectiveEnrollments) || effectiveEnrollments.length === 0) {
+        try {
+            const instKey = p.institutionId || p.institution_id || '';
+            const rawEnr = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_students_default') ||
+                           (instKey ? localStorage.getItem(`eduai_enrollments_${instKey}`) : null);
+            if (rawEnr) {
+                const parsed = JSON.parse(rawEnr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    effectiveEnrollments = parsed;
+                }
+            }
+        } catch (e) {}
+    }
+
+    const pName = (p.fullName || p.name || '').trim().toLowerCase();
+    const pUserId = String(p.userId || p.user_id || p.id || '').trim();
+    const nameTokens = pName.split(/\s+/).filter(Boolean);
+
+    if (effectiveEnrollments && Array.isArray(effectiveEnrollments) && effectiveEnrollments.length > 0) {
+        const matchedEnr = effectiveEnrollments.find((e: any) => {
+            if (!e) return false;
+            const eUserId = String(e.userId || e.user_id || '').trim();
+            const eStudentId = String(e.studentId || e.student_id || '').trim();
+            const eId = String(e.id || '').trim();
+
+            if (pUserId && (eUserId === pUserId || eStudentId === pUserId || eId === pUserId)) return true;
+
+            if (pName) {
+                const eName = String(e.name || e.fullName || e.studentName || e.student_name || e.metadata?.studentName || e.metadata?.fullName || '').trim().toLowerCase();
+                if (eName && (eName === pName || (nameTokens.length >= 2 && (eName.includes(pName) || pName.includes(eName))))) {
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        if (matchedEnr) {
+            let mMeta = matchedEnr.metadata;
+            if (typeof mMeta === 'string' && mMeta.trim().startsWith('{')) {
+                try { mMeta = JSON.parse(mMeta); } catch (e) {}
+            }
+            const enrAdm = (
+                matchedEnr.admissionNumber ||
+                matchedEnr.admission_number ||
+                matchedEnr.admissionNo ||
+                matchedEnr.admission_no ||
+                matchedEnr.admNo ||
+                matchedEnr.adm_no ||
+                matchedEnr.registrationNo ||
+                matchedEnr.registration_number ||
+                matchedEnr.assessmentNo ||
+                matchedEnr.assessment_no ||
+                matchedEnr.studentId ||
+                matchedEnr.student_id ||
+                matchedEnr.customId ||
+                mMeta?.admissionNumber ||
+                mMeta?.admission_number ||
+                mMeta?.admissionNo ||
+                mMeta?.admNo ||
+                mMeta?.studentId ||
+                mMeta?.assessmentNo
+            );
+            if (enrAdm && !isSyntheticAdmNo(enrAdm)) {
+                return String(enrAdm).trim();
+            }
+        }
+    }
+
+    // Match in school directory users
     if (users && users.length > 0) {
-        const pName = (p.fullName || p.name || '').trim().toLowerCase();
         const pEmail = (p.email || '').trim().toLowerCase();
         const pContact = (p.contact || p.phoneNumber || '').trim();
-        const pUserId = p.userId || p.user_id || p.id;
+
         const matched = users.find(u => {
             if (!u) return false;
             if (pUserId && u.id === pUserId) return true;
@@ -79,6 +156,7 @@ export function getPatientAdmNo(p: any, users: User[] = []): string {
             if (pContact && u.phoneNumber && u.phoneNumber.trim() === pContact) return true;
             return false;
         });
+
         if (matched) {
             const userAdm = (
                 matched.admissionNumber ||
@@ -101,11 +179,28 @@ export function getPatientAdmNo(p: any, users: User[] = []): string {
                 matched.staffId ||
                 matched.metadata?.staffId
             );
-            if (userAdm && String(userAdm).trim() !== '' && String(userAdm).trim() !== '—' && String(userAdm).trim().toLowerCase() !== 'pending') {
+            if (userAdm && !isSyntheticAdmNo(userAdm)) {
                 return String(userAdm).trim();
+            }
+
+            // Also check if matched user has an enrollment in effectiveEnrollments
+            if (effectiveEnrollments && Array.isArray(effectiveEnrollments)) {
+                const uEnr = effectiveEnrollments.find((e: any) => e && (e.userId === matched.id || e.id === matched.id));
+                if (uEnr) {
+                    const uEnrAdm = uEnr.admissionNumber || uEnr.admission_number || uEnr.metadata?.admissionNumber || uEnr.assessmentNo;
+                    if (uEnrAdm && !isSyntheticAdmNo(uEnrAdm)) {
+                        return String(uEnrAdm).trim();
+                    }
+                }
             }
         }
     }
+
+    // Direct fallback if present
+    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—' && String(direct).trim() !== '-' && String(direct).trim() !== 'N/A' && String(direct).trim().toLowerCase() !== 'pending') {
+        return String(direct).trim();
+    }
+
     return '';
 }
 
@@ -160,24 +255,42 @@ export function getPatientStream(p: any, users: User[] = []): string {
     return '';
 }
 
-export function getPatientContact(p: any, users: User[] = []): string {
+export function getPatientContact(p: any, users: User[] = [], enrollments: any[] = []): string {
     if (!p) return '';
-    const direct = p.contact || (p as any).phoneNumber || (p as any).phone;
-    if (direct && String(direct).trim() !== '' && String(direct).trim() !== '—') return String(direct).trim();
+    const direct = (p.contact || (p as any).phoneNumber || (p as any).phone || '').trim();
+    if (direct && !isPlaceholderEmail(direct) && direct !== '—' && direct !== '-') return direct;
+
+    const pName = (p.fullName || p.name || '').trim().toLowerCase();
+    const pUserId = p.userId || p.user_id || p.id;
+
     if (users && users.length > 0) {
-        const pName = (p.fullName || p.name || '').trim().toLowerCase();
-        const pUserId = p.userId || p.user_id || p.id;
         const matched = users.find(u => u && ((pUserId && u.id === pUserId) || (pName && u.name && u.name.trim().toLowerCase() === pName)));
         if (matched) {
-            return matched.phoneNumber || matched.email || matched.metadata?.parentPhone || matched.metadata?.guardianPhone || '';
+            const phone = matched.phoneNumber || matched.metadata?.parentPhone || matched.metadata?.guardianPhone || matched.metadata?.emergencyContactPhone;
+            if (phone && String(phone).trim()) return String(phone).trim();
+            if (matched.email && !isPlaceholderEmail(matched.email)) return String(matched.email).trim();
         }
     }
+
+    if (enrollments && enrollments.length > 0) {
+        const matchedEnr = enrollments.find(e => e && ((pUserId && e.userId === pUserId) || (pName && (e.name?.toLowerCase() === pName || e.metadata?.studentName?.toLowerCase() === pName))));
+        if (matchedEnr) {
+            const enrPhone = matchedEnr.metadata?.parentPhone || matchedEnr.metadata?.guardianPhone || matchedEnr.parentPhone;
+            if (enrPhone && String(enrPhone).trim()) return String(enrPhone).trim();
+        }
+    }
+
+    if (p.emergencyContactPhone && String(p.emergencyContactPhone).trim() && p.emergencyContactPhone !== '--- --- ---') {
+        return String(p.emergencyContactPhone).trim();
+    }
+
     return '';
 }
 
 interface EduPulsePatientsListProps {
     patients: Patient[];
     users?: User[];
+    enrollments?: any[];
     onRegisterPatient: () => void;
     onSelectPatient: (patientId: string) => void;
     onPatientUpdated: () => void;
@@ -191,20 +304,22 @@ interface EduPulsePatientsListProps {
 function EditPatientModal({
     patient,
     users = [],
+    enrollments = [],
     isEdu = false,
     onClose,
     onSave
 }: {
     patient: Patient;
     users?: User[];
+    enrollments?: any[];
     isEdu?: boolean;
     onClose: () => void;
     onSave: (updated: Patient) => Promise<void>;
 }) {
-    const existingOp = getPatientAdmNo(patient, users);
+    const existingOp = getPatientAdmNo(patient, users, enrollments);
     const existingGrade = getPatientGrade(patient, users);
     const existingStream = getPatientStream(patient, users);
-    const existingContact = getPatientContact(patient, users);
+    const existingContact = getPatientContact(patient, users, enrollments);
 
     const [formData, setFormData] = useState({
         ...patient,
@@ -412,6 +527,7 @@ function PatientHistoryModal({
     institutionId,
     institutionData,
     users = [],
+    enrollments = [],
     isEdu = false,
     onPreviewPdf,
     onClose
@@ -420,6 +536,7 @@ function PatientHistoryModal({
     institutionId?: string;
     institutionData?: any;
     users?: User[];
+    enrollments?: any[];
     isEdu?: boolean;
     onPreviewPdf?: (pdfUrl: string) => void;
     onClose: () => void;
@@ -438,11 +555,11 @@ function PatientHistoryModal({
             const logo = institutionData?.logoUrl || null;
             const patientForPdf = {
                 ...patient,
-                admissionNumber: getPatientAdmNo(patient, users),
-                admission_number: getPatientAdmNo(patient, users),
+                admissionNumber: getPatientAdmNo(patient, users, enrollments),
+                admission_number: getPatientAdmNo(patient, users, enrollments),
                 gradeLevel: getPatientGrade(patient, users),
                 stream: getPatientStream(patient, users),
-                contact: getPatientContact(patient, users)
+                contact: getPatientContact(patient, users, enrollments)
             };
             const pdfDataUri = await generatePatientHistoryPdf(
                 patientForPdf as any,
@@ -771,6 +888,7 @@ function PatientHistoryModal({
 export function EduPulsePatientsList({
     patients,
     users = [],
+    enrollments: propEnrollments = [],
     onRegisterPatient,
     onSelectPatient,
     onPatientUpdated,
@@ -791,6 +909,24 @@ export function EduPulsePatientsList({
     const [notification, setNotification] = useState('');
 
     const [isSyncing, setIsSyncing] = useState(false);
+
+    // Resolve enrollments with localStorage fallback if not explicitly passed
+    const enrollments = useMemo(() => {
+        if (propEnrollments && propEnrollments.length > 0) return propEnrollments;
+        try {
+            const instKey = institutionId || '';
+            const rawEnr = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
+                           localStorage.getItem('eduai_students_default') ||
+                           (instKey ? localStorage.getItem(`eduai_enrollments_${instKey}`) : null);
+            if (rawEnr) {
+                const parsed = JSON.parse(rawEnr);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {}
+        return [];
+    }, [propEnrollments, institutionId]);
 
     // Auto-sync whenever a patient is registered anywhere in HIS
     useEffect(() => {
@@ -841,10 +977,10 @@ export function EduPulsePatientsList({
         return patients
             .filter(p => {
                 const q = searchTerm.toLowerCase();
-                const adm = getPatientAdmNo(p, users);
+                const adm = getPatientAdmNo(p, users, enrollments);
                 const grade = getPatientGrade(p, users);
                 const stream = getPatientStream(p, users);
-                const contact = getPatientContact(p, users) || p.contact || '';
+                const contact = getPatientContact(p, users, enrollments) || p.contact || '';
                 const matchesSearch = !q
                     || p.fullName.toLowerCase().includes(q)
                     || adm.toLowerCase().includes(q)
@@ -857,14 +993,14 @@ export function EduPulsePatientsList({
             .sort((a, b) => {
                 if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
                 if (sortBy === 'adm') {
-                    const admA = getPatientAdmNo(a, users);
-                    const admB = getPatientAdmNo(b, users);
+                    const admA = getPatientAdmNo(a, users, enrollments);
+                    const admB = getPatientAdmNo(b, users, enrollments);
                     return admA.localeCompare(admB);
                 }
                 if (sortBy === 'recent') return (b.createdAt || '').localeCompare(a.createdAt || '');
                 return 0;
             });
-    }, [patients, users, searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
+    }, [patients, users, enrollments, searchTerm, genderFilter, selectedGrade, selectedStream, sortBy]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
     const paginatedPatients = useMemo(() => {
@@ -1040,10 +1176,10 @@ export function EduPulsePatientsList({
                         )}
                         {paginatedPatients.map((p) => {
                             const age = calcAge(p.dob);
-                            const admNo = getPatientAdmNo(p, users);
+                            const admNo = getPatientAdmNo(p, users, enrollments);
                             const grade = getPatientGrade(p, users);
                             const stream = getPatientStream(p, users);
-                            const contact = getPatientContact(p, users) || p.contact;
+                            const contact = getPatientContact(p, users, enrollments) || p.contact;
                             return (
                                 <tr key={p.id} className="hover:bg-indigo-50/30 dark:hover:bg-white/5 transition-colors group">
                                     
@@ -1147,10 +1283,10 @@ export function EduPulsePatientsList({
                 )}
                 {paginatedPatients.map((p) => {
                     const age = calcAge(p.dob);
-                    const admNo = getPatientAdmNo(p, users);
+                    const admNo = getPatientAdmNo(p, users, enrollments);
                     const grade = getPatientGrade(p, users);
                     const stream = getPatientStream(p, users);
-                    const contact = getPatientContact(p, users) || p.contact;
+                    const contact = getPatientContact(p, users, enrollments) || p.contact;
                     return (
                         <div key={p.id} className="bg-white dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-white/5 p-6 shadow-xl">
                             <div className="flex items-start justify-between gap-4 mb-5">
@@ -1280,6 +1416,7 @@ export function EduPulsePatientsList({
                 <EditPatientModal
                     patient={editingPatient}
                     users={users}
+                    enrollments={enrollments}
                     isEdu={isEdu}
                     onClose={() => setEditingPatient(null)}
                     onSave={handleSaveEdit}
@@ -1293,6 +1430,7 @@ export function EduPulsePatientsList({
                     institutionId={institutionId}
                     institutionData={institutionData}
                     users={users}
+                    enrollments={enrollments}
                     isEdu={isEdu}
                     onPreviewPdf={onPreviewPdf}
                     onClose={() => setHistoryPatient(null)}

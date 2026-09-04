@@ -2449,15 +2449,56 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         const newVisitor: any = {
             ...v,
             id: `vis_${Date.now()}`,
-            status: 'pending',
+            status: (v as any).status || 'pending',
+            timeIn: (v as any).timeIn || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             entryTime: new Date().toISOString(),
             institutionId: currentUser?.institutionId || v.institutionId || ''
         };
         // Optimistic update – show immediately without waiting for DB
         setVisitors(prev => [newVisitor, ...prev]);
-        // Fire-and-forget DB save in background
+        // DB save in background
         apiService.saveModuleRecord('visitors', newVisitor).catch(console.error);
-    }, [currentUser, setVisitors]);
+
+        // ── Trigger In-App Notification Bell for Assigned Host ──
+        let targetHostId = newVisitor.hostId;
+        if (!targetHostId && newVisitor.hostName) {
+            const searchName = String(newVisitor.hostName).trim().toLowerCase();
+            const matchedUser = (users || []).find(u => 
+                u.name && (u.name.trim().toLowerCase() === searchName ||
+                searchName.includes(u.name.trim().toLowerCase()) ||
+                u.name.trim().toLowerCase().includes(searchName))
+            );
+            if (matchedUser) targetHostId = matchedUser.id;
+        }
+
+        if (targetHostId) {
+            const visitorName = newVisitor.name || 'A visitor';
+            const purposeStr = newVisitor.purpose ? ` (${newVisitor.purpose})` : '';
+            const notifMsg = `You have a visitor: ${visitorName}${purposeStr} has arrived at the security gate.`;
+            
+            // 1. Create in-app notification record in app_notifications table
+            apiService.createNotification(targetHostId, notifMsg, 'guest_arrival').catch(console.error);
+
+            // 2. Optimistically update notification state if assigned user is the current active session
+            if (currentUser && currentUser.id === targetHostId) {
+                setNotifications(prev => [{
+                    id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    userId: targetHostId,
+                    message: notifMsg,
+                    type: 'guest_arrival',
+                    isRead: false,
+                    timestamp: new Date().toISOString()
+                }, ...prev]);
+            }
+
+            // 3. Dispatch global custom event for instant cross-tab & reactive badge updates
+            window.dispatchEvent(new CustomEvent('app_notification_created', {
+                detail: { userId: targetHostId, message: notifMsg, type: 'guest_arrival' }
+            }));
+        }
+
+        return newVisitor;
+    }, [currentUser, setVisitors, users, setNotifications]);
 
     const handleCheckoutVisitor = useCallback(async (id: string) => {
         const v = (visitors || []).find(x => x.id === id);
@@ -2514,8 +2555,34 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 });
             }
         }
+        // Notify host / office tenant if matched
+        if (v.officeId) {
+            const targetOffice = (buildingOffices || []).find(o => o.id === v.officeId);
+            const hostUser = (users || []).find(u => 
+                (u.metadata?.officeId === v.officeId) ||
+                (targetOffice?.tenantName && u.name && u.name.trim().toLowerCase() === targetOffice.tenantName.trim().toLowerCase())
+            );
+            if (hostUser) {
+                const notifMsg = `You have a visitor: ${v.fullName} has registered at building security for ${targetOffice?.name || 'your office'}.`;
+                apiService.createNotification(hostUser.id, notifMsg, 'guest_arrival').catch(console.error);
+                if (currentUser && currentUser.id === hostUser.id) {
+                    setNotifications(prev => [{
+                        id: `notif_${Date.now()}`,
+                        userId: hostUser.id,
+                        message: notifMsg,
+                        type: 'guest_arrival',
+                        isRead: false,
+                        timestamp: new Date().toISOString()
+                    }, ...prev]);
+                }
+                window.dispatchEvent(new CustomEvent('app_notification_created', {
+                    detail: { userId: hostUser.id, message: notifMsg, type: 'guest_arrival' }
+                }));
+            }
+        }
+
         loadData();
-    }, [loadData]);
+    }, [loadData, buildingOffices, users, currentUser, setNotifications]);
 
     const handleUpdateBuildingVisitorLog = useCallback(async (id: string, data: Partial<BuildingVisitorLog>) => {
         const existing = (buildingVisitorLogs || []).find(v => v.id === id);
@@ -3282,6 +3349,36 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             clearInterval(intervalId);
         };
     }, [currentUser, isAutoMarket, loadData]);
+
+    // Reactive synchronization & gentle background polling for in-app bell notifications
+    useEffect(() => {
+        if (!currentUser?.id) return;
+
+        const syncNotifications = () => {
+            apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).then(notifs => {
+                if (notifs) setNotifications(notifs);
+            }).catch(() => {});
+        };
+
+        const handleNotifEvent = (e: any) => {
+            const detail = e?.detail;
+            if (!detail || detail.userId === currentUser.id) {
+                syncNotifications();
+            }
+        };
+
+        window.addEventListener('app_notification_created', handleNotifEvent);
+        window.addEventListener('storage', syncNotifications);
+
+        // Periodically poll every 15s to catch visitors checked in on another guard terminal
+        const intervalId = setInterval(syncNotifications, 15000);
+
+        return () => {
+            window.removeEventListener('app_notification_created', handleNotifEvent);
+            window.removeEventListener('storage', syncNotifications);
+            clearInterval(intervalId);
+        };
+    }, [currentUser?.id, notificationLimit]);
 
     const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
         if (!activeInstitution || !currentUser) return;
@@ -7403,7 +7500,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                                 appointments,
                                                 onUpdateAppointmentStatus: handleUpdateAppointmentStatus,
                                                 users,
-                                                onAddVisitor: async (v: any) => { const newVis = { ...v, id: `vis_${Date.now()}`, status: v.status || 'pending', timeIn: new Date().toLocaleTimeString(), institutionId: currentUser.institutionId }; await apiService.saveModuleRecord('visitors', newVis); loadData(); return newVis; },
+                                                onAddVisitor: handleAddVisitor,
                                                 onUpdateVisitor: async (id: string, data: any) => { const existing = visitors.find(v => v.id === id); if (existing) { await apiService.saveModuleRecord('visitors', { ...existing, ...data }); loadData(); } },
                                                 onLogGateAction: handleLogGateAction,
                                                 onAddAlert: async (a: any) => { await apiService.saveModuleRecord('security_alerts', { ...a, id: `alt_${Date.now()}`, status: 'active', timestamp: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
@@ -7443,7 +7540,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                                 currentInstitution: activeInstitution!,
                                                 visitors,
                                                 appointments,
-                                                onAddVisitor: async (v: any) => { await apiService.saveModuleRecord('visitors', { ...v, id: `vis_${Date.now()}`, status: 'pending', timeIn: new Date().toLocaleTimeString(), institutionId: currentUser.institutionId }); loadData(); },
+                                                onAddVisitor: handleAddVisitor,
                                                 onAddAppointment: async (a: any) => { await apiService.saveModuleRecord('appointments', { ...a, id: `apt_${Date.now()}`, status: 'scheduled', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
                                                 onUpdateAppointment: async (id: string, status: any) => { const existing = appointments.find(a => a.id === id); if (existing) { await apiService.saveModuleRecord('appointments', { ...existing, status }); loadData(); } },
                                                 onLogAction: handleLogAction

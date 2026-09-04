@@ -202,11 +202,19 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
     if (!institution) return false;
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
-    const eduCats = ['primary', 'secondary', 'university', 'college', 'institute', 'polytechnic', 'ecd', 'international', 'tvet', 'kindergarten', 'pre-primary', 'junior secondary'];
+    const subType = (institution.businessSubType || '').toLowerCase();
+    const name = (institution.name || '').toLowerCase();
+
+    // Dedicated standalone HIS / Hospital / Medical institutions are NOT education
+    if (type === 'his' || type === 'hospital' || type === 'clinic' || subType.includes('hospital') || subType.includes('clinic')) {
+        return false;
+    }
     // Driving School accounts are independent — not part of the education pipeline
     if (category === 'driving school' || type === 'driving school') return false;
+
+    const eduCats = ['primary', 'secondary', 'university', 'college', 'institute', 'polytechnic', 'ecd', 'international', 'tvet', 'kindergarten', 'pre-primary', 'junior secondary', 'school', 'academy', 'high school', 'k-12', 'education', 'tuition'];
     
-    return type === 'education' || eduCats.includes(type) || eduCats.includes(category);
+    return type === 'education' || type === 'school' || eduCats.includes(type) || eduCats.includes(category) || eduCats.some(c => category.includes(c) || subType.includes(c) || name.includes(c));
 }
 
 /**

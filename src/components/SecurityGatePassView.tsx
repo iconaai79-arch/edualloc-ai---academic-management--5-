@@ -1020,6 +1020,17 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             const dateStr = new Date().toISOString().split('T')[0];
             const timeInStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const formattedPurpose = `[${label}] ${purp}${workerCompany ? ` (Company: ${workerCompany})` : ''}`;
+            let resolvedSupervisorId = currentUser.id;
+            if (workerSupervisor.trim()) {
+                const searchSup = workerSupervisor.trim().toLowerCase();
+                const matchedSup = (users || []).find(u => 
+                    u.name && (u.name.trim().toLowerCase() === searchSup ||
+                    searchSup.includes(u.name.trim().toLowerCase()) ||
+                    u.name.trim().toLowerCase().includes(searchSup))
+                );
+                if (matchedSup) resolvedSupervisorId = matchedSup.id;
+            }
+
             const newVisitor: Omit<Visitor, 'id'> = {
                 name,
                 phoneNumber: workerPhone.trim(),
@@ -1027,7 +1038,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 visitDate: dateStr,
                 timeIn: timeInStr,
                 institutionId: currentInstitution.id,
-                hostId: currentUser.id,
+                hostId: resolvedSupervisorId,
                 hostName: workerSupervisor.trim() || currentUser.name,
                 idNumber: idNo,
                 status: 'checked_in'
@@ -1124,6 +1135,17 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                 const label = categoryLabels[walkInCategory] || 'Visitor';
                 const formattedPurpose = `[${label}] ${purp}${comp ? ` (Company: ${comp})` : ''}`;
                 
+                let resolvedHostId = currentUser.id;
+                if (host) {
+                    const searchHost = host.toLowerCase();
+                    const matchedHost = (users || []).find(u => 
+                        u.name && (u.name.trim().toLowerCase() === searchHost ||
+                        searchHost.includes(u.name.trim().toLowerCase()) ||
+                        u.name.trim().toLowerCase().includes(searchHost))
+                    );
+                    if (matchedHost) resolvedHostId = matchedHost.id;
+                }
+
                 const newVisitor: Omit<Visitor, 'id'> = {
                     name,
                     phoneNumber: phone,
@@ -1131,7 +1153,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                     visitDate: dateStr,
                     timeIn: timeInStr,
                     institutionId: currentInstitution.id,
-                    hostId: currentUser.id,
+                    hostId: resolvedHostId,
                     hostName: host || 'Security Gate',
                     idNumber: idNo,
                     status: 'checked_in'

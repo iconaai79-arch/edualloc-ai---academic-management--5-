@@ -798,6 +798,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [customShortenLoading, setCustomShortenLoading] = useState(false);
     const [customShortenError, setCustomShortenError] = useState('');
 
+    // Student Registry Bulk Selection & Delete states
+    const [selectedStudentEnrollmentIds, setSelectedStudentEnrollmentIds] = useState<string[]>([]);
+    const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+    const [deleteStudentUserAccounts, setDeleteStudentUserAccounts] = useState(false);
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+    const [bulkDeleteProgress, setBulkDeleteProgress] = useState({ current: 0, total: 0 });
+
     const handleCustomShorten = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!customLongUrl.trim()) return;
@@ -4495,6 +4502,107 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     const totalPages = Math.ceil(filteredEnrollments.length / itemsPerPage);
 
+    // Student Registry Bulk Selection & Delete Handlers
+    const handleToggleSelectStudent = (enrollmentId: string) => {
+        setSelectedStudentEnrollmentIds(prev =>
+            prev.includes(enrollmentId)
+                ? prev.filter(id => id !== enrollmentId)
+                : [...prev, enrollmentId]
+        );
+    };
+
+    const handleToggleSelectAllPage = () => {
+        const pageIds = paginatedEnrollments.map(e => e.id);
+        const isAllPageSelected = pageIds.length > 0 && pageIds.every(id => selectedStudentEnrollmentIds.includes(id));
+        if (isAllPageSelected) {
+            setSelectedStudentEnrollmentIds(prev => prev.filter(id => !pageIds.includes(id)));
+        } else {
+            setSelectedStudentEnrollmentIds(prev => Array.from(new Set([...prev, ...pageIds])));
+        }
+    };
+
+    const handleSelectAllFiltered = () => {
+        const allFilteredIds = filteredEnrollments.map(e => e.id);
+        setSelectedStudentEnrollmentIds(allFilteredIds);
+    };
+
+    const handleClearStudentSelection = () => {
+        setSelectedStudentEnrollmentIds([]);
+    };
+
+    const handleOpenBulkDelete = () => {
+        if (selectedStudentEnrollmentIds.length === 0) return;
+        setDeleteStudentUserAccounts(false);
+        setIsBulkDeleteModalOpen(true);
+    };
+
+    const handleConfirmBulkDelete = async () => {
+        if (selectedStudentEnrollmentIds.length === 0) return;
+        setIsBulkDeleting(true);
+        const total = selectedStudentEnrollmentIds.length;
+        setBulkDeleteProgress({ current: 0, total });
+
+        try {
+            const targetEnrollments = enrollments.filter(e => selectedStudentEnrollmentIds.includes(e.id));
+            const userIdsToDelete = targetEnrollments.map(e => e.userId).filter(Boolean);
+
+            const chunkSize = 25;
+            for (let i = 0; i < selectedStudentEnrollmentIds.length; i += chunkSize) {
+                const chunkIds = selectedStudentEnrollmentIds.slice(i, i + chunkSize);
+                await apiService.deleteModuleRecord('student_enrollments', chunkIds.join(','));
+
+                if (deleteStudentUserAccounts) {
+                    const chunkUserIds = chunkIds
+                        .map(id => targetEnrollments.find(e => e.id === id)?.userId)
+                        .filter((u): u is string => Boolean(u));
+                    if (chunkUserIds.length > 0) {
+                        await apiService.deleteModuleRecord('users', chunkUserIds.join(','));
+                    }
+                }
+
+                setBulkDeleteProgress({ current: Math.min(i + chunkSize, total), total });
+            }
+
+            try {
+                if (currentInstitution?.id) {
+                    const instCacheKey = `eduai_student_enrollments_${currentInstitution.id}`;
+                    const existingCache = localStorage.getItem(instCacheKey);
+                    if (existingCache) {
+                        const parsed = JSON.parse(existingCache);
+                        if (Array.isArray(parsed)) {
+                            const updated = parsed.filter((e: any) => !selectedStudentEnrollmentIds.includes(e?.id));
+                            localStorage.setItem(instCacheKey, JSON.stringify(updated));
+                        }
+                    }
+                }
+            } catch (e) {}
+
+            const deletedIdSet = new Set(selectedStudentEnrollmentIds);
+            setEnrollments(prev => prev.filter(e => !deletedIdSet.has(e.id)));
+
+            if (deleteStudentUserAccounts && userIdsToDelete.length > 0) {
+                const deletedUserSet = new Set(userIdsToDelete);
+                setUsers(prev => prev.filter(u => !deletedUserSet.has(u.id)));
+            }
+
+            setStatusMsg({
+                type: 'success',
+                message: `Successfully deleted ${total} student record${total > 1 ? 's' : ''}${deleteStudentUserAccounts ? ' and associated user profile accounts' : ''}.`
+            });
+
+            setSelectedStudentEnrollmentIds([]);
+            setIsBulkDeleteModalOpen(false);
+            loadAllData();
+        } catch (err) {
+            console.error("Bulk delete failed:", err);
+            setStatusMsg({ type: 'error', message: 'Failed to complete bulk delete. Some records may not have been removed.' });
+        } finally {
+            setIsBulkDeleting(false);
+            setBulkDeleteProgress({ current: 0, total: 0 });
+            setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
+        }
+    };
+
     // Filtered Teachers
     const filteredTeachers = useMemo(() => {
         return users.filter(u => {
@@ -5392,6 +5500,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 Fix Unknown Names
                             </button>
                         )}
+                        {selectedStudentEnrollmentIds.length > 0 && (
+                            <button
+                                onClick={handleOpenBulkDelete}
+                                className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 flex items-center gap-2 shadow-lg shadow-rose-500/20 animate-pulse"
+                                title={`Delete ${selectedStudentEnrollmentIds.length} selected student records`}
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Bulk Delete ({selectedStudentEnrollmentIds.length})
+                            </button>
+                        )}
                         <button
                             onClick={handleGenerateClassListPdf}
                             disabled={isGeneratingClassListPdf}
@@ -5656,6 +5774,70 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         )}
                     </div>
 
+                    {/* Bulk Selection & Action Toolbar */}
+                    {filteredEnrollments.length > 0 && !isLoading && (
+                        <div className={`p-4 rounded-2xl border transition-all flex flex-wrap items-center justify-between gap-3 ${
+                            selectedStudentEnrollmentIds.length > 0
+                                ? 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/60 shadow-sm'
+                                : 'bg-slate-50/80 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            paginatedEnrollments.length > 0 &&
+                                            paginatedEnrollments.every(e => selectedStudentEnrollmentIds.includes(e.id))
+                                        }
+                                        onChange={handleToggleSelectAllPage}
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 cursor-pointer accent-indigo-600"
+                                    />
+                                    <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                        Select All on Page ({paginatedEnrollments.length})
+                                    </span>
+                                </label>
+
+                                {selectedStudentEnrollmentIds.length > 0 && (
+                                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                        {selectedStudentEnrollmentIds.length} Selected
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {selectedStudentEnrollmentIds.length > 0 && selectedStudentEnrollmentIds.length < filteredEnrollments.length && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSelectAllFiltered}
+                                        className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800"
+                                    >
+                                        Select All {filteredEnrollments.length} Filtered Students
+                                    </button>
+                                )}
+
+                                {selectedStudentEnrollmentIds.length > 0 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={handleClearStudentSelection}
+                                            className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                        >
+                                            Deselect All
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleOpenBulkDelete}
+                                            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-rose-500/20 flex items-center gap-1.5 active:scale-95"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            Bulk Delete ({selectedStudentEnrollmentIds.length})
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Students List */}
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -5673,6 +5855,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                     {paginatedEnrollments.map((enr, i) => {
                                         const user = users.find(u => u.id === enr.userId);
                                         const hasBiometrics = !!user?.metadata?.webauthnCredentials;
+                                        const isSelected = selectedStudentEnrollmentIds.includes(enr.id);
 
                                         const avatarColors = [
                                             'bg-indigo-100 text-indigo-700',
@@ -5696,8 +5879,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         return (
                                             <div
                                                 key={enr.id}
-                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4 flex flex-wrap md:flex-nowrap items-center gap-4 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all group"
+                                                onClick={() => handleToggleSelectStudent(enr.id)}
+                                                className={`rounded-2xl px-5 py-4 flex flex-wrap md:flex-nowrap items-center gap-4 transition-all group cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-rose-50/40 dark:bg-rose-950/20 border border-rose-300 dark:border-rose-700/80 shadow-sm ring-1 ring-rose-400/40'
+                                                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800'
+                                                }`}
                                             >
+                                                {/* ── Checkbox ── */}
+                                                <div className="shrink-0" onClick={e => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => handleToggleSelectStudent(enr.id)}
+                                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500 focus:ring-offset-0 cursor-pointer accent-rose-600"
+                                                    />
+                                                </div>
+
                                                 {/* ── Avatar ── */}
                                                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base uppercase shrink-0 ${avatarCls}`}>
                                                     {getStudentDisplayName(enr, user).charAt(0)}
@@ -5831,9 +6029,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 </div>
 
                                                 {/* ── Actions ── */}
-                                                <div className="shrink-0 flex items-center gap-1">
+                                                <div className="shrink-0 flex items-center gap-1" onClick={e => e.stopPropagation()}>
                                                     <button
-                                                        onClick={() => handleOpenIdCardPreview(enr, user || {} as User)}
+                                                        onClick={(e) => { e.stopPropagation(); handleOpenIdCardPreview(enr, user || {} as User); }}
                                                         disabled={isGeneratingIdCardId === enr.id}
                                                         className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all disabled:opacity-50"
                                                         title="Download Student ID Card"
@@ -5842,7 +6040,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     </button>
                                                     {currentUser && ['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role) && (
                                                         <button
-                                                            onClick={() => setLeaveOutStudent({ enr, user: user || {} as User })}
+                                                            onClick={(e) => { e.stopPropagation(); setLeaveOutStudent({ enr, user: user || {} as User }); }}
                                                             className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
                                                             title="Generate Leave Out Permission"
                                                         >
@@ -5850,7 +6048,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         </button>
                                                     )}
                                                     <button
-                                                        onClick={() => {
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             setInviteModalEnrollment(enr);
                                                             setInviteSelectedParentIdx(0);
                                                             setInviteSelectedEventId(events[0]?.id || '');
@@ -5862,14 +6061,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         <Mail className="w-4 h-4" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleEdit(enr)}
+                                                        onClick={(e) => { e.stopPropagation(); handleEdit(enr); }}
                                                         className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
                                                         title="Edit Enrollment"
                                                     >
                                                         <Edit3 className="w-4 h-4" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(enr.id)}
+                                                        onClick={(e) => { e.stopPropagation(); handleDelete(enr.id); }}
                                                         className="p-2 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
                                                         title="Remove Record"
                                                     >
@@ -10600,6 +10799,132 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
                         >
                             Close Studio
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* Bulk Delete Student Records Confirmation Modal */}
+        {isBulkDeleteModalOpen && createPortal(
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-6 shadow-2xl relative">
+                    {/* Modal Header */}
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                            <Trash2 className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 inline-block mb-1">
+                                Irreversible Deletion Safeguard
+                            </span>
+                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                Bulk Delete Student Records
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                You are preparing to delete <span className="font-bold text-rose-600 dark:text-rose-400">{selectedStudentEnrollmentIds.length}</span> student record{selectedStudentEnrollmentIds.length > 1 ? 's' : ''} from the student registry.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            disabled={isBulkDeleting}
+                            onClick={() => setIsBulkDeleteModalOpen(false)}
+                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-all"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Selected Preview Box */}
+                    <div className="bg-slate-50 dark:bg-slate-950/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 max-h-48 overflow-y-auto space-y-1.5">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                            Records Marked for Deletion ({selectedStudentEnrollmentIds.length})
+                        </div>
+                        {selectedStudentEnrollmentIds.slice(0, 6).map(id => {
+                            const enr = enrollments.find(e => e.id === id);
+                            const user = users.find(u => u.id === enr?.userId);
+                            const name = enr ? getStudentDisplayName(enr, user) : 'Unknown';
+                            const adm = enr?.admissionNumber || 'No Adm';
+                            const grade = enr?.metadata?.gradeLevel || 'No Grade';
+                            return (
+                                <div key={id} className="flex items-center justify-between text-xs py-1 px-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80">
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{name}</span>
+                                    <span className="text-[10px] font-mono text-slate-500 shrink-0 ml-2">{adm} • {grade}</span>
+                                </div>
+                            );
+                        })}
+                        {selectedStudentEnrollmentIds.length > 6 && (
+                            <div className="text-[10px] text-center font-bold text-slate-400 pt-1">
+                                ...and {selectedStudentEnrollmentIds.length - 6} more student record{selectedStudentEnrollmentIds.length - 6 > 1 ? 's' : ''}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* User Account Option */}
+                    <label className="flex items-start gap-3 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            disabled={isBulkDeleting}
+                            checked={deleteStudentUserAccounts}
+                            onChange={e => setDeleteStudentUserAccounts(e.target.checked)}
+                            className="w-4 h-4 mt-0.5 rounded text-rose-600 focus:ring-rose-500 border-amber-300 dark:border-amber-700 cursor-pointer accent-rose-600"
+                        />
+                        <div>
+                            <span className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-tight block">
+                                Also delete student login & user directory accounts
+                            </span>
+                            <span className="text-[11px] text-amber-700/80 dark:text-amber-400/80 leading-relaxed block mt-0.5">
+                                If checked, the student user login profiles and biometric credentials will also be permanently deleted. If unchecked, only the enrollment records are removed and accounts remain available for re-enrollment.
+                            </span>
+                        </div>
+                    </label>
+
+                    {/* Progress Display */}
+                    {isBulkDeleting && (
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <span>Deleting records in batches...</span>
+                                <span>{bulkDeleteProgress.current} / {bulkDeleteProgress.total}</span>
+                            </div>
+                            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                                <div
+                                    className="bg-rose-600 h-full transition-all duration-300"
+                                    style={{
+                                        width: `${bulkDeleteProgress.total ? (bulkDeleteProgress.current / bulkDeleteProgress.total) * 100 : 0}%`
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal Actions */}
+                    <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                            type="button"
+                            disabled={isBulkDeleting}
+                            onClick={() => setIsBulkDeleteModalOpen(false)}
+                            className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isBulkDeleting}
+                            onClick={handleConfirmBulkDelete}
+                            className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-rose-600 hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {isBulkDeleting ? (
+                                <>
+                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Deleting ({bulkDeleteProgress.current}/{bulkDeleteProgress.total})...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="w-4 h-4" />
+                                    Confirm Delete {selectedStudentEnrollmentIds.length} Record{selectedStudentEnrollmentIds.length > 1 ? 's' : ''}
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>

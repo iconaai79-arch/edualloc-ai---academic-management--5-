@@ -14,6 +14,7 @@ import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+import { extractClassAndStream } from '../utils/academicUtils';
 import { apiService } from '../services/apiService';
 
 export interface ClassSubjectPaper {
@@ -503,8 +504,11 @@ export const ExamConfigManager: React.FC<ExamConfigManagerProps> = ({
         const cClean = clsName.trim();
         const cLower = cClean.toLowerCase();
 
-        // 1. Persistent Per-Class Allocations Store (from Manage Subjects per Class Stream)
-        const storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
+        // 1. Persistent Per-Class Allocations Store (from Manage Subjects per Class)
+        const baseClass = extractClassAndStream(cClean).className;
+        const storedAssignedIds = classAllocationsStore[cClean] ?? 
+                                  classAllocationsStore[cLower] ??
+                                  (baseClass ? (classAllocationsStore[baseClass] ?? classAllocationsStore[baseClass.toLowerCase().trim()]) : undefined);
         if (Array.isArray(storedAssignedIds)) {
             if (storedAssignedIds.length === 0) return [];
             const set = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));

@@ -21,6 +21,7 @@ import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
 import { isSchoolInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
 import { isSubjectApplicableToClass } from '../utils/academicSubjectUtils';
+import { extractClassAndStream, naturalClassSort } from '../utils/academicUtils';
 
 import * as XLSX from 'xlsx';
 
@@ -119,28 +120,19 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         return departments;
     }, [departments, currentUser]);
 
-    // Dynamic list of registered classes
+    // Dynamic list of registered classes (strictly class / grade level, not individual streams)
     const classOptions = useMemo(() => {
         const set = new Set<string>();
 
         if (courses && courses.length > 0) {
             courses.forEach(c => {
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
-                if (name) set.add(name);
-                if (c.levels && Array.isArray(c.levels)) {
-                    c.levels.forEach(l => {
-                        if (l.name) {
-                            const streamName = String(l.name).trim();
-                            if (streamName) {
-                                if (streamName.toLowerCase().startsWith(name.toLowerCase())) {
-                                    set.add(streamName);
-                                } else {
-                                    set.add(`${name} ${streamName}`);
-                                }
-                            }
-                        }
-                    });
+                if (name) {
+                    const parsed = extractClassAndStream(name);
+                    const base = (parsed.className || name).trim();
+                    if (base) set.add(base);
                 }
+                // Do NOT add child stream names from c.levels here
             });
         }
 
@@ -148,7 +140,11 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             if ((currentInstitution as any).classes && Array.isArray((currentInstitution as any).classes)) {
                 (currentInstitution as any).classes.forEach((c: any) => {
                     const name = typeof c === 'string' ? c : c.name;
-                    if (name) set.add(name);
+                    if (name) {
+                        const parsed = extractClassAndStream(name);
+                        const base = (parsed.className || name).trim();
+                        if (base) set.add(base);
+                    }
                 });
             }
         }
@@ -158,20 +154,27 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
             if (savedClasses) {
                 const parsed = JSON.parse(savedClasses);
-                if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(c => {
+                        const parsedName = extractClassAndStream(c);
+                        const base = (parsedName.className || c).trim();
+                        if (base) set.add(base);
+                    });
+                }
             }
         } catch(e) {}
 
         if (set.size === 0) {
             if (isPrimarySchool) {
-                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central', 'Grade 8 Central'].forEach(c => set.add(c));
+                ['Playgroup', 'PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9'].forEach(c => set.add(c));
             } else {
-                ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => set.add(c));
+                ['Form 1', 'Form 2', 'Form 3', 'Form 4'].forEach(c => set.add(c));
             }
         }
 
         const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
-        return Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
+        const cleaned = Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
+        return naturalClassSort(cleaned);
     }, [courses, currentInstitution, isPrimarySchool]);
 
     const filteredSubjects = useMemo(() => {
@@ -411,7 +414,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 </div>
 
                 <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Class Stream Filter</label>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Class Filter</label>
                     <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="form-select text-indigo-600 dark:text-indigo-400 font-bold">
                         <option value="all">All Classes (Full Registry)</option>
                         {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
