@@ -1654,6 +1654,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 (normName && r.name && r.name.toLowerCase().trim() === normName)
             );
 
+            // Also synchronize companion shorthand keys so all views stay in sync
+            const extraKeys: Record<string, number> = {};
+            const fkLower = fieldKey.toLowerCase();
+            if (fkLower.includes('math') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                extraKeys.mathP1 = newValue;
+            } else if (fkLower.includes('math') && (fkLower.includes('p2') || fkLower.includes('paper_2') || fkLower.includes('paper 2'))) {
+                extraKeys.mathP2 = newValue;
+            } else if (fkLower.includes('eng') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                extraKeys.engP1 = newValue;
+            } else if (fkLower.includes('eng') && (fkLower.includes('p2') || fkLower.includes('paper_2') || fkLower.includes('paper 2'))) {
+                extraKeys.engP2 = newValue;
+            } else if (fkLower.includes('kisw') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                extraKeys.kiswP1 = newValue;
+            } else if (fkLower.includes('bio') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                extraKeys.bioP1 = newValue;
+            }
+
             let updatedRows: any[];
             if (existingIndex >= 0) {
                 updatedRows = [...prevRows];
@@ -1662,6 +1679,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     admNo,
                     ...(studentName && !studentName.toLowerCase().startsWith('student ') ? { name: studentName } : {}),
                     ...(studentClass ? { class: studentClass } : {}),
+                    ...extraKeys,
                     [fieldKey]: newValue
                 };
             } else {
@@ -1671,6 +1689,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     name: studentName || (targetSt ? resolveCleanStudentName(targetSt, 0) : `Student ${admNo}`),
                     class: studentClass || (targetSt ? getStudentClass(targetSt) : (activeExamClasses[0] || 'Form 3 Central')),
                     mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0,
+                    ...extraKeys,
                     [fieldKey]: newValue
                 };
                 updatedRows = [...prevRows, newRow];
@@ -1805,6 +1824,129 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             { label: `${subName}`, key: `subj_${sClean}_p1`, maxScore: 100 }
         ];
     }, [testedPaperConfigs]);
+
+    // Helper to resolve all possible candidate keys for any subject & paper (dynamic vs shorthand vs legacy)
+    const getCandidateKeysForPaper = useCallback((subName: string, paperKey?: string, paperName?: string): string[] => {
+        const sClean = (subName || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const pClean = (paperName || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const sLower = (subName || '').toLowerCase().trim();
+        const pLower = ((paperName || '') + ' ' + (paperKey || '')).toLowerCase().trim();
+
+        const keys: string[] = [];
+        if (paperKey) keys.push(paperKey);
+        if (sClean && pClean) keys.push(`subj_${sClean}_${pClean}`);
+        if (sClean) {
+            keys.push(`subj_${sClean}_p1`);
+            keys.push(`subj_${sClean}`);
+            keys.push(sClean);
+        }
+        if (subName) {
+            keys.push(subName);
+            keys.push(sLower);
+        }
+
+        const isP2 = pLower.includes('p2') || pLower.includes('paper 2') || pLower.includes('paper_2') || pLower.includes('comp');
+        const isP1 = !isP2 || pLower.includes('p1') || pLower.includes('paper 1') || pLower.includes('paper_1') || pLower.includes('func') || pLower.includes('insha');
+
+        if (sLower.includes('math')) {
+            if (isP2) keys.push('mathP2');
+            if (isP1) keys.push('mathP1');
+            keys.push('math', 'maths', 'mathematics');
+        }
+        if (sLower.includes('eng')) {
+            if (isP2) keys.push('engP2');
+            if (isP1) keys.push('engP1');
+            keys.push('eng', 'english');
+        }
+        if (sLower.includes('kisw')) {
+            if (isP2) keys.push('kiswP2');
+            if (isP1) keys.push('kiswP1');
+            keys.push('kisw', 'kiswahili');
+        }
+        if (sLower.includes('bio')) {
+            if (isP2) keys.push('bioP2');
+            if (isP1) keys.push('bioP1');
+            keys.push('bio', 'biology');
+        }
+        if (sLower.includes('chem')) {
+            if (isP2) keys.push('chemP2');
+            if (isP1) keys.push('chemP1');
+            keys.push('chem', 'chemistry');
+        }
+        if (sLower.includes('phy')) {
+            if (isP2) keys.push('phyP2', 'physP2');
+            if (isP1) keys.push('phyP1', 'physP1');
+            keys.push('phy', 'phys', 'physics');
+        }
+        if (sLower.includes('cre')) {
+            if (isP1) keys.push('creP1');
+            keys.push('cre');
+        }
+        if (sLower.includes('ire')) {
+            if (isP1) keys.push('ireP1');
+            keys.push('ire');
+        }
+        if (sLower.includes('hist')) {
+            if (isP1) keys.push('histP1');
+            keys.push('hist', 'history');
+        }
+        if (sLower.includes('geo')) {
+            if (isP1) keys.push('geoP1');
+            keys.push('geo', 'geography');
+        }
+        if (sLower.includes('agr')) {
+            if (isP1) keys.push('agrP1');
+            keys.push('agr', 'agriculture');
+        }
+        if (sLower.includes('bus')) {
+            if (isP1) keys.push('busP1');
+            keys.push('bus', 'business');
+        }
+
+        return Array.from(new Set(keys.filter(Boolean)));
+    }, []);
+
+    // Helper to resolve student mark for any paper across all candidate keys
+    const getStudentPaperMark = useCallback((st: any, paperKey: string, subName?: string, paperName?: string): { val: number; hasMark: boolean } => {
+        if (!st) return { val: 0, hasMark: false };
+
+        const candidateKeys = getCandidateKeysForPaper(subName || '', paperKey, paperName);
+
+        // First pass: check for non-zero scores
+        for (const k of candidateKeys) {
+            const rawVal = st[k];
+            if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+                const num = Number(rawVal);
+                if (!isNaN(num) && num > 0) {
+                    return { val: num, hasMark: true };
+                }
+            }
+        }
+
+        // Second pass: check for explicit zero or valid non-empty entry
+        for (const k of candidateKeys) {
+            const rawVal = st[k];
+            if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+                const num = Number(rawVal);
+                if (!isNaN(num)) {
+                    return { val: num, hasMark: true };
+                }
+            }
+        }
+
+        // Check nested subjectMarks if present
+        if (st.subjectMarks && typeof st.subjectMarks === 'object') {
+            for (const k of candidateKeys) {
+                const rawVal = st.subjectMarks[k];
+                if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+                    const num = Number(rawVal);
+                    if (!isNaN(num)) return { val: num, hasMark: true };
+                }
+            }
+        }
+
+        return { val: 0, hasMark: false };
+    }, [getCandidateKeysForPaper]);
 
     // Dynamic Grade Calculator querying treeGradingNodes, custom grading systems, exam scales, and CBC/8-4-4 configs
     const calculateGradeFromScore = useCallback((pctNum: number, clsName?: string, subName?: string) => {
@@ -1972,9 +2114,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             let maxTotal = 0;
 
             paperList.forEach(p => {
-                const val = (st as any)[p.key] ?? 0;
+                const markInfo = getStudentPaperMark(st, p.key, isSingleSubject ? selectedSubjectFilter : undefined, p.label);
+                const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : 0);
                 rowVals.push(val);
-                rawTotal += val;
+                rawTotal += Number(val) || 0;
                 maxTotal += p.maxScore;
             });
 
@@ -2320,21 +2463,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const exactKey = `subj_${sClean}_${pClean}`;
                 const fallbackKey1 = `subj_${sClean}_p1`;
 
-                const candidateKeys = [
-                    exactKey,
-                    fallbackKey1,
-                    subName.toLowerCase().includes('math') ? 'mathP1' : null,
-                    subName.toLowerCase().includes('math') ? 'mathP2' : null,
-                    subName.toLowerCase().includes('eng') ? 'engP1' : null,
-                    subName.toLowerCase().includes('eng') ? 'engP2' : null,
-                    subName.toLowerCase().includes('kisw') ? 'kiswP1' : null,
-                    subName.toLowerCase().includes('bio') ? 'bioP1' : null
-                ].filter(Boolean) as string[];
+                const candidateKeys = getCandidateKeysForPaper(subName, exactKey, item.paperName);
 
                 let progress = 0;
                 if (targetStudents.length > 0) {
                     const enteredCount = targetStudents.filter((st: any) => {
-                        return candidateKeys.some(k => (st as any)[k] !== undefined && (st as any)[k] !== null && Number((st as any)[k]) > 0);
+                        const markInfo = getStudentPaperMark(st, exactKey, subName, item.paperName);
+                        return markInfo.hasMark && (markInfo.val > 0 || (st as any)[exactKey] !== undefined);
                     }).length;
                     progress = parseFloat(((enteredCount / targetStudents.length) * 100).toFixed(2));
                 } else if (activeExam?.submittedPercent && activeExam.submittedPercent > 0) {
@@ -2728,17 +2863,32 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // If toggling to PUBLISHED, perform incomplete marks validation check first!
         if (!isCurrentlyPublished) {
-            const papersToTest = modalAvailableSubjects.flatMap(subName => getSubjectPapers(subName));
+            const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
+            const rowsToTest = (broadsheetStudentRows && broadsheetStudentRows.length > 0)
+                ? broadsheetStudentRows
+                : (activeExam.id && examMarksStore[activeExam.id] ? examMarksStore[activeExam.id] : []);
+
             const incompleteStudents: { name: string; admNo: string; missingPapers: string[] }[] = [];
 
-            (broadsheetStudentRows || []).forEach(st => {
+            (rowsToTest || []).forEach(st => {
                 const missing: string[] = [];
-                papersToTest.forEach(sp => {
-                    const val = (st as any)[sp.key];
-                    if (val === undefined || val === null || val === '' || Number(val) === 0) {
-                        missing.push(sp.label || sp.key);
-                    }
+                const stClass = st.class || (st as any).studentClass || targetClasses[0] || '';
+
+                const applicableSubjects = modalAvailableSubjects.length > 0
+                    ? modalAvailableSubjects
+                    : subjects.filter(s => isSubjectApplicableToClass({ name: s.name || (s as any).title, code: s.code }, stClass)).map(s => s.name || (s as any).title);
+
+                applicableSubjects.forEach(subName => {
+                    const papers = getSubjectPapers(subName);
+                    papers.forEach(sp => {
+                        const markInfo = getStudentPaperMark(st, sp.key, subName, sp.label);
+                        const isEntered = markInfo.hasMark && (markInfo.val > 0 || (st as any)[sp.key] !== undefined);
+                        if (!isEntered) {
+                            missing.push(sp.label || sp.key);
+                        }
+                    });
                 });
+
                 if (missing.length > 0) {
                     incompleteStudents.push({
                         name: st.name || 'Student',
@@ -2748,7 +2898,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 }
             });
 
-            if (incompleteStudents.length > 0) {
+            // If exam overall submission is already 100% or incompleteStudents is empty, skip alert
+            if (incompleteStudents.length > 0 && !(activeExam.submittedPercent && activeExam.submittedPercent >= 100)) {
                 const previewList = incompleteStudents.slice(0, 5).map(s => `• ${s.name} (${s.admNo}): missing ${s.missingPapers.slice(0, 2).join(', ')}${s.missingPapers.length > 2 ? '...' : ''}`).join('\n');
                 const extraCount = incompleteStudents.length > 5 ? `\n...and ${incompleteStudents.length - 5} more student(s).` : '';
                 
@@ -4358,7 +4509,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 {filteredStudentRows.map((st, stIndex) => {
                                                     const papers = getSubjectPapers(selectedSubjectFilter);
 
-                                                    const rawTotal = papers.reduce((sum: number, p: any) => sum + ((st as any)[p.key] || 0), 0);
+                                                    const rawTotal = papers.reduce((sum: number, p: any) => {
+                                                        const markInfo = getStudentPaperMark(st, p.key, selectedSubjectFilter, p.label);
+                                                        const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : 0);
+                                                        return sum + (Number(val) || 0);
+                                                    }, 0);
                                                     const maxTotal = papers.reduce((sum: number, p: any) => sum + p.maxScore, 0);
                                                     const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
                                                     const pctNum = parseFloat(convertedPct);
@@ -4372,7 +4527,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                                                             {/* Paper Editable Score Inputs */}
                                                             {papers.map((paper: any, pIdx: number) => {
-                                                                const currentVal = (st as any)[paper.key];
+                                                                const markInfo = getStudentPaperMark(st, paper.key, selectedSubjectFilter, paper.label);
+                                                                const currentVal = (st as any)[paper.key] !== undefined ? (st as any)[paper.key] : (markInfo.hasMark ? markInfo.val : '');
                                                                 const displayVal = (currentVal === undefined || currentVal === null || currentVal === 0) ? '' : currentVal;
                                                                 const inputId = `mark-input-${stIndex}-${pIdx}`;
                                                                 return (
@@ -4513,7 +4669,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
                                                 {filteredStudentRows.map((st) => {
                                                     const allPapers = modalAvailableSubjects.flatMap(subName => getSubjectPapers(subName));
-                                                    const rawTotal = allPapers.reduce((sum, sp) => sum + ((st as any)[sp.key] || 0), 0);
+                                                    const rawTotal = allPapers.reduce((sum, sp) => {
+                                                        const markInfo = getStudentPaperMark(st, sp.key, undefined, sp.label);
+                                                        const val = (st as any)[sp.key] !== undefined ? (st as any)[sp.key] : (markInfo.hasMark ? markInfo.val : 0);
+                                                        return sum + (Number(val) || 0);
+                                                    }, 0);
                                                     const maxTotal = allPapers.reduce((sum, sp) => sum + sp.maxScore, 0);
                                                     const convertedPct = maxTotal > 0 ? ((rawTotal / maxTotal) * 100).toFixed(1) : '0.0';
                                                     const pctNum = parseFloat(convertedPct);
@@ -4525,7 +4685,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
 
                                                             {allPapers.map((sp, pIdx) => {
-                                                                const val = (st as any)[sp.key] ?? 0;
+                                                                const markInfo = getStudentPaperMark(st, sp.key, undefined, sp.label);
+                                                                const val = (st as any)[sp.key] !== undefined ? (st as any)[sp.key] : (markInfo.hasMark ? markInfo.val : 0);
                                                                 return (
                                                                     <td key={pIdx} className="px-3 py-2 text-center bg-slate-50/40 dark:bg-slate-900/40 font-mono font-bold">
                                                                         {val} <span className="text-[10px] text-slate-400 font-normal">/ {sp.maxScore}</span>
