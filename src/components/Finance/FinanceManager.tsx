@@ -674,6 +674,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return list;
     }, [props.students, enrollments, props.feeStructures, props.courses, props.invoices, getStudentClassName]);
 
+    const getAllDistinctStreams = useCallback((filterClass?: string): string[] => {
+        const set = new Set<string>();
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        (props.students || []).forEach((s: any) => {
+            if (filterClass && filterClass !== 'All' && filterClass !== '') {
+                const sCls = getStudentClassName(s);
+                if (sCls.toLowerCase() !== filterClass.toLowerCase()) return;
+            }
+            const st = getStudentStream(s);
+            if (st && st !== '—' && st !== '-' && st.trim() !== '') {
+                set.add(st.trim());
+            }
+        });
+        allEnrs.forEach((e: any) => {
+            if (filterClass && filterClass !== 'All' && filterClass !== '') {
+                const c = e.className || e.class_name || e.gradeLevel || e.grade_level || e.grade || e.form || e.metadata?.className;
+                const norm = normalizeClassName(c);
+                if (norm.toLowerCase() !== filterClass.toLowerCase()) return;
+            }
+            const st = e.stream || e.stream_name || e.streamName || e.metadata?.stream || e.metadata?.streamName;
+            const normSt = normalizeStreamName(st);
+            if (normSt && normSt !== '—' && normSt !== '-' && normSt.trim() !== '') {
+                set.add(normSt.trim());
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [props.students, enrollments, allBranchEnrollments, getStudentClassName, getStudentStream]);
+
     // Reset multi-branch satellite data whenever active institution changes
     useEffect(() => {
         setSelectedBranchId('ALL');
@@ -1514,7 +1542,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [cbViewType, setCbViewType] = useState<'unified' | 'receipts' | 'payments'>('unified');
     const [expandedCbDates, setExpandedCbDates] = useState<string[]>([]);
     const [feeRegClass, setFeeRegClass] = useState<string>('');
+    const [feeRegStream, setFeeRegStream] = useState<string>('All');
     const [installmentClass, setInstallmentClass] = useState<string>('All');
+    const [installmentStream, setInstallmentStream] = useState<string>('All');
     const [expandedInstallmentStudentIds, setExpandedInstallmentStudentIds] = useState<string[]>([]);
 
     // Daily Fee Collection Summary Filter & Pagination States
@@ -21972,12 +22002,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {/* 3. Fee Register */}
                                         {ledgerSubTab === 'fee_register' && (() => {
                                             const feeRegClasses = getAllDistinctClasses();
+                                            const feeRegStreams = getAllDistinctStreams(feeRegClass);
 
-                                            // 1. Filter students by selected class
+                                            // 1. Filter students by selected class and stream
                                             const filteredFeeRegStudents = props.students.filter((s: any) => {
-                                                if (!feeRegClass || feeRegClass === 'All') return true;
-                                                const sClass = getStudentClassName(s);
-                                                return sClass.toLowerCase() === feeRegClass.toLowerCase();
+                                                if (feeRegClass && feeRegClass !== 'All') {
+                                                    const sClass = getStudentClassName(s);
+                                                    if (sClass.toLowerCase() !== feeRegClass.toLowerCase()) return false;
+                                                }
+                                                if (feeRegStream && feeRegStream !== 'All') {
+                                                    const sStream = getStudentStream(s);
+                                                    if (sStream.toLowerCase() !== feeRegStream.toLowerCase()) return false;
+                                                }
+                                                return true;
                                             });
 
                                             // 2. Pre-index receipts by student ID in a single fast O(M) pass
@@ -22054,6 +22091,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     name: s.name,
                                                     admissionNumber: getStudentAdmNumber(s),
                                                     class: getStudentClassName(s),
+                                                    stream: getStudentStream(s),
                                                     bf,
                                                     t1Count,
                                                     t1Amount,
@@ -22072,7 +22110,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 const q = feeRegSearch.toLowerCase().trim();
                                                 return (s.name && s.name.toLowerCase().includes(q)) || 
                                                        (s.admissionNumber && s.admissionNumber.toLowerCase().includes(q)) || 
-                                                       (s.class && s.class.toLowerCase().includes(q));
+                                                       (s.class && s.class.toLowerCase().includes(q)) ||
+                                                       (s.stream && s.stream.toLowerCase().includes(q));
                                             });
 
                                             const isFeeRegAll = feeRegPerPage === 0;
@@ -22099,10 +22138,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    const headers = ['Name', 'Adm.No', 'Amount Bf.', 'T1 Inst Count', 'T1 Amount', 'T2 Inst Count', 'T2 Amount', 'T3 Inst Count', 'T3 Amount', 'Total Paid', 'Prepaid', 'Arrears'];
+                                                                    const headers = ['Name', 'Adm.No', 'Class', 'Stream', 'Amount Bf.', 'T1 Inst Count', 'T1 Amount', 'T2 Inst Count', 'T2 Amount', 'T3 Inst Count', 'T3 Amount', 'Total Paid', 'Prepaid', 'Arrears'];
                                                                     const rows = searchedFeeRegister.map(s => [
                                                                         s.name,
                                                                         s.admissionNumber,
+                                                                        s.class,
+                                                                        s.stream,
                                                                         s.bf,
                                                                         s.t1Count,
                                                                         s.t1Amount,
@@ -22114,7 +22155,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         s.prepaid,
                                                                         s.arrears
                                                                     ]);
-                                                                    exportCSV(`fee_register_summary_${feeRegClass || 'all'}`, headers, rows);
+                                                                    exportCSV(`fee_register_summary_${feeRegClass || 'all'}_${feeRegStream || 'all'}`, headers, rows);
                                                                 }}
                                                                 className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                                                             >
@@ -22124,7 +22165,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={() => {
                                                                     setPdfPreviewModal({
                                                                         title: `FEE REGISTER AUDIT REPORT`,
-                                                                        subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} (${searchedFeeRegister.length} Students)`,
+                                                                        subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} | Stream: ${feeRegStream || 'All Streams'} (${searchedFeeRegister.length} Students)`,
                                                                         studentName: `Batch Register (${searchedFeeRegister.length} Students)`,
                                                                         admNo: `COUNT: ${searchedFeeRegister.length}`,
                                                                         className: feeRegClass || 'All Classes',
@@ -22134,7 +22175,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         items: searchedFeeRegister.map((s: any) => ({
                                                                             name: s.name,
                                                                             adm: s.admissionNumber,
-                                                                            cls: s.class,
+                                                                            cls: `${s.class} ${s.stream && s.stream !== '—' ? `(${s.stream})` : ''}`,
                                                                             inv: s.totalPaid + s.arrears,
                                                                             pd: s.totalPaid,
                                                                             bal: s.arrears
@@ -22151,7 +22192,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                                     {/* Filters block */}
                                                     <div className="print:hidden bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800/60 space-y-4">
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                                                             {/* Form / Class Filter */}
                                                             <div className="space-y-1.5">
                                                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Class / Grade</label>
@@ -22159,6 +22200,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     value={feeRegClass} 
                                                                     onChange={e => {
                                                                         setFeeRegClass(e.target.value);
+                                                                        setFeeRegStream('All');
                                                                         setFeeRegCurrentPage(1);
                                                                     }} 
                                                                     className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
@@ -22170,13 +22212,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </select>
                                                             </div>
 
+                                                            {/* Stream Filter */}
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Stream</label>
+                                                                <select 
+                                                                    value={feeRegStream} 
+                                                                    onChange={e => {
+                                                                        setFeeRegStream(e.target.value);
+                                                                        setFeeRegCurrentPage(1);
+                                                                    }} 
+                                                                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white cursor-pointer"
+                                                                >
+                                                                    <option value="All">All Streams</option>
+                                                                    {feeRegStreams.map(st => (
+                                                                        <option key={st} value={st}>{st}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+
                                                             {/* Search Filter */}
-                                                            <div className="space-y-1.5 lg:col-span-3">
+                                                            <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
                                                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Search Register</label>
                                                                 <div className="flex gap-2">
                                                                     <input
                                                                         type="text"
-                                                                        placeholder="Search by student name or admission number..."
+                                                                        placeholder="Search by student name, admission number, class, or stream..."
                                                                         value={feeRegSearch}
                                                                         onChange={e => {
                                                                             setFeeRegSearch(e.target.value);
@@ -22184,11 +22244,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         }}
                                                                         className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400"
                                                                     />
-                                                                    {(feeRegClass !== '' && feeRegClass !== 'All' || feeRegSearch) && (
+                                                                    {((feeRegClass !== '' && feeRegClass !== 'All') || (feeRegStream !== '' && feeRegStream !== 'All') || feeRegSearch) && (
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => {
                                                                                 setFeeRegClass('All');
+                                                                                setFeeRegStream('All');
                                                                                 setFeeRegSearch('');
                                                                                 setFeeRegCurrentPage(1);
                                                                             }}
@@ -22256,7 +22317,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <tbody>
                                                                 {paginatedFeeRegister.map((s, i) => (
                                                                     <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 text-[11px]">
-                                                                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-white border border-slate-50 dark:border-slate-800/40 whitespace-nowrap">{s.name}</td>
+                                                                        <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-white border border-slate-50 dark:border-slate-800/40 whitespace-nowrap">
+                                                                            <div>{s.name}</div>
+                                                                            <div className="text-[9px] font-medium text-slate-400">
+                                                                                {s.class}{s.stream && s.stream !== '—' ? ` • ${s.stream}` : ''}
+                                                                            </div>
+                                                                        </td>
                                                                         <td className="py-2.5 px-3 text-slate-500 border border-slate-50 dark:border-slate-800/40">{s.admissionNumber}</td>
                                                                         <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border border-slate-50 dark:border-slate-800/40 text-right font-medium">
                                                                             {s.bf > 0 ? `KSh ${s.bf.toLocaleString()}` : '0.00'}
