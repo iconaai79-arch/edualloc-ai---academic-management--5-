@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Institution, User, Course, LetterheadConfig } from '../../types';
 import type { LeavingCertificateTemplateType, LeavingCertificateFormData, LeavingCertificateRecord } from '../../types/leavingCertificate';
 import {
@@ -58,6 +59,18 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
     const [templateType, setTemplateType] = useState<LeavingCertificateTemplateType>(initialTemplate);
     const [viewMode, setViewMode] = useState<'editor' | 'registry'>('editor');
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+    const [previewScale, setPreviewScale] = useState<number>(0.85);
+
+    // Prevent background scrolling when preview modal is open
+    useEffect(() => {
+        if (isPreviewModalOpen) {
+            const originalOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = originalOverflow;
+            };
+        }
+    }, [isPreviewModalOpen]);
 
     // List of student users
     const students = useMemo(() => {
@@ -451,10 +464,10 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
 
             {/* MAIN CONTENT AREA */}
             {viewMode === 'editor' ? (
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                     
                     {/* LEFT COLUMN: Configuration, Student Selector & Inputs (7 Columns) */}
-                    <div className="xl:col-span-7 space-y-6">
+                    <div className="lg:col-span-7 space-y-6">
                         
                         {/* 1. Template Switcher Banner */}
                         <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
@@ -959,19 +972,29 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                     </div>
 
                     {/* RIGHT COLUMN: Interactive Live Mini Preview (5 Columns) */}
-                    <div className="xl:col-span-5 sticky top-6 space-y-3">
+                    <div className="lg:col-span-5 sticky top-6 space-y-3">
                         <div className="flex items-center justify-between px-2">
                             <span className="text-xs font-black uppercase tracking-widest text-slate-400">
                                 Live Certificate Preview (A4 Scaled)
                             </span>
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
-                                Real-time Dynamic
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPreviewModalOpen(true)}
+                                    className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                >
+                                    <EyeIcon className="w-3 h-3" />
+                                    <span>Expand Full A4</span>
+                                </button>
+                                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                    Real-time Dynamic
+                                </span>
+                            </div>
                         </div>
 
                         {/* Interactive Scaled Sheet Preview Card */}
                         <div className="bg-slate-200/70 dark:bg-slate-950 p-4 rounded-3xl border border-slate-300 dark:border-slate-800 flex justify-center items-center shadow-inner overflow-hidden max-h-[880px] overflow-y-auto">
-                            <div className="transform scale-[0.62] sm:scale-[0.70] md:scale-[0.74] origin-top my-2">
+                            <div className="transform scale-[0.55] sm:scale-[0.62] md:scale-[0.68] lg:scale-[0.58] xl:scale-[0.70] origin-top my-2">
                                 <LeavingCertificateSheet
                                     templateType={templateType}
                                     data={formData}
@@ -1107,19 +1130,22 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
             )}
 
             {/* FULL A4 PREVIEW MODAL */}
-            {isPreviewModalOpen && (
+            {isPreviewModalOpen && typeof document !== 'undefined' && createPortal(
                 <div 
-                    className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+                    className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setIsPreviewModalOpen(false);
                     }}
                 >
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[96vh] overflow-hidden my-auto">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full flex flex-col h-[94vh] max-h-[96vh] overflow-hidden my-auto animate-in zoom-in-95 duration-200">
                         {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+                        <div className="px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-white dark:bg-slate-900 z-10">
                             <div>
-                                <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                                    Official Certificate Print Preview (A4 Standard)
+                                <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span>Official Certificate Print Preview</span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                        A4 Standard
+                                    </span>
                                 </h3>
                                 <p className="text-[11px] text-slate-400">
                                     {LEAVING_CERTIFICATE_TEMPLATES[templateType].label} • Serial #{formData.certificateNo}
@@ -1127,16 +1153,47 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                             </div>
 
                             <div className="flex items-center gap-3">
+                                {/* Zoom Controls */}
+                                <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewScale(prev => Math.max(0.5, parseFloat((prev - 0.1).toFixed(2))))}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold transition-all cursor-pointer"
+                                        title="Zoom Out"
+                                    >
+                                        −
+                                    </button>
+                                    <span className="px-2 font-mono font-bold text-slate-700 dark:text-slate-300 text-[11px] min-w-[42px] text-center">
+                                        {Math.round(previewScale * 100)}%
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewScale(prev => Math.min(1.4, parseFloat((prev + 0.1).toFixed(2))))}
+                                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold transition-all cursor-pointer"
+                                        title="Zoom In"
+                                    >
+                                        +
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPreviewScale(0.85)}
+                                        className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
+                                    >
+                                        Fit
+                                    </button>
+                                </div>
+
                                 <button
                                     onClick={handlePrintCertificate}
-                                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md cursor-pointer flex items-center gap-1.5"
+                                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
                                 >
                                     <PrinterIcon className="w-4 h-4" />
                                     <span>Print Sheet</span>
                                 </button>
                                 <button
                                     onClick={() => setIsPreviewModalOpen(false)}
-                                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl cursor-pointer"
+                                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                    title="Close Preview"
                                 >
                                     <XIcon className="w-5 h-5" />
                                 </button>
@@ -1144,19 +1201,20 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                         </div>
 
                         {/* Modal Printable Sheet Container */}
-                        <div className="p-6 overflow-y-auto bg-slate-200/50 dark:bg-slate-950 flex justify-center">
-                            <div className="shadow-2xl">
+                        <div className="flex-1 overflow-y-auto overflow-x-auto p-4 sm:p-8 bg-slate-200/60 dark:bg-slate-950 flex justify-center items-start">
+                            <div className="shadow-2xl transition-all duration-200 origin-top">
                                 <LeavingCertificateSheet
                                     templateType={templateType}
                                     data={formData}
                                     institution={currentInstitution}
-                                    scale={1}
+                                    scale={previewScale}
                                     showStamp={formData.includeOfficialStamp}
                                 />
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
