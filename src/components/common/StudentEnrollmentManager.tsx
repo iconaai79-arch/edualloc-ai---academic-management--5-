@@ -682,6 +682,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         { key: 'name', label: 'Student Full Name', required: true },
         { key: 'email', label: 'Student Email Address' },
         { key: 'phoneNumber', label: 'Student Phone Number' },
+        { key: 'dateOfBirth', label: 'Date of Birth (DOB, YYYY-MM-DD)' },
         { key: 'admissionNumber', label: 'Admission Number' },
         { key: 'assessmentNo', label: 'Assessment Number / Assessment No' },
         { key: 'gender', label: 'Gender (Male/Female)' },
@@ -701,6 +702,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const secondaryPhoneFields = useMemo(() => [
         { key: 'admissionNumber', label: 'Admission Number' },
         { key: 'assessmentNo', label: 'Assessment Number / Assessment No' },
+        { key: 'dateOfBirth', label: 'Date of Birth (DOB, YYYY-MM-DD)' },
         { key: 'name', label: 'Student Full Name' },
         { key: 'parentPhone', label: 'Parent / Guardian Phone Number' },
         { key: 'secondaryPhone', label: 'Secondary / Alternative Phone Number' },
@@ -731,6 +733,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         phoneNumber: '',
         admissionNumber: '',
         assessmentNo: '',
+        dateOfBirth: '',
         status: 'Enrolled' as StudentEnrollment['status'],
         enrollmentDate: new Date().toISOString().split('T')[0],
         gender: '' as 'Male' | 'Female' | 'Other' | '',
@@ -739,6 +742,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         biometricTemplate: '',
         // Context-specific metadata
         metadata: {
+            dateOfBirth: '',
             licenseCategory: '',
             preferredInstructorId: '',
             preferredLessonHours: 'Morning' as 'Morning' | 'Noon' | 'Evening',
@@ -1078,14 +1082,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             
             if (existingUser) {
                 userId = existingUser.id;
+                const studentDob = formData.dateOfBirth || formData.metadata.dateOfBirth || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
                 const updatedUser = {
                     ...existingUser,
                     email: formData.email && formData.email.trim() 
                         ? formData.email.trim() 
                         : (existingUser.email && !existingUser.email.endsWith('@eduai.local') ? existingUser.email : `student_${existingUser.id}@eduai.local`),
                     phoneNumber: formData.phoneNumber || existingUser.phoneNumber || '',
+                    dateOfBirth: studentDob,
+                    dob: studentDob,
                     metadata: {
                         ...(existingUser.metadata || {}),
+                        dateOfBirth: studentDob,
+                        dob: studentDob,
                         passportPhoto: formData.passportPhoto || existingUser.metadata?.passportPhoto,
                         webauthnCredentials: formData.biometricCredentials || existingUser.metadata?.webauthnCredentials,
                         fingerprintTemplate: formData.biometricTemplate || existingUser.metadata?.fingerprintTemplate,
@@ -1110,16 +1119,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const studentEmail = formData.email && formData.email.trim()
                     ? formData.email.trim()
                     : `student_${newUserId}@eduai.local`;
+                const studentDob = formData.dateOfBirth || formData.metadata.dateOfBirth || '';
                 
                 const newUser: User = {
                     id: newUserId,
                     name: formData.fullName,
                     email: studentEmail,
                     phoneNumber: formData.phoneNumber || '',
+                    dateOfBirth: studentDob,
+                    dob: studentDob,
                     role: 'student',
                     institutionId: currentInstitution.id,
                     createdAt: new Date().toISOString(),
                     metadata: {
+                        dateOfBirth: studentDob,
+                        dob: studentDob,
                         passportPhoto: formData.passportPhoto,
                         webauthnCredentials: formData.biometricCredentials,
                         fingerprintTemplate: formData.biometricTemplate,
@@ -1139,8 +1153,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             // 2. Save Enrollment record
             const primaryParent = formData.metadata.parents?.[0] || { name: '', phone: '', email: '', relation: 'Father' };
             const finalAssessmentNo = formData.metadata.assessmentNo || (formData as any).assessmentNo || '';
+            const resolvedDob = formData.dateOfBirth || formData.metadata.dateOfBirth || '';
             const metadataToSave = {
                 ...formData.metadata,
+                dateOfBirth: resolvedDob,
+                dob: resolvedDob,
                 assessmentNo: finalAssessmentNo,
                 parentName: primaryParent.name,
                 parentPhone: primaryParent.phone,
@@ -1155,6 +1172,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     ...editingEnrollment,
                     admissionNumber: formData.admissionNumber,
                     assessmentNo: finalAssessmentNo,
+                    dateOfBirth: resolvedDob,
+                    dob: resolvedDob,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
@@ -1179,12 +1198,24 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     enrollmentType: context,
                     admissionNumber: finalAdmNo,
                     assessmentNo: finalAssessmentNo,
+                    dateOfBirth: resolvedDob,
+                    dob: resolvedDob,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
                     createdAt: new Date().toISOString()
                 };
                 await apiService.saveModuleRecord('student_enrollments', newEnrollment);
+                
+                // Dispatch notification to DOS (to finalize academic onboarding & update assessment number) and Headteacher/HOI (to approve enrollment)
+                apiService.notifyStudentAdmission(currentInstitution.id, {
+                    studentName: formData.fullName,
+                    admissionNumber: finalAdmNo,
+                    gradeLevel: formData.metadata.gradeLevel,
+                    stream: formData.metadata.stream,
+                    dateOfBirth: resolvedDob
+                }).catch(err => console.error('Failed to dispatch student admission notifications:', err));
+
                 setStatusMsg({ type: 'success', message: 'New student enrolled successfully.' });
             }
             
@@ -1199,6 +1230,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 phoneNumber: '',
                 admissionNumber: '',
                 assessmentNo: '',
+                dateOfBirth: '',
                 status: 'Enrolled',
                 enrollmentDate: new Date().toISOString().split('T')[0],
                 gender: '',
@@ -1206,6 +1238,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 biometricCredentials: null,
                 biometricTemplate: '',
                 metadata: {
+                    dateOfBirth: '',
                     licenseCategory: '',
                     preferredInstructorId: '',
                     preferredLessonHours: 'Morning',
@@ -1245,6 +1278,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             phoneNumber: '',
             admissionNumber: nextAdm,
             assessmentNo: '',
+            dateOfBirth: '',
             status: 'Enrolled',
             enrollmentDate: new Date().toISOString().split('T')[0],
             gender: '',
@@ -1252,6 +1286,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             biometricCredentials: null,
             biometricTemplate: '',
             metadata: {
+                dateOfBirth: '',
                 licenseCategory: '',
                 preferredInstructorId: '',
                 preferredLessonHours: 'Morning',
@@ -1346,6 +1381,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
 
         const assessmentNoVal = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
+        const dobVal = enr.dateOfBirth || enr.dob || enr.metadata?.dateOfBirth || enr.metadata?.dob || (enr as any)?.dateOfBirth || associatedUser?.dateOfBirth || (associatedUser as any)?.dob || associatedUser?.metadata?.dateOfBirth || associatedUser?.metadata?.dob || '';
 
         // 2. Clean & normalize gradeLevel to match cohortsList accurately (prevents defaulting to first option like Playgroup)
         const rawGrade = enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any)?.classLevel || (enr as any)?.studentClass || '';
@@ -1361,6 +1397,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             phoneNumber: associatedUser?.phoneNumber || '',
             admissionNumber: enr.admissionNumber || (associatedUser as any)?.admissionNumber || '',
             assessmentNo: assessmentNoVal,
+            dateOfBirth: dobVal,
             status: enr.status,
             enrollmentDate: enr.enrollmentDate,
             gender: (associatedUser?.gender || enr.metadata?.gender || '') as any,
@@ -1368,6 +1405,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             biometricCredentials: associatedUser?.metadata?.webauthnCredentials || null,
             biometricTemplate: associatedUser?.metadata?.fingerprintTemplate || '',
             metadata: {
+                dateOfBirth: dobVal,
                 licenseCategory: enr.metadata?.licenseCategory || '',
                 preferredInstructorId: enr.metadata?.preferredInstructorId || '',
                 preferredLessonHours: enr.metadata?.preferredLessonHours || 'Morning',
@@ -1593,12 +1631,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             );
                         }
 
+                        const dobImportVal = item.dateOfBirth ? String(item.dateOfBirth).trim() : (item.dob ? String(item.dob).trim() : (item.birthDate ? String(item.birthDate).trim() : ''));
+
                         if (existingUser) {
                             userId = existingUser.id;
+                            const finalDob = dobImportVal || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
                             const updatedUser: User = {
                                 ...existingUser,
                                 name: (inputName && inputName.toLowerCase() !== 'unknown student') ? inputName : existingUser.name,
                                 gender: (item.gender || existingUser.gender) as any,
+                                dateOfBirth: finalDob,
+                                dob: finalDob,
+                                metadata: {
+                                    ...(existingUser.metadata || {}),
+                                    dateOfBirth: finalDob,
+                                    dob: finalDob
+                                }
                             };
                             if (updatedUser.institutionId !== currentInstitution.id) {
                                 updatedUser.institutionId = currentInstitution.id;
@@ -1616,10 +1664,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 name: inputName || 'Student',
                                 email: generatedEmail,
                                 phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
+                                dateOfBirth: dobImportVal,
+                                dob: dobImportVal,
                                 role: 'student',
                                 institutionId: currentInstitution.id,
                                 createdAt: new Date().toISOString(),
-                                metadata: {}
+                                metadata: {
+                                    dateOfBirth: dobImportVal,
+                                    dob: dobImportVal
+                                }
                             };
                             if (item.gender) {
                                 newUser.gender = String(item.gender).trim() as any;
@@ -1658,6 +1711,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                         const secondaryPhoneVal = item.secondaryPhone || existingEnrollment?.metadata?.secondaryPhone || '';
                         const assessmentNoVal = item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
+                        const resolvedEnrollmentDob = dobImportVal || existingEnrollment?.dateOfBirth || existingEnrollment?.metadata?.dateOfBirth || '';
 
                         const metadataObj = {
                             ...(existingEnrollment?.metadata || {}),
@@ -1666,6 +1720,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
                             stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
                             assessmentNo: assessmentNoVal,
+                            dateOfBirth: resolvedEnrollmentDob,
+                            dob: resolvedEnrollmentDob,
                             parentName: parentNameVal,
                             parentPhone: parentPhoneVal,
                             parentEmail: parentEmailVal,
@@ -1679,6 +1735,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 ...existingEnrollment,
                                 admissionNumber: admissionNumberValue,
                                 assessmentNo: assessmentNoVal,
+                                dateOfBirth: resolvedEnrollmentDob,
+                                dob: resolvedEnrollmentDob,
                                 metadata: metadataObj,
                                 updatedAt: new Date().toISOString()
                             };
@@ -1692,6 +1750,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 enrollmentType: context,
                                 admissionNumber: admissionNumberValue,
                                 assessmentNo: assessmentNoVal,
+                                dateOfBirth: resolvedEnrollmentDob,
+                                dob: resolvedEnrollmentDob,
                                 status: 'Enrolled',
                                 enrollmentDate: new Date().toISOString().split('T')[0],
                                 metadata: metadataObj,
@@ -1742,10 +1802,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const parentNameVal = item.parentName ? String(item.parentName).trim() : (item.guardianName ? String(item.guardianName).trim() : '');
                     const gradeLevelVal = item.gradeLevel ? String(item.gradeLevel).trim() : (item.grade ? String(item.grade).trim() : (item.class ? String(item.class).trim() : ''));
                     const streamVal = item.stream ? String(item.stream).trim() : (item.classStream ? String(item.classStream).trim() : '');
+                    const dobVal = item.dateOfBirth ? String(item.dateOfBirth).trim() : (item.dob ? String(item.dob).trim() : (item.birthDate ? String(item.birthDate).trim() : ''));
 
                     const displayName = studentNameVal || admNo || 'Unknown';
 
-                    if (!parentPhoneVal && !studentPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal && !studentNameVal) {
+                    if (!parentPhoneVal && !studentPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal && !studentNameVal && !dobVal) {
                         results.push({ name: displayName, status: 'skipped' });
                         return;
                     }
@@ -1797,6 +1858,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         if (studentPhoneVal) {
                             updatedMeta.studentPhone = studentPhoneVal;
                             updatedMeta.phoneNumber = studentPhoneVal;
+                        }
+                        if (dobVal) {
+                            updatedMeta.dateOfBirth = dobVal;
+                            updatedMeta.dob = dobVal;
                         }
 
                         // Update metadata.parents array
@@ -1863,8 +1928,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 id: matchedEnrollment.userId,
                                 name: finalStudentName || matchedUser?.name || 'Student',
                                 institutionId: currentInstitution.id,
+                                dateOfBirth: dobVal || matchedUser?.dateOfBirth || '',
+                                dob: dobVal || matchedUser?.dob || '',
                                 metadata: {
                                     ...(matchedUser?.metadata || {}),
+                                    dateOfBirth: dobVal || matchedUser?.metadata?.dateOfBirth || '',
+                                    dob: dobVal || matchedUser?.metadata?.dob || '',
                                     secondaryPhone: secPhoneVal || matchedUser?.metadata?.secondaryPhone || '',
                                     parentPhone2: secPhoneVal || matchedUser?.metadata?.parentPhone2 || '',
                                     parentPhone: parentPhoneVal || matchedUser?.metadata?.parentPhone || ''
@@ -5950,6 +6019,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                   </span>
                                                               );
                                                           })()}
+                                                           {(() => {
+                                                               const dob = enr.dateOfBirth || enr.dob || enr.metadata?.dateOfBirth || enr.metadata?.dob || user?.dateOfBirth || user?.dob || user?.metadata?.dateOfBirth || user?.metadata?.dob;
+                                                               if (!dob) return null;
+                                                               return (
+                                                                   <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200/80 dark:border-amber-800/40" title="Student Date of Birth">
+                                                                       <Calendar className="w-3 h-3 text-amber-500 shrink-0" /> DOB: {dob}
+                                                                   </span>
+                                                               );
+                                                           })()}
                                                      </div>
                                                 </div>
 
@@ -7843,6 +7921,25 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         <option value="Suspended">Suspended</option>
                                         <option value="Dropped">Dropped</option>
                                     </select>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                                        <span>Date of Birth</span>
+                                        <span className="text-[9px] font-bold text-indigo-500 lowercase">(DOB)</span>
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={formData.dateOfBirth || (formData.metadata as any)?.dateOfBirth || ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setFormData({ 
+                                                ...formData, 
+                                                dateOfBirth: val,
+                                                metadata: { ...formData.metadata, dateOfBirth: val } 
+                                            });
+                                        }}
+                                        className="form-input mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                    />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black text-slate-550 dark:text-slate-400 uppercase tracking-widest ml-1">Enrollment Date</label>

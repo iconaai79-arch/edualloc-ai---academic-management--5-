@@ -399,6 +399,8 @@ export interface User {
     admissionNo?: string;
     assessmentNo?: string;
     assessmentNumber?: string;
+    dateOfBirth?: string;
+    dob?: string;
     studentClass?: string;
     supervisedClass?: string;
     isClassSupervisor?: boolean;
@@ -419,9 +421,13 @@ export interface StudentEnrollment {
     admissionNumber?: string;
     assessmentNo?: string;
     assessmentNumber?: string;
+    dateOfBirth?: string;
+    dob?: string;
     status: 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped';
     enrollmentDate: string;
     metadata: {
+        dateOfBirth?: string;
+        dob?: string;
         licenseTypeInterested?: string;
         licenseCategory?: string;
         preferredInstructorId?: string;

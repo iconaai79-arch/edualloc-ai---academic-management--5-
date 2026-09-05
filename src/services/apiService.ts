@@ -2573,6 +2573,64 @@ export const apiService = {
         }
     },
 
+    async notifyStudentAdmission(
+        institutionId: string,
+        studentDetails: {
+            studentName: string;
+            admissionNumber?: string;
+            gradeLevel?: string;
+            stream?: string;
+            dateOfBirth?: string;
+        }
+    ): Promise<void> {
+        try {
+            const users = await apiService.fetchModuleRecords<User>('users', institutionId);
+            if (!users || users.length === 0) return;
+
+            const name = studentDetails.studentName || 'New Student';
+            const adm = studentDetails.admissionNumber ? ` (Adm: ${studentDetails.admissionNumber})` : '';
+            const grade = studentDetails.gradeLevel ? ` - ${studentDetails.gradeLevel}${studentDetails.stream ? ` (${studentDetails.stream})` : ''}` : '';
+            const dob = studentDetails.dateOfBirth ? ` | DOB: ${studentDetails.dateOfBirth}` : '';
+
+            // Find DOS / Director of Studies / Academics Officer
+            const dosTargets = users.filter(u => {
+                const r = (u.role || '').toLowerCase();
+                const roles = (u.roles || []).map((x: any) => String(x).toLowerCase());
+                return r === 'dos' || r === 'academics_officer' || r === 'director_of_studies' ||
+                       roles.includes('dos') || roles.includes('director_of_studies') || roles.includes('academics_officer');
+            });
+
+            // Find Headteacher / HOI / Principal / Managing Director
+            const hoiTargets = users.filter(u => {
+                const r = (u.role || '').toLowerCase();
+                const roles = (u.roles || []).map((x: any) => String(x).toLowerCase());
+                return r === 'head_teacher' || r === 'headteacher' || r === 'hoi' || r === 'principal' || r === 'managing_director' ||
+                       roles.includes('head_teacher') || roles.includes('headteacher') || roles.includes('hoi') || roles.includes('principal') || roles.includes('managing_director');
+            });
+
+            // Fallback: If no dedicated HOI/Headteacher found, notify general institutional admins who are not already in DOS
+            const fallbackAdmins = users.filter(u => {
+                const r = (u.role || '').toLowerCase();
+                return (r === 'admin' || r === 'school_admin' || r === 'institution_admin') && 
+                       !dosTargets.some(d => d.id === u.id) && 
+                       !hoiTargets.some(h => h.id === u.id);
+            });
+
+            const dosMessage = `🎓 Action Required (DOS): New student admitted — ${name}${adm}${grade}${dob}. Please finalize academic onboarding and update their Assessment Number.`;
+            for (const target of dosTargets) {
+                await apiService.createNotification(target.id, dosMessage, 'warning');
+            }
+
+            const hoiMessage = `📋 Action Required (Headteacher/HOI): New student admission — ${name}${adm}${grade}${dob}. Please review and approve this student enrollment.`;
+            const allHoiTargets = hoiTargets.length > 0 ? hoiTargets : fallbackAdmins;
+            for (const target of allHoiTargets) {
+                await apiService.createNotification(target.id, hoiMessage, 'info');
+            }
+        } catch (error) {
+            console.error('Failed to send student admission notifications:', error);
+        }
+    },
+
     async markAllNotificationsAsRead(userId: string): Promise<void> {
         if (!_supabase) {
             const records = ls.get('app_notifications');
