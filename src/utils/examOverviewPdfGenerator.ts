@@ -643,8 +643,8 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
 
     const s13ExpectedGrades = data.gradesDistributionPerSubjectData?.expectedGrades || ['EE', 'ME', 'AE', 'BE'];
     const s13Headers = ['Subject Name', 'Code', ...s13ExpectedGrades];
-    const s13Rows = (data.gradesDistributionPerSubjectData?.subjectsData || []).map(sd => [
-        String(sd.name || '-').toUpperCase(),
+    const s13Rows = (data.gradesDistributionPerSubjectData?.subjectsData || []).map((sd: any) => [
+        String(sd.name || sd.subject || '-').toUpperCase(),
         sd.code || '-',
         ...s13ExpectedGrades.map(g => sd.counts?.[g] ?? 0)
     ]);
