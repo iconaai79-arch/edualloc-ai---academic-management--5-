@@ -4812,7 +4812,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             alert("Failed to cancel proposal.");
         }
     };
-    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind' | 'suspense_account' | 'exam_permits' | 'history'>('student_fees');
+    const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'payment_in_kind' | 'bursaries' | 'other_income' | 'bank_feed' | 'suspense_account' | 'exam_permits' | 'history'>('student_fees');
     const [suspenseTransactions, setSuspenseTransactions] = useState<UnmatchedTransaction[]>([]);
     const [selectedSuspenseTx, setSelectedSuspenseTx] = useState<UnmatchedTransaction | null>(null);
     const [isSuspenseModalOpen, setIsSuspenseModalOpen] = useState(false);
@@ -9687,12 +9687,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             ) : activeTab === 'receipts' ? (
                                 [
                                     { id: 'student_fees', label: 'Student Fees', icon: CreditCardIcon, count: mappedReceipts.filter((r: any) => r.studentId).length },
+                                    { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon, count: goodsProposals.length },
+                                    { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon, count: bulkBursaryDisbursements.length },
                                     { id: 'other_income', label: 'Other Income', icon: BanknotesIcon, count: mappedReceipts.filter((r: any) => !r.studentId).length },
                                     { id: 'bank_feed', label: 'Bank & M-Pesa', icon: BuildingLibraryIcon, count: unreconciledFeeds.length },
                                     { id: 'suspense_account', label: 'Unmatched / Suspense', icon: ExclamationTriangleIcon, count: suspenseTransactions.filter((s: any) => s.status === 'Unmatched').length },
                                     { id: 'exam_permits', label: '🎓 Digital Exam Permits', icon: QrCodeIcon },
-                                    { id: 'bursaries', label: 'Bursaries', icon: ScaleIcon, count: bulkBursaryDisbursements.length },
-                                    { id: 'payment_in_kind', label: 'Payment in Kind', icon: DocumentTextIcon, count: goodsProposals.length },
                                     { id: 'history', label: '🕒 History', icon: ClockIcon, count: undefined },
                                 ].map(sub => (
                                     <button
