@@ -30,11 +30,11 @@ export const ModernStudentProgressGraph: React.FC<ModernStudentProgressGraphProp
 
     // Graph Dimensions
     const width = 560;
-    const height = 210;
+    const height = isPrintMode ? 140 : 210;
     const paddingLeft = 46;
     const paddingRight = 36;
-    const paddingTop = 36;
-    const paddingBottom = 44;
+    const paddingTop = isPrintMode ? 24 : 36;
+    const paddingBottom = isPrintMode ? 32 : 44;
 
     const plotWidth = width - paddingLeft - paddingRight;
     const plotHeight = height - paddingTop - paddingBottom;
@@ -134,7 +134,7 @@ export const ModernStudentProgressGraph: React.FC<ModernStudentProgressGraphProp
     const gradId = `modernProgGrad_${Math.random().toString(36).slice(2, 7)}`;
 
     return (
-        <div className={`relative w-full bg-slate-50/90 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 flex flex-col justify-between overflow-hidden shadow-2xs ${className}`}>
+        <div className={`relative w-full bg-slate-50/90 dark:bg-slate-800/50 ${isPrintMode ? 'p-2 rounded-xl' : 'p-3 sm:p-4 rounded-2xl'} border border-slate-200 dark:border-slate-700 flex flex-col justify-between overflow-hidden shadow-2xs ${className}`}>
             {/* Header / Legend Strip */}
             <div className="flex justify-between items-center pb-2 border-b border-slate-200/80 dark:border-slate-700/80">
                 <div className="flex items-center gap-1.5">

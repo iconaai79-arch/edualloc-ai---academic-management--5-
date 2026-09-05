@@ -18,6 +18,7 @@ import { EyeIcon } from '../icons/EyeIcon';
 import { XIcon } from '../icons/XIcon';
 import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
 import { ModernStudentProgressGraph, ProgressPeriodRecord } from './ModernStudentProgressGraph';
+import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
@@ -595,45 +596,82 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
 
     const currentStudentClassInfo = useMemo(() => getStudentClassInfo(currentStudent), [currentStudent, getStudentClassInfo]);
 
-    // Subjects list matching curriculum level
+    // Subjects list matching curriculum level - STRICTLY DEDUPLICATED
     const activeSubjects = useMemo(() => {
+        let baseList: Array<{ id: string; name: string; code: string; [key: string]: any }> = [];
+
         if (subjects && subjects.length > 0) {
             const filtered = subjects.filter(sub => {
                 const subType = String((sub as any).type || (sub as any).category || (sub as any).level || '').toLowerCase();
                 if (isPrimarySchool && (subType.includes('secondary') || subType.includes('high') || subType.includes('form'))) return false;
                 if (!isPrimarySchool && (subType.includes('primary') || subType.includes('kindergarten') || subType.includes('pp'))) return false;
+
+                // Also check if subject is targeted to current student's class
+                const stClass = (currentStudent?.studentClass || (currentStudent as any)?.classLevel || '').toLowerCase().trim();
+                const targetClasses = [
+                    ...((sub as any).targetClasses || []),
+                    ...((sub as any).assignedClasses || []),
+                    ...((sub as any).classes || [])
+                ].map((c: any) => String(c).toLowerCase().trim());
+                if (targetClasses.length > 0 && stClass) {
+                    const match = targetClasses.some(tc => stClass.includes(tc) || tc.includes(stClass));
+                    if (!match) return false;
+                }
+
                 return true;
             });
-            if (filtered.length > 0) return filtered;
-            return subjects;
+            baseList = filtered.length > 0 ? filtered : subjects;
+        } else {
+            baseList = isPrimarySchool
+                ? [
+                    { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
+                    { id: 'sub_eng', name: 'English Language', code: 'ENG' },
+                    { id: 'sub_kisw', name: 'Kiswahili Language', code: 'KISW' },
+                    { id: 'sub_sci', name: 'Science & Technology', code: 'SCI' },
+                    { id: 'sub_soc', name: 'Social Studies', code: 'SS' },
+                    { id: 'sub_cre', name: 'CRE / Religious Education', code: 'CRE' },
+                    { id: 'sub_art', name: 'Creative Arts & Sports', code: 'ART' },
+                    { id: 'sub_agri', name: 'Agriculture & Nutrition', code: 'AGRI' }
+                ]
+                : [
+                    { id: 'sub_eng', name: 'English', code: 'ENG' },
+                    { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW' },
+                    { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
+                    { id: 'sub_bio', name: 'Biology', code: 'BIO' },
+                    { id: 'sub_phys', name: 'Physics', code: 'PHYS' },
+                    { id: 'sub_chem', name: 'Chemistry', code: 'CHEM' },
+                    { id: 'sub_geo', name: 'Geography', code: 'GEO' },
+                    { id: 'sub_cre', name: 'CRE', code: 'CRE' },
+                    { id: 'sub_hist', name: 'History & Government', code: 'HIST' },
+                    { id: 'sub_bs', name: 'Business Studies', code: 'BST' }
+                ];
         }
 
-        if (isPrimarySchool) {
-            return [
-                { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
-                { id: 'sub_eng', name: 'English Language', code: 'ENG' },
-                { id: 'sub_kisw', name: 'Kiswahili Language', code: 'KISW' },
-                { id: 'sub_sci', name: 'Science & Technology', code: 'SCI' },
-                { id: 'sub_soc', name: 'Social Studies', code: 'SS' },
-                { id: 'sub_cre', name: 'CRE / Religious Education', code: 'CRE' },
-                { id: 'sub_art', name: 'Creative Arts & Sports', code: 'ART' },
-                { id: 'sub_agri', name: 'Agriculture & Nutrition', code: 'AGRI' }
-            ];
-        }
+        // Deduplicate strictly by normalized name and code
+        const seenNames = new Set<string>();
+        const seenCodes = new Set<string>();
+        const uniqueSubjects: typeof baseList = [];
 
-        return [
-            { id: 'sub_eng', name: 'English', code: 'ENG' },
-            { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW' },
-            { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
-            { id: 'sub_bio', name: 'Biology', code: 'BIO' },
-            { id: 'sub_phys', name: 'Physics', code: 'PHYS' },
-            { id: 'sub_chem', name: 'Chemistry', code: 'CHEM' },
-            { id: 'sub_geo', name: 'Geography', code: 'GEO' },
-            { id: 'sub_cre', name: 'CRE', code: 'CRE' },
-            { id: 'sub_hist', name: 'History & Government', code: 'HIST' },
-            { id: 'sub_bs', name: 'Business Studies', code: 'BST' }
-        ];
-    }, [subjects, isPrimarySchool]);
+        baseList.forEach(sub => {
+            const rawName = String(sub.name || (sub as any).title || '').trim();
+            const rawCode = String(sub.code || '').trim();
+            const normName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const normCode = rawCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            if (normName && seenNames.has(normName)) return;
+            if (normCode && seenCodes.has(normCode)) return;
+
+            if (normName) seenNames.add(normName);
+            if (normCode) seenCodes.add(normCode);
+            uniqueSubjects.push({
+                ...sub,
+                name: rawName || rawCode || 'Subject',
+                code: rawCode || (rawName ? rawName.slice(0, 4).toUpperCase() : 'SUBJ')
+            });
+        });
+
+        return uniqueSubjects;
+    }, [subjects, isPrimarySchool, currentStudent]);
 
     // Calculate Grade and Points
     const calculateGrade = useCallback((score: number) => {
@@ -786,6 +824,18 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 teacherSig: sub.code ? sub.code.charAt(0) + '.' + (sub.code.charAt(sub.code.length - 1) || 'K') : 'T.R'
             };
         });
+
+        // Safeguard: Ensure subjectPerformance never contains duplicate subjects
+        const seenSubjectNames = new Set<string>();
+        const finalSubjects: typeof mapped = [];
+        mapped.forEach(item => {
+            const normName = (item.subject?.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+            if (normName && !seenSubjectNames.has(normName)) {
+                seenSubjectNames.add(normName);
+                finalSubjects.push(item);
+            }
+        });
+        return finalSubjects;
     }, [activeSubjects, currentStudent, marks, assessments, currentInstitution, calculateGrade]);
 
     // Student Overall Summary Stats
@@ -1523,119 +1573,142 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                         </div>
 
                         {/* Printable PDF Document Sheet in Modal (FITS A4 PORTRAIT) */}
-                        <div className="p-3 sm:p-6 overflow-y-auto bg-slate-950/70 flex-1 flex justify-center custom-scrollbar">
-                            <div className="report-card-a4-sheet bg-white text-slate-900 p-5 sm:p-7 md:p-8 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[210mm] space-y-3.5 font-sans text-xs relative">
-                                {/* OFFICIAL SCHOOL BANNER */}
-                                <div className="relative flex flex-col sm:flex-row justify-between items-center gap-3.5 p-3.5 sm:p-4 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-2xl border border-slate-200 shadow-2xs">
-                                    <div className="flex items-center gap-3.5 min-w-0">
-                                        <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-xl font-black text-white shadow-sm shadow-indigo-500/20 shrink-0">
-                                            {(currentInstitution?.name || 'A').charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <span className="text-[8px] font-black uppercase tracking-[0.25em] text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full border border-indigo-200 inline-block">
-                                                OFFICIAL ACADEMIC REPORT CARD
-                                            </span>
-                                            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight text-slate-900 mt-0.5 truncate">
-                                                {currentInstitution?.name || 'ACADEMIC INSTITUTION'}
-                                            </h1>
-                                            <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
-                                                {currentInstitution?.address || (currentInstitution as any)?.location || 'P.O. BOX 100, NAIROBI'} &bull; TEL: {(currentInstitution as any)?.phone || (currentInstitution as any)?.contactPhone || '+254 700 000 000'} &bull; CODE: {(currentInstitution as any)?.code || (currentInstitution as any)?.registrationNumber || `KNEC-${currentInstitution?.id ? String(currentInstitution.id).slice(-5).toUpperCase() : '84092'}`}
-                                            </p>
-                                        </div>
+                        <div className="p-2 sm:p-4 overflow-y-auto bg-slate-950/70 flex-1 flex justify-center custom-scrollbar">
+                            <div className="report-card-a4-sheet bg-white text-slate-900 p-4 sm:p-5 rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[210mm] space-y-2 font-sans text-xs relative box-border">
+                                {/* OFFICIAL SCHOOL LETTERHEAD */}
+                                {currentInstitution?.letterheadConfig?.headerImageUrl || (currentInstitution as any)?.letterheadUrl ? (
+                                    <div className="w-full flex justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                        <img
+                                            src={currentInstitution?.letterheadConfig?.headerImageUrl || (currentInstitution as any)?.letterheadUrl}
+                                            alt="Official Institution Letterhead"
+                                            className="w-full max-h-[75px] object-contain"
+                                        />
                                     </div>
+                                ) : (
+                                    <div className="relative flex flex-col sm:flex-row justify-between items-center gap-2.5 p-2.5 sm:p-3 bg-gradient-to-r from-slate-50 via-indigo-50/40 to-slate-50 rounded-xl border border-slate-200 shadow-2xs">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {currentInstitution?.logoUrl ? (
+                                                <img
+                                                    src={currentInstitution.logoUrl}
+                                                    alt="School Logo"
+                                                    className="w-11 h-11 object-contain rounded-xl border border-slate-200 bg-white p-1 shrink-0 shadow-2xs"
+                                                />
+                                            ) : (
+                                                <div className="w-11 h-11 bg-indigo-700 rounded-xl flex items-center justify-center text-lg font-black text-white shadow-sm shadow-indigo-500/20 shrink-0">
+                                                    {(currentInstitution?.name || 'A').charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="min-w-0">
+                                                <span className="text-[7.5px] font-black uppercase tracking-[0.22em] text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-full border border-indigo-200 inline-block">
+                                                    OFFICIAL ACADEMIC REPORT CARD
+                                                </span>
+                                                <h1 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900 mt-0.5 truncate">
+                                                    {currentInstitution?.name || 'ACADEMIC INSTITUTION'}
+                                                </h1>
+                                                {currentInstitution?.motto && (
+                                                    <p className="text-[8px] italic text-slate-600 font-semibold truncate -mt-0.5">
+                                                        "{currentInstitution.motto}"
+                                                    </p>
+                                                )}
+                                                <p className="text-[9px] text-slate-500 font-medium truncate mt-0.5">
+                                                    {currentInstitution?.address || (currentInstitution as any)?.location || 'P.O. BOX 100, NAIROBI'} &bull; TEL: {(currentInstitution as any)?.phone || (currentInstitution as any)?.contactPhone || '+254 700 000 000'} &bull; CODE: {(currentInstitution as any)?.code || (currentInstitution as any)?.registrationNumber || `KNEC-${currentInstitution?.id ? String(currentInstitution.id).slice(-5).toUpperCase() : '84092'}`}
+                                                </p>
+                                            </div>
+                                        </div>
 
-                                    <div className="text-right flex sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto border-t sm:border-t-0 sm:border-l border-slate-200 pt-2.5 sm:pt-0 sm:pl-4 shrink-0">
-                                        <div>
-                                            <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 block sm:inline">PERIOD: </span>
-                                            <span className="text-sm font-black text-indigo-600 uppercase tracking-tight">
-                                                {selectedYear} &bull; {selectedTerm.toUpperCase()}
+                                        <div className="text-right flex sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3 shrink-0">
+                                            <div>
+                                                <span className="text-[7.5px] font-black uppercase tracking-widest text-slate-400 block sm:inline">PERIOD: </span>
+                                                <span className="text-xs font-black text-indigo-600 uppercase tracking-tight">
+                                                    {selectedYear} &bull; {selectedTerm.toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <span className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-0.5">
+                                                END-OF-TERM CARD
                                             </span>
                                         </div>
-                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 mt-0.5">
-                                            END-OF-TERM CARD
-                                        </span>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* STUDENT PROFILE & PERFORMANCE HUD */}
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 bg-slate-50/90 p-3 sm:p-3.5 rounded-2xl border border-slate-200">
-                                    <div className="lg:col-span-4 flex items-center gap-3 border-b lg:border-b-0 lg:border-r border-slate-200 pb-2.5 lg:pb-0 lg:pr-3">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 bg-slate-50/90 p-2 sm:p-2.5 rounded-xl border border-slate-200">
+                                    <div className="lg:col-span-4 flex items-center gap-2.5 border-b lg:border-b-0 lg:border-r border-slate-200 pb-1.5 lg:pb-0 lg:pr-2.5">
                                         <div className="relative shrink-0">
-                                            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-xl text-indigo-600 shadow-2xs">
+                                            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-lg text-indigo-600 shadow-2xs">
                                                 👤
                                             </div>
-                                            <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
+                                            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
                                         </div>
 
                                         <div className="min-w-0">
-                                            <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
-                                            <h3 className="text-sm sm:text-base font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
-                                            <p className="text-[11px] font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent, undefined, enrollmentRegistry)}</span></p>
-                                            <p className="text-[11px] text-slate-600 font-bold mt-0.5">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
+                                            <span className="text-[7.5px] font-black text-indigo-600 uppercase tracking-widest">STUDENT NAME</span>
+                                            <h3 className="text-xs sm:text-sm font-black text-slate-900 uppercase leading-tight truncate">{currentStudent.name}</h3>
+                                            <p className="text-[10px] font-mono text-slate-500 mt-0.5">ADM NO: <span className="text-indigo-600 font-bold">{resolveRealStudentAdmNo(currentStudent, undefined, enrollmentRegistry)}</span></p>
+                                            <p className="text-[10px] text-slate-600 font-bold">CLASS: <span className="text-slate-900 font-black">{currentStudentClassInfo.rawClass}</span></p>
                                         </div>
                                     </div>
 
-                                    <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                                            <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest block">MEAN POINTS</span>
-                                            <div className="text-base sm:text-lg font-black text-indigo-600 leading-tight">{studentSummary.meanPts}</div>
-                                            <span className="text-[8px] font-bold text-slate-500 uppercase">Points Avg</span>
+                                    <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                        <div className="p-1.5 sm:p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                                            <span className="text-[7.5px] font-black uppercase text-slate-400 tracking-widest block">MEAN POINTS</span>
+                                            <div className="text-sm sm:text-base font-black text-indigo-600 leading-tight">{studentSummary.meanPts}</div>
+                                            <span className="text-[7.5px] font-bold text-slate-500 uppercase">Points Avg</span>
                                         </div>
 
-                                        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                                            <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest block">MEAN SCORE</span>
-                                            <div className="text-base sm:text-lg font-black text-emerald-600 leading-tight">{studentSummary.meanScore}%</div>
-                                            <span className="text-[8px] font-bold text-emerald-600 uppercase">Grade: {studentSummary.meanGrade}</span>
+                                        <div className="p-1.5 sm:p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                                            <span className="text-[7.5px] font-black uppercase text-slate-400 tracking-widest block">MEAN SCORE</span>
+                                            <div className="text-sm sm:text-base font-black text-emerald-600 leading-tight">{studentSummary.meanScore}%</div>
+                                            <span className="text-[7.5px] font-bold text-emerald-600 uppercase">Grade: {studentSummary.meanGrade}</span>
                                         </div>
 
-                                        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                                            <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest block">OVERALL RANK</span>
-                                            <div className="text-base sm:text-lg font-black text-slate-900 leading-tight">{studentSummary.overallPos} <span className="text-[10px] text-slate-400 font-normal">/ {studentSummary.totalStudents}</span></div>
-                                            <span className="text-[8px] font-bold text-slate-500 uppercase">School Position</span>
+                                        <div className="p-1.5 sm:p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                                            <span className="text-[7.5px] font-black uppercase text-slate-400 tracking-widest block">OVERALL RANK</span>
+                                            <div className="text-sm sm:text-base font-black text-slate-900 leading-tight">{studentSummary.overallPos} <span className="text-[9px] text-slate-400 font-normal">/ {studentSummary.totalStudents}</span></div>
+                                            <span className="text-[7.5px] font-bold text-slate-500 uppercase">School Position</span>
                                         </div>
 
-                                        <div className="p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                                            <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest block">STREAM RANK</span>
-                                            <div className="text-base sm:text-lg font-black text-purple-600 leading-tight">{studentSummary.streamPos} <span className="text-[10px] text-slate-400 font-normal">/ {studentSummary.streamStudents}</span></div>
-                                            <span className="text-[8px] font-bold text-purple-600 uppercase">V.A.P: {studentSummary.vap}</span>
+                                        <div className="p-1.5 sm:p-2 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                                            <span className="text-[7.5px] font-black uppercase text-slate-400 tracking-widest block">STREAM RANK</span>
+                                            <div className="text-sm sm:text-base font-black text-purple-600 leading-tight">{studentSummary.streamPos} <span className="text-[9px] text-slate-400 font-normal">/ {studentSummary.streamStudents}</span></div>
+                                            <span className="text-[7.5px] font-bold text-purple-600 uppercase">V.A.P: {studentSummary.vap}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* SUBJECT MARKS PERFORMANCE MATRIX */}
-                                <div className="space-y-1.5">
+                                <div className="space-y-1">
                                     <div className="flex justify-between items-center px-1">
-                                        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                                             <span>📊</span> SUBJECT PERFORMANCE MATRIX
                                         </h4>
-                                        <span className="text-[9px] font-mono text-slate-500 font-bold">{activeSubjects.length} SUBJECTS RECORDED</span>
+                                        <span className="text-[8.5px] font-mono text-slate-500 font-bold">{subjectPerformance.length} SUBJECTS RECORDED</span>
                                     </div>
 
-                                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse text-[11px]">
-                                                <thead className="bg-slate-100 text-[9px] font-black uppercase text-slate-700 tracking-wider">
+                                            <table className="w-full text-left border-collapse text-[10px]">
+                                                <thead className="bg-slate-100 text-[8px] font-black uppercase text-slate-700 tracking-wider">
                                                     <tr>
-                                                        <th className="py-2 px-3 border-b border-slate-200">SUBJECT</th>
-                                                        <th className="py-2 px-2 border-b border-slate-200 text-center">MID TERM</th>
-                                                        <th className="py-2 px-2 border-b border-slate-200 text-center">END TERM</th>
-                                                        <th className="py-2 px-2 border-b border-slate-200 text-center">TOTAL</th>
-                                                        <th className="py-2 px-2 border-b border-slate-200 text-center">GRADE</th>
-                                                        <th className="py-2 px-2 border-b border-slate-200 text-center">PTS</th>
-                                                        <th className="py-2 px-2 border-b border-slate-200 text-center">POS</th>
-                                                        <th className="py-2 px-3 border-b border-slate-200">REMARKS</th>
-                                                        <th className="py-2 px-2.5 border-b border-slate-200 text-right">TEACHER</th>
+                                                        <th className="py-1 px-2.5 border-b border-slate-200">SUBJECT</th>
+                                                        <th className="py-1 px-1.5 border-b border-slate-200 text-center">MID TERM</th>
+                                                        <th className="py-1 px-1.5 border-b border-slate-200 text-center">END TERM</th>
+                                                        <th className="py-1 px-1.5 border-b border-slate-200 text-center">TOTAL</th>
+                                                        <th className="py-1 px-1.5 border-b border-slate-200 text-center">GRADE</th>
+                                                        <th className="py-1 px-1.5 border-b border-slate-200 text-center">PTS</th>
+                                                        <th className="py-1 px-1.5 border-b border-slate-200 text-center">POS</th>
+                                                        <th className="py-1 px-2.5 border-b border-slate-200">REMARKS</th>
+                                                        <th className="py-1 px-2 border-b border-slate-200 text-right">TEACHER</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100 font-semibold">
                                                     {subjectPerformance.map(row => (
                                                         <tr key={row.subject.id} className="hover:bg-indigo-50/20 transition-colors">
-                                                            <td className="py-1.5 px-3 font-bold uppercase text-slate-900">{row.subject.name}</td>
-                                                            <td className="py-1.5 px-2 text-center font-mono text-slate-600">{row.midTerm}</td>
-                                                            <td className="py-1.5 px-2 text-center font-mono text-slate-700">{row.endTerm}</td>
-                                                            <td className="py-1.5 px-2 text-center font-black text-indigo-600 text-xs">{row.total}</td>
-                                                            <td className="py-1.5 px-2 text-center">
-                                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                                                            <td className="py-0.5 px-2.5 font-bold uppercase text-slate-900">{row.subject.name}</td>
+                                                            <td className="py-0.5 px-1.5 text-center font-mono text-slate-600">{row.midTerm}</td>
+                                                            <td className="py-0.5 px-1.5 text-center font-mono text-slate-700">{row.endTerm}</td>
+                                                            <td className="py-0.5 px-1.5 text-center font-black text-indigo-600 text-[11px]">{row.total}</td>
+                                                            <td className="py-0.5 px-1.5 text-center">
+                                                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-black ${
                                                                     ['A', 'A-', 'EE'].includes(row.grade) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                                                                     ['B+', 'B', 'B-', 'ME'].includes(row.grade) ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
                                                                     ['C+', 'C', 'C-', 'AE'].includes(row.grade) ? 'bg-amber-50 text-amber-700 border border-amber-200' :
@@ -1644,10 +1717,10 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                                                     {row.grade}
                                                                 </span>
                                                             </td>
-                                                            <td className="py-1.5 px-2 text-center font-bold text-slate-700">{row.pts}</td>
-                                                            <td className="py-1.5 px-2 text-center font-mono text-slate-500">{row.pos}</td>
-                                                            <td className="py-1.5 px-3 text-slate-600 text-[10px] uppercase font-bold">{row.remark}</td>
-                                                            <td className="py-1.5 px-2.5 text-right font-mono text-indigo-600 text-[9px]">{row.teacherSig}</td>
+                                                            <td className="py-0.5 px-1.5 text-center font-bold text-slate-700">{row.pts}</td>
+                                                            <td className="py-0.5 px-1.5 text-center font-mono text-slate-500">{row.pos}</td>
+                                                            <td className="py-0.5 px-2.5 text-slate-600 text-[9px] uppercase font-bold">{row.remark}</td>
+                                                            <td className="py-0.5 px-2 text-right font-mono text-indigo-600 text-[8.5px]">{row.teacherSig}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1657,46 +1730,46 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                 </div>
 
                                 {/* STUDENT'S PROGRESS REPORT (TABLE + MODERN GRAPH SIDE BY SIDE) */}
-                                <div className="space-y-2">
+                                <div className="space-y-1">
                                     <div className="flex justify-between items-center px-1">
-                                        <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-1.5">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-900 flex items-center gap-1.5">
                                             <span>📊</span> STUDENT'S PROGRESS REPORT
                                         </h4>
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">HISTORICAL EXAMS &amp; MEAN POINTS TRAJECTORY</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">HISTORICAL EXAMS &amp; MEAN POINTS TRAJECTORY</span>
                                     </div>
 
-                                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+                                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-stretch">
                                         {/* Left: Progress History Table */}
-                                        <div className="lg:col-span-5 bg-slate-50/90 p-3 sm:p-3.5 rounded-2xl border border-slate-200 flex flex-col justify-between space-y-2">
+                                        <div className="lg:col-span-5 bg-slate-50/90 p-2 sm:p-2.5 rounded-xl border border-slate-200 flex flex-col justify-between space-y-1.5">
                                             <div>
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-600">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-600">
                                                         TERM MILESTONES
                                                     </span>
-                                                    <span className="px-2 py-0.5 rounded-full text-[8px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                                    <span className="px-1.5 py-0.5 rounded-full text-[7.5px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
                                                         {progressHistory.length} Terms Logged
                                                     </span>
                                                 </div>
-                                                <div className="overflow-x-auto bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-                                                    <table className="w-full text-left text-[10px]">
-                                                        <thead className="bg-slate-100 text-[8px] font-black uppercase text-slate-700 border-b border-slate-200">
+                                                <div className="overflow-x-auto bg-white rounded-lg border border-slate-200 overflow-hidden shadow-2xs">
+                                                    <table className="w-full text-left text-[9px]">
+                                                        <thead className="bg-slate-100 text-[7.5px] font-black uppercase text-slate-700 border-b border-slate-200">
                                                             <tr>
-                                                                <th className="py-2 px-2.5">PERIOD</th>
-                                                                <th className="py-2 px-2 text-center">RANK</th>
-                                                                <th className="py-2 px-2 text-center">M.POINTS</th>
-                                                                <th className="py-2 px-2.5 text-right">GRADE</th>
+                                                                <th className="py-1 px-2">PERIOD</th>
+                                                                <th className="py-1 px-1.5 text-center">RANK</th>
+                                                                <th className="py-1 px-1.5 text-center">M.POINTS</th>
+                                                                <th className="py-1 px-2 text-right">GRADE</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-100">
                                                             {progressHistory.map((ph, idx) => (
                                                                 <tr key={idx} className={idx === 0 ? "bg-indigo-50/40 font-bold" : "hover:bg-slate-50"}>
-                                                                    <td className="py-1.5 px-2.5 font-bold text-slate-900 flex items-center gap-1.5">
+                                                                    <td className="py-1 px-2 font-bold text-slate-900 flex items-center gap-1">
                                                                         {idx === 0 && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>}
                                                                         {ph.period}
                                                                     </td>
-                                                                    <td className="py-1.5 px-2 text-center font-mono text-amber-600 font-bold">#{ph.rank}</td>
-                                                                    <td className="py-1.5 px-2 text-center font-mono text-indigo-600 font-bold">{ph.pts.toFixed(4)}</td>
-                                                                    <td className="py-1.5 px-2.5 text-right font-black text-slate-800">{ph.grade}</td>
+                                                                    <td className="py-1 px-1.5 text-center font-mono text-amber-600 font-bold">#{ph.rank}</td>
+                                                                    <td className="py-1 px-1.5 text-center font-mono text-indigo-600 font-bold">{ph.pts.toFixed(4)}</td>
+                                                                    <td className="py-1 px-2 text-right font-black text-slate-800">{ph.grade}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>
@@ -1704,7 +1777,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                                 </div>
                                             </div>
 
-                                            <div className="p-2 bg-white rounded-xl border border-slate-200 flex justify-between items-center text-[9px]">
+                                            <div className="p-1.5 bg-white rounded-lg border border-slate-200 flex justify-between items-center text-[8.5px]">
                                                 <span className="text-slate-500 font-bold">Current Standing:</span>
                                                 <span className="font-mono font-black text-indigo-600">
                                                     Rank #{progressHistory[0]?.rank || 1} ({progressHistory[0]?.grade || '-'})
@@ -1720,25 +1793,25 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                 </div>
 
                                 {/* ATTENDANCE & FEE BALANCE WIDGETS */}
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                                    <div className="lg:col-span-6 bg-slate-50/90 p-3 sm:p-3.5 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
+                                    <div className="lg:col-span-6 bg-slate-50/90 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1 text-[10px]">
+                                        <h4 className="text-[9px] font-black uppercase tracking-wider text-emerald-700 flex items-center gap-1">
                                             <span>🛡️</span> ATTENDANCE & DISCIPLINE
                                         </h4>
-                                        <div className="grid grid-cols-2 gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                                        <div className="grid grid-cols-2 gap-1.5 bg-white p-1.5 rounded-lg border border-slate-200 shadow-2xs">
                                             <div>
-                                                <span className="text-[8px] font-black text-slate-400 block">DAYS PRESENT</span>
-                                                <span className="font-black text-emerald-600 text-xs">64 / 65</span>
+                                                <span className="text-[7.5px] font-black text-slate-400 block">DAYS PRESENT</span>
+                                                <span className="font-black text-emerald-600 text-[11px]">64 / 65</span>
                                             </div>
                                             <div>
-                                                <span className="text-[8px] font-black text-slate-400 block">DISCIPLINE CASES</span>
-                                                <span className="font-black text-slate-700 text-xs">0 (CLEAN)</span>
+                                                <span className="text-[7.5px] font-black text-slate-400 block">DISCIPLINE CASES</span>
+                                                <span className="font-black text-slate-700 text-[11px]">0 (CLEAN)</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="lg:col-span-6 bg-slate-50/90 p-3 sm:p-3.5 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-700">💰 FEE STATUS SUMMARY</h4>
+                                    <div className="lg:col-span-6 bg-slate-50/90 p-2 sm:p-2.5 rounded-xl border border-slate-200 space-y-1 text-[10px]">
+                                        <h4 className="text-[9px] font-black uppercase tracking-wider text-amber-700">💰 FEE STATUS SUMMARY</h4>
                                         {(() => {
                                             const studentFinance = feeBalances[currentStudent.id] ||
                                                 feeBalances[currentStudent.admissionNo || ''] || {
@@ -1747,7 +1820,7 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                                     totalDue: 18500
                                                 };
                                             return (
-                                                <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs space-y-1 text-[11px]">
+                                                <div className="bg-white p-1.5 rounded-lg border border-slate-200 shadow-2xs space-y-0.5 text-[9.5px]">
                                                     <div className="flex justify-between">
                                                         <span className="text-slate-500 font-medium">Fees Balance:</span>
                                                         <span className={`font-mono font-bold ${studentFinance.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -1760,9 +1833,9 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                                             KES {studentFinance.nextTermFees.toLocaleString()}
                                                         </span>
                                                     </div>
-                                                    <div className="flex justify-between border-t border-slate-100 pt-1 font-black">
-                                                        <span className="text-indigo-900 text-[10px]">TOTAL DUE ON REOPENING:</span>
-                                                        <span className="font-mono text-indigo-600 text-xs">
+                                                    <div className="flex justify-between border-t border-slate-100 pt-0.5 font-black">
+                                                        <span className="text-indigo-900 text-[9px]">TOTAL DUE ON REOPENING:</span>
+                                                        <span className="font-mono text-indigo-600 text-[10px]">
                                                             KES {studentFinance.totalDue.toLocaleString()}
                                                         </span>
                                                     </div>
@@ -1772,35 +1845,41 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                                     </div>
                                 </div>
 
-                                {/* TEACHER COMMENTS & PRINCIPAL SEAL */}
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 bg-slate-50/90 p-3 sm:p-3.5 rounded-2xl border border-slate-200">
-                                    <div className="lg:col-span-8 space-y-2">
+                                {/* TEACHER COMMENTS, PRINCIPAL REMARKS & OFFICIAL STAMP */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 bg-slate-50/90 p-2 sm:p-2.5 rounded-xl border border-slate-200">
+                                    <div className="lg:col-span-8 space-y-1.5">
                                         <div>
-                                            <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">CLASS TEACHER'S REMARKS [ Lionel Japkoech ]</span>
-                                            <p className="text-[10px] font-medium text-slate-700 mt-0.5 italic bg-white p-2 rounded-xl border border-slate-200 shadow-2xs leading-relaxed">
+                                            <span className="text-[7.5px] font-black text-indigo-600 uppercase tracking-widest">CLASS TEACHER'S REMARKS [ Lionel Japkoech ]</span>
+                                            <p className="text-[9px] font-medium text-slate-700 mt-0.5 italic bg-white p-1.5 rounded-lg border border-slate-200 shadow-2xs leading-snug">
                                                 "Work rate has shown steady positive trajectory. Recommended for academic merit."
                                             </p>
                                         </div>
                                         <div>
-                                            <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">PRINCIPAL / HEADTEACHER REMARKS [ Paul Martin ]</span>
-                                            <p className="text-[10px] font-medium text-slate-700 mt-0.5 italic bg-white p-2 rounded-xl border border-slate-200 shadow-2xs leading-relaxed">
+                                            <span className="text-[7.5px] font-black text-indigo-600 uppercase tracking-widest">PRINCIPAL / HEADTEACHER REMARKS [ Paul Martin ]</span>
+                                            <p className="text-[9px] font-medium text-slate-700 mt-0.5 italic bg-white p-1.5 rounded-lg border border-slate-200 shadow-2xs leading-snug">
                                                 "Commendable discipline and consistency. Focus on Mathematics to reach target grade A."
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* Encrypted QR Seal */}
-                                    <div className="lg:col-span-4 flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-indigo-100 shadow-2xs text-center space-y-1">
-                                        <div className="w-11 h-11 bg-indigo-50 border border-indigo-200 rounded-lg p-0.5 flex items-center justify-center">
-                                            <FingerPrintIcon className="w-6 h-6 text-indigo-600" />
+                                    {/* Official Rubber Stamp */}
+                                    <div className="lg:col-span-4 flex flex-col items-center justify-center p-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs text-center relative overflow-hidden">
+                                        <div className="transform scale-90 origin-center my-[-4px]">
+                                            <KenyanOfficialStamp
+                                                institution={currentInstitution}
+                                                size={88}
+                                                departmentOverride="OFFICIAL REPORT CARD"
+                                                date={new Date()}
+                                            />
                                         </div>
-                                        <span className="text-[8px] font-bold text-slate-500 block">DIGITAL VERIFICATION SEAL</span>
-                                        <span className="text-[7px] font-mono text-slate-400 block">HASH: 8F92-A39B-4091-E271</span>
+                                        <div className="text-[7px] font-mono font-bold text-slate-500 uppercase tracking-wider mt-0.5">
+                                            SEAL: {currentInstitution?.code || 'KNEC'}-8F92-A39B
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* FOOTER BAR */}
-                                <div className="flex flex-col sm:flex-row justify-between items-center pt-2.5 border-t border-slate-200 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                <div className="flex flex-col sm:flex-row justify-between items-center pt-1.5 border-t border-slate-200 text-[8.5px] font-black text-slate-500 uppercase tracking-widest">
                                     <span>SCHOOL CLOSED ON: <strong className="text-slate-800">25/08/2026</strong></span>
                                     <span>NEXT TERM BEGINS ON: <strong className="text-emerald-600">20/09/2026</strong></span>
                                 </div>
@@ -1810,16 +1889,18 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                 </div>
             )}
 
-            {/* A4 PORTRAIT PRINT STYLES */}
+            {/* A4 PORTRAIT PRINT STYLES - STRICT SINGLE PAGE */}
             <style>{`
                 @page {
                     size: A4 portrait;
-                    margin: 5mm 6mm;
+                    margin: 3mm 4mm;
                 }
                 @media print {
                     html, body {
                         width: 210mm !important;
-                        height: auto !important;
+                        height: 297mm !important;
+                        max-height: 297mm !important;
+                        overflow: hidden !important;
                         margin: 0 !important;
                         padding: 0 !important;
                         background: #ffffff !important;
@@ -1831,17 +1912,24 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                         display: none !important;
                     }
                     .report-card-a4-sheet {
-                        width: 198mm !important;
-                        max-width: 198mm !important;
+                        width: 202mm !important;
+                        max-width: 202mm !important;
+                        height: 290mm !important;
+                        max-height: 290mm !important;
                         margin: 0 auto !important;
-                        padding: 4mm 5mm !important;
+                        padding: 3mm 4mm !important;
                         box-shadow: none !important;
                         border: 1px solid #cbd5e1 !important;
-                        border-radius: 6px !important;
+                        border-radius: 4px !important;
                         background: #ffffff !important;
                         page-break-inside: avoid !important;
                         page-break-after: avoid !important;
                         break-inside: avoid !important;
+                        box-sizing: border-box !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        justify-content: space-between !important;
+                        overflow: hidden !important;
                     }
                     .report-card-a4-sheet * {
                         -webkit-print-color-adjust: exact !important;
