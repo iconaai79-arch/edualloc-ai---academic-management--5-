@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
@@ -2942,15 +2943,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [collection3DMode, setCollection3DMode] = useState<'3d_bars' | '3d_donuts' | 'matrix'>('3d_bars');
     const [collection3DSelectedClass, setCollection3DSelectedClass] = useState<string | null>(null);
 
-    // Ensure statement preview scrolls to top when opened
+    // Ensure statement preview scrolls to top when opened and lock background scrolling
     useEffect(() => {
         if (balPreviewStudentId) {
+            const originalOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
             setTimeout(() => {
                 const scrollEl = document.getElementById('bal-preview-content-scroll');
                 if (scrollEl) scrollEl.scrollTop = 0;
                 const panelEl = document.getElementById('bal-preview-panel');
                 if (panelEl) panelEl.scrollTop = 0;
             }, 10);
+            return () => {
+                document.body.style.overflow = originalOverflow;
+            };
         }
     }, [balPreviewStudentId, balPreviewViewMode]);
 
@@ -7821,7 +7827,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     const renderFeeBalancesContent = () => (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-6">
             {/* Header & Quick Action Banner (Full Mode) */}
             {!isFeeBalancesHeaderCollapsed ? (
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm transition-all duration-300">
@@ -8394,10 +8400,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setBalPreviewStudentId(student.id);
-                                                                    setBalPreviewViewMode('table');
+                                                                    setBalPreviewViewMode('preview');
                                                                 }}
                                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800/40 shadow-xs active:scale-95 hover:shadow-sm cursor-pointer"
-                                                                title="View & Edit Student Ledger (Table Mode)"
+                                                                title="View Official Student Statement (PDF Preview Mode)"
                                                             >
                                                                 <PrinterIcon className="w-3.5 h-3.5" />
                                                                 Statement
@@ -8520,7 +8526,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 </div>
             )}
             {/* In-Tab PDF Statement Preview Panel */}
-            {balPreviewStudentId && (() => {
+            {balPreviewStudentId && typeof document !== 'undefined' && createPortal((() => {
                 const balPrevStudentRaw = props.students.find((s: any) => s.id === balPreviewStudentId);
                 const balPrevFinanceRecord = studentFinanceData.find(s => s.id === balPreviewStudentId);
                 const balPrevResolvedAdmNo = studentAdmissionNumber(balPrevStudentRaw || balPrevFinanceRecord);
@@ -8717,7 +8723,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!balPrevStudent) return null;
 
                 return (
-                    <div className="fixed inset-0 z-[200] bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200" onClick={(e) => {
+                    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200" onClick={(e) => {
                         if (e.target === e.currentTarget) setBalPreviewStudentId('');
                     }}>
                         <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-2xl max-w-5xl w-full h-[92vh] max-h-[92vh] flex flex-col relative animate-in zoom-in-95 duration-200 overflow-hidden">
@@ -9033,12 +9039,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         </div>
                     </div>
                 );
-            })()}
+            })(), document.body)}
 
             {/* Fee Reminder SMS Modal */}
 
-            {isFeeReminderModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+            {isFeeReminderModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[99999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-3xl w-full p-6 md:p-8 space-y-6 text-left my-8">
                         {/* Modal Header */}
                         <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -9226,12 +9232,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Log Parent Payment Promise (PTP) Modal */}
-            {isLogPromiseModalOpen && selectedStudentForPromise && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+            {isLogPromiseModalOpen && selectedStudentForPromise && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[99999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-lg w-full p-6 md:p-8 space-y-6 text-left my-8">
                         <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
                             <div>
@@ -9322,12 +9329,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* PTP Promises Tracker Dashboard Modal */}
-            {isPtpDashboardOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+            {isPtpDashboardOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[99999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-5xl w-full p-6 md:p-8 space-y-6 text-left my-8">
                         {/* Header */}
                         <div className="flex justify-between items-start pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -9528,7 +9536,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
