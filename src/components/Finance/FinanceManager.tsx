@@ -20730,420 +20730,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     return Array.isArray(items) ? items : [];
                                 };
 
-                                // Discover all voteheads from Invoices, Fee Structures, and Voteheads table
-                                const voteHeadSet = new Set<string>();
-                                mappedInvoices.forEach((inv: any) => {
-                                    getInvoiceItems(inv).forEach((v: any) => {
-                                        const name = (v.name || v.voteHeadName || v.description || '').trim();
-                                        if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
-                                    });
-                                });
-                                mappedFeeStructures.forEach((fs: any) => {
-                                    getInvoiceItems(fs).forEach((v: any) => {
-                                        const name = (v.name || v.voteHeadName || v.description || '').trim();
-                                        if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
-                                    });
-                                });
-                                (props.voteHeads || []).forEach((vh: any) => {
-                                    const name = (vh.name || vh.voteHeadName || '').trim();
-                                    if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
-                                });
-                                const allVoteHeads: string[] = Array.from(voteHeadSet);
+                                // Fast cached semester date ranges
+                                const semRanges = (props.semesters || []).map((sem: any) => ({
+                                    start: sem.startDate ? new Date(sem.startDate).getTime() : 0,
+                                    end: sem.endDate ? new Date(sem.endDate).getTime() : 0
+                                }));
 
-                                // 3. Helper for Term matching
                                 const getTermIndex = (dateStr: string) => {
                                     if (!dateStr) return 0;
-                                    const d = new Date(dateStr);
-                                    if (isNaN(d.getTime())) return 0;
-                                    
-                                    const matchedSemIndex = (props.semesters || []).findIndex((sem: any) => {
-                                        if (!sem.startDate || !sem.endDate) return false;
-                                        const start = new Date(sem.startDate);
-                                        const end = new Date(sem.endDate);
-                                        return d >= start && d <= end;
-                                    });
-                                    if (matchedSemIndex !== -1) {
-                                        return Math.min(matchedSemIndex, 2);
+                                    const t = new Date(dateStr).getTime();
+                                    if (isNaN(t)) return 0;
+                                    for (let i = 0; i < semRanges.length; i++) {
+                                        if (semRanges[i].start && semRanges[i].end && t >= semRanges[i].start && t <= semRanges[i].end) {
+                                            return Math.min(i, 2);
+                                        }
                                     }
-
-                                    const month = d.getMonth() + 1;
+                                    const month = new Date(t).getMonth() + 1;
                                     if (month >= 1 && month <= 4) return 0;
                                     if (month >= 5 && month <= 8) return 1;
                                     return 2;
                                 };
-
-                                // Filter receipts for Daily Collection based on Term, Period / Date Range, and Search
-                                const filteredDailyReceipts = mappedReceipts.filter((rcpt: any) => {
-                                    const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '';
-
-                                    // Filter by Term
-                                    if (dailyColTerm !== 'all' && dateStr) {
-                                        const tIdx = getTermIndex(dateStr);
-                                        if (dailyColTerm === 'term_1' && tIdx !== 0) return false;
-                                        if (dailyColTerm === 'term_2' && tIdx !== 1) return false;
-                                        if (dailyColTerm === 'term_3' && tIdx !== 2) return false;
-                                    }
-
-                                    // Filter by Date Range / Period
-                                    if (dateStr) {
-                                        const rcptDate = new Date(dateStr);
-                                        const now = new Date();
-                                        const todayStr = now.toISOString().split('T')[0];
-
-                                        if (dailyColPeriod === 'today') {
-                                            if (dateStr !== todayStr) return false;
-                                        } else if (dailyColPeriod === 'this_week') {
-                                            const oneWeekAgo = new Date();
-                                            oneWeekAgo.setDate(now.getDate() - 7);
-                                            if (rcptDate < oneWeekAgo) return false;
-                                        } else if (dailyColPeriod === 'this_month') {
-                                            if (rcptDate.getMonth() !== now.getMonth() || rcptDate.getFullYear() !== now.getFullYear()) return false;
-                                        } else if (dailyColPeriod === 'last_month') {
-                                            const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-                                            const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-                                            if (rcptDate.getMonth() !== lastMonth || rcptDate.getFullYear() !== year) return false;
-                                        } else if (dailyColPeriod === 'custom') {
-                                            if (dailyColStartDate && dateStr < dailyColStartDate) return false;
-                                            if (dailyColEndDate && dateStr > dailyColEndDate) return false;
-                                        }
-                                    }
-
-                                    // Filter by Search Query
-                                    if (dailyColSearch) {
-                                        const q = dailyColSearch.trim().toLowerCase();
-                                        const rNum = String(rcpt.receiptNumber || rcpt.id || '').toLowerCase();
-                                        const sName = String((rcpt as any).studentName || (rcpt as any).student_name || (rcpt as any).payerName || '').toLowerCase();
-                                        const method = String(rcpt.paymentMethod || rcpt.method || '').toLowerCase();
-                                        const paidFor = String(rcpt.paidFor || (rcpt as any).description || '').toLowerCase();
-                                        const matches = dateStr.includes(q) || rNum.includes(q) || sName.includes(q) || method.includes(q) || paidFor.includes(q);
-                                        if (!matches) return false;
-                                    }
-
-                                    return true;
-                                });
-
-                                // Build student lookup helper for votehead breakdown
-                                const studentInvoicesMap = new Map<string, any[]>();
-                                mappedInvoices.forEach((inv: any) => {
-                                    const sId = inv.studentId || (inv as any).student_id || (inv as any).userId;
-                                    if (sId) {
-                                        if (!studentInvoicesMap.has(sId)) studentInvoicesMap.set(sId, []);
-                                        studentInvoicesMap.get(sId)!.push(inv);
-                                    }
-                                });
-
-                                const collectionsByDate: Record<string, { date: string; minRcpt: string; maxRcpt: string; voteMap: Record<string, number>; total: number; receiptCount: number }> = {};
-
-                                filteredDailyReceipts.forEach((rcpt: any) => {
-                                    const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '—';
-                                    if (!collectionsByDate[dateStr]) {
-                                        collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0, receiptCount: 0 };
-                                    }
-                                    const day = collectionsByDate[dateStr];
-                                    const rNum = rcpt.receiptNumber || rcpt.id?.slice(-8);
-
-                                    // Track receipt number ranges
-                                    if (!day.minRcpt || rNum < day.minRcpt) day.minRcpt = rNum;
-                                    if (!day.maxRcpt || rNum > day.maxRcpt) day.maxRcpt = rNum;
-
-                                    const amt = Number(rcpt.amountPaid || (rcpt as any).amount_paid || (rcpt as any).amount || 0);
-                                    day.total += amt;
-                                    day.receiptCount += 1;
-
-                                    // Distribute amount paid to voteheads
-                                    let allocated = false;
-
-                                    // 1. Direct Invoice Tag
-                                    if (rcpt.invoiceId) {
-                                        const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
-                                        if (inv) {
-                                            const items = getInvoiceItems(inv);
-                                            const totalInv = items.reduce((s, it) => s + Number(it.amount || 0), 0);
-                                            if (totalInv > 0) {
-                                                items.forEach((it: any) => {
-                                                    const key = (it.name || it.voteHeadName || it.description || 'General').trim();
-                                                    day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalInv) * amt);
-                                                });
-                                                allocated = true;
-                                            }
-                                        }
-                                    }
-
-                                    // 2. Match student from Student Directory / Invoices / Class Fee Structure
-                                    if (!allocated) {
-                                        const sId = rcpt.studentId || (rcpt as any).student_id || (rcpt as any).userId;
-                                        const rAdm = String(rcpt.admissionNumber || (rcpt as any).admission_number || (rcpt as any).studentAdmissionNumber || (rcpt as any).admNo || (rcpt as any).adm_no || '').trim().toLowerCase();
-                                        const rName = String((rcpt as any).studentName || (rcpt as any).student_name || (rcpt as any).payerName || '').trim().toLowerCase();
-
-                                        const student = (mergedStudents.length > 0 ? mergedStudents : props.students).find((s: any) => {
-                                            if (!s) return false;
-                                            if (sId && (s.id === sId || (s as any).userId === sId)) return true;
-                                            const sAdm = getStudentAdmNumber(s).toLowerCase();
-                                            if (rAdm && sAdm && (sAdm === rAdm || sAdm.replace(/^0+/, '') === rAdm.replace(/^0+/, ''))) return true;
-                                            if (rName && s.name && s.name.trim().toLowerCase() === rName) return true;
-                                            return false;
-                                        });
-
-                                        if (student) {
-                                            const sInvs = studentInvoicesMap.get(student.id) || [];
-                                            if (sInvs.length > 0) {
-                                                const allItems = sInvs.flatMap((inv: any) => getInvoiceItems(inv));
-                                                const totalInv = allItems.reduce((s, it) => s + Number(it.amount || 0), 0);
-                                                if (totalInv > 0) {
-                                                    allItems.forEach((it: any) => {
-                                                        const key = (it.name || it.voteHeadName || it.description || 'General').trim();
-                                                        day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalInv) * amt);
-                                                    });
-                                                    allocated = true;
-                                                }
-                                            }
-
-                                            if (!allocated) {
-                                                const cls = (student.className || studentClassGroup(student) || '').trim().toLowerCase();
-                                                const matchingFs = mappedFeeStructures.find((fs: any) => {
-                                                    const fsCls = (fs.gradeLevel || fs.className || fs.name || '').trim().toLowerCase();
-                                                    return fsCls && (fsCls === cls || cls.includes(fsCls) || fsCls.includes(cls));
-                                                });
-                                                if (matchingFs) {
-                                                    const fsItems = getInvoiceItems(matchingFs);
-                                                    const totalFs = fsItems.reduce((s, it) => s + Number(it.amount || 0), 0);
-                                                    if (totalFs > 0) {
-                                                        fsItems.forEach((it: any) => {
-                                                            const key = (it.name || it.voteHeadName || it.description || 'General').trim();
-                                                            day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalFs) * amt);
-                                                        });
-                                                        allocated = true;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // 3. PaidFor / Description specific keyword match
-                                    if (!allocated) {
-                                        const paidFor = String(rcpt.paidFor || (rcpt as any).description || (rcpt as any).paymentFor || '').trim().toLowerCase();
-                                        const matchedVh = allVoteHeads.find(vh => vh.toLowerCase() !== 'general' && paidFor.includes(vh.toLowerCase()));
-                                        if (matchedVh) {
-                                            day.voteMap[matchedVh] = (day.voteMap[matchedVh] || 0) + amt;
-                                            allocated = true;
-                                        }
-                                    }
-
-                                    // 4. Default allocation to General
-                                    if (!allocated) {
-                                        day.voteMap['General'] = (day.voteMap['General'] || 0) + amt;
-                                    }
-                                });
-
-                                const collectionList = Object.values(collectionsByDate).sort((a, b) => b.date.localeCompare(a.date));
-
-                                // Pagination for Daily Collection Summary
-                                const isDailyColAll = dailyColPerPage === 0;
-                                const totalDailyColRecords = collectionList.length;
-                                const totalDailyColPages = isDailyColAll ? 1 : Math.max(1, Math.ceil(totalDailyColRecords / dailyColPerPage));
-                                const paginatedCollectionList = isDailyColAll 
-                                    ? collectionList 
-                                    : collectionList.slice((dailyColCurrentPage - 1) * dailyColPerPage, dailyColCurrentPage * dailyColPerPage);
-
-                                // Payment method summaries for Daily Collection
-                                const paymentMethodSummary: Record<string, number> = {};
-                                filteredDailyReceipts.forEach((r: any) => {
-                                    const method = r.paymentMethod || r.method || 'Cash';
-                                    paymentMethodSummary[method] = (paymentMethodSummary[method] || 0) + (r.amountPaid || 0);
-                                });
-
-                                const totalCollectionsSum = collectionList.reduce((s, c) => s + c.total, 0);
-                                const totalReceiptsSum = collectionList.reduce((s, c) => s + c.receiptCount, 0);
-
-                                // 2. Cash Book calculation
-                                const allCashEntries = [
-                                    ...mappedReceipts.map((r: any) => ({
-                                        date: r.paymentDate || r.createdAt || '',
-                                        particulars: `Fee Collection — ${r.studentName || r.payerName || 'Student'}`,
-                                        ref: r.receiptNumber || r.id?.slice(-8),
-                                        debit: r.amountPaid || 0,
-                                        credit: 0,
-                                        method: r.paymentMethod || r.method || 'Cash'
-                                    })),
-                                    ...(props.expenses || []).map((e: any) => ({
-                                        date: e.date || '',
-                                        particulars: `Expense — ${e.description || 'General Expenditure'} (${e.category || 'General'})`,
-                                        ref: e.id?.slice(-8) || 'EXP',
-                                        debit: 0,
-                                        credit: e.amount || 0,
-                                        method: 'Expense'
-                                    }))
-                                ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-                                // Calculate bf balance before start of period
-                                let bfBalance = 0;
-                                allCashEntries.forEach(entry => {
-                                    if (!entry.date) return;
-                                    const entryDate = new Date(entry.date);
-                                    const now = new Date();
-                                    let isPrior = false;
-                                    if (cbPeriod === 'this_month') {
-                                        const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                                        isPrior = entryDate < startOfThisMonth;
-                                    } else if (cbPeriod === 'last_month') {
-                                        const startOfLastMonth = now.getMonth() === 0 
-                                            ? new Date(now.getFullYear() - 1, 11, 1) 
-                                            : new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                                        isPrior = entryDate < startOfLastMonth;
-                                    } else if (cbPeriod === 'custom') {
-                                        const start = cbStartDate ? new Date(cbStartDate) : null;
-                                        if (start) {
-                                            isPrior = entryDate < start;
-                                        }
-                                    }
-                                    if (isPrior) {
-                                        bfBalance += entry.debit - entry.credit;
-                                    }
-                                });
-
-                                // Filter entries within chosen period
-                                const filteredCashEntries = allCashEntries.filter(entry => {
-                                    if (!entry.date) return true;
-                                    const entryDate = new Date(entry.date);
-                                    const now = new Date();
-                                    if (cbPeriod === 'this_month') {
-                                        return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
-                                    } else if (cbPeriod === 'last_month') {
-                                        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
-                                        const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-                                        return entryDate.getMonth() === lastMonth && entryDate.getFullYear() === year;
-                                    } else if (cbPeriod === 'custom') {
-                                        const start = cbStartDate ? new Date(cbStartDate) : null;
-                                        const end = cbEndDate ? new Date(cbEndDate) : null;
-                                        if (start && entryDate < start) return false;
-                                        if (end && entryDate > end) return false;
-                                    }
-                                    return true;
-                                });
-
-                                // Compute itemized cash book list (latest first)
-                                let currentItemBal = bfBalance;
-                                const itemizedCashBook = filteredCashEntries.map(entry => {
-                                    currentItemBal += entry.debit - entry.credit;
-                                    return {
-                                        date: entry.date.split('T')[0] || '—',
-                                        particulars: entry.particulars,
-                                        ref: entry.ref,
-                                        debit: entry.debit,
-                                        credit: entry.credit,
-                                        method: entry.method,
-                                        balance: currentItemBal,
-                                    };
-                                }).reverse();
-
-                                // Group daily details for the Daily Cash Book
-                                const dailyGroups: Record<string, { date: string; debit: number; credit: number; receiptsList: any[]; expensesList: any[] }> = {};
-                                filteredCashEntries.forEach(entry => {
-                                    const dateStr = entry.date.split('T')[0] || '—';
-                                    if (!dailyGroups[dateStr]) {
-                                        dailyGroups[dateStr] = { date: dateStr, debit: 0, credit: 0, receiptsList: [], expensesList: [] };
-                                    }
-                                    const group = dailyGroups[dateStr];
-                                    group.debit += entry.debit;
-                                    group.credit += entry.credit;
-                                    if (entry.debit > 0) group.receiptsList.push(entry);
-                                    if (entry.credit > 0) group.expensesList.push(entry);
-                                });
-
-                                // Calculate daily running balances
-                                const sortedDays = Object.values(dailyGroups).sort((a, b) => a.date.localeCompare(b.date));
-                                let dailyRunning = bfBalance;
-                                const dailyCashBook = sortedDays.map(day => {
-                                    const bf = dailyRunning;
-                                    dailyRunning += day.debit - day.credit;
-                                    const cf = dailyRunning;
-
-                                    // Receipt numbers min/max range
-                                    const rcptNums = day.receiptsList.map(r => r.ref).filter(Boolean);
-                                    const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : '—';
-                                    const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : '—';
-
-                                    // Payment methods breakdown
-                                    const methods: Record<string, number> = {};
-                                    day.receiptsList.forEach(r => {
-                                        const m = r.method || 'Cash';
-                                        methods[m] = (methods[m] || 0) + r.debit;
-                                    });
-                                    const methodSummary = Object.entries(methods)
-                                        .map(([m, val]) => `${m}: KSh ${val.toLocaleString()}`)
-                                        .join(' · ');
-
-                                    return {
-                                        ...day,
-                                        bf,
-                                        cf,
-                                        minRcpt,
-                                        maxRcpt,
-                                        methodSummary
-                                    };
-                                }).reverse();
-
-                                // 3. Fee Register calculation
-
-                                const filteredFeeRegStudents = props.students.filter((s: any) => {
-                                    if (!feeRegClass || feeRegClass === 'All') return true;
-                                    const sClass = getStudentClassName(s);
-                                    return sClass.toLowerCase() === feeRegClass.toLowerCase();
-                                });
-
-                                const feeRegister = filteredFeeRegStudents.map((s: any) => {
-                                    const sRcpts = mappedReceipts.filter((r: any) => r.studentId === s.id);
-                                    const sInvs = mappedInvoices.filter((i: any) => i.studentId === s.id);
-
-                                    const bf = s.metadata?.openingBalance || 0;
-                                    const totalInvoiced = sInvs.reduce((acc: number, inv: any) => {
-                                        const items = getInvoiceItems(inv);
-                                        return acc + items.reduce((sSum, item) => sSum + (item.amount || 0), 0);
-                                    }, 0);
-
-                                    let t1Amount = 0, t1Count = 0;
-                                    let t2Amount = 0, t2Count = 0;
-                                    let t3Amount = 0, t3Count = 0;
-
-                                    sRcpts.forEach((rcpt: any) => {
-                                        const rDate = rcpt.paymentDate || rcpt.createdAt || '';
-                                        const tIdx = getTermIndex(rDate);
-                                        const amt = rcpt.amountPaid || 0;
-
-                                        if (tIdx === 0) {
-                                            t1Amount += amt;
-                                            t1Count++;
-                                        } else if (tIdx === 1) {
-                                            t2Amount += amt;
-                                            t2Count++;
-                                        } else {
-                                            t3Amount += amt;
-                                            t3Count++;
-                                        }
-                                    });
-
-                                    const totalPaid = t1Amount + t2Amount + t3Amount;
-                                    const netBalance = (bf + totalInvoiced) - totalPaid;
-                                    const prepaid = netBalance < 0 ? Math.abs(netBalance) : 0;
-                                    const arrears = netBalance > 0 ? netBalance : 0;
-
-                                    return {
-                                        id: s.id,
-                                        name: s.name,
-                                        admissionNumber: getStudentAdmNumber(s),
-                                        class: getStudentClassName(s),
-                                        bf,
-                                        t1Count,
-                                        t1Amount,
-                                        t2Count,
-                                        t2Amount,
-                                        t3Count,
-                                        t3Amount,
-                                        totalPaid,
-                                        prepaid,
-                                        arrears
-                                    };
-                                });
 
                                 const TH = (label: string) => <th className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-slate-800 whitespace-nowrap">{label}</th>;
                                 const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
@@ -21152,8 +20758,211 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div className="space-y-6 animate-in fade-in duration-200">
                                         
                                         {/* 1. Collection Tab */}
-                                        {ledgerSubTab === 'collection_summary' && (
-                                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
+                                        {ledgerSubTab === 'collection_summary' && (() => {
+                                            // Discover voteheads only when Collection Summary is open
+                                            const voteHeadSet = new Set<string>();
+                                            mappedInvoices.forEach((inv: any) => {
+                                                getInvoiceItems(inv).forEach((v: any) => {
+                                                    const name = (v.name || v.voteHeadName || v.description || '').trim();
+                                                    if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
+                                                });
+                                            });
+                                            mappedFeeStructures.forEach((fs: any) => {
+                                                getInvoiceItems(fs).forEach((v: any) => {
+                                                    const name = (v.name || v.voteHeadName || v.description || '').trim();
+                                                    if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
+                                                });
+                                            });
+                                            (props.voteHeads || []).forEach((vh: any) => {
+                                                const name = (vh.name || vh.voteHeadName || '').trim();
+                                                if (name && name.toLowerCase() !== 'general') voteHeadSet.add(name);
+                                            });
+                                            const allVoteHeads: string[] = Array.from(voteHeadSet);
+
+                                            // Filter receipts for Daily Collection
+                                            const filteredDailyReceipts = mappedReceipts.filter((rcpt: any) => {
+                                                const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '';
+
+                                                if (dailyColTerm !== 'all' && dateStr) {
+                                                    const tIdx = getTermIndex(dateStr);
+                                                    if (dailyColTerm === 'term_1' && tIdx !== 0) return false;
+                                                    if (dailyColTerm === 'term_2' && tIdx !== 1) return false;
+                                                    if (dailyColTerm === 'term_3' && tIdx !== 2) return false;
+                                                }
+
+                                                if (dateStr) {
+                                                    const rcptDate = new Date(dateStr);
+                                                    const now = new Date();
+                                                    const todayStr = now.toISOString().split('T')[0];
+
+                                                    if (dailyColPeriod === 'today') {
+                                                        if (dateStr !== todayStr) return false;
+                                                    } else if (dailyColPeriod === 'this_week') {
+                                                        const oneWeekAgo = new Date();
+                                                        oneWeekAgo.setDate(now.getDate() - 7);
+                                                        if (rcptDate < oneWeekAgo) return false;
+                                                    } else if (dailyColPeriod === 'this_month') {
+                                                        if (rcptDate.getMonth() !== now.getMonth() || rcptDate.getFullYear() !== now.getFullYear()) return false;
+                                                    } else if (dailyColPeriod === 'last_month') {
+                                                        const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+                                                        const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                                                        if (rcptDate.getMonth() !== lastMonth || rcptDate.getFullYear() !== year) return false;
+                                                    } else if (dailyColPeriod === 'custom') {
+                                                        if (dailyColStartDate && dateStr < dailyColStartDate) return false;
+                                                        if (dailyColEndDate && dateStr > dailyColEndDate) return false;
+                                                    }
+                                                }
+
+                                                if (dailyColSearch) {
+                                                    const q = dailyColSearch.trim().toLowerCase();
+                                                    const rNum = String(rcpt.receiptNumber || rcpt.id || '').toLowerCase();
+                                                    const sName = String((rcpt as any).studentName || (rcpt as any).student_name || (rcpt as any).payerName || '').toLowerCase();
+                                                    const method = String(rcpt.paymentMethod || rcpt.method || '').toLowerCase();
+                                                    const paidFor = String(rcpt.paidFor || (rcpt as any).description || '').toLowerCase();
+                                                    const matches = dateStr.includes(q) || rNum.includes(q) || sName.includes(q) || method.includes(q) || paidFor.includes(q);
+                                                    if (!matches) return false;
+                                                }
+
+                                                return true;
+                                            });
+
+                                            // Pre-index students by ID and Admission Number for instant O(1) lookups
+                                            const studentMapById = new Map<string, any>();
+                                            const studentMapByAdm = new Map<string, any>();
+                                            const studentList = mergedStudents.length > 0 ? mergedStudents : props.students;
+                                            studentList.forEach((s: any) => {
+                                                if (s.id) studentMapById.set(s.id, s);
+                                                if ((s as any).userId) studentMapById.set((s as any).userId, s);
+                                                const adm = getStudentAdmNumber(s).toLowerCase().trim();
+                                                if (adm) {
+                                                    studentMapByAdm.set(adm, s);
+                                                    studentMapByAdm.set(adm.replace(/^0+/, ''), s);
+                                                }
+                                            });
+
+                                            // Build student invoices lookup helper
+                                            const studentInvoicesMap = new Map<string, any[]>();
+                                            mappedInvoices.forEach((inv: any) => {
+                                                const sId = inv.studentId || (inv as any).student_id || (inv as any).userId;
+                                                if (sId) {
+                                                    if (!studentInvoicesMap.has(sId)) studentInvoicesMap.set(sId, []);
+                                                    studentInvoicesMap.get(sId)!.push(inv);
+                                                }
+                                            });
+
+                                            const collectionsByDate: Record<string, { date: string; minRcpt: string; maxRcpt: string; voteMap: Record<string, number>; total: number; receiptCount: number }> = {};
+
+                                            filteredDailyReceipts.forEach((rcpt: any) => {
+                                                const dateStr = (rcpt.paymentDate || rcpt.createdAt || '').split('T')[0] || '—';
+                                                if (!collectionsByDate[dateStr]) {
+                                                    collectionsByDate[dateStr] = { date: dateStr, minRcpt: '', maxRcpt: '', voteMap: {}, total: 0, receiptCount: 0 };
+                                                }
+                                                const day = collectionsByDate[dateStr];
+                                                const rNum = rcpt.receiptNumber || rcpt.id?.slice(-8);
+
+                                                if (!day.minRcpt || rNum < day.minRcpt) day.minRcpt = rNum;
+                                                if (!day.maxRcpt || rNum > day.maxRcpt) day.maxRcpt = rNum;
+
+                                                const amt = Number(rcpt.amountPaid || (rcpt as any).amount_paid || (rcpt as any).amount || 0);
+                                                day.total += amt;
+                                                day.receiptCount += 1;
+
+                                                let allocated = false;
+
+                                                // 1. Direct Invoice Tag
+                                                if (rcpt.invoiceId) {
+                                                    const inv = mappedInvoices.find((i: any) => i.id === rcpt.invoiceId);
+                                                    if (inv) {
+                                                        const items = getInvoiceItems(inv);
+                                                        const totalInv = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+                                                        if (totalInv > 0) {
+                                                            items.forEach((it: any) => {
+                                                                const key = (it.name || it.voteHeadName || it.description || 'General').trim();
+                                                                day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalInv) * amt);
+                                                            });
+                                                            allocated = true;
+                                                        }
+                                                    }
+                                                }
+
+                                                // 2. Fast O(1) Student Directory Lookup
+                                                if (!allocated) {
+                                                    const sId = rcpt.studentId || (rcpt as any).student_id || (rcpt as any).userId;
+                                                    const rAdm = String(rcpt.admissionNumber || (rcpt as any).admission_number || (rcpt as any).studentAdmissionNumber || (rcpt as any).admNo || (rcpt as any).adm_no || '').trim().toLowerCase();
+
+                                                    const student = (sId ? studentMapById.get(sId) : null) || (rAdm ? (studentMapByAdm.get(rAdm) || studentMapByAdm.get(rAdm.replace(/^0+/, ''))) : null);
+
+                                                    if (student) {
+                                                        const sInvs = studentInvoicesMap.get(student.id) || [];
+                                                        if (sInvs.length > 0) {
+                                                            const allItems = sInvs.flatMap((inv: any) => getInvoiceItems(inv));
+                                                            const totalInv = allItems.reduce((s, it) => s + Number(it.amount || 0), 0);
+                                                            if (totalInv > 0) {
+                                                                allItems.forEach((it: any) => {
+                                                                    const key = (it.name || it.voteHeadName || it.description || 'General').trim();
+                                                                    day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalInv) * amt);
+                                                                });
+                                                                allocated = true;
+                                                            }
+                                                        }
+
+                                                        if (!allocated) {
+                                                            const cls = (student.className || studentClassGroup(student) || '').trim().toLowerCase();
+                                                            const matchingFs = mappedFeeStructures.find((fs: any) => {
+                                                                const fsCls = (fs.gradeLevel || fs.className || fs.name || '').trim().toLowerCase();
+                                                                return fsCls && (fsCls === cls || cls.includes(fsCls) || fsCls.includes(cls));
+                                                            });
+                                                            if (matchingFs) {
+                                                                const fsItems = getInvoiceItems(matchingFs);
+                                                                const totalFs = fsItems.reduce((s, it) => s + Number(it.amount || 0), 0);
+                                                                if (totalFs > 0) {
+                                                                    fsItems.forEach((it: any) => {
+                                                                        const key = (it.name || it.voteHeadName || it.description || 'General').trim();
+                                                                        day.voteMap[key] = (day.voteMap[key] || 0) + ((Number(it.amount || 0) / totalFs) * amt);
+                                                                    });
+                                                                    allocated = true;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // 3. PaidFor / Description specific keyword match
+                                                if (!allocated) {
+                                                    const paidFor = String(rcpt.paidFor || (rcpt as any).description || (rcpt as any).paymentFor || '').trim().toLowerCase();
+                                                    const matchedVh = allVoteHeads.find(vh => vh.toLowerCase() !== 'general' && paidFor.includes(vh.toLowerCase()));
+                                                    if (matchedVh) {
+                                                        day.voteMap[matchedVh] = (day.voteMap[matchedVh] || 0) + amt;
+                                                        allocated = true;
+                                                    }
+                                                }
+
+                                                // 4. Default allocation to General
+                                                if (!allocated) {
+                                                    day.voteMap['General'] = (day.voteMap['General'] || 0) + amt;
+                                                }
+                                            });
+
+                                            const collectionList = Object.values(collectionsByDate).sort((a, b) => b.date.localeCompare(a.date));
+
+                                            const isDailyColAll = dailyColPerPage === 0;
+                                            const totalDailyColRecords = collectionList.length;
+                                            const totalDailyColPages = isDailyColAll ? 1 : Math.max(1, Math.ceil(totalDailyColRecords / dailyColPerPage));
+                                            const paginatedCollectionList = isDailyColAll 
+                                                ? collectionList 
+                                                : collectionList.slice((dailyColCurrentPage - 1) * dailyColPerPage, dailyColCurrentPage * dailyColPerPage);
+
+                                            const paymentMethodSummary: Record<string, number> = {};
+                                            filteredDailyReceipts.forEach((r: any) => {
+                                                const method = r.paymentMethod || r.method || 'Cash';
+                                                paymentMethodSummary[method] = (paymentMethodSummary[method] || 0) + (r.amountPaid || 0);
+                                            });
+
+                                            const totalCollectionsSum = collectionList.reduce((s, c) => s + c.total, 0);
+                                            const totalReceiptsSum = collectionList.reduce((s, c) => s + c.receiptCount, 0);
+
+                                            return (
+                                                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
                                                 {/* Header & Export Actions */}
                                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                                                     <div>
@@ -21537,10 +21346,138 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     </div>
                                                 </div>
                                             </div>
-                                        )}
+                                        );
+                                    })()}
 
                                         {/* 2. Cash Book */}
                                         {ledgerSubTab === 'cash_book' && (() => {
+                                            // Compute Cash Book entries only when Cash Book tab is active
+                                            const allCashEntries = [
+                                                ...mappedReceipts.map((r: any) => ({
+                                                    date: r.paymentDate || r.createdAt || '',
+                                                    particulars: `Fee Collection — ${r.studentName || r.payerName || 'Student'}`,
+                                                    ref: r.receiptNumber || r.id?.slice(-8),
+                                                    debit: r.amountPaid || 0,
+                                                    credit: 0,
+                                                    method: r.paymentMethod || r.method || 'Cash'
+                                                })),
+                                                ...(props.expenses || []).map((e: any) => ({
+                                                    date: e.date || '',
+                                                    particulars: `Expense — ${e.description || 'General Expenditure'} (${e.category || 'General'})`,
+                                                    ref: e.id?.slice(-8) || 'EXP',
+                                                    debit: 0,
+                                                    credit: e.amount || 0,
+                                                    method: 'Expense'
+                                                }))
+                                            ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                                            // Calculate bf balance before start of period
+                                            let bfBalance = 0;
+                                            allCashEntries.forEach(entry => {
+                                                if (!entry.date) return;
+                                                const entryDate = new Date(entry.date);
+                                                const now = new Date();
+                                                let isPrior = false;
+                                                if (cbPeriod === 'this_month') {
+                                                    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                                                    isPrior = entryDate < startOfThisMonth;
+                                                } else if (cbPeriod === 'last_month') {
+                                                    const startOfLastMonth = now.getMonth() === 0 
+                                                        ? new Date(now.getFullYear() - 1, 11, 1) 
+                                                        : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                                                    isPrior = entryDate < startOfLastMonth;
+                                                } else if (cbPeriod === 'custom') {
+                                                    const start = cbStartDate ? new Date(cbStartDate) : null;
+                                                    if (start) {
+                                                        isPrior = entryDate < start;
+                                                    }
+                                                }
+                                                if (isPrior) {
+                                                    bfBalance += entry.debit - entry.credit;
+                                                }
+                                            });
+
+                                            // Filter entries within chosen period
+                                            const filteredCashEntries = allCashEntries.filter(entry => {
+                                                if (!entry.date) return true;
+                                                const entryDate = new Date(entry.date);
+                                                const now = new Date();
+                                                if (cbPeriod === 'this_month') {
+                                                    return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
+                                                } else if (cbPeriod === 'last_month') {
+                                                    const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+                                                    const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                                                    return entryDate.getMonth() === lastMonth && entryDate.getFullYear() === year;
+                                                } else if (cbPeriod === 'custom') {
+                                                    const start = cbStartDate ? new Date(cbStartDate) : null;
+                                                    const end = cbEndDate ? new Date(cbEndDate) : null;
+                                                    if (start && entryDate < start) return false;
+                                                    if (end && entryDate > end) return false;
+                                                }
+                                                return true;
+                                            });
+
+                                            // Compute itemized cash book list (latest first)
+                                            let currentItemBal = bfBalance;
+                                            const itemizedCashBook = filteredCashEntries.map(entry => {
+                                                currentItemBal += entry.debit - entry.credit;
+                                                return {
+                                                    date: entry.date.split('T')[0] || '—',
+                                                    particulars: entry.particulars,
+                                                    ref: entry.ref,
+                                                    debit: entry.debit,
+                                                    credit: entry.credit,
+                                                    method: entry.method,
+                                                    balance: currentItemBal,
+                                                };
+                                            }).reverse();
+
+                                            // Group daily details for the Daily Cash Book
+                                            const dailyGroups: Record<string, { date: string; debit: number; credit: number; receiptsList: any[]; expensesList: any[] }> = {};
+                                            filteredCashEntries.forEach(entry => {
+                                                const dateStr = entry.date.split('T')[0] || '—';
+                                                if (!dailyGroups[dateStr]) {
+                                                    dailyGroups[dateStr] = { date: dateStr, debit: 0, credit: 0, receiptsList: [], expensesList: [] };
+                                                }
+                                                const group = dailyGroups[dateStr];
+                                                group.debit += entry.debit;
+                                                group.credit += entry.credit;
+                                                if (entry.debit > 0) group.receiptsList.push(entry);
+                                                if (entry.credit > 0) group.expensesList.push(entry);
+                                            });
+
+                                            // Calculate daily running balances
+                                            const sortedDays = Object.values(dailyGroups).sort((a, b) => a.date.localeCompare(b.date));
+                                            let dailyRunning = bfBalance;
+                                            const dailyCashBook = sortedDays.map(day => {
+                                                const bf = dailyRunning;
+                                                dailyRunning += day.debit - day.credit;
+                                                const cf = dailyRunning;
+
+                                                // Receipt numbers min/max range
+                                                const rcptNums = day.receiptsList.map(r => r.ref).filter(Boolean);
+                                                const minRcpt = rcptNums.length > 0 ? rcptNums.reduce((min, cur) => cur < min ? cur : min) : '—';
+                                                const maxRcpt = rcptNums.length > 0 ? rcptNums.reduce((max, cur) => cur > max ? cur : max) : '—';
+
+                                                // Payment methods breakdown
+                                                const methods: Record<string, number> = {};
+                                                day.receiptsList.forEach(r => {
+                                                    const m = r.method || 'Cash';
+                                                    methods[m] = (methods[m] || 0) + r.debit;
+                                                });
+                                                const methodSummary = Object.entries(methods)
+                                                    .map(([m, val]) => `${m}: KSh ${val.toLocaleString()}`)
+                                                    .join(' · ');
+
+                                                return {
+                                                    ...day,
+                                                    bf,
+                                                    cf,
+                                                    minRcpt,
+                                                    maxRcpt,
+                                                    methodSummary
+                                                };
+                                            }).reverse();
                                             const searchedDailyCashBook = dailyCashBook.filter(day => {
                                                 if (!cbSearch.trim()) return true;
                                                 const q = cbSearch.toLowerCase().trim();
@@ -22036,6 +21973,100 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {ledgerSubTab === 'fee_register' && (() => {
                                             const feeRegClasses = getAllDistinctClasses();
 
+                                            // 1. Filter students by selected class
+                                            const filteredFeeRegStudents = props.students.filter((s: any) => {
+                                                if (!feeRegClass || feeRegClass === 'All') return true;
+                                                const sClass = getStudentClassName(s);
+                                                return sClass.toLowerCase() === feeRegClass.toLowerCase();
+                                            });
+
+                                            // 2. Pre-index receipts by student ID in a single fast O(M) pass
+                                            const receiptsByStudent = new Map<string, any[]>();
+                                            for (let i = 0; i < mappedReceipts.length; i++) {
+                                                const r = mappedReceipts[i];
+                                                const sId = r.studentId || r.student_id;
+                                                if (sId) {
+                                                    let list = receiptsByStudent.get(sId);
+                                                    if (!list) { list = []; receiptsByStudent.set(sId, list); }
+                                                    list.push(r);
+                                                }
+                                            }
+
+                                            // 3. Pre-index invoices and pre-sum invoice totals in a single fast O(I) pass
+                                            const invoicesByStudent = new Map<string, any[]>();
+                                            const invoiceTotalCache = new Map<string, number>();
+                                            for (let i = 0; i < mappedInvoices.length; i++) {
+                                                const inv = mappedInvoices[i];
+                                                const sId = inv.studentId || inv.student_id;
+                                                if (sId) {
+                                                    let list = invoicesByStudent.get(sId);
+                                                    if (!list) { list = []; invoicesByStudent.set(sId, list); }
+                                                    list.push(inv);
+                                                }
+                                                const items = getInvoiceItems(inv);
+                                                let invTotal = 0;
+                                                for (let j = 0; j < items.length; j++) {
+                                                    invTotal += Number(items[j].amount || 0);
+                                                }
+                                                invoiceTotalCache.set(inv.id, invTotal);
+                                            }
+
+                                            // 4. Compute fee register in a single super-fast O(N) pass (< 10ms for 908 students)
+                                            const feeRegister = filteredFeeRegStudents.map((s: any) => {
+                                                const sRcpts = receiptsByStudent.get(s.id) || [];
+                                                const sInvs = invoicesByStudent.get(s.id) || [];
+
+                                                const bf = Number(s.metadata?.openingBalance || 0);
+                                                let totalInvoiced = 0;
+                                                for (let i = 0; i < sInvs.length; i++) {
+                                                    totalInvoiced += invoiceTotalCache.get(sInvs[i].id) || 0;
+                                                }
+
+                                                let t1Amount = 0, t1Count = 0;
+                                                let t2Amount = 0, t2Count = 0;
+                                                let t3Amount = 0, t3Count = 0;
+
+                                                for (let i = 0; i < sRcpts.length; i++) {
+                                                    const rcpt = sRcpts[i];
+                                                    const rDate = rcpt.paymentDate || rcpt.createdAt || '';
+                                                    const tIdx = getTermIndex(rDate);
+                                                    const amt = Number(rcpt.amountPaid || 0);
+
+                                                    if (tIdx === 0) {
+                                                        t1Amount += amt;
+                                                        t1Count++;
+                                                    } else if (tIdx === 1) {
+                                                        t2Amount += amt;
+                                                        t2Count++;
+                                                    } else {
+                                                        t3Amount += amt;
+                                                        t3Count++;
+                                                    }
+                                                }
+
+                                                const totalPaid = t1Amount + t2Amount + t3Amount;
+                                                const netBalance = (bf + totalInvoiced) - totalPaid;
+                                                const prepaid = netBalance < 0 ? Math.abs(netBalance) : 0;
+                                                const arrears = netBalance > 0 ? netBalance : 0;
+
+                                                return {
+                                                    id: s.id,
+                                                    name: s.name,
+                                                    admissionNumber: getStudentAdmNumber(s),
+                                                    class: getStudentClassName(s),
+                                                    bf,
+                                                    t1Count,
+                                                    t1Amount,
+                                                    t2Count,
+                                                    t2Amount,
+                                                    t3Count,
+                                                    t3Amount,
+                                                    totalPaid,
+                                                    prepaid,
+                                                    arrears
+                                                };
+                                            });
+
                                             const searchedFeeRegister = feeRegister.filter(s => {
                                                 if (!feeRegSearch.trim()) return true;
                                                 const q = feeRegSearch.toLowerCase().trim();
@@ -22093,17 +22124,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 onClick={() => {
                                                                     setPdfPreviewModal({
                                                                         title: `FEE REGISTER AUDIT REPORT`,
-                                                                        subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} (${filteredStudentFeeSummary.length} Students)`,
-                                                                        studentName: `Batch Register (${filteredStudentFeeSummary.length} Students)`,
-                                                                        admNo: `COUNT: ${filteredStudentFeeSummary.length}`,
+                                                                        subtitle: `${props.institution.name} — Class: ${feeRegClass || 'All Classes'} (${searchedFeeRegister.length} Students)`,
+                                                                        studentName: `Batch Register (${searchedFeeRegister.length} Students)`,
+                                                                        admNo: `COUNT: ${searchedFeeRegister.length}`,
                                                                         className: feeRegClass || 'All Classes',
-                                                                        invoiced: totalRegPaid + totalRegArrears,
-                                                                        paid: totalRegPaid,
-                                                                        balance: totalRegArrears,
-                                                                        items: filteredStudentFeeSummary.map((s: any) => ({
+                                                                        invoiced: totalPaidSum + totalArrearsSum,
+                                                                        paid: totalPaidSum,
+                                                                        balance: totalArrearsSum,
+                                                                        items: searchedFeeRegister.map((s: any) => ({
                                                                             name: s.name,
                                                                             adm: s.admissionNumber,
-                                                                            cls: s.className,
+                                                                            cls: s.class,
                                                                             inv: s.totalPaid + s.arrears,
                                                                             pd: s.totalPaid,
                                                                             bal: s.arrears
