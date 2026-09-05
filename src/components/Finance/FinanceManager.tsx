@@ -8923,121 +8923,176 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
 
                                     {/* A4 Document Canvas */}
-                                    <div className="bg-white text-slate-900 shadow-xl rounded-2xl border border-slate-200 p-6 sm:p-8 md:p-10 max-w-4xl mx-auto space-y-5 font-sans print:shadow-none print:border-none print:p-0">
-                                        {/* School Header */}
-                                        <div className="flex justify-between items-start border-b-2 border-indigo-600 pb-4">
-                                            <div>
-                                                <div className="flex items-center gap-3 mb-1">
-                                                    {(props.institution.logoUrl || (props.institution as any).logo_url) && (
-                                                        <img src={props.institution.logoUrl || (props.institution as any).logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-lg" />
-                                                    )}
-                                                    <div>
-                                                        <h2 className="text-xl font-black tracking-tight text-indigo-950">{props.institution.name}</h2>
-                                                        <p className="text-[11px] text-slate-500 font-medium">{props.institution.email || 'finance@school.edu'} · {props.institution.phoneNumber || '+254 700 000000'}</p>
+                                    <div className="bg-white text-slate-900 shadow-xl rounded-2xl border border-slate-200 p-6 sm:p-8 md:p-10 max-w-4xl mx-auto space-y-6 font-sans print:shadow-none print:border-none print:p-0">
+                                        {/* School Letterhead Header */}
+                                        {(() => {
+                                            const letterheadUrl = props.institution.letterheadConfig?.headerImageUrl 
+                                                || (props.institution as any).letterheadUrl 
+                                                || (props.institution as any).letterhead_url 
+                                                || props.companyDetails?.letterheadConfig?.headerImageUrl;
+                                            
+                                            if (letterheadUrl) {
+                                                return (
+                                                    <div className="w-full flex justify-center pb-2 border-b border-slate-200">
+                                                        <img src={letterheadUrl} alt="Institution Letterhead" className="max-h-28 w-auto object-contain" />
+                                                    </div>
+                                                );
+                                            }
+
+                                            const instLogo = props.institution.logoUrl || (props.institution as any).logo_url || props.companyDetails?.logoUrl;
+
+                                            return (
+                                                <div className="flex justify-between items-start pb-4 border-b border-slate-200/80">
+                                                    <div className="flex items-center gap-4">
+                                                        {instLogo ? (
+                                                            <img src={instLogo} alt="Institution Logo" className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl" />
+                                                        ) : (
+                                                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-lg">
+                                                                {props.institution.name?.slice(0, 2).toUpperCase() || 'ED'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right space-y-0.5">
+                                                        <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 uppercase">
+                                                            {props.institution.name}
+                                                        </h2>
+                                                        {props.institution.email && (
+                                                            <p className="text-xs text-slate-600 font-medium">Email: {props.institution.email}</p>
+                                                        )}
+                                                        {(props.institution.phoneNumber || props.institution.phone) && (
+                                                            <p className="text-xs text-slate-600 font-medium">Phone: {props.institution.phoneNumber || props.institution.phone}</p>
+                                                        )}
+                                                        {props.institution.address && (
+                                                            <p className="text-xs text-slate-500 font-medium">{props.institution.address}</p>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 font-black text-[9px] uppercase tracking-widest rounded-md border border-indigo-200 mb-0.5">Official Document</span>
-                                                <h4 className="text-base font-black uppercase tracking-tight text-slate-800">Statement of Account</h4>
-                                                <p className="text-[11px] text-slate-400 font-bold">Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                            </div>
+                                            );
+                                        })()}
+
+                                        {/* Document Big Centered Title */}
+                                        <div className="text-center pt-2 pb-1">
+                                            <h3 className="text-xl sm:text-2xl font-black tracking-wide text-slate-950 uppercase">
+                                                STUDENT STATEMENT OF ACCOUNT
+                                            </h3>
                                         </div>
 
                                         {/* Student Metadata Box */}
-                                        <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                            <div>
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Student Full Name</p>
-                                                <p className="font-black text-slate-900 text-xs sm:text-sm">{balPrevStudent.name}</p>
+                                        <div className="bg-slate-50/90 rounded-2xl p-4 sm:p-5 border border-slate-200/90 text-xs shadow-xs space-y-3">
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">STUDENT FULL NAME</p>
+                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{balPrevStudent.name}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">ADMISSION NUMBER</p>
+                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{balPrevResolvedAdmNo}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">CLASS / STREAM</p>
+                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">ACCOUNT STATUS</p>
+                                                    <span className={`font-black text-xs sm:text-sm ${balPrevBalance > 0 ? 'text-rose-600' : balPrevBalance < 0 ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                                        {balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Admission Number</p>
-                                                <p className="font-black text-slate-900 text-xs sm:text-sm">{balPrevResolvedAdmNo}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Class / Stream</p>
-                                                <p className="font-black text-slate-900 text-xs sm:text-sm">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Account Status</p>
-                                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${balPrevBalance > 0 ? 'bg-rose-100 text-rose-700' : balPrevBalance < 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                    {balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}
-                                                </span>
+                                            <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 text-[10px] text-slate-400 font-bold">
+                                                <span>Reference: STMT-{new Date().getFullYear()}/{balPrevResolvedAdmNo}</span>
+                                                <span>Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                                             </div>
                                         </div>
 
                                         {/* Summary Bar */}
-                                        <div className="grid grid-cols-3 gap-3 border border-slate-200 rounded-xl p-3 bg-indigo-50/40 text-center">
+                                        <div className="grid grid-cols-3 gap-3 border border-indigo-200/80 rounded-2xl p-3.5 sm:p-4 bg-indigo-50/50 text-center">
                                             <div>
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total Invoiced (Dr)</p>
+                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">TOTAL INVOICED (DR)</p>
                                                 <p className="text-sm sm:text-base font-black text-slate-900 mt-0.5">KSh {balPrevTotalInvoiced.toLocaleString()}</p>
                                             </div>
                                             <div>
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total Payments (Cr)</p>
+                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">TOTAL PAYMENTS (CR)</p>
                                                 <p className="text-sm sm:text-base font-black text-emerald-600 mt-0.5">KSh {balPrevTotalPaid.toLocaleString()}</p>
                                             </div>
                                             <div>
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Net Balance</p>
-                                                <p className={`text-sm sm:text-base font-black mt-0.5 ${balPrevBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(balPrevBalance).toLocaleString()} {balPrevBalance > 0 ? 'Dr' : 'Cr'}</p>
+                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">NET BALANCE</p>
+                                                <p className={`text-sm sm:text-base font-black mt-0.5 ${balPrevBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                    KSh {Math.abs(balPrevBalance).toLocaleString()} {balPrevBalance > 0 ? 'Dr' : 'Cr'}
+                                                </p>
                                             </div>
                                         </div>
 
                                         {/* Ledger Table */}
                                         <div className="space-y-2">
-                                            <h5 className="text-[11px] font-black uppercase tracking-wider text-slate-700">Detailed Statement Ledger</h5>
-                                            <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
-                                                <thead>
-                                                    <tr className="bg-indigo-600 text-white">
-                                                        {['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'].map(h => (
-                                                            <th key={h} className="py-2 px-3 font-black uppercase tracking-widest text-[9px]">{h}</th>
-                                                        ))}
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {balPrevLedger.map((entry, i) => (
-                                                        <tr key={i} className={`border-b border-slate-100 ${entry.eType === 'payment' ? 'bg-emerald-50/60' : i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
-                                                            <td className="py-2 px-3 text-slate-500 whitespace-nowrap font-mono text-[10px]">{entry.date}</td>
-                                                            <td className="py-2 px-3 font-mono font-bold text-slate-700 whitespace-nowrap text-[10px]">{(entry as any).reference || '—'}</td>
-                                                            <td className="py-2 px-3 font-medium text-slate-800 text-[11px]">{entry.description}</td>
-                                                            <td className="py-2 px-3 font-black text-slate-700 text-[11px]">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
-                                                            <td className="py-2 px-3 font-black text-emerald-600 text-[11px]">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
-                                                            <td className={`py-2 px-3 font-black whitespace-nowrap text-[11px] ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[9px] opacity-60">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
+                                            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead>
+                                                        <tr className="bg-indigo-600 text-white">
+                                                            {['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'].map((h, idx) => (
+                                                                <th key={h} className={`py-2.5 px-3 font-black uppercase tracking-wider text-[9px] ${idx >= 3 ? 'text-right' : ''}`}>{h}</th>
+                                                            ))}
                                                         </tr>
-                                                    ))}
-                                                    <tr className="bg-indigo-50 border-t-2 border-indigo-300 font-black text-xs">
-                                                        <td className="py-2 px-3" />
-                                                        <td className="py-2 px-3" />
-                                                        <td className="py-2 px-3 text-indigo-700 uppercase tracking-widest text-[9px]">TOTALS</td>
-                                                        <td className="py-2 px-3 text-slate-800 text-[11px]">KSh {balPrevTotalInvoiced.toLocaleString()}</td>
-                                                        <td className="py-2 px-3 text-emerald-700 text-[11px]">KSh {balPrevTotalPaid.toLocaleString()}</td>
-                                                        <td className={`py-2 px-3 text-[11px] ${balPrevBalance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>KSh {Math.abs(balPrevBalance).toLocaleString()} <span className="text-[9px] opacity-70">{balPrevBalance > 0 ? 'Dr' : 'Cr'}</span></td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
+                                                    </thead>
+                                                    <tbody>
+                                                        {balPrevLedger.map((entry, i) => (
+                                                            <tr key={i} className={`border-b border-slate-100 ${entry.eType === 'payment' ? 'bg-emerald-50/40' : i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                                                                <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap font-mono text-[10px]">{entry.date}</td>
+                                                                <td className="py-2.5 px-3 font-mono font-bold text-slate-700 whitespace-nowrap text-[10px]">{(entry as any).reference || '—'}</td>
+                                                                <td className="py-2.5 px-3 font-medium text-slate-800 text-[11px]">{entry.description}</td>
+                                                                <td className="py-2.5 px-3 font-black text-slate-700 text-[11px] text-right">{entry.debit > 0 ? `KSh ${entry.debit.toLocaleString()}` : '—'}</td>
+                                                                <td className="py-2.5 px-3 font-black text-emerald-600 text-[11px] text-right">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
+                                                                <td className={`py-2.5 px-3 font-black whitespace-nowrap text-[11px] text-right ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                                    KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[9px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                        <tr className="bg-slate-50 border-t-2 border-slate-300 font-black text-xs">
+                                                            <td className="py-2.5 px-3" />
+                                                            <td className="py-2.5 px-3" />
+                                                            <td className="py-2.5 px-3 text-slate-900 uppercase tracking-widest text-[9px]">ACCOUNT TOTALS</td>
+                                                            <td className="py-2.5 px-3 text-slate-900 text-[11px] text-right">KSh {balPrevTotalInvoiced.toLocaleString()}</td>
+                                                            <td className="py-2.5 px-3 text-emerald-600 text-[11px] text-right">KSh {balPrevTotalPaid.toLocaleString()}</td>
+                                                            <td className={`py-2.5 px-3 text-[11px] text-right ${balPrevBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                                KSh {Math.abs(balPrevBalance).toLocaleString()} <span className="text-[9px] opacity-70">{balPrevBalance > 0 ? 'Dr' : 'Cr'}</span>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         </div>
 
-                                        {/* Signature Block */}
-                                        <div className="grid grid-cols-2 gap-6 pt-3">
-                                            <div>
-                                                <div className="h-8 border-b-2 border-slate-300" />
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Student / Parent Signature</p>
-                                                <p className="text-[9px] text-slate-400 mt-0.5">Date: _______________</p>
+                                        {/* Sign-off & Official Stamp Section */}
+                                        <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6">
+                                            <div className="space-y-1 text-left">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">ISSUED BY ACCOUNTS OFFICER</p>
+                                                <p className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                                                    {props.currentUser?.name || `${props.institution.name} ADMIN`}
+                                                </p>
+                                                <div className="w-48 border-b-2 border-dashed border-slate-300 my-2 pt-2" />
+                                                <p className="text-[10px] text-slate-400 font-bold">Signature & Date</p>
+                                                <p className="text-[9px] text-slate-400 font-medium pt-1">
+                                                    Official computer-generated record from {props.institution.name} Finance ERP.
+                                                </p>
                                             </div>
-                                            <div>
-                                                <div className="h-8 border-b-2 border-slate-300" />
-                                                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Issued by Accounts Officer</p>
-                                                <p className="text-[9px] text-slate-500 font-bold mt-0.5">{props.currentUser?.name || 'Accounts Department'}</p>
-                                            </div>
-                                        </div>
 
-                                        {/* Official Stamp Box */}
-                                        <div className="border-t border-slate-200 pt-3 flex justify-between items-end">
-                                            <div>
-                                                <p className="text-[9px] text-slate-400 font-medium">This is a computer-generated statement of account.</p>
-                                                <p className="text-[9px] text-slate-400 font-medium mt-0.5">{props.institution.name} · {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                            </div>
-                                            <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
-                                                <p className="text-[7px] text-slate-300 font-black uppercase tracking-widest text-center leading-tight">Official<br/>Stamp</p>
+                                            {/* Official Stamp Box with live dynamic stamp badge */}
+                                            <div className="shrink-0 relative">
+                                                <div className="border-2 border-indigo-200 bg-indigo-50/60 rounded-2xl px-8 py-5 flex flex-col items-center justify-center min-w-[210px] min-h-[110px] text-center shadow-xs relative overflow-hidden">
+                                                    <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">OFFICIAL STAMP</p>
+                                                    <p className="text-xs font-black text-indigo-900 mt-1">Finance Department</p>
+                                                    <p className="text-[8px] font-bold text-indigo-400 uppercase tracking-wider mt-3">VERIFIED DOCUMENT</p>
+
+                                                    {/* Embedded Live KenyanOfficialStamp overlay */}
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-85">
+                                                        <KenyanOfficialStamp 
+                                                            institution={props.institution} 
+                                                            departmentOverride="FINANCE"
+                                                            size={110} 
+                                                            showDate={true}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
