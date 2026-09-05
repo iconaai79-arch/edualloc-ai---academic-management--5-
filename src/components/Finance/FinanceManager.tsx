@@ -547,16 +547,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             return false;
         });
         if (matchedRec) {
-            let recMeta = matchedRec.metadata;
+            let recMeta = (matchedRec as any).metadata;
             if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
                 try { recMeta = JSON.parse(recMeta); } catch (e) {}
             }
             const recCandidates = [
-                rec.admissionNumber,
-                rec.studentAdmissionNumber,
-                rec.admission_number,
-                rec.admNo,
-                rec.adm_no,
+                (matchedRec as any).admissionNumber,
+                (matchedRec as any).studentAdmissionNumber,
+                (matchedRec as any).admission_number,
+                (matchedRec as any).admNo,
+                (matchedRec as any).adm_no,
                 recMeta?.admissionNumber,
                 recMeta?.studentAdmissionNumber,
                 recMeta?.admNo
