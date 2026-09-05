@@ -8723,10 +8723,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!balPrevStudent) return null;
 
                 return (
-                    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200" onClick={(e) => {
-                        if (e.target === e.currentTarget) setBalPreviewStudentId('');
-                    }}>
-                        <div id="bal-preview-panel" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-2xl max-w-5xl w-full h-[92vh] max-h-[92vh] flex flex-col relative animate-in zoom-in-95 duration-200 overflow-hidden">
+                    <div 
+                        className="fixed inset-0 z-[999999] bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', zIndex: 999999, margin: 0 }}
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setBalPreviewStudentId('');
+                        }}
+                    >
+                        <div 
+                            id="bal-preview-panel" 
+                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-2xl max-w-5xl w-full h-[92vh] max-h-[92vh] flex flex-col relative animate-in zoom-in-95 duration-200 overflow-hidden"
+                            style={{ margin: 'auto', maxHeight: '92vh', height: '92vh' }}
+                        >
                             {/* Preview Panel Header Bar - always pinned and fully visible */}
                             <div className="shrink-0 sticky top-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 text-white py-3.5 px-5 sm:px-6 rounded-t-[2rem] shadow-lg border-b border-slate-800 z-30">
                                 <div className="flex items-center gap-3">

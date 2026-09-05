@@ -47,7 +47,7 @@ import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 import { RevisionMarketplaceManager } from './Academics/RevisionMarketplaceManager';
 import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
 import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
-import { LeavingCertificateManager } from './academics/LeavingCertificateManager';
+import { LeavingCertificateManager } from './Academics/LeavingCertificateManager';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 
 interface AcademicsOfficerViewProps {
