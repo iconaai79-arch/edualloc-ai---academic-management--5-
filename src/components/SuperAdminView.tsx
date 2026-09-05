@@ -1986,6 +1986,7 @@ Please change it after login.`;
             <React.Suspense fallback={<div className="flex h-screen items-center justify-center bg-white dark:bg-slate-900"><div className="w-12 h-12 border-4 border-indigo-50 border-t-transparent rounded-full animate-spin"></div></div>}>
                 <LecturerView
                     {...(props as any)}
+                    currentInstitution={(props as any).currentInstitution || (props as any).activeInstitution}
                     assignments={assignments}
                     submissions={submissions}
                     onAddAssignment={props.onAddAssignment as any}

@@ -13,9 +13,9 @@ import { calculateDistance } from '../utils/locationUtils';
 
 
 interface TeacherCheckInViewProps {
-    currentUser: User;
-    currentInstitution: Institution;
-    onLogAction: (action: string) => Promise<void>;
+    currentUser?: User | null;
+    currentInstitution?: Institution | null;
+    onLogAction?: (action: string) => Promise<void> | void;
 }
 
 const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
@@ -34,17 +34,30 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const [checkingLocation, setCheckingLocation] = useState(false);
     const [scanningGateQr, setScanningGateQr] = useState(false);
 
+    const teacherId = currentUser?.id || '';
+    const institutionId = currentInstitution?.id || currentUser?.institutionId || '';
+
     useEffect(() => {
-        loadTodayCheckIn();
-        setupReminderChecks();
-    }, [currentUser.id]);
+        if (teacherId) {
+            loadTodayCheckIn();
+            setupReminderChecks();
+        } else {
+            setLoading(false);
+        }
+    }, [teacherId]);
 
     const loadTodayCheckIn = async () => {
+        if (!teacherId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
-            const data = await apiService.fetchTodayTeacherCheckIn(currentUser.id);
+            const data = await apiService.fetchTodayTeacherCheckIn(teacherId);
             setTodayCheckIn(data);
-            await onLogAction('Viewed teacher check-in');
+            if (onLogAction) {
+                await onLogAction('Viewed teacher check-in');
+            }
         } catch (error) {
             console.error('Error loading check-in:', error);
         } finally {
@@ -96,7 +109,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const handleCheckIn = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (currentInstitution.checkinRadiusEnabled) {
+        if (currentInstitution?.checkinRadiusEnabled) {
             if (!navigator.geolocation) {
                 alert('Geolocation is not supported by your browser. Location check is required.');
                 return;
@@ -107,7 +120,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                 async (position) => {
                     const { latitude, longitude } = position.coords;
                     
-                    if (!currentInstitution.location?.latitude || !currentInstitution.location?.longitude) {
+                    if (!currentInstitution?.location?.latitude || !currentInstitution?.location?.longitude) {
                         alert('School coordinates are not configured in settings. Check-in rejected.');
                         setCheckingLocation(false);
                         return;
@@ -120,7 +133,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                         currentInstitution.location.longitude
                     );
 
-                    const radiusLimit = currentInstitution.checkinRadiusMeters || 200;
+                    const radiusLimit = currentInstitution?.checkinRadiusMeters || 200;
 
                     if (distance > radiusLimit) {
                         alert(`Out of Range: You must be within ${radiusLimit}m of the school to check in. Current distance: ${Math.round(distance)}m`);
@@ -138,14 +151,16 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                         const currentTime = now.toTimeString().split(' ')[0];
 
                         await apiService.processTeacherCheckIn({
-                            teacher_id: currentUser.id,
-                            institution_id: currentInstitution.id,
+                            teacher_id: teacherId,
+                            institution_id: institutionId,
                             checkin_type: checkInType,
                             location: locationWithCoords,
                             notes: notes
                         });
 
-                        await onLogAction(`Checked in: ${checkInType} at ${currentTime} (GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
+                        if (onLogAction) {
+                            await onLogAction(`Checked in: ${checkInType} at ${currentTime} (GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
+                        }
                         alert(`${checkInType} check-in successful!`);
 
                         setShowCheckInModal(false);
@@ -173,14 +188,16 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                 const currentTime = now.toTimeString().split(' ')[0];
 
                 await apiService.processTeacherCheckIn({
-                    teacher_id: currentUser.id,
-                    institution_id: currentInstitution.id,
+                    teacher_id: teacherId,
+                    institution_id: institutionId,
                     checkin_type: checkInType,
                     location: location,
                     notes: notes
                 });
 
-                await onLogAction(`Checked in: ${checkInType} at ${currentTime}`);
+                if (onLogAction) {
+                    await onLogAction(`Checked in: ${checkInType} at ${currentTime}`);
+                }
                 alert(`${checkInType} check-in successful!`);
 
                 setShowCheckInModal(false);
@@ -560,13 +577,15 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                                     const shift: CheckInType = (hour >= 15) ? 'Afternoon' : 'Morning';
                                     try {
                                         await apiService.processTeacherCheckIn({
-                                            teacher_id: currentUser.id,
-                                            institution_id: currentInstitution.id,
+                                            teacher_id: teacherId,
+                                            institution_id: institutionId,
                                             checkin_type: shift,
                                             location: 'School Gate (Scanned printed QR code)',
                                             notes: 'Gate self-scan check-in success'
                                         });
-                                        await onLogAction(`Checked in via Gate QR Code Scan`);
+                                        if (onLogAction) {
+                                            await onLogAction(`Checked in via Gate QR Code Scan`);
+                                        }
                                         alert(`Gate QR Check-in successful! Checked in for ${shift} shift.`);
                                         loadTodayCheckIn();
                                     } catch (e: any) {
@@ -577,7 +596,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                             >
                                 <div>
                                     <p className="text-xs font-black text-white">MAIN GATE QR SIGNPOST</p>
-                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Payload: school_gate_id: {currentInstitution.id}</p>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Payload: school_gate_id: {institutionId || 'N/A'}</p>
                                 </div>
                                 <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded border border-indigo-500/20">
                                     SCAN CODE

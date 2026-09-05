@@ -381,7 +381,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     onAccessAlumnaPortal, schoolRegistry
 }) => {
     const useRequests = currentInstitution?.useAllocationRequests ?? true;
-    const pendingRequestsCount = requests.filter(r => r && r.lecturerId === user.id && (r.status === 'pending' || r.status === 'hod_approved' || r.status === 'deallocation_pending')).length;
+    const pendingRequestsCount = requests.filter(r => r && r.lecturerId === user?.id && (r.status === 'pending' || r.status === 'hod_approved' || r.status === 'deallocation_pending')).length;
     const approvedAllocationsCount = allocations.length;
 
     const calculateTotalPeriods = (structure: LessonStructure[]) => {
@@ -390,16 +390,17 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     };
 
     const totalAllocatedPeriods = allocations.reduce((total, alloc) => {
+        if (!alloc) return total;
         const subject = (subjects || []).find(s => s && s.id === alloc.subjectId);
         return total + (subject ? calculateTotalPeriods(subject.lessonStructure) : 0);
     }, 0);
 
     const recentRequests = useMemo(() => {
         return [...requests]
-            .filter(r => r && r.lecturerId === user.id)
+            .filter(r => r && r.lecturerId === user?.id)
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .slice(0, 5);
-    }, [requests, user.id]);
+    }, [requests, user?.id]);
 
     const greeting = useMemo(() => {
         const hour = new Date().getHours();
@@ -409,10 +410,10 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     }, []);
 
     const registryFlowItems = useMemo(() => {
-        const pending = requests.filter(r => r.lecturerId === user.id && r.status === 'pending');
-        const hod = requests.filter(r => r.lecturerId === user.id && r.status === 'hod_approved');
-        const approved = requests.filter(r => r.lecturerId === user.id && r.status === 'approved');
-        const changes = requests.filter(r => r.lecturerId === user.id && r.status === 'change_request_pending');
+        const pending = requests.filter(r => r && r.lecturerId === user?.id && r.status === 'pending');
+        const hod = requests.filter(r => r && r.lecturerId === user?.id && r.status === 'hod_approved');
+        const approved = requests.filter(r => r && r.lecturerId === user?.id && r.status === 'approved');
+        const changes = requests.filter(r => r && r.lecturerId === user?.id && r.status === 'change_request_pending');
 
         return {
             pendingCount: pending.length,
@@ -420,7 +421,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
             approvedCount: approved.length,
             changesCount: changes.length
         };
-    }, [requests, user.id]);
+    }, [requests, user?.id]);
 
     return (
         <div className="space-y-8 font-sans text-slate-900 dark:text-slate-100">
@@ -431,7 +432,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
                         Online Status: Active
                     </div>
-                    <h2 className="text-3xl font-black tracking-tighter text-slate-955 dark:text-white uppercase leading-none">{greeting}, {user.name.split(' ')[0]}</h2>
+                    <h2 className="text-3xl font-black tracking-tighter text-slate-955 dark:text-white uppercase leading-none">{greeting}, {user?.name ? user.name.split(' ')[0] : 'Faculty'}</h2>
                     <p className="text-slate-400 dark:text-slate-500 font-bold uppercase text-[9px] tracking-widest mt-1.5">Faculty Access Portal • {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 {useRequests && (
@@ -457,7 +458,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Class Supervisor Duty</span>
                         </div>
                         <h4 className="text-lg font-black uppercase text-white tracking-tight">Daily Student Roll Call Register</h4>
-                        <p className="text-xs text-slate-300 font-medium mt-0.5">Responsible for taking & verifying daily student attendance for assigned class ({user.supervisedClass || user.studentClass || 'Class Register'})</p>
+                        <p className="text-xs text-slate-300 font-medium mt-0.5">Responsible for taking & verifying daily student attendance for assigned class ({user?.supervisedClass || user?.studentClass || 'Class Register'})</p>
                     </div>
                 </div>
 
@@ -501,7 +502,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
             {/* Upcoming Active Schedule Reminders */}
             <UpcomingLessonsWidget
-                userId={user.id}
+                userId={user?.id || ''}
                 timetable={generatedTimetable}
                 getSubjectById={getSubjectById}
                 getRoomById={getRoomById}
@@ -628,10 +629,10 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
                     {/* Allocated Subjects list grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {allocations.slice(0, 4).map(alloc => {
+                        {(allocations || []).filter(Boolean).slice(0, 4).map(alloc => {
                             const subject = getSubjectById(alloc.subjectId);
                             return (
-                                <div key={alloc.id} className="p-5 bg-white/50 dark:bg-slate-900/40 rounded-3xl border border-slate-150 dark:border-slate-850 group hover:border-indigo-200 dark:hover:border-indigo-800 hover:shadow-lg hover:shadow-indigo-500/5 transition-all">
+                                <div key={alloc.id || `alloc_${Math.random()}`} className="p-5 bg-white/50 dark:bg-slate-900/40 rounded-3xl border border-slate-150 dark:border-slate-850 group hover:border-indigo-200 dark:hover:border-indigo-800 hover:shadow-lg hover:shadow-indigo-500/5 transition-all">
                                     <div className="flex justify-between items-start mb-2.5">
                                         <span className="text-[9px] font-mono font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tight bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">{subject?.code}</span>
                                         <button onClick={() => onRequestChange?.(alloc)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-indigo-600"><ArrowsRightLeftIcon className="w-4 h-4" /></button>
@@ -640,7 +641,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                 </div>
                             );
                         })}
-                        {allocations.length === 0 && <p className="col-span-2 text-center py-10 text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">No units confirmed for this cycle.</p>}
+                        {(!allocations || allocations.length === 0) && <p className="col-span-2 text-center py-10 text-slate-400 font-bold uppercase text-xs tracking-widest opacity-50">No units confirmed for this cycle.</p>}
                     </div>
 
                     <MyTasks

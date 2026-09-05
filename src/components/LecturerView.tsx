@@ -206,12 +206,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
     const loadRemedialData = async () => {
         try {
+            const instId = currentInstitution?.id || user?.institutionId || '';
             const [sessList, payList] = await Promise.all([
-                apiService.fetchRemedialSessions(currentInstitution?.id || user.institutionId),
-                apiService.fetchRemedialPayouts(currentInstitution?.id || user.institutionId)
+                apiService.fetchRemedialSessions(instId),
+                apiService.fetchRemedialPayouts(instId)
             ]);
-            setRemedialSessions((sessList || []).filter((s: RemedialSession) => s.teacherId === user.id));
-            setRemedialPayouts((payList || []).filter((p: RemedialPayout) => p.teacherId === user.id));
+            setRemedialSessions((sessList || []).filter((s: RemedialSession) => s && s.teacherId === user?.id));
+            setRemedialPayouts((payList || []).filter((p: RemedialPayout) => p && p.teacherId === user?.id));
         } catch (e) {
             console.error('Failed to load remedial data', e);
         }
@@ -221,7 +222,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         if (activeTab === 'remedials') {
             loadRemedialData();
         }
-    }, [activeTab, currentInstitution?.id, user.institutionId]);
+    }, [activeTab, currentInstitution?.id, user?.institutionId]);
     const [myRequestsSubTab, setMyRequestsSubTab] = useState<'catalog' | 'pending' | 'allocations'>('catalog');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -246,13 +247,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     }, [subjects, selectedDepartment, searchQuery]);
 
     const lecturerTimetable = useMemo(() =>
-        (generatedTimetable || []).filter(entry => entry && entry.lecturerId === user.id),
-        [generatedTimetable, user.id]
+        (generatedTimetable || []).filter(entry => entry && entry.lecturerId === user?.id),
+        [generatedTimetable, user?.id]
     );
 
     const myPendingRequests = useMemo(() =>
-        (requests || []).filter(r => r && r.lecturerId === user.id && r.status !== 'approved' && r.status !== 'disapproved' && r.status !== 'change_request_pending' && r.status !== 'deallocation_pending'),
-        [requests, user.id]
+        (requests || []).filter(r => r && r.lecturerId === user?.id && r.status !== 'approved' && r.status !== 'disapproved' && r.status !== 'change_request_pending' && r.status !== 'deallocation_pending'),
+        [requests, user?.id]
     );
 
     const handleSubjectSelect = (subjectId: string) => {
@@ -429,7 +430,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                             user={user}
                                             assessments={props.assessments || []}
                                             assessmentMarks={props.assessmentMarks || []}
-                                            allocatedSubjects={allocations.map(a => getSubjectById(a.subjectId)!).filter(Boolean)}
+                                            allocatedSubjects={(allocations || []).map(a => a && a.subjectId ? getSubjectById(a.subjectId)! : null).filter(Boolean) as Subject[]}
                                             users={props.users || []}
                                             courses={courses}
                                             onAddAssessment={props.onAddAssessment || (() => { })}
@@ -484,7 +485,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 users={props.users || []}
                                 subjects={subjects}
                                 courses={courses}
-                                allocations={allocations.map(a => ({ subjectId: a.subjectId, lecturerId: user.id }))}
+                                allocations={(allocations || []).map(a => ({ subjectId: a?.subjectId, lecturerId: user?.id || '' }))}
                                 activeAcademicYear={activeAcademicYear}
                                 activeSemester={activeSemester}
                                 onSaveSession={props.onSaveScanSession || (async () => { alert('Save handler not configured. Please contact admin.'); })}
@@ -545,8 +546,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 subject={subject}
                                                 onSelect={() => handleSubjectSelect(subject.id)}
                                                 isSelected={selectedSubjectIds.has(subject.id)}
-                                                isRequested={requests.some(r => r && r.subjectId === subject.id && r.lecturerId === user.id)}
-                                                isAllocated={allocations.some(a => a && a.subjectId === subject.id && a.lecturerId === user.id && a.status === 'approved')}
+                                                isRequested={requests.some(r => r && r.subjectId === subject.id && r.lecturerId === user?.id)}
+                                                isAllocated={allocations.some(a => a && a.subjectId === subject.id && a.lecturerId === user?.id && a.status === 'approved')}
                                             />
                                         ))}
                                     </div>
@@ -722,7 +723,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         <div className="animate-fade-in-up bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
                             <TeacherCheckInView
                                 currentUser={user}
-                                currentInstitution={currentInstitution!}
+                                currentInstitution={currentInstitution || ({ id: user?.institutionId || '', name: 'Institution', checkinRadiusEnabled: false } as Institution)}
                                 onLogAction={async (action: string) => {
                                     if (props.onLogAction) {
                                         await props.onLogAction(action);
@@ -746,11 +747,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             // Check daily max limit configuration
                             const todayStr = new Date().toDateString();
                             const existingTeacherSessionsToday = remedialSessions.filter(s =>
-                                s.teacherId === user.id && new Date(s.startTime).toDateString() === todayStr
+                                s.teacherId === user?.id && new Date(s.startTime).toDateString() === todayStr
                             );
 
                             try {
-                                const ratesList = await apiService.fetchRemedialRateSettings(currentInstitution?.id || user.institutionId);
+                                const ratesList = await apiService.fetchRemedialRateSettings(currentInstitution?.id || user?.institutionId || '');
                                 const maxLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxLessonsPerDay !== undefined) ? ratesList[0].maxLessonsPerDay : 1;
 
                                 if (existingTeacherSessionsToday.length >= maxLimit) {
@@ -763,8 +764,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                                 const newSession: RemedialSession = {
                                     id: `rem_${Date.now()}`,
-                                    teacherId: user.id,
-                                    teacherName: user.name,
+                                    teacherId: user?.id || '',
+                                    teacherName: user?.name || 'Teacher',
                                     subjectId: selectedSubjectId,
                                     subjectName: subject?.name || 'Subject',
                                     courseId: selectedCourseId,
@@ -775,7 +776,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     startTime: new Date().toISOString(),
                                     status: 'In Progress',
                                     createdAt: new Date().toISOString(),
-                                    institutionId: currentInstitution?.id || user.institutionId
+                                    institutionId: currentInstitution?.id || user?.institutionId || ''
                                 };
 
                                 await apiService.saveRemedialSession(newSession);

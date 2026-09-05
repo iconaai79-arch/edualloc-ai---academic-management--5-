@@ -7255,6 +7255,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     <LecturerView {...{
                                         ...lecturerProps,
                                         user: currentUser,
+                                        currentInstitution: activeInstitution,
                                         users,
                                         courses,
                                         subjects,
