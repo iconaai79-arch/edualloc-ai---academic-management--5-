@@ -151,6 +151,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     const [currentPage, setCurrentPage] = useState<number>(1);
     const [pageSize, setPageSize] = useState<number>(25);
     const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState<boolean>(false);
+    const [pdfPageSize, setPdfPageSize] = useState<number>(15);
+    const [pdfCurrentPage, setPdfCurrentPage] = useState<number>(1);
+    const [pdfViewMode, setPdfViewMode] = useState<'all' | 'single'>('all');
+    const [pdfSortOrder, setPdfSortOrder] = useState<'rank' | 'name' | 'adm'>('rank');
 
     const activeStudents = useMemo(() => {
         const set = new Map<string, User>();
@@ -849,6 +853,40 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     // Total pages
     const totalPages = Math.ceil(filteredBroadsheetRows.length / pageSize) || 1;
 
+    // Sorted & Chunked rows for On-Screen PDF preview ("sorted on pages")
+    const sortedPdfRows = useMemo(() => {
+        const rows = [...filteredBroadsheetRows.filter(r => r?.student)];
+        if (pdfSortOrder === 'name') {
+            rows.sort((a, b) => (a.student?.name || '').localeCompare(b.student?.name || ''));
+        } else if (pdfSortOrder === 'adm') {
+            rows.sort((a, b) => {
+                const admA = getStudentAdmNo(a.student, 0, activeStudents) || a.student?.admissionNo || '';
+                const admB = getStudentAdmNo(b.student, 0, activeStudents) || b.student?.admissionNo || '';
+                return admA.localeCompare(admB, undefined, { numeric: true });
+            });
+        } else {
+            // default: sorted by overall rank
+            rows.sort((a, b) => (a.overallPos || 0) - (b.overallPos || 0));
+        }
+        return rows;
+    }, [filteredBroadsheetRows, pdfSortOrder, activeStudents]);
+
+    const pdfPages = useMemo(() => {
+        const size = pdfPageSize === 0 ? sortedPdfRows.length || 1 : pdfPageSize;
+        const pages: typeof sortedPdfRows[] = [];
+        for (let i = 0; i < sortedPdfRows.length; i += size) {
+            pages.push(sortedPdfRows.slice(i, i + size));
+        }
+        return pages.length > 0 ? pages : [[]];
+    }, [sortedPdfRows, pdfPageSize]);
+
+    // Keep pdfCurrentPage bounded
+    useEffect(() => {
+        if (pdfCurrentPage > pdfPages.length) {
+            setPdfCurrentPage(Math.max(1, pdfPages.length));
+        }
+    }, [pdfPages.length, pdfCurrentPage]);
+
     // Calculate Bottom Footer Subject Averages
     const subjectFooterMeans = useMemo(() => {
         const footer: Record<string, { meanScore: number; meanGrade: string }> = {};
@@ -1368,10 +1406,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
             {/* ON-SCREEN PDF PREVIEW MODAL */}
             {isPdfPreviewOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-fade-in no-print">
-                    <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-fade-in pdf-preview-modal-root">
+                    <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-7xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden">
                         {/* Modal Top Bar */}
-                        <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                        <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 pdf-preview-topbar">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-indigo-600 rounded-xl">
                                     <DocumentArrowDownIcon className="w-5 h-5 text-white" />
@@ -1381,11 +1419,107 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                         PDF Broadsheet On-Screen Preview
                                     </h3>
                                     <p className="text-[11px] text-slate-400 font-semibold">
-                                        {selectedYearGroup} &bull; {selectedExamObj.title} &bull; {filteredBroadsheetRows.length} Students
+                                        {selectedYearGroup} &bull; {selectedExamObj.title} &bull; {sortedPdfRows.length} Students &bull; {pdfPages.length} Page{pdfPages.length > 1 ? 's' : ''}
                                     </p>
                                 </div>
                             </div>
 
+                            {/* Center Navigation & Layout Controls */}
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                {/* View Mode Toggle */}
+                                <div className="bg-slate-900 border border-slate-700 rounded-xl p-0.5 flex items-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPdfViewMode('all')}
+                                        className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
+                                            pdfViewMode === 'all'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        All Pages ({pdfPages.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPdfViewMode('single')}
+                                        className={`px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
+                                            pdfViewMode === 'single'
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        Page-by-Page
+                                    </button>
+                                </div>
+
+                                {/* Page Switcher Buttons / Dropdown */}
+                                <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1">
+                                    <button
+                                        type="button"
+                                        disabled={pdfCurrentPage <= 1}
+                                        onClick={() => setPdfCurrentPage(p => Math.max(1, p - 1))}
+                                        className="px-2 py-0.5 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:text-slate-300 font-black cursor-pointer"
+                                        title="Previous Page"
+                                    >
+                                        ◀
+                                    </button>
+                                    <select
+                                        value={pdfCurrentPage}
+                                        onChange={e => setPdfCurrentPage(Number(e.target.value))}
+                                        className="bg-transparent text-white font-mono font-bold text-[11px] cursor-pointer outline-none text-center"
+                                    >
+                                        {pdfPages.map((_, idx) => (
+                                            <option key={idx + 1} value={idx + 1} className="bg-slate-900 text-white">
+                                                Page {idx + 1} of {pdfPages.length}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        disabled={pdfCurrentPage >= pdfPages.length}
+                                        onClick={() => setPdfCurrentPage(p => Math.min(pdfPages.length, p + 1))}
+                                        className="px-2 py-0.5 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:text-slate-300 font-black cursor-pointer"
+                                        title="Next Page"
+                                    >
+                                        ▶
+                                    </button>
+                                </div>
+
+                                {/* Rows Per Page */}
+                                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-slate-300 text-[11px] font-bold">
+                                    <span className="text-slate-400">Rows/Page:</span>
+                                    <select
+                                        value={pdfPageSize}
+                                        onChange={e => {
+                                            setPdfPageSize(Number(e.target.value));
+                                            setPdfCurrentPage(1);
+                                        }}
+                                        className="bg-transparent text-white font-black cursor-pointer outline-none"
+                                    >
+                                        <option value={10} className="bg-slate-900">10</option>
+                                        <option value={15} className="bg-slate-900">15</option>
+                                        <option value={20} className="bg-slate-900">20</option>
+                                        <option value={25} className="bg-slate-900">25</option>
+                                        <option value={0} className="bg-slate-900">All</option>
+                                    </select>
+                                </div>
+
+                                {/* Sort Order */}
+                                <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-slate-300 text-[11px] font-bold">
+                                    <span className="text-slate-400">Sort:</span>
+                                    <select
+                                        value={pdfSortOrder}
+                                        onChange={e => setPdfSortOrder(e.target.value as any)}
+                                        className="bg-transparent text-white font-black cursor-pointer outline-none"
+                                    >
+                                        <option value="rank" className="bg-slate-900">Rank (Highest First)</option>
+                                        <option value="name" className="bg-slate-900">Name (A – Z)</option>
+                                        <option value="adm" className="bg-slate-900">Admission No</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Right Action Buttons */}
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => window.print()}
@@ -1408,114 +1542,235 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             </div>
                         </div>
 
-                        {/* Printable PDF Sheet Document */}
-                        <div className="p-6 overflow-y-auto bg-slate-950/60 flex-1 flex justify-center">
-                            <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-200 w-full max-w-5xl space-y-6 font-sans text-xs relative">
-                                {/* Official Letterhead */}
-                                <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-                                    <div>
-                                        <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                                            {currentInstitution?.name || 'ACADEMIC MANAGEMENT SYSTEM'}
-                                        </h1>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
-                                            OFFICIAL ACADEMIC BROADSHEET REPORT &bull; CONFIDENTIAL
-                                        </p>
-                                        <p className="text-[10px] font-semibold text-slate-600 mt-1">
-                                            Class: <strong className="text-slate-900">{selectedYearGroup}</strong> | Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong> | Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong>
-                                        </p>
-                                    </div>
+                        {/* Printable PDF Sheet Document (Paginated Pages) */}
+                        <div className="p-6 overflow-y-auto bg-slate-950/60 flex-1 flex flex-col items-center gap-8 pdf-preview-pages-container">
+                            {(pdfViewMode === 'single' ? [pdfPages[pdfCurrentPage - 1] || []] : pdfPages).map((pageRows, pageIdx) => {
+                                const actualPageNum = pdfViewMode === 'single' ? pdfCurrentPage : pageIdx + 1;
+                                const isLastPage = actualPageNum === pdfPages.length;
+                                const startIdx = (actualPageNum - 1) * (pdfPageSize === 0 ? sortedPdfRows.length : pdfPageSize);
 
-                                    <div className="text-right">
-                                        <span className="inline-block px-3 py-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-widest rounded border border-slate-300">
-                                            OFFICIAL DOCUMENT
-                                        </span>
-                                        <p className="text-[9px] font-bold text-slate-400 mt-1">
-                                            Date: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                        </p>
-                                    </div>
-                                </div>
+                                return (
+                                    <div key={actualPageNum} className="w-full max-w-5xl flex flex-col items-center">
+                                        {/* On-screen Page Badge Divider (in All Pages stacked mode) */}
+                                        {pdfViewMode === 'all' && pdfPages.length > 1 && (
+                                            <div className="w-full flex items-center justify-between mb-3 px-2 no-print">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full font-mono text-[10px] font-black uppercase tracking-widest">
+                                                        Sheet {actualPageNum} of {pdfPages.length}
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-400 font-semibold">
+                                                        Students {startIdx + 1} &ndash; {startIdx + pageRows.length} of {sortedPdfRows.length}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setPdfCurrentPage(actualPageNum);
+                                                        setPdfViewMode('single');
+                                                    }}
+                                                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-black uppercase tracking-wider cursor-pointer"
+                                                >
+                                                    Focus This Page ↗
+                                                </button>
+                                            </div>
+                                        )}
 
-                                {/* PDF Broadsheet Table */}
-                                <div className="overflow-x-auto">
-                                    <table className="w-full border-collapse text-[10px] border border-slate-900 text-left">
-                                        <thead className="bg-slate-900 text-white font-black uppercase tracking-wider text-[9px]">
-                                            <tr>
-                                                <th className="p-2 border border-slate-800">ADM NO</th>
-                                                <th className="p-2 border border-slate-800">STUDENT NAME</th>
-                                                {!isPrimarySchool && <th className="p-2 border border-slate-800 text-center">KCPE</th>}
-                                                <th className="p-2 border border-slate-800">CLASS</th>
-                                                {broadsheetSubjects.map(sub => (
-                                                    <th key={sub.id} className="p-2 border border-slate-800 text-center">{sub.code || sub.name}</th>
-                                                ))}
-                                                <th className="p-2 border border-slate-800 text-center">TOTAL</th>
-                                                <th className="p-2 border border-slate-800 text-center">MEAN</th>
-                                                <th className="p-2 border border-slate-800 text-center">GRADE</th>
-                                                <th className="p-2 border border-slate-800 text-center">RANK</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-300 font-medium">
-                                            {filteredBroadsheetRows.filter(r => r?.student).map((r, idx) => (
-                                                <tr key={r.student?.id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                                    <td className="p-2 font-bold font-mono border border-slate-300 text-slate-900">{getStudentAdmNo(r.student, idx, activeStudents) || r.student?.admissionNo || r.student?.id || 'N/A'}</td>
-                                                    <td className="p-2 font-black border border-slate-300 uppercase">{r.student?.name}</td>
-                                                    {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe}</td>}
-                                                    <td className="p-2 border border-slate-300">{(r.student as any)?.studentClass || selectedYearGroup}</td>
-                                                    {broadsheetSubjects.map(sub => {
-                                                        const m = r.subjectMarksMap[sub.id];
-                                                        return (
-                                                            <td key={sub.id} className="p-2 border border-slate-300 text-center font-bold">
-                                                                {m ? `${m.score} ${m.grade}` : '-'}
-                                                            </td>
-                                                        );
-                                                    })}
-                                                    <td className="p-2 border border-slate-300 text-center font-black">{r.total}</td>
-                                                    <td className="p-2 border border-slate-300 text-center font-bold">{r.meanScore}</td>
-                                                    <td className="p-2 border border-slate-300 text-center font-black text-indigo-700">{r.meanGrade}</td>
-                                                    <td className="p-2 border border-slate-300 text-center font-black">#{r.overallPos}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                        {/* Footer Subject Means */}
-                                        <tfoot className="bg-slate-200 text-slate-900 font-black text-[9px] uppercase border-t-2 border-slate-900">
-                                            <tr>
-                                                <td colSpan={!isPrimarySchool ? 4 : 3} className="p-2 border border-slate-400">SUBJECT MEANS</td>
-                                                {broadsheetSubjects.map(sub => {
-                                                    const f = subjectFooterMeans[sub.id];
-                                                    return (
-                                                        <td key={sub.id} className="p-2 border border-slate-400 text-center">
-                                                            {f ? `${f.meanScore} (${f.meanGrade})` : '-'}
-                                                        </td>
-                                                    );
-                                                })}
-                                                <td colSpan={4} className="p-2 border border-slate-400 text-center font-bold text-slate-900">
-                                                    CLASS MEAN: {classMeanInfo.meanScore} ({classMeanInfo.meanGrade})
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
+                                        {/* The A4 Landscape Printable Sheet */}
+                                        <div className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-200 w-full space-y-6 font-sans text-xs relative pdf-page-sheet">
+                                            {/* Official Letterhead */}
+                                            <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+                                                <div className="flex items-start gap-4">
+                                                    {currentInstitution?.logoUrl && (
+                                                        <img
+                                                            src={currentInstitution.logoUrl}
+                                                            alt="Logo"
+                                                            className="w-14 h-14 object-contain rounded-lg border border-slate-200"
+                                                        />
+                                                    )}
+                                                    <div>
+                                                        <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                                                            {currentInstitution?.name || 'ACADEMIC MANAGEMENT SYSTEM'}
+                                                        </h1>
+                                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                                                            OFFICIAL ACADEMIC BROADSHEET REPORT &bull; CONFIDENTIAL
+                                                        </p>
+                                                        <p className="text-[10px] font-semibold text-slate-600 mt-1">
+                                                            Class: <strong className="text-slate-900">{selectedYearGroup}</strong> | Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong> | Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong>
+                                                        </p>
+                                                    </div>
+                                                </div>
 
-                                {/* Official Signatures */}
-                                <div className="pt-8 border-t border-slate-300 grid grid-cols-3 gap-6 text-[10px]">
-                                    <div>
-                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Class Teacher Signature</p>
-                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
-                                        <p className="text-[9px] text-slate-400 mt-1">Date: _________________</p>
+                                                <div className="text-right flex flex-col items-end">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="inline-block px-3 py-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-widest rounded border border-slate-300">
+                                                            OFFICIAL DOCUMENT
+                                                        </span>
+                                                        <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-800 text-[10px] font-mono font-black uppercase tracking-widest rounded border border-indigo-200">
+                                                            PAGE {actualPageNum} OF {pdfPages.length}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-1">
+                                                        Date: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* PDF Broadsheet Table */}
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full border-collapse text-[10px] border border-slate-900 text-left">
+                                                    <thead className="bg-slate-900 text-white font-black uppercase tracking-wider text-[9px]">
+                                                        <tr>
+                                                            <th className="p-2 border border-slate-800">ADM NO</th>
+                                                            <th className="p-2 border border-slate-800">STUDENT NAME</th>
+                                                            {!isPrimarySchool && <th className="p-2 border border-slate-800 text-center">KCPE</th>}
+                                                            <th className="p-2 border border-slate-800">CLASS</th>
+                                                            {broadsheetSubjects.map(sub => (
+                                                                <th key={sub.id} className="p-2 border border-slate-800 text-center">{sub.code || sub.name}</th>
+                                                            ))}
+                                                            <th className="p-2 border border-slate-800 text-center">TOTAL</th>
+                                                            <th className="p-2 border border-slate-800 text-center">MEAN</th>
+                                                            <th className="p-2 border border-slate-800 text-center">GRADE</th>
+                                                            <th className="p-2 border border-slate-800 text-center">RANK</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-300 font-medium">
+                                                        {pageRows.map((r, rowIdx) => (
+                                                            <tr key={r.student?.id || rowIdx} className={rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                                                <td className="p-2 font-bold font-mono border border-slate-300 text-slate-900">{getStudentAdmNo(r.student, startIdx + rowIdx, activeStudents) || r.student?.admissionNo || r.student?.id || 'N/A'}</td>
+                                                                <td className="p-2 font-black border border-slate-300 uppercase">{r.student?.name}</td>
+                                                                {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe}</td>}
+                                                                <td className="p-2 border border-slate-300">{(r.student as any)?.studentClass || selectedYearGroup}</td>
+                                                                {broadsheetSubjects.map(sub => {
+                                                                    const m = r.subjectMarksMap[sub.id];
+                                                                    return (
+                                                                        <td key={sub.id} className="p-2 border border-slate-300 text-center font-bold">
+                                                                            {m ? `${m.score} ${m.grade}` : '-'}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                <td className="p-2 border border-slate-300 text-center font-black">{r.total}</td>
+                                                                <td className="p-2 border border-slate-300 text-center font-bold">{r.meanScore}</td>
+                                                                <td className="p-2 border border-slate-300 text-center font-black text-indigo-700">{r.meanGrade}</td>
+                                                                <td className="p-2 border border-slate-300 text-center font-black">#{r.overallPos}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                    {/* Footer: Subject Means on Last Page OR Continuation Note */}
+                                                    {isLastPage ? (
+                                                        <tfoot className="bg-slate-200 text-slate-900 font-black text-[9px] uppercase border-t-2 border-slate-900">
+                                                            <tr>
+                                                                <td colSpan={!isPrimarySchool ? 4 : 3} className="p-2 border border-slate-400">SUBJECT MEANS</td>
+                                                                {broadsheetSubjects.map(sub => {
+                                                                    const f = subjectFooterMeans[sub.id];
+                                                                    return (
+                                                                        <td key={sub.id} className="p-2 border border-slate-400 text-center">
+                                                                            {f ? `${f.meanScore} (${f.meanGrade})` : '-'}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                <td colSpan={4} className="p-2 border border-slate-400 text-center font-bold text-slate-900">
+                                                                    CLASS MEAN: {classMeanInfo.meanScore} ({classMeanInfo.meanGrade})
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    ) : (
+                                                        <tfoot className="bg-slate-100 text-slate-600 font-bold text-[9px] uppercase border-t border-slate-400">
+                                                            <tr>
+                                                                <td colSpan={broadsheetSubjects.length + (!isPrimarySchool ? 8 : 7)} className="p-2 text-center italic tracking-wider">
+                                                                    Continued on Page {actualPageNum + 1} of {pdfPages.length}... (Showing Students {startIdx + 1} &ndash; {startIdx + pageRows.length} of {sortedPdfRows.length})
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    )}
+                                                </table>
+                                            </div>
+
+                                            {/* Official Signatures - On Last Page */}
+                                            {isLastPage && (
+                                                <div className="pt-8 border-t border-slate-300 grid grid-cols-3 gap-6 text-[10px]">
+                                                    <div>
+                                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Class Teacher Signature</p>
+                                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
+                                                        <p className="text-[9px] text-slate-400 mt-1">Date: _________________</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-500 uppercase tracking-wider">HOD Examination / Academics</p>
+                                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
+                                                        <p className="text-[9px] text-slate-400 mt-1">Date: _________________</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Principal / Headteacher Stamp</p>
+                                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
+                                                        <p className="text-[9px] text-slate-400 mt-1">Official Seal</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Sheet Bottom Meta Bar */}
+                                            <div className="pt-3 border-t border-slate-200 flex justify-between items-center text-[9px] text-slate-400 font-mono">
+                                                <span>EduAI Academic Broadsheet &bull; {selectedYearGroup} &bull; {selectedExamObj.title}</span>
+                                                <span className="font-black text-slate-600">PAGE {actualPageNum} OF {pdfPages.length}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-slate-500 uppercase tracking-wider">HOD Examination / Academics</p>
-                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
-                                        <p className="text-[9px] text-slate-400 mt-1">Date: _________________</p>
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-slate-500 uppercase tracking-wider">Principal / Headteacher Stamp</p>
-                                        <div className="mt-4 border-b border-slate-400 w-36"></div>
-                                        <p className="text-[9px] text-slate-400 mt-1">Official Seal</p>
-                                    </div>
-                                </div>
-                            </div>
+                                );
+                            })}
                         </div>
                     </div>
+                    {/* Embedded print styles */}
+                    <style>{`
+                        @media print {
+                            body * {
+                                visibility: hidden !important;
+                            }
+                            .pdf-preview-modal-root,
+                            .pdf-preview-modal-root * {
+                                visibility: visible !important;
+                            }
+                            .pdf-preview-modal-root {
+                                position: absolute !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                width: 100% !important;
+                                height: auto !important;
+                                background: white !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                overflow: visible !important;
+                                z-index: 999999 !important;
+                            }
+                            .pdf-preview-topbar,
+                            .no-print {
+                                display: none !important;
+                            }
+                            .pdf-preview-pages-container {
+                                background: white !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                gap: 0 !important;
+                                overflow: visible !important;
+                            }
+                            .pdf-page-sheet {
+                                page-break-after: always !important;
+                                break-after: page !important;
+                                box-shadow: none !important;
+                                border: none !important;
+                                margin: 0 !important;
+                                padding: 8mm 6mm !important;
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                border-radius: 0 !important;
+                            }
+                            .pdf-page-sheet:last-child {
+                                page-break-after: auto !important;
+                                break-after: auto !important;
+                            }
+                            @page {
+                                size: A4 landscape;
+                                margin: 5mm;
+                            }
+                        }
+                    `}</style>
                 </div>
             )}
         </div>
