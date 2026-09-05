@@ -5654,6 +5654,155 @@ export const generateLpoPdf = async (
     return doc.output('datauristring');
 };
 
+export const generateParentInKindLpoPdf = async (
+    proposal: any,
+    student: any,
+    institution: Institution,
+    companyDetails?: CompanyDetails,
+    logoUrl?: string | null
+): Promise<string> => {
+    const lib = getJsPdf();
+    if (!lib) throw new Error("jsPDF library not available.");
+    const doc = new lib.jsPDF();
+    const logoImg = await loadImage(logoUrl || institution?.logoUrl || null);
+
+    const activeCompanyDetails = companyDetails || {
+        applicationTitle: institution?.name || 'School Management System',
+        institutionTagline: institution?.address || '',
+        contactPhone: institution?.phone || '',
+        contactEmail: institution?.email || '',
+        institutionAddress: institution?.address || ''
+    } as any;
+
+    // Header & Letterhead
+    createPdfWithLetterhead(
+        doc,
+        'PARENT IN-KIND PURCHASE ORDER',
+        activeCompanyDetails,
+        institution,
+        logoImg
+    );
+    const margin = 14;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // LPO Header Details Box
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('LPO NUMBER:', pageWidth - margin - 60, margin + 52);
+    doc.text('ISSUE DATE:', pageWidth - margin - 60, margin + 57);
+    doc.text('DELIVERY DUE:', pageWidth - margin - 60, margin + 62);
+    doc.text('SETTLEMENT:', pageWidth - margin - 60, margin + 67);
+
+    doc.setFont('helvetica', 'normal');
+    const lpoNum = proposal.lpoNumber || proposal.lpo_number || `LPO-PIK-${String(proposal.id || '').slice(-6).toUpperCase()}`;
+    doc.text(lpoNum, pageWidth - margin, margin + 52, { align: 'right' });
+    const issueDate = proposal.createdAt ? new Date(proposal.createdAt).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
+    doc.text(issueDate, pageWidth - margin, margin + 57, { align: 'right' });
+    const dueDate = proposal.expectedDeliveryDate ? new Date(proposal.expectedDeliveryDate).toLocaleDateString('en-GB') : 'On or before agreed term date';
+    doc.text(dueDate, pageWidth - margin, margin + 62, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 185, 129);
+    doc.text('Fee Offset (In-Kind)', pageWidth - margin, margin + 67, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+
+    // Parent & Student Details
+    let nextY = margin + 76;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('PARENT / SUPPLIER (PARTY A):', margin, nextY);
+    doc.text('STUDENT BENEFICIARY (PARTY B):', pageWidth / 2 + 5, nextY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    const parentName = proposal.parentName || student?.metadata?.parentName || student?.parentName || 'Parent / Guardian';
+    const parentPhone = proposal.parentPhone || student?.metadata?.parentPhone || student?.parentPhone || '—';
+    doc.text(`Name: ${parentName}`, margin, nextY + 5);
+    doc.text(`Phone: ${parentPhone}`, margin, nextY + 10);
+    doc.text(`Contract: School Fee In-Kind Agreement`, margin, nextY + 15);
+    if (proposal.notes) {
+        doc.text(`Notes: ${String(proposal.notes).slice(0, 45)}`, margin, nextY + 20);
+    }
+
+    doc.text(`Student Name: ${student?.name || 'Student'}`, pageWidth / 2 + 5, nextY + 5);
+    doc.text(`Admission No: ${student?.admissionNumber || student?.admission_number || 'N/A'}`, pageWidth / 2 + 5, nextY + 10);
+    const classLevel = student?.studentClass || student?.metadata?.gradeLevel || 'Enrolled';
+    doc.text(`Class/Grade: ${classLevel}`, pageWidth / 2 + 5, nextY + 15);
+    doc.text(`Target Offset: ${proposal.targetVotehead || 'Outstanding Fees'}`, pageWidth / 2 + 5, nextY + 20);
+
+    nextY += 28;
+
+    // Items Table
+    const head = [['#', 'COMMODITY / SERVICE DESCRIPTION', 'ORDERED QTY', 'AGREED RATE', 'TOTAL CREDIT VALUE']];
+    const body = [
+        [
+            '1',
+            proposal.itemName || 'Commodity Goods',
+            `${proposal.quantity} ${proposal.unit || 'Bags'}`,
+            `KES ${Number(proposal.unitValue || 0).toLocaleString()}`,
+            `KES ${Number(proposal.totalValue || 0).toLocaleString()}`
+        ]
+    ];
+
+    (doc as any).autoTable({
+        head: head,
+        body: body,
+        startY: nextY,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 9 },
+        columnStyles: {
+            0: { halign: 'center', cellWidth: 12 },
+            1: { halign: 'left' },
+            2: { halign: 'center', cellWidth: 35 },
+            3: { halign: 'right', cellWidth: 38 },
+            4: { halign: 'right', cellWidth: 42 }
+        }
+    });
+
+    const finalY = ((doc as any).lastAutoTable?.finalY || nextY) + 7;
+
+    // Total Amount Box
+    doc.setFontSize(10.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL AGREED FEE CREDIT VALUE:', pageWidth - margin - 90, finalY);
+    doc.text(`KES ${Number(proposal.totalValue || 0).toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+
+    // Terms and Conditions Box
+    const termsY = finalY + 10;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OFFICIAL TERMS OF PAYMENT IN KIND:', margin, termsY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    const terms = [
+        '1. Goods delivered must meet the school\'s quality, freshness, and dryness requirements (e.g., Grade 1 dry grains, quality firewood).',
+        '2. Physical inspection, weighing, and verification is conducted directly upon delivery at the school before acceptance.',
+        '3. An Official School Fee Receipt will be issued to the parent immediately upon physical delivery to reduce student fee balance.',
+        '4. The agreed unit rate is guaranteed and fixed against market price fluctuations until the specified delivery deadline.',
+        '5. This order serves as an authorized school purchasing agreement between the Bursar and the parent.'
+    ];
+
+    let tY = termsY + 4.5;
+    terms.forEach(t => {
+        doc.text(t, margin, tY);
+        tY += 4;
+    });
+
+    // Signature Block
+    const authY = tY + 12;
+    doc.setFontSize(8);
+    doc.line(margin, authY, margin + 65, authY);
+    doc.text('Authorized by: Bursar / Head of Institution', margin, authY + 4);
+    doc.text('Signature & Official Stamp: ___________________', margin, authY + 8);
+
+    doc.line(pageWidth - margin - 65, authY, pageWidth - margin, authY);
+    doc.text('Committed & Accepted by: Parent / Supplier', pageWidth - margin - 65, authY + 4);
+    doc.text('Parent Signature: ___________________', pageWidth - margin - 65, authY + 8);
+
+    return doc.output('datauristring');
+};
+
 export const generateRetailSalesStatementPdf = async (
     type: 'general' | 'store' | 'agent' | 'student' | 'teacher',
     target: RetailStore | User | null,

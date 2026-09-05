@@ -50,6 +50,7 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import * as pdfService from '../../services/pdfService';
+import { PdfPreviewModal } from '../PdfPreviewModal';
 import { SuspenseAccountResolverModal, UnmatchedTransaction } from './SuspenseAccountResolverModal';
 import { ExclamationTriangleIcon } from '../icons/ExclamationTriangleIcon';
 import { DigitalExamPermitManager } from './DigitalExamPermitManager';
@@ -4522,6 +4523,275 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [goodsProposals, setGoodsProposals] = useState<any[]>([]);
     const [isLoadingGoodsProposals, setIsLoadingGoodsProposals] = useState(false);
+
+    // Payment in Kind & Parent LPO State (Bursar Direct)
+    const [isIssueLpoModalOpen, setIsIssueLpoModalOpen] = useState(false);
+    const [isDirectReceiveModalOpen, setIsDirectReceiveModalOpen] = useState(false);
+    const [selectedProposalForAction, setSelectedProposalForAction] = useState<any | null>(null);
+    const [isGeneratingLpoPdf, setIsGeneratingLpoPdf] = useState(false);
+    const [paymentInKindFilter, setPaymentInKindFilter] = useState<'all' | 'pending' | 'delivered' | 'credited'>('all');
+    const [lpoStudentSearch, setLpoStudentSearch] = useState('');
+    const [lpoPdfPreviewUrl, setLpoPdfPreviewUrl] = useState<string | null>(null);
+    const [lpoPdfPreviewTitle, setLpoPdfPreviewTitle] = useState<string>('Parent Supply LPO');
+
+    const defaultLpoExpectedDate = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 14);
+        return d.toISOString().split('T')[0];
+    };
+
+    const [lpoForm, setLpoForm] = useState({
+        studentId: '',
+        parentName: '',
+        parentPhone: '',
+        itemName: '',
+        quantity: 1,
+        unit: 'Bags',
+        unitValue: 0,
+        targetVotehead: 'School Fees Arrears',
+        expectedDeliveryDate: defaultLpoExpectedDate(),
+        notes: '',
+        isDirectBursarReceiving: true
+    });
+
+    const [receiveForm, setReceiveForm] = useState({
+        receivedQuantity: 1,
+        qualityCondition: 'Inspected and verified in good condition by Bursar',
+        deliveryNotes: '',
+        creditImmediately: true
+    });
+
+    const handleOpenIssueLpoModal = () => {
+        setLpoForm({
+            studentId: '',
+            parentName: '',
+            parentPhone: '',
+            itemName: '',
+            quantity: 1,
+            unit: 'Bags',
+            unitValue: 0,
+            targetVotehead: 'School Fees Arrears',
+            expectedDeliveryDate: defaultLpoExpectedDate(),
+            notes: '',
+            isDirectBursarReceiving: true
+        });
+        setLpoStudentSearch('');
+        setIsIssueLpoModalOpen(true);
+    };
+
+    const handleSelectStudentForLpo = (stud: User) => {
+        const pName = stud.metadata?.parentName || stud.metadata?.parents?.[0]?.name || (stud as any).parentName || '';
+        const pPhone = stud.metadata?.parentPhone || stud.metadata?.parents?.[0]?.phone || stud.phoneNumber || (stud as any).parentPhone || '';
+        setLpoForm(prev => ({
+            ...prev,
+            studentId: stud.id,
+            parentName: pName,
+            parentPhone: pPhone
+        }));
+    };
+
+    const handleSaveAndIssueLpo = async () => {
+        if (!lpoForm.studentId) {
+            alert("Please select a student.");
+            return;
+        }
+        if (!lpoForm.itemName.trim()) {
+            alert("Please enter the commodity or service description.");
+            return;
+        }
+        if (!lpoForm.quantity || Number(lpoForm.quantity) <= 0) {
+            alert("Please specify a valid quantity.");
+            return;
+        }
+        if (!lpoForm.unitValue || Number(lpoForm.unitValue) <= 0) {
+            alert("Please specify the agreed unit price.");
+            return;
+        }
+
+        try {
+            const instId = props.institution.id;
+            let lpoNo = '';
+            try {
+                lpoNo = await apiService.getNextDocumentNumber(instId, 'lpo');
+            } catch (_) {
+                lpoNo = `LPO-PIK-${Date.now().toString().slice(-5)}`;
+            }
+
+            const totalVal = Number(lpoForm.quantity) * Number(lpoForm.unitValue);
+            const proposalId = `pik_lpo_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+            const newProposal = {
+                id: proposalId,
+                institutionId: instId,
+                institution_id: instId,
+                studentId: lpoForm.studentId,
+                student_id: lpoForm.studentId,
+                lpoNumber: lpoNo,
+                lpo_number: lpoNo,
+                parentName: lpoForm.parentName,
+                parentPhone: lpoForm.parentPhone,
+                itemName: lpoForm.itemName.trim(),
+                item_name: lpoForm.itemName.trim(),
+                quantity: Number(lpoForm.quantity),
+                unit: lpoForm.unit.trim(),
+                unitValue: Number(lpoForm.unitValue),
+                unit_value: Number(lpoForm.unitValue),
+                totalValue: totalVal,
+                total_value: totalVal,
+                status: 'pending',
+                targetVotehead: lpoForm.targetVotehead,
+                expectedDeliveryDate: lpoForm.expectedDeliveryDate,
+                isDirectBursarReceiving: lpoForm.isDirectBursarReceiving,
+                notes: lpoForm.notes.trim(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('fee_goods_proposals', newProposal);
+            alert(`Parent Supply LPO ${lpoNo} successfully issued for KES ${totalVal.toLocaleString()}!`);
+            setIsIssueLpoModalOpen(false);
+            fetchGoodsProposals();
+
+            const stud = props.students.find(s => s.id === lpoForm.studentId);
+            if (window.confirm("Would you like to preview and print the official Parent LPO document now?")) {
+                handlePrintParentLpo(newProposal, stud);
+            }
+        } catch (e: any) {
+            console.error("Failed to issue Parent LPO:", e);
+            alert("Failed to issue Parent LPO: " + (e.message || e));
+        }
+    };
+
+    const handlePrintParentLpo = async (proposal: any, student?: User) => {
+        try {
+            setIsGeneratingLpoPdf(true);
+            const targetStudent = student || props.students.find(s => s.id === proposal.studentId);
+            const pdfDataUri = await pdfService.generateParentInKindLpoPdf(
+                proposal,
+                targetStudent,
+                props.institution,
+                props.companyDetails,
+                props.institution.logoUrl || null
+            );
+
+            setLpoPdfPreviewUrl(pdfDataUri);
+            setLpoPdfPreviewTitle(`Parent Supply LPO - ${proposal.lpoNumber || proposal.itemName}`);
+        } catch (e) {
+            console.error("Failed to generate LPO PDF:", e);
+            alert("Failed to generate LPO document.");
+        } finally {
+            setIsGeneratingLpoPdf(false);
+        }
+    };
+
+    const handleOpenDirectReceiveModal = (proposal: any) => {
+        setSelectedProposalForAction(proposal);
+        setReceiveForm({
+            receivedQuantity: proposal.quantity,
+            qualityCondition: 'Inspected and verified in good order by Bursar / School Kitchen',
+            deliveryNotes: proposal.notes || '',
+            creditImmediately: true
+        });
+        setIsDirectReceiveModalOpen(true);
+    };
+
+    const handleConfirmDirectReceive = async () => {
+        if (!selectedProposalForAction) return;
+        const p = selectedProposalForAction;
+        const recQty = Number(receiveForm.receivedQuantity);
+        if (!recQty || recQty <= 0) {
+            alert("Please enter a valid received quantity.");
+            return;
+        }
+
+        const unitVal = Number(p.unitValue || 0);
+        const actualCreditAmount = recQty * unitVal;
+        const instId = props.institution.id;
+
+        try {
+            if (receiveForm.creditImmediately) {
+                // 1. Generate official fee receipt
+                const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
+                const receipt = {
+                    id: `rcpt_goods_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                    receipt_number: receiptNumber,
+                    receiptNumber: receiptNumber,
+                    institution_id: instId,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    amount_paid: actualCreditAmount,
+                    paid_for: `Payment In Kind: ${recQty} ${p.unit} of ${p.itemName} (LPO: ${p.lpoNumber || 'PIK'})`,
+                    payment_method: 'Payment in Kind',
+                    student_id: p.studentId,
+                    metadata: {
+                        lpoNumber: p.lpoNumber,
+                        commodity: p.itemName,
+                        quantityReceived: recQty,
+                        unit: p.unit,
+                        verifiedBy: props.currentUser.name
+                    }
+                };
+                await apiService.saveModuleRecord('receipts', receipt);
+
+                // 2. Mark proposal as credited
+                const updatedProposal = {
+                    ...p,
+                    status: 'credited',
+                    receivedQuantity: recQty,
+                    receivedDate: new Date().toISOString().split('T')[0],
+                    receiptNumber: receiptNumber,
+                    receiptId: receipt.id,
+                    qualityCondition: receiveForm.qualityCondition,
+                    notes: `${p.notes || ''}\n[Directly received & verified by Bursar on ${new Date().toLocaleDateString()}: ${receiveForm.qualityCondition}]`,
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('fee_goods_proposals', updatedProposal);
+
+                alert(`Goods confirmed received! Official Fee Receipt #${receiptNumber} generated and student ledger credited KES ${actualCreditAmount.toLocaleString()}.`);
+            } else {
+                // Mark as delivered (pending clearance)
+                const updatedProposal = {
+                    ...p,
+                    status: 'delivered',
+                    receivedQuantity: recQty,
+                    receivedDate: new Date().toISOString().split('T')[0],
+                    qualityCondition: receiveForm.qualityCondition,
+                    notes: `${p.notes || ''}\n[Delivery verified on ${new Date().toLocaleDateString()}: ${receiveForm.qualityCondition}]`,
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('fee_goods_proposals', updatedProposal);
+                alert("Delivery verified and recorded as delivered (pending accounts clearance).");
+            }
+
+            setIsDirectReceiveModalOpen(false);
+            setSelectedProposalForAction(null);
+            fetchGoodsProposals();
+            if (props.onRefreshData) {
+                await props.onRefreshData();
+            }
+        } catch (e: any) {
+            console.error("Failed to process direct goods delivery:", e);
+            alert("Failed to confirm goods receipt: " + (e.message || e));
+        }
+    };
+
+    const handleCancelProposal = async (proposalId: string) => {
+        if (!window.confirm("Are you sure you want to cancel this in-kind proposal/LPO?")) return;
+        try {
+            const existing = goodsProposals.find(p => p.id === proposalId);
+            if (!existing) return;
+            const updated = {
+                ...existing,
+                status: 'cancelled',
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('fee_goods_proposals', updated);
+            alert("In-kind proposal marked as cancelled.");
+            fetchGoodsProposals();
+        } catch (e) {
+            console.error("Failed to cancel proposal:", e);
+            alert("Failed to cancel proposal.");
+        }
+    };
     const [receiptsMainTab, setReceiptsMainTab] = useState<'student_fees' | 'other_income' | 'bank_feed' | 'bursaries' | 'payment_in_kind' | 'suspense_account' | 'exam_permits' | 'history'>('student_fees');
     const [suspenseTransactions, setSuspenseTransactions] = useState<UnmatchedTransaction[]>([]);
     const [selectedSuspenseTx, setSelectedSuspenseTx] = useState<UnmatchedTransaction | null>(null);
@@ -11346,10 +11616,97 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 })()}
 
                 {activeTab === 'receipts' && receiptsMainTab === 'payment_in_kind' && (
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left animate-in fade-in duration-300">
-                        <div>
-                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment in Kind Clearance Dashboard</h3>
-                            <p className="text-sm text-slate-500 mt-1">Review parent/student goods deliveries confirmed by the Storekeeper. Approve them to credit student ledgers and issue parent receipts.</p>
+                    <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[3rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left animate-in fade-in duration-300">
+                        {/* ── Top Header & Actions ── */}
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
+                            <div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black">
+                                        <DocumentTextIcon className="w-5 h-5" />
+                                    </div>
+                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Payment in Kind &amp; Parent LPO Hub</h3>
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        Direct Bursar Receiving Mode Active
+                                    </span>
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-3xl">
+                                    Manage parent commodity supplies (maize, beans, firewood, building materials, labor). Issue official supply LPOs to parents, verify direct deliveries without requiring the inventory module, and credit student fee ledgers with instant receipts.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={handleOpenIssueLpoModal}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-500/25 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>Issue Parent Supply LPO</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ── Summary Metric Cards ── */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {(() => {
+                                const totalCommitted = goodsProposals.reduce((sum, p) => sum + (Number(p.totalValue || p.total_value) || 0), 0);
+                                const pendingCount = goodsProposals.filter(p => p.status === 'pending').length;
+                                const pendingValue = goodsProposals.filter(p => p.status === 'pending').reduce((sum, p) => sum + (Number(p.totalValue || p.total_value) || 0), 0);
+                                const creditedValue = goodsProposals.filter(p => p.status === 'credited').reduce((sum, p) => sum + (Number(p.totalValue || p.total_value) || 0), 0);
+                                const creditedCount = goodsProposals.filter(p => p.status === 'credited').length;
+
+                                return (
+                                    <>
+                                        <div className="bg-slate-50 dark:bg-slate-950/40 p-4 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total In-Kind Orders</span>
+                                            <div className="text-xl font-black text-slate-900 dark:text-white mt-1">KES {totalCommitted.toLocaleString()}</div>
+                                            <span className="text-[10px] text-slate-500 font-semibold">{goodsProposals.length} total commitments</span>
+                                        </div>
+                                        <div className="bg-amber-50/60 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-200/70 dark:border-amber-800/40">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Awaiting Goods Delivery</span>
+                                            <div className="text-xl font-black text-amber-700 dark:text-amber-300 mt-1">KES {pendingValue.toLocaleString()}</div>
+                                            <span className="text-[10px] text-amber-600 font-semibold">{pendingCount} parent orders pending</span>
+                                        </div>
+                                        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 p-4 rounded-2xl border border-emerald-200/70 dark:border-emerald-800/40">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Fees Cleared &amp; Credited</span>
+                                            <div className="text-xl font-black text-emerald-700 dark:text-emerald-300 mt-1">KES {creditedValue.toLocaleString()}</div>
+                                            <span className="text-[10px] text-emerald-600 font-semibold">{creditedCount} official receipts issued</span>
+                                        </div>
+                                        <div className="bg-indigo-50/60 dark:bg-indigo-950/20 p-4 rounded-2xl border border-indigo-200/70 dark:border-indigo-800/40">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Inventory Status</span>
+                                            <div className="text-sm font-black text-indigo-700 dark:text-indigo-300 mt-1.5 flex items-center gap-1.5">
+                                                <CheckIcon className="w-4 h-4 text-indigo-600" />
+                                                Direct Kitchen / Ops Consumption
+                                            </div>
+                                            <span className="text-[9.5px] text-indigo-500 font-medium">No storekeeper module required</span>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+
+                        {/* ── Filter Tabs ── */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                            <div className="flex items-center gap-2">
+                                {[
+                                    { id: 'all', label: 'All Orders', count: goodsProposals.length },
+                                    { id: 'pending', label: 'Pending Delivery', count: goodsProposals.filter(p => p.status === 'pending').length },
+                                    { id: 'delivered', label: 'Delivered (Uncredited)', count: goodsProposals.filter(p => p.status === 'delivered').length },
+                                    { id: 'credited', label: 'Cleared & Credited', count: goodsProposals.filter(p => p.status === 'credited').length },
+                                ].map(t => (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setPaymentInKindFilter(t.id as any)}
+                                        className={`px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            paymentInKindFilter === t.id
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        {t.label} ({t.count})
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         {isLoadingGoodsProposals ? (
@@ -11357,98 +11714,547 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                             </div>
                         ) : goodsProposals.length === 0 ? (
-                            <p className="text-center text-xs text-slate-400 py-12 bg-slate-50 dark:bg-slate-800 rounded-2xl">No payment in kind proposals registered in the database.</p>
+                            <div className="text-center py-16 px-4 bg-slate-50 dark:bg-slate-950/40 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+                                <DocumentTextIcon className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-300">No Payment in Kind orders found</p>
+                                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">Issue a Parent Supply LPO when agreeing with a parent to pay fees via commodities (maize, beans, firewood, labor, etc.).</p>
+                                <button
+                                    onClick={handleOpenIssueLpoModal}
+                                    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-indigo-700 cursor-pointer"
+                                >
+                                    + Issue First Parent LPO
+                                </button>
+                            </div>
                         ) : (
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="border-b border-slate-100 dark:border-slate-800">
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Description</th>
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quantity</th>
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Value</th>
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                            <th className="py-4 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                                        <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40">
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">LPO # &amp; Date</th>
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student &amp; Parent</th>
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Commodity / Service</th>
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Credit Value</th>
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Receiving Mode</th>
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                            <th className="py-3.5 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {goodsProposals.map(p => {
-                                            const student = props.students.find((s: any) => s.id === p.studentId);
-                                            return (
-                                                <tr key={p.id} className="border-b border-slate-50 dark:border-slate-800/40 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                                                    <td className="py-4 px-4">
-                                                        <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">{student?.name || 'Unknown Student'}</div>
-                                                        <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{student?.admissionNumber || 'No Adm'}</div>
-                                                    </td>
-                                                    <td className="py-4 px-4 text-xs font-bold text-slate-700 dark:text-slate-300">{p.itemName}</td>
-                                                    <td className="py-4 px-4 text-xs font-bold text-slate-600 dark:text-slate-400">{p.quantity} {p.unit}</td>
-                                                    <td className="py-4 px-4 text-xs font-black text-slate-900 dark:text-white">KSh {p.totalValue.toLocaleString()}</td>
-                                                    <td className="py-4 px-4">
-                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                                            p.status === 'credited' 
-                                                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-450 border-emerald-200 dark:border-emerald-500/20' 
-                                                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-450 border-amber-200 dark:border-amber-500/20'
-                                                        }`}>
-                                                            {p.status === 'credited' ? 'Credited' : 'Pending Clearance'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4 px-4 text-right">
-                                                        {p.status === 'pending' ? (
-                                                            <button
-                                                                onClick={async () => {
-                                                                    if (!confirm("Are you sure you want to approve this delivery and credit the student fees for KES " + p.totalValue.toLocaleString() + "?")) return;
-                                                                    try {
-                                                                        // 1. Save Finance Receipt
-                                                                        const instId = props.institution.id;
-                                                                        const receiptNumber = await apiService.getNextDocumentNumber(instId, 'receipt');
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                        {goodsProposals
+                                            .filter(p => paymentInKindFilter === 'all' || p.status === paymentInKindFilter)
+                                            .map(p => {
+                                                const student = props.students.find((s: any) => s.id === p.studentId);
+                                                const lpoNumber = p.lpoNumber || p.lpo_number || `LPO-PIK-${String(p.id || '').slice(-6).toUpperCase()}`;
+                                                const parentName = p.parentName || student?.metadata?.parentName || student?.parentName || 'Parent';
+                                                const parentPhone = p.parentPhone || student?.metadata?.parentPhone || student?.parentPhone || '';
 
-                                                                        const receipt = {
-                                                                            id: `rcpt_goods_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-                                                                            receipt_number: receiptNumber,
-                                                                            receiptNumber: receiptNumber,
-                                                                            institution_id: instId,
-                                                                            payment_date: new Date().toISOString().split('T')[0],
-                                                                            amount_paid: Number(p.totalValue),
-                                                                            paid_for: `Payment via supply of ${p.quantity} ${p.unit} of ${p.itemName}`,
-                                                                            payment_method: 'Goods In Lieu',
-                                                                            student_id: p.studentId
-                                                                        };
-                                                                        await apiService.saveModuleRecord('receipts', receipt);
+                                                return (
+                                                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-colors">
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">{lpoNumber}</div>
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">
+                                                                {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—'}
+                                                            </div>
+                                                            {p.expectedDeliveryDate && (
+                                                                <div className="text-[9.5px] text-slate-500 font-medium">
+                                                                    Due: {new Date(p.expectedDeliveryDate).toLocaleDateString()}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">{student?.name || 'Unknown Student'}</div>
+                                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                                                                {student?.admissionNumber || 'No Adm'} • {student?.studentClass || student?.metadata?.gradeLevel || 'Enrolled'}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5">
+                                                                Parent: {parentName} {parentPhone ? `(${parentPhone})` : ''}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{p.itemName || p.item_name}</div>
+                                                            <div className="text-[10px] text-slate-500">
+                                                                {p.quantity} {p.unit} @ KES {Number(p.unitValue || p.unit_value || 0).toLocaleString()}
+                                                            </div>
+                                                            {p.receivedQuantity && Number(p.receivedQuantity) !== Number(p.quantity) && (
+                                                                <div className="text-[9.5px] text-emerald-600 font-bold">
+                                                                    Actual Recv: {p.receivedQuantity} {p.unit}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="text-xs font-black text-slate-900 dark:text-white">
+                                                                KES {Number(p.totalValue || p.total_value || 0).toLocaleString()}
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                                                {p.targetVotehead || 'Fee Arrears'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                                                                Bursar Direct (No Inv.)
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            {p.status === 'credited' ? (
+                                                                <div>
+                                                                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                                                                        Credited
+                                                                    </span>
+                                                                    {p.receiptNumber && (
+                                                                        <div className="text-[9px] font-mono font-bold text-slate-500 mt-1">
+                                                                            Rcpt #{p.receiptNumber}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : p.status === 'delivered' ? (
+                                                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
+                                                                    Delivered
+                                                                </span>
+                                                            ) : p.status === 'cancelled' ? (
+                                                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
+                                                                    Cancelled
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
+                                                                    Awaiting Delivery
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-right">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <button
+                                                                    onClick={() => handlePrintParentLpo(p, student)}
+                                                                    title="Preview / Print Parent LPO"
+                                                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
+                                                                >
+                                                                    <PrinterIcon className="w-3.5 h-3.5" />
+                                                                    <span>Print LPO</span>
+                                                                </button>
 
-                                                                        // 2. Mark proposal as credited
-                                                                        const updatedProposal = {
-                                                                            ...p,
-                                                                            status: 'credited' as const,
-                                                                            updatedAt: new Date().toISOString()
-                                                                        };
-                                                                        await apiService.saveModuleRecord('fee_goods_proposals', updatedProposal);
+                                                                {p.status === 'pending' && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => handleOpenDirectReceiveModal(p)}
+                                                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1"
+                                                                        >
+                                                                            <CheckIcon className="w-3.5 h-3.5" />
+                                                                            <span>Confirm Receipt</span>
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleCancelProposal(p.id)}
+                                                                            title="Cancel LPO"
+                                                                            className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                                                        >
+                                                                            <XIcon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </>
+                                                                )}
 
-                                                                        alert("Delivery cleared successfully! Official receipt generated and parent credited.");
-                                                                        fetchGoodsProposals();
-                                                                        if (props.onRefreshData) {
-                                                                            await props.onRefreshData();
-                                                                        }
-                                                                    } catch (e) {
-                                                                        console.error("Failed to clear goods payment:", e);
-                                                                        alert("Failed to clear goods payment.");
-                                                                    }
-                                                                }}
-                                                                className="px-4 py-2 bg-indigo-605 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
-                                                            >
-                                                                Approve & Issue Receipt
-                                                            </button>
-                                                        ) : p.status === 'credited' ? (
-                                                            <span className="text-[10px] text-slate-400 font-bold italic">Cleared & Receipt Issued</span>
-                                                        ) : (
-                                                            <span className="text-[10px] text-slate-400 font-bold">—</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
+                                                                {p.status === 'delivered' && (
+                                                                    <button
+                                                                        onClick={() => handleOpenDirectReceiveModal(p)}
+                                                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
+                                                                    >
+                                                                        Credit Fee Ledger
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                     </tbody>
                                 </table>
                             </div>
+                        )}
+
+                        {/* ── Modal: Issue Parent Supply LPO ── */}
+                        {isIssueLpoModalOpen && (
+                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                                <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6 text-left my-8">
+                                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Official Procurement In-Kind</span>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Issue Parent Supply LPO</h3>
+                                            <p className="text-xs text-slate-500 mt-0.5">Authorizes a parent to supply goods/commodities to offset student fee arrears.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setIsIssueLpoModalOpen(false)}
+                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        >
+                                            <XIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {/* Student Selection */}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Select Student Beneficiary *</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search student by name or admission number..."
+                                                    value={lpoStudentSearch}
+                                                    onChange={e => setLpoStudentSearch(e.target.value)}
+                                                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                />
+                                            </div>
+
+                                            {lpoStudentSearch.trim() && (
+                                                <div className="max-h-36 overflow-y-auto mt-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 shadow-lg">
+                                                    {props.students
+                                                        .filter(s => 
+                                                            (s.name || '').toLowerCase().includes(lpoStudentSearch.toLowerCase()) ||
+                                                            (s.admissionNumber || '').toLowerCase().includes(lpoStudentSearch.toLowerCase())
+                                                        )
+                                                        .slice(0, 8)
+                                                        .map(s => (
+                                                            <div
+                                                                key={s.id}
+                                                                onClick={() => {
+                                                                    handleSelectStudentForLpo(s);
+                                                                    setLpoStudentSearch(`${s.name} (${s.admissionNumber || 'No Adm'})`);
+                                                                }}
+                                                                className="px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer flex justify-between items-center"
+                                                            >
+                                                                <span className="font-bold text-slate-800 dark:text-slate-200">{s.name}</span>
+                                                                <span className="text-[10px] text-slate-400 font-mono">{s.admissionNumber || 'No Adm'} • {s.studentClass || 'Class'}</span>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            )}
+
+                                            {lpoForm.studentId && (
+                                                <div className="mt-1 text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                                                    <CheckIcon className="w-3.5 h-3.5" />
+                                                    Student selected: {props.students.find(s => s.id === lpoForm.studentId)?.name}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Parent Details */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Parent / Guardian Full Name</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Parent Name"
+                                                    value={lpoForm.parentName}
+                                                    onChange={e => setLpoForm({ ...lpoForm, parentName: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Parent Phone Number</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. 0712345678"
+                                                    value={lpoForm.parentPhone}
+                                                    onChange={e => setLpoForm({ ...lpoForm, parentPhone: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Commodity Quick Presets */}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Quick Select Common Commodity:</label>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {[
+                                                    { name: 'Dry Clean Maize', unit: 'Bags', defaultRate: 3500 },
+                                                    { name: 'Dry Beans (Yellow/Rosecoco)', unit: 'Bags', defaultRate: 9000 },
+                                                    { name: 'Firewood (Split Hardwood)', unit: 'Loads', defaultRate: 8000 },
+                                                    { name: 'Cabbages / Fresh Vegetables', unit: 'Bags', defaultRate: 2500 },
+                                                    { name: 'Building Sand / Ballast', unit: 'Lorries', defaultRate: 15000 },
+                                                    { name: 'Cement Bags (50kg)', unit: 'Bags', defaultRate: 850 },
+                                                    { name: 'Compound Maintenance / Labor', unit: 'Days', defaultRate: 1000 },
+                                                ].map(preset => (
+                                                    <button
+                                                        key={preset.name}
+                                                        type="button"
+                                                        onClick={() => setLpoForm({
+                                                            ...lpoForm,
+                                                            itemName: preset.name,
+                                                            unit: preset.unit,
+                                                            unitValue: preset.defaultRate
+                                                        })}
+                                                        className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                                                    >
+                                                        {preset.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Commodity & Pricing */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <div className="sm:col-span-1">
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Item Description *</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Dry Maize"
+                                                    value={lpoForm.itemName}
+                                                    onChange={e => setLpoForm({ ...lpoForm, itemName: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Quantity &amp; Unit *</label>
+                                                <div className="flex gap-1.5">
+                                                    <input
+                                                        type="number"
+                                                        min="0.1"
+                                                        step="any"
+                                                        value={lpoForm.quantity || ''}
+                                                        onChange={e => setLpoForm({ ...lpoForm, quantity: Number(e.target.value) })}
+                                                        className="w-20 px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                    />
+                                                    <select
+                                                        value={lpoForm.unit}
+                                                        onChange={e => setLpoForm({ ...lpoForm, unit: e.target.value })}
+                                                        className="flex-1 px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                    >
+                                                        <option value="Bags">Bags</option>
+                                                        <option value="Kgs">Kgs</option>
+                                                        <option value="Loads">Loads</option>
+                                                        <option value="Litres">Litres</option>
+                                                        <option value="Pieces">Pieces</option>
+                                                        <option value="Bunches">Bunches</option>
+                                                        <option value="Days">Days (Labor)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Agreed Rate / Unit (KES) *</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={lpoForm.unitValue || ''}
+                                                    onChange={e => setLpoForm({ ...lpoForm, unitValue: Number(e.target.value) })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Total Computed Value Display */}
+                                        <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800 flex justify-between items-center">
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Total Order / Fee Credit Value:</span>
+                                                <div className="text-xl font-black text-indigo-700 dark:text-indigo-300">
+                                                    KES {((Number(lpoForm.quantity) || 0) * (Number(lpoForm.unitValue) || 0)).toLocaleString()}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] font-bold text-slate-500">Target Allocation:</span>
+                                                <div className="text-xs font-black text-slate-700 dark:text-slate-300">{lpoForm.targetVotehead}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Expected Delivery Date & Direct Mode */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Delivery Due Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={lpoForm.expectedDeliveryDate}
+                                                    onChange={e => setLpoForm({ ...lpoForm, expectedDeliveryDate: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Fee Vote-Head Offset</label>
+                                                <select
+                                                    value={lpoForm.targetVotehead}
+                                                    onChange={e => setLpoForm({ ...lpoForm, targetVotehead: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                >
+                                                    <option value="School Fees Arrears">School Fees Arrears (General)</option>
+                                                    <option value="Boarding & Food Rations">Boarding &amp; Food Rations</option>
+                                                    <option value="Tuition Fees">Tuition Fees</option>
+                                                    <option value="Development / Building Fund">Development / Building Fund</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Direct Bursar Receiving Checkbox */}
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                                            <input
+                                                type="checkbox"
+                                                id="directBursarCheck"
+                                                checked={lpoForm.isDirectBursarReceiving}
+                                                onChange={e => setLpoForm({ ...lpoForm, isDirectBursarReceiving: e.target.checked })}
+                                                className="mt-0.5 w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <label htmlFor="directBursarCheck" className="text-xs text-slate-700 dark:text-slate-300">
+                                                <span className="font-black">Direct Bursar Receiving (Bypass Inventory Module):</span>
+                                                <span className="block text-[10.5px] text-slate-500 mt-0.5">
+                                                    Enables the Bursar to verify commodities on arrival and credit fees immediately. Recommended if the school does not maintain a formal retail store.
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        {/* Additional Notes */}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Quality Specifications / Notes</label>
+                                            <textarea
+                                                rows={2}
+                                                placeholder="e.g. Dry maize Grade 1, moisture content below 13.5%, free of weevils..."
+                                                value={lpoForm.notes}
+                                                onChange={e => setLpoForm({ ...lpoForm, notes: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsIssueLpoModalOpen(false)}
+                                            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveAndIssueLpo}
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+                                        >
+                                            <CheckIcon className="w-4 h-4" />
+                                            <span>Issue LPO &amp; Generate Order</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Modal: Direct Delivery & Fee Credit (GRN) ── */}
+                        {isDirectReceiveModalOpen && selectedProposalForAction && (
+                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+                                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6 text-left my-8">
+                                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Direct Delivery Receipt</span>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Confirm Goods Receipt &amp; Credit</h3>
+                                            <p className="text-xs text-slate-500 mt-0.5">Verify actual quantities delivered and credit the student fee ledger.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setIsDirectReceiveModalOpen(false)}
+                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        >
+                                            <XIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {/* Order Reference Box */}
+                                        <div className="p-3.5 bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-400 font-bold">LPO #:</span>
+                                                <span className="font-mono font-black text-indigo-600">{selectedProposalForAction.lpoNumber || 'PIK-LPO'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-400 font-bold">Student:</span>
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                    {props.students.find(s => s.id === selectedProposalForAction.studentId)?.name || 'Student'}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-400 font-bold">Commodity Ordered:</span>
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                    {selectedProposalForAction.quantity} {selectedProposalForAction.unit} of {selectedProposalForAction.itemName}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-slate-400 font-bold">Agreed Rate:</span>
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                    KES {Number(selectedProposalForAction.unitValue || 0).toLocaleString()} / {selectedProposalForAction.unit}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Actual Quantity Received */}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                                                Actual Quantity Received ({selectedProposalForAction.unit}) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0.1"
+                                                step="any"
+                                                value={receiveForm.receivedQuantity || ''}
+                                                onChange={e => setReceiveForm({ ...receiveForm, receivedQuantity: Number(e.target.value) })}
+                                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-sm font-black text-slate-800 dark:text-white"
+                                            />
+                                            <span className="text-[10px] text-slate-400 mt-0.5 block">
+                                                Adjust if parent brought a partial delivery. Credit will be calculated on actual received quantity.
+                                            </span>
+                                        </div>
+
+                                        {/* Calculated Credit Value */}
+                                        <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex justify-between items-center">
+                                            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Fee Credit Amount:</span>
+                                            <span className="text-lg font-black text-emerald-700 dark:text-emerald-300">
+                                                KES {((Number(receiveForm.receivedQuantity) || 0) * (Number(selectedProposalForAction.unitValue) || 0)).toLocaleString()}
+                                            </span>
+                                        </div>
+
+                                        {/* Quality Verification */}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Quality / Condition Inspection</label>
+                                            <input
+                                                type="text"
+                                                value={receiveForm.qualityCondition}
+                                                onChange={e => setReceiveForm({ ...receiveForm, qualityCondition: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                            />
+                                        </div>
+
+                                        {/* Credit Immediately Checkbox */}
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                                            <input
+                                                type="checkbox"
+                                                id="creditImmediatelyCheck"
+                                                checked={receiveForm.creditImmediately}
+                                                onChange={e => setReceiveForm({ ...receiveForm, creditImmediately: e.target.checked })}
+                                                className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <label htmlFor="creditImmediatelyCheck" className="text-xs text-slate-700 dark:text-slate-300">
+                                                <span className="font-black">Generate Official Fee Receipt &amp; Credit Ledger Immediately:</span>
+                                                <span className="block text-[10.5px] text-slate-500 mt-0.5">
+                                                    Generates receipt, offsets student fee arrears, and completes the transaction in one step.
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsDirectReceiveModalOpen(false)}
+                                            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleConfirmDirectReceive}
+                                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+                                        >
+                                            <CheckIcon className="w-4 h-4" />
+                                            <span>Confirm Delivery &amp; Issue Receipt</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── PDF Preview Modal for Parent LPO ── */}
+                        {lpoPdfPreviewUrl && (
+                            <PdfPreviewModal
+                                url={lpoPdfPreviewUrl}
+                                onClose={() => setLpoPdfPreviewUrl(null)}
+                                filename={`${lpoPdfPreviewTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`}
+                            />
                         )}
                     </div>
                 )}
