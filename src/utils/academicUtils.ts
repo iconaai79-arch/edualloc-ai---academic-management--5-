@@ -417,12 +417,17 @@ export const normalizeStreamName = (raw?: any): string => {
     str = str.replace(/^stream\s+/i, '').replace(/^[-–—:]+\s*/, '').trim();
     if (!str) return '';
 
+    // If stream was registered in all caps (e.g. "WEST", "EAST", "A", "BLUE"), preserve the exact uppercase registration!
+    if (str === str.toUpperCase()) {
+        return str;
+    }
+
     // Single letter streams: "a" -> "A", "b" -> "B"
     if (/^[a-zA-Z]$/.test(str)) {
         return str.toUpperCase();
     }
 
-    // Title case multi-letter streams: "north" -> "North", "blue" -> "Blue"
+    // Title case lowercase multi-letter streams: "north" -> "North", "blue" -> "Blue"
     return str
         .split(' ')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())

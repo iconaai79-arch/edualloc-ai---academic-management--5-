@@ -515,6 +515,76 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return Array.from(set);
     }, [selectedExamObj, courses, activeStudents, instId, isPrimarySchool]);
 
+    // Dynamic Streams Options for Selected Class (Preserves exact registered casing: e.g. WEST, EAST)
+    const streamOptions = useMemo(() => {
+        const streamMap = new Map<string, string>();
+        const yearGroupClean = (selectedYearGroup || '').toLowerCase().trim();
+
+        const addStream = (rawName: string, isFromRegistration = false) => {
+            if (!rawName) return;
+            let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+            if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
+
+            if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
+                clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
+            }
+            clean = clean.replace(/^\((.+)\)$/, '$1').trim();
+            if (!clean || clean.toLowerCase() === yearGroupClean) return;
+
+            const key = clean.toLowerCase();
+            const existing = streamMap.get(key);
+            if (!existing) {
+                streamMap.set(key, clean);
+            } else {
+                if (isFromRegistration) {
+                    streamMap.set(key, clean);
+                } else if (clean === clean.toUpperCase() && existing !== existing.toUpperCase()) {
+                    streamMap.set(key, clean);
+                }
+            }
+        };
+
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                const matchesCourse = cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName);
+                if (matchesCourse && c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = (l.name || l.title || l.code || '').trim();
+                        if (lName) addStream(lName, true);
+                    });
+                }
+            });
+        }
+
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
+        if (savedRows && savedRows.length > 0) {
+            savedRows.forEach((r: any) => {
+                const stClass = String(r.class || r.studentClass || '').trim();
+                const rStream = String(r.stream || r.streamName || r.stream_name || '').trim();
+                if (rStream) addStream(rStream);
+                if (stClass.toLowerCase().includes(yearGroupClean)) {
+                    const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
+                    if (match && match[1]) addStream(match[1]);
+                }
+            });
+        }
+
+        activeStudents.forEach((st: any) => {
+            const stClass = String(st.studentClass || st.classLevel || st.className || st.class || '').trim();
+            const directStream = String(st.stream || st.streamName || st.metadata?.stream || '').trim();
+            if (directStream && (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean)) {
+                addStream(directStream);
+            }
+        });
+
+        if (streamMap.size === 0) {
+            ['East', 'West', 'North', 'South'].forEach(s => addStream(s));
+        }
+
+        return ['all', ...Array.from(streamMap.values()).filter(Boolean)];
+    }, [courses, selectedYearGroup, selectedExamId, resolveEffectiveExamRows, activeStudents]);
+
     // Auto-sync selectedYearGroup when active exam changes
     useEffect(() => {
         if (selectedExamObj) {
@@ -738,18 +808,26 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             return [];
         }
 
+        if (!isExamPublished) return [];
         const savedRows = resolveEffectiveExamRows(selectedExamId);
+        if (!savedRows || !Array.isArray(savedRows) || savedRows.length === 0) return [];
 
-        // 2. If an empty exam was published (no marks saved yet), return empty array so broadsheet is empty!
-        if (!savedRows || !Array.isArray(savedRows) || savedRows.length === 0) {
-            return [];
-        }
-
-        // 3. Map saved rows directly so ONLY real entered student marks are rendered!
         return savedRows.map((stRow, idx) => {
             const realAdmNo = getStudentAdmNo(stRow, idx, activeStudents) || (stRow as any).admissionNumber || (stRow as any).admissionNo || (stRow as any).admNo || (stRow as any).id || String(181 + idx);
             const realName = stRow.name || (stRow as any).studentName || (stRow as any).student?.name || `Student ${idx + 1}`;
-            const realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
+            
+            const matchedSt = activeStudents.find(s => {
+                const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+                const rAdm = String(realAdmNo).trim().toLowerCase();
+                return sAdm && rAdm && sAdm === rAdm;
+            });
+            const rawStream = (stRow as any).stream || (stRow as any).streamName || matchedSt?.stream || (matchedSt as any)?.streamName || '';
+            const cleanStream = String(rawStream || '').replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+
+            let realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
+            if (cleanStream && !realClass.toLowerCase().includes(cleanStream.toLowerCase())) {
+                realClass = `${realClass} ${cleanStream}`.trim();
+            }
 
             const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
             let total = 0;
@@ -785,10 +863,12 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
             return {
                 student: {
+                    ...(matchedSt || {}),
                     id: realAdmNo,
                     name: realName,
                     admissionNo: realAdmNo,
-                    studentClass: realClass
+                    studentClass: realClass,
+                    stream: cleanStream || matchedSt?.stream
                 },
                 kcpe: 250 + (idx * 5) % 150,
                 entry: validCount > 0 ? validCount : (broadsheetSubjects.length || 1),
@@ -804,7 +884,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [activeStudents, broadsheetSubjects, isPrimarySchool, resolveEffectiveExamRows, selectedExamId, selectedYearGroup, isExamPublished]);
+    }, [isExamPublished, resolveEffectiveExamRows, selectedExamId, activeStudents, selectedYearGroup, broadsheetSubjects, isPrimarySchool]);
 
     // Filtered student rows (sorted by total marks descending and re-ranked 1, 2, 3, 4...)
     const filteredBroadsheetRows = useMemo(() => {
@@ -817,7 +897,11 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 stClass.toLowerCase().includes(yGrp.toLowerCase()) ||
                 yGrp.toLowerCase().includes(stClass.toLowerCase());
 
-            const matchesStream = selectedStream === 'all' || stClass.toLowerCase().includes(selectedStream.toLowerCase());
+            const stStream = String((r.student as any)?.stream || '').toLowerCase().trim();
+            const selClean = selectedStream.toLowerCase().trim();
+            const matchesStream = selectedStream === 'all' ||
+                stClass.toLowerCase().includes(selClean) ||
+                (stStream && (stStream === selClean || stStream.includes(selClean) || selClean.includes(stStream)));
 
             const admStr = (r.student?.admissionNo || (r.student as any)?.admNo || '').toLowerCase();
             const nameStr = (r.student?.name || '').toLowerCase();
@@ -1181,11 +1265,11 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                     onChange={e => setSelectedStream(e.target.value)}
                                     className="form-select text-xs font-bold"
                                 >
-                                    <option value="all">All Streams</option>
-                                    <option value="Central">Central</option>
-                                    <option value="East">East</option>
-                                    <option value="South">South</option>
-                                    <option value="West">West</option>
+                                    {streamOptions.map(stOpt => (
+                                        <option key={stOpt} value={stOpt}>
+                                            {stOpt === 'all' ? 'All Streams' : stOpt.replace(/\s*stream\s*$/i, '').trim()}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 

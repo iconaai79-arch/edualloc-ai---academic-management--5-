@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
+import { resolveRealStudentStream } from '../../utils/academicUtils';
 import { generateExamOverviewPdf } from '../../utils/examOverviewPdfGenerator';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -340,45 +341,136 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
     }, [yearGroupOptions]);
 
-    // Dynamic Streams Options for Selected Class
+    // Dynamic Streams Options for Selected Class (Preserves exact registered casing: e.g. WEST, EAST)
     const streamOptions = useMemo(() => {
-        const streams = new Set<string>();
+        const streamMap = new Map<string, string>(); // lowercase key -> authentic display casing
         const yearGroupClean = (selectedYearGroup || '').toLowerCase().trim();
 
+        const addStream = (rawName: string, isFromRegistration = false) => {
+            if (!rawName) return;
+            let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+            if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
+
+            // Strip year group prefix if embedded: e.g. "Form 3 WEST" -> "WEST"
+            if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
+                clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
+            }
+            // Strip parentheses: "(WEST)" -> "WEST"
+            clean = clean.replace(/^\((.+)\)$/, '$1').trim();
+            if (!clean || clean.toLowerCase() === yearGroupClean) return;
+
+            const key = clean.toLowerCase();
+            const existing = streamMap.get(key);
+
+            if (!existing) {
+                streamMap.set(key, clean);
+            } else {
+                // If from course level registration or institution stream definitions, always prefer authentic registered casing
+                if (isFromRegistration) {
+                    streamMap.set(key, clean);
+                } else if (clean === clean.toUpperCase() && existing !== existing.toUpperCase()) {
+                    // Prefer uppercase if registered in CAPS
+                    streamMap.set(key, clean);
+                }
+            }
+        };
+
+        // 1. Check courses: Find course matching selectedYearGroup and add level names (authentic registered streams)
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                const matchesCourse = cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName);
+                if (matchesCourse && c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = (l.name || l.title || l.code || '').trim();
+                        if (lName) addStream(lName, true);
+                    });
+                }
+            });
+        }
+
+        // 2. Check currentInstitution streamDefinitions if available
+        if (currentInstitution && (currentInstitution as any).streamDefinitions && Array.isArray((currentInstitution as any).streamDefinitions)) {
+            (currentInstitution as any).streamDefinitions.forEach((sDef: any) => {
+                if (typeof sDef === 'string') addStream(sDef, true);
+                else if (sDef?.name) addStream(sDef.name, true);
+            });
+        }
+
+        // 3. Check examSavedRows for the selected class
         if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach(r => {
+            examSavedRows.forEach((r: any) => {
                 const stClass = String(r.class || r.studentClass || '').trim();
+                const rStream = String(r.stream || r.streamName || r.stream_name || '').trim();
+                if (rStream) {
+                    addStream(rStream);
+                }
                 if (stClass.toLowerCase().includes(yearGroupClean)) {
-                    const match = stClass.match(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i);
+                    const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
                     if (match && match[1]) {
-                        streams.add(match[1].trim());
-                    } else if (stClass !== selectedYearGroup) {
-                        streams.add(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim());
+                        addStream(match[1]);
+                    } else if (stClass.toLowerCase() !== yearGroupClean) {
+                        addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
                     }
                 }
             });
         }
 
-        activeStudents.forEach(st => {
-            const stClass = ((st as any).studentClass || (st as any).classLevel || '').trim();
+        // 4. Check activeStudents matching selected class
+        activeStudents.forEach((st: any) => {
+            const stClass = String(st.studentClass || st.classLevel || st.className || st.class || '').trim();
+            const directStream = String(st.stream || st.streamName || st.metadata?.stream || st.metadata?.streamName || resolveRealStudentStream(st) || '').trim();
+            if (directStream) {
+                if (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean || yearGroupClean === 'all') {
+                    addStream(directStream);
+                }
+            }
+
+            // Also check course level id
+            const lvlId = st.courseLevelId || st.levelId || st.metadata?.courseLevelId;
+            if (lvlId && courses && courses.length > 0) {
+                for (const c of courses) {
+                    const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                    if (cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName)) {
+                        const matchedLevel = (c.levels || []).find((l: any) => l.id === lvlId);
+                        if (matchedLevel?.name) {
+                            addStream(matchedLevel.name, true);
+                        }
+                    }
+                }
+            }
+
             if (stClass.toLowerCase().includes(yearGroupClean)) {
-                const match = stClass.match(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i);
+                const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
                 if (match && match[1]) {
-                    streams.add(match[1].trim());
-                } else if (stClass !== selectedYearGroup) {
-                    streams.add(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim());
+                    addStream(match[1]);
+                } else if (stClass.toLowerCase() !== yearGroupClean) {
+                    addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
                 }
             }
         });
 
-        if (streams.size === 0) {
-            ['Central', 'South', 'East', 'West'].forEach(s => streams.add(s));
+        // 5. Fallback only if absolutely no streams exist for this class
+        if (streamMap.size === 0) {
+            ['East', 'West', 'North', 'South'].forEach(s => addStream(s));
         }
 
-        return ['all', ...Array.from(streams).filter(Boolean)];
-    }, [activeStudents, selectedYearGroup, examSavedRows]);
+        const resolved = Array.from(streamMap.values()).filter(Boolean);
+        return ['all', ...resolved];
+    }, [activeStudents, selectedYearGroup, examSavedRows, courses, currentInstitution]);
 
     const [selectedStream, setSelectedStream] = useState<string>('all');
+
+    useEffect(() => {
+        if (selectedStream !== 'all') {
+            const matched = streamOptions.find(opt => opt.toLowerCase() === selectedStream.toLowerCase());
+            if (matched && matched !== selectedStream) {
+                setSelectedStream(matched);
+            } else if (!matched) {
+                setSelectedStream('all');
+            }
+        }
+    }, [streamOptions, selectedStream]);
 
     // Accordions & Left Nav State
     const [activeNavItem, setActiveNavItem] = useState<string>('exam_overview');
@@ -537,22 +629,72 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         if (examSavedRows && Array.isArray(examSavedRows) && examSavedRows.length > 0) {
             const classRows = yGrpNorm && yGrpNorm !== 'all'
                 ? examSavedRows.filter((r: any) => {
-                    const stCls = String(r.class || r.studentClass || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return !stCls || stCls.includes(yGrpNorm) || yGrpNorm.includes(stCls);
+                    const stCls = String(r.class || r.studentClass || r.courseName || r.className || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const matchedSt = activeStudents.find(s => {
+                        const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+                        const rAdm = String(r.admNo || r.admissionNumber || r.id || '').trim().toLowerCase();
+                        return sAdm && rAdm && sAdm === rAdm;
+                    });
+                    const stRealCls = matchedSt ? String((matchedSt as any).studentClass || (matchedSt as any).classLevel || '').toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+                    return !stCls || stCls.includes(yGrpNorm) || yGrpNorm.includes(stCls) || (stRealCls && (stRealCls.includes(yGrpNorm) || yGrpNorm.includes(stRealCls)));
                 })
                 : examSavedRows;
 
             const filteredRows = selectedStream !== 'all'
                 ? classRows.filter((r: any) => {
-                    const stCls = String(r.class || r.studentClass || '').toLowerCase();
-                    return stCls.includes(selectedStream.toLowerCase());
+                    const selClean = selectedStream.toLowerCase().trim();
+                    const rStream = String(r.stream || r.streamName || r.stream_name || '').toLowerCase().trim();
+                    if (rStream && (rStream === selClean || rStream.includes(selClean) || selClean.includes(rStream))) return true;
+
+                    const stCls = String(r.class || r.studentClass || '').toLowerCase().trim();
+                    if (stCls.includes(selClean)) return true;
+
+                    const adm = String(r.admNo || r.admissionNumber || r.id || '').trim().toLowerCase();
+                    if (adm) {
+                        const matchedSt = activeStudents.find(s => {
+                            const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+                            return sAdm === adm;
+                        });
+                        if (matchedSt) {
+                            const sStr = String(
+                                matchedSt.stream ||
+                                (matchedSt as any).streamName ||
+                                (matchedSt as any).metadata?.stream ||
+                                resolveRealStudentStream(matchedSt) ||
+                                ''
+                            ).toLowerCase().trim();
+                            if (sStr && (sStr === selClean || sStr.includes(selClean) || selClean.includes(sStr))) return true;
+
+                            const sCls2 = String((matchedSt as any).studentClass || (matchedSt as any).classLevel || '').toLowerCase().trim();
+                            if (sCls2.includes(selClean)) return true;
+
+                            const sLvlId = (matchedSt as any).courseLevelId || (matchedSt as any).levelId;
+                            if (sLvlId && courses.some(c => (c.levels || []).some(l => l.id === sLvlId && l.name.toLowerCase().trim() === selClean))) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
                 })
                 : classRows;
 
             const computed = filteredRows.map((stRow: any, idx: number) => {
                 const realAdmNo = stRow.admNo || stRow.admissionNumber || stRow.admissionNo || stRow.id || String(101 + idx);
                 const realName = stRow.name || stRow.studentName || `Student ${idx + 1}`;
-                const realClass = stRow.class || stRow.studentClass || selectedYearGroup || 'PP1';
+                
+                const matchedSt = activeStudents.find(s => {
+                    const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+                    const rAdm = String(realAdmNo).trim().toLowerCase();
+                    return sAdm && rAdm && sAdm === rAdm;
+                });
+
+                const rawStream = stRow.stream || stRow.streamName || matchedSt?.stream || (matchedSt as any)?.streamName || (matchedSt as any)?.metadata?.stream || (selectedStream !== 'all' ? selectedStream : '');
+                const cleanStream = String(rawStream || '').replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+
+                let realClass = stRow.class || stRow.studentClass || (matchedSt as any)?.studentClass || selectedYearGroup || 'PP1';
+                if (cleanStream && !realClass.toLowerCase().includes(cleanStream.toLowerCase())) {
+                    realClass = `${realClass} ${cleanStream}`.trim();
+                }
 
                 let totalMarks = 0;
                 let validCount = 0;
@@ -612,10 +754,12 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
                 return {
                     student: {
+                        ...(matchedSt || {}),
                         id: realAdmNo,
                         name: realName,
                         admissionNo: realAdmNo,
                         studentClass: realClass,
+                        stream: cleanStream || matchedSt?.stream,
                         role: 'student' as const
                     },
                     totalMarks,
@@ -647,14 +791,32 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             if (!matchesClass) return false;
 
             if (selectedStream !== 'all') {
-                const streamClean = selectedStream.toLowerCase().trim();
-                return stClass.includes(streamClean);
+                const selClean = selectedStream.toLowerCase().trim();
+                const stStream = String(
+                    st.stream ||
+                    (st as any).streamName ||
+                    (st as any).metadata?.stream ||
+                    resolveRealStudentStream(st) ||
+                    ''
+                ).toLowerCase().trim();
+
+                const levelId = (st as any).courseLevelId || (st as any).levelId;
+                const matchesLevel = levelId && courses.some(c => (c.levels || []).some(l => l.id === levelId && l.name.toLowerCase().trim() === selClean));
+
+                return (stStream && (stStream === selClean || stStream.includes(selClean) || selClean.includes(stStream))) ||
+                       stClass.includes(selClean) ||
+                       Boolean(matchesLevel);
             }
             return true;
         });
 
         const computed = matchedStudents.map((st, idx) => {
             const realAdmNo = st.admissionNumber || (st as any).admissionNo || (st as any).admNo || (st as any).registrationNo || st.id;
+            const rawStream = st.stream || (st as any).streamName || (st as any).metadata?.stream || (selectedStream !== 'all' ? selectedStream : '');
+            const cleanStream = String(rawStream || '').replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+            const baseClass = (st as any).studentClass || (st as any).classLevel || selectedYearGroup || 'PP1';
+            const realClass = cleanStream && !baseClass.toLowerCase().includes(cleanStream.toLowerCase()) ? `${baseClass} ${cleanStream}`.trim() : baseClass;
+
             let meanScore = 0;
             let totalMarks = 0;
             const subjectScores: Record<string, number> = {};
@@ -677,7 +839,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 student: {
                     ...st,
                     admissionNo: realAdmNo,
-                    studentClass: (st as any).studentClass || (st as any).classLevel || `${selectedYearGroup} ${selectedStream !== 'all' ? selectedStream : 'Central'}`
+                    studentClass: realClass,
+                    stream: cleanStream || st.stream,
+                    role: 'student' as const
                 },
                 totalMarks,
                 meanScore,
@@ -698,7 +862,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             }
             return { ...item, rank: currentRank };
         });
-    }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimaryOrCBC, subjects]);
+    }, [activeStudents, selectedYearGroup, selectedStream, examSavedRows, marks, isPrimaryOrCBC, subjects, courses]);
 
     // Top 10 Students Overall
     const top10Students = useMemo(() => {
@@ -756,29 +920,37 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
     // Top Student Per Class Stream (Stream Champions)
     const streamChampions = useMemo(() => {
-        const streamMap: Record<string, typeof studentPerformanceData[0]> = {};
+        const streamMap: Record<string, { data: typeof studentPerformanceData[0]; display: string }> = {};
 
         studentPerformanceData.forEach(stData => {
             if (!stData?.student) return;
-            const stream = (stData.student as any).studentClass || (stData.student as any).classLevel || 'Central Stream';
-            if (!streamMap[stream] || stData.meanScore > streamMap[stream].meanScore) {
-                streamMap[stream] = stData;
+            const rawStream = (stData.student as any).stream || (stData.student as any).streamName || '';
+            let stream = rawStream;
+            if (!stream) {
+                const cls = (stData.student as any).studentClass || (stData.student as any).classLevel || '';
+                stream = cls.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || cls;
+            }
+            stream = stream.replace(/\s*stream\s*$/i, '').trim() || `${selectedYearGroup}`;
+
+            const key = stream.toLowerCase();
+            if (!streamMap[key] || stData.meanScore > streamMap[key].data.meanScore) {
+                streamMap[key] = { data: stData, display: stream };
             }
         });
 
-        const list = Object.entries(streamMap).map(([stream, stData], idx) => ({
+        const list = Object.entries(streamMap).map(([key, entry], idx) => ({
             rank: idx + 1,
-            stream,
-            studentName: stData.student?.name,
-            admNo: stData.student?.admissionNo || (stData.student as any)?.admission_no || (stData.student as any)?.admNo || stData.student?.id || `ADM-${1000 + idx}`,
-            totalMarks: stData.totalMarks,
-            meanScore: stData.meanScore,
-            grade: stData.grade
+            stream: entry.display,
+            studentName: entry.data.student?.name,
+            admNo: entry.data.student?.admissionNo || (entry.data.student as any)?.admission_no || (entry.data.student as any)?.admNo || entry.data.student?.id || `ADM-${1000 + idx}`,
+            totalMarks: entry.data.totalMarks,
+            meanScore: entry.data.meanScore,
+            grade: entry.data.grade
         }));
 
         list.sort((a, b) => b.meanScore - a.meanScore);
         return list.map((item, idx) => ({ ...item, rank: idx + 1 }));
-    }, [studentPerformanceData]);
+    }, [studentPerformanceData, selectedYearGroup]);
 
     // Most Improved Students (Top 10)
     const mostImproved = useMemo(() => {
@@ -1198,34 +1370,44 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
     // Class / Stream Performance Ranking
     const { streamRankingsList, classOverallSummary, classStreamGradeDistribution } = useMemo(() => {
-        const streamGroup: Record<string, { total: number; count: number }> = {};
+        const streamGroup: Record<string, { total: number; count: number; streamDisplay: string }> = {};
         let totalCohortScore = 0;
         let totalCohortCount = 0;
 
         studentPerformanceData.forEach(st => {
             if (!st?.student) return;
-            const stName = st.student.studentClass || `${selectedYearGroup} S`;
-            if (!streamGroup[stName]) streamGroup[stName] = { total: 0, count: 0 };
-            streamGroup[stName].total += st.meanScore;
-            streamGroup[stName].count += 1;
+            const rawStream = (st.student as any).stream || (st.student as any).streamName || '';
+            let sName = rawStream;
+            if (!sName) {
+                const cls = st.student.studentClass || '';
+                sName = cls.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || cls;
+            }
+            sName = sName.replace(/\s*stream\s*$/i, '').trim() || `${selectedYearGroup}`;
+
+            const key = sName.toLowerCase();
+            if (!streamGroup[key]) {
+                streamGroup[key] = { total: 0, count: 0, streamDisplay: sName };
+            }
+            streamGroup[key].total += st.meanScore;
+            streamGroup[key].count += 1;
             totalCohortScore += st.meanScore;
             totalCohortCount += 1;
         });
 
         // Fallback for single stream or mock data
         if (Object.keys(streamGroup).length === 0 && studentPerformanceData.length > 0) {
-            const defName = `${selectedYearGroup} S`;
+            const defName = selectedStream !== 'all' ? selectedStream : `${selectedYearGroup}`;
             const avg = studentPerformanceData.reduce((s, x) => s + x.meanScore, 0) / studentPerformanceData.length;
-            streamGroup[defName] = { total: avg * studentPerformanceData.length, count: studentPerformanceData.length };
+            streamGroup[defName.toLowerCase()] = { total: avg * studentPerformanceData.length, count: studentPerformanceData.length, streamDisplay: defName };
             totalCohortScore = avg * studentPerformanceData.length;
             totalCohortCount = studentPerformanceData.length;
         }
 
-        const list = Object.entries(streamGroup).map(([stream, data]) => {
+        const list = Object.entries(streamGroup).map(([key, data]) => {
             const meanScore = parseFloat((data.total / Math.max(1, data.count)).toFixed(2));
             const { grade, points } = getGradeInfo(meanScore);
             return {
-                stream,
+                stream: data.streamDisplay,
                 enrolled: data.count,
                 meanScore,
                 meanScoreFormatted: meanScore.toFixed(2),
@@ -1305,7 +1487,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 allGrades
             }
         };
-    }, [studentPerformanceData, selectedYearGroup, isPrimaryOrCBC]);
+    }, [studentPerformanceData, selectedYearGroup, isPrimaryOrCBC, selectedStream]);
 
     // Dynamic Published Exam Series (Selected Published Exam + Other Published Comparison Exams)
     const dynamicExamSeries = useMemo(() => {
@@ -1351,20 +1533,26 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         const examSeries = dynamicExamSeries;
 
         // 2. Discover related classes/streams for this specific cohort/year group
-        const foundStreams = new Set<string>();
+        const foundStreams = new Map<string, string>(); // lowercase key -> display name
         const yrClean = (selectedYearGroup || '').trim();
 
         // A. From active ranked stream list in this cohort
         if (streamRankingsList && streamRankingsList.length > 0) {
             streamRankingsList.forEach(s => {
-                if (s.stream && s.stream.trim()) foundStreams.add(s.stream.trim());
+                if (s.stream && s.stream.trim()) {
+                    const stClean = s.stream.trim();
+                    foundStreams.set(stClean.toLowerCase(), stClean);
+                }
             });
         }
 
         // B. From streamOptions for the current year group
         streamOptions.filter(s => s && s.toLowerCase() !== 'all').forEach(str => {
-            const fullName = str.toLowerCase().includes(yrClean.toLowerCase()) ? str : `${yrClean} ${str}`;
-            foundStreams.add(fullName.trim());
+            const clean = str.replace(/\s*stream\s*$/i, '').trim();
+            const fullName = clean.toLowerCase().includes(yrClean.toLowerCase()) ? clean : `${yrClean} ${clean}`;
+            if (!foundStreams.has(fullName.toLowerCase())) {
+                foundStreams.set(fullName.toLowerCase(), fullName);
+            }
         });
 
         // C. From saved broadsheet rows matching this year group
@@ -1372,7 +1560,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             examSavedRows.forEach(r => {
                 const cl = String(r.class || r.studentClass || '').trim();
                 if (cl && cl.toLowerCase().includes(yrClean.toLowerCase())) {
-                    foundStreams.add(cl);
+                    foundStreams.set(cl.toLowerCase(), cl);
                 }
             });
         }
@@ -1382,7 +1570,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             if (Array.isArray(ex.targetClasses)) {
                 ex.targetClasses.forEach((tc: string) => {
                     if (tc && tc.toLowerCase().includes(yrClean.toLowerCase())) {
-                        foundStreams.add(tc.trim());
+                        foundStreams.set(tc.trim().toLowerCase(), tc.trim());
                     }
                 });
             }
@@ -1390,12 +1578,13 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         // Fallback default related streams for this cohort if none were found
         if (foundStreams.size === 0) {
-            ['Central', 'South', 'East', 'West'].forEach(str => {
-                foundStreams.add(`${yrClean || 'Grade 1'} ${str}`);
+            ['East', 'West', 'North', 'South'].forEach(str => {
+                const s = `${yrClean || 'Grade 1'} ${str}`;
+                foundStreams.set(s.toLowerCase(), s);
             });
         }
 
-        const relatedClassStreams = Array.from(foundStreams);
+        const relatedClassStreams = Array.from(foundStreams.values());
 
         // Current cohort mean
         const currentCohortMean = studentPerformanceData.length > 0
@@ -1409,8 +1598,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             // Find matching students in active cohort
             const classStudents = studentPerformanceData.filter(st => {
                 const sCls = (st.student?.studentClass || '').toLowerCase().trim();
+                const sStream = ((st.student as any)?.stream || '').toLowerCase().trim();
                 const targetCls = className.toLowerCase().trim();
-                return sCls === targetCls || sCls.includes(targetCls) || targetCls.includes(sCls);
+                return sCls === targetCls || sCls.includes(targetCls) || targetCls.includes(sCls) || (sStream && (sStream === targetCls || targetCls.includes(sStream)));
             });
 
             const matchedStreamObj = streamRankingsList.find(s => s.stream.toLowerCase().trim() === className.toLowerCase().trim());
@@ -1667,42 +1857,49 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             ];
 
         // 2. Discover related classes/streams for this specific cohort
-        const foundStreams = new Set<string>();
+        const foundStreams = new Map<string, string>(); // lowercase key -> display name
 
         if (streamRankingsList && streamRankingsList.length > 0) {
             streamRankingsList.forEach(s => {
-                if (s.stream && s.stream.trim()) foundStreams.add(s.stream.trim());
+                if (s.stream && s.stream.trim()) {
+                    foundStreams.set(s.stream.toLowerCase().trim(), s.stream.trim());
+                }
             });
         }
 
         streamOptions.filter(s => s && s.toLowerCase() !== 'all').forEach(str => {
-            const fullName = str.toLowerCase().includes(yrClean.toLowerCase()) ? str : `${yrClean} ${str}`;
-            foundStreams.add(fullName.trim());
+            const clean = str.replace(/\s*stream\s*$/i, '').trim();
+            const fullName = clean.toLowerCase().includes(yrClean.toLowerCase()) ? clean : `${yrClean} ${clean}`;
+            if (!foundStreams.has(fullName.toLowerCase())) {
+                foundStreams.set(fullName.toLowerCase(), fullName);
+            }
         });
 
         if (examSavedRows && examSavedRows.length > 0) {
             examSavedRows.forEach(r => {
                 const cl = String(r.class || r.studentClass || '').trim();
                 if (cl && cl.toLowerCase().includes(yrClean.toLowerCase())) {
-                    foundStreams.add(cl);
+                    foundStreams.set(cl.toLowerCase(), cl);
                 }
             });
         }
 
         if (foundStreams.size === 0) {
-            ['Central', 'South', 'East', 'West'].forEach(str => {
-                foundStreams.add(`${yrClean || 'Grade 1'} ${str}`);
+            ['East', 'West', 'North', 'South'].forEach(str => {
+                const s = `${yrClean || 'Grade 1'} ${str}`;
+                foundStreams.set(s.toLowerCase(), s);
             });
         }
 
-        const relatedClassStreams = Array.from(foundStreams);
+        const relatedClassStreams = Array.from(foundStreams.values());
 
         // 3. Compute subject scores for each class stream
         const classRows = relatedClassStreams.map((className, cIdx) => {
             const classStudents = studentPerformanceData.filter(st => {
                 const sCls = (st.student?.studentClass || '').toLowerCase().trim();
+                const sStream = ((st.student as any)?.stream || '').toLowerCase().trim();
                 const targetCls = className.toLowerCase().trim();
-                return sCls === targetCls || sCls.includes(targetCls) || targetCls.includes(sCls);
+                return sCls === targetCls || sCls.includes(targetCls) || targetCls.includes(sCls) || (sStream && (sStream === targetCls || targetCls.includes(sStream)));
             });
 
             const subjectScores: Record<string, { meanMarks: number; grade: string }> = {};
