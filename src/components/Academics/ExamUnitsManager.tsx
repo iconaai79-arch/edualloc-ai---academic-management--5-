@@ -32,6 +32,11 @@ export interface ExamUnitRecord {
     classes?: string[]; // Registered/target classes for this exam
     institution_id?: string;
     institutionId?: string;
+    testedPaperConfigs?: TestedPaperConfig[];
+    rankingCriteria?: 'Points' | 'Total Marks' | 'Mean Score';
+    rankingScope?: 'overall' | 'per_class';
+    customRankingSubjectsCount?: number;
+    perClassRankingSettings?: Record<string, { criteria: 'Points' | 'Total Marks' | 'Mean Score'; subjectsCount: number; enabled: boolean }>;
 }
 
 export interface TestedPaperConfig {
@@ -469,6 +474,70 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
+        // 0. Retrieve any previously saved tested paper configs for this exam or institution
+        const existingExamPapers: TestedPaperConfig[] | null = (() => {
+            if (activeExam?.testedPaperConfigs && Array.isArray(activeExam.testedPaperConfigs) && activeExam.testedPaperConfigs.length > 0) {
+                return activeExam.testedPaperConfigs;
+            }
+            try {
+                if (activeExam?.id) {
+                    const byExam = localStorage.getItem(`eduai_tested_papers_${instId}_${activeExam.id}`);
+                    if (byExam) {
+                        const parsed = JSON.parse(byExam);
+                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    }
+                }
+                const globalSaved = localStorage.getItem(`eduai_tested_papers_${instId}`);
+                if (globalSaved) {
+                    const parsed = JSON.parse(globalSaved);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            } catch (e) { }
+            return null;
+        })();
+
+        const getExistingConfig = (subName: string, paperName?: string) => {
+            if (!existingExamPapers || !Array.isArray(existingExamPapers) || existingExamPapers.length === 0) return null;
+            const sNorm = subName.trim().toLowerCase();
+            const pNorm = (paperName || 'Paper 1').trim().toLowerCase();
+            return existingExamPapers.find((p: TestedPaperConfig) => 
+                p.subject.trim().toLowerCase() === sNorm && 
+                (p.paperName || 'Paper 1').trim().toLowerCase() === pNorm
+            ) || existingExamPapers.find((p: TestedPaperConfig) => 
+                p.subject.trim().toLowerCase() === sNorm
+            );
+        };
+
+        const applyExistingConfigs = (list: TestedPaperConfig[]) => {
+            const mapped = list.map(item => {
+                const existing = getExistingConfig(item.subject, item.paperName);
+                if (existing) {
+                    return {
+                        ...item,
+                        id: existing.id || item.id,
+                        maxInputScore: existing.maxInputScore ?? item.maxInputScore,
+                        convertToHundred: existing.convertToHundred ?? item.convertToHundred,
+                        enabled: existing.enabled
+                    };
+                }
+                return item;
+            });
+
+            if (existingExamPapers && Array.isArray(existingExamPapers)) {
+                existingExamPapers.forEach(p => {
+                    const already = mapped.some(m => 
+                        m.subject.trim().toLowerCase() === p.subject.trim().toLowerCase() &&
+                        (m.paperName || 'Paper 1').trim().toLowerCase() === (p.paperName || 'Paper 1').trim().toLowerCase()
+                    );
+                    if (!already) {
+                        mapped.push(p);
+                    }
+                });
+            }
+
+            return deduplicatePapers(mapped);
+        };
+
         // 1. Exam Papers Settings Configurations (currentInstitution.classExamConfigs / class_exam_configs)
         let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
         if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
@@ -567,7 +636,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             });
                         }
                     });
-                    setTestedPaperConfigs(deduplicatePapers(paperList));
+                    setTestedPaperConfigs(applyExistingConfigs(paperList));
                     return;
                 }
             }
@@ -652,7 +721,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
 
                 if (paperList.length > 0) {
-                    setTestedPaperConfigs(deduplicatePapers(paperList));
+                    setTestedPaperConfigs(applyExistingConfigs(paperList));
                     return;
                 }
             }
@@ -676,7 +745,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     convertToHundred: true,
                     enabled: true
                 }));
-                setTestedPaperConfigs(deduplicatePapers(paperList));
+                setTestedPaperConfigs(applyExistingConfigs(paperList));
                 return;
             }
         }
@@ -688,15 +757,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const hasJSSTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[7-9]\b/i.test(tc) || tc.toLowerCase().includes('jss') || tc.toLowerCase().includes('junior'));
 
         if (hasPrePrimaryTarget) {
-            setTestedPaperConfigs([
+            setTestedPaperConfigs(applyExistingConfigs([
                 { id: 'cbe_pp_1', subject: 'Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_pp_2', subject: 'Mathematical Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_pp_3', subject: 'Environmental Activities', paperName: 'Paper 1 (Environment & Nature)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_pp_4', subject: 'Psychomotor & Creative Activities', paperName: 'Paper 1 (Art, Craft & Play)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_pp_5', subject: 'Religious Education Activities', paperName: 'Paper 1 (Spiritual & Values)', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]);
+            ]));
         } else if (hasLowerPrimaryTarget) {
-            setTestedPaperConfigs([
+            setTestedPaperConfigs(applyExistingConfigs([
                 { id: 'cbe_lp_1', subject: 'Mathematics Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_lp_2', subject: 'English Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_lp_3', subject: 'Kiswahili Language Activities', paperName: 'Karatasi ya 1 (Lugha na Kusoma)', maxInputScore: 100, convertToHundred: true, enabled: true },
@@ -704,9 +773,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { id: 'cbe_lp_5', subject: 'Hygiene & Nutrition Activities', paperName: 'Paper 1 (Health & Hygiene)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_lp_6', subject: 'Movement & Creative Activities', paperName: 'Paper 1 (Art, Craft & PE)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_lp_7', subject: 'Religious Education Activities', paperName: 'Paper 1 (CRE / IRE / HRE)', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]);
+            ]));
         } else if (hasUpperPrimaryTarget || isPrimarySchool) {
-            setTestedPaperConfigs([
+            setTestedPaperConfigs(applyExistingConfigs([
                 { id: 'cbe_up_1', subject: 'Mathematics', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_up_2', subject: 'English', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_up_3', subject: 'Kiswahili', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
@@ -716,9 +785,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { id: 'cbe_up_7', subject: 'Creative Arts', paperName: 'Paper 1 (Art, Craft & Music)', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_up_8', subject: 'Religious Education (CRE/IRE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'cbe_up_9', subject: 'Physical & Health Education (PHE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]);
+            ]));
         } else if (hasJSSTarget) {
-            setTestedPaperConfigs([
+            setTestedPaperConfigs(applyExistingConfigs([
                 { id: 'jss_1', subject: 'Mathematics', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'jss_2', subject: 'English', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'jss_3', subject: 'Kiswahili', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
@@ -728,9 +797,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 { id: 'jss_7', subject: 'Agriculture & Nutrition', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'jss_8', subject: 'Creative Arts & Sports', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
                 { id: 'jss_9', subject: 'Religious Education (CRE/IRE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]);
+            ]));
         }
-    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam, isAddExamModalOpen, isPapersModalOpen, syncedVersion]);
+    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam?.id, activeExam?.classes, isAddExamModalOpen, syncedVersion]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
@@ -1594,7 +1663,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             ? selectedClassFilter
             : (activeExamClasses[0] || '');
 
-        // 1. Check classAllocationsStore (from Manage Subjects per Class Stream)
+        // 1. PRIMARY Authority: testedPaperConfigs (Filtered to only papers with enabled === true)
+        const activeTested = testedPaperConfigs.filter(p => p && p.enabled).map(p => p.subject.trim());
+        if (activeTested.length > 0) {
+            const distinctActive = Array.from(new Set(activeTested));
+            if (!targetClass) return distinctActive;
+            const filteredTested = distinctActive.filter(subName => isSubjectApplicableToClass({ name: subName }, targetClass));
+            return filteredTested.length > 0 ? filteredTested : distinctActive;
+        }
+
+        // 2. Fall back to classAllocationsStore (from Manage Subjects per Class Stream)
         const activeClassAllocationsStore: Record<string, string[]> = (() => {
             try {
                 const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
@@ -1622,15 +1700,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     return Array.from(new Set(matched));
                 }
             }
-        }
-
-        // 2. Fall back to testedPaperConfigs filtered by targetClass / applicability
-        const activeTested = testedPaperConfigs.filter(p => p.enabled).map(p => p.subject);
-        if (activeTested.length > 0) {
-            if (!targetClass) return Array.from(new Set(activeTested));
-            const filteredTested = activeTested.filter(subName => isSubjectApplicableToClass({ name: subName }, targetClass));
-            if (filteredTested.length > 0) return Array.from(new Set(filteredTested));
-            return Array.from(new Set(activeTested));
         }
 
         // 3. Fall back to subjects filtered by isSubjectApplicableToClass
@@ -1663,6 +1732,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     maxScore: p.maxInputScore || 100
                 };
             });
+        }
+
+        // If subject is explicitly in testedPaperConfigs but disabled, return empty list
+        const isExplicitlyDisabled = testedPaperConfigs.some(p => p.subject.toLowerCase().trim() === subName.toLowerCase().trim()) &&
+            !testedPaperConfigs.some(p => p.enabled && p.subject.toLowerCase().trim() === subName.toLowerCase().trim());
+        if (isExplicitlyDisabled) {
+            return [];
         }
 
         // Standard subject defaults
@@ -2180,6 +2256,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 }
             }
 
+            // Ground Truth: If testedPaperConfigs has configured papers, filter classPaperItems so only ENABLED papers/subjects remain
+            const activeEnabledPapers = testedPaperConfigs.filter(p => p && p.enabled);
+            if (activeEnabledPapers.length > 0) {
+                const enabledSubjectSet = new Set(activeEnabledPapers.map(p => p.subject.toLowerCase().trim()));
+                const enabledPaperKeySet = new Set(activeEnabledPapers.map(p => `${p.subject.toLowerCase().trim()}__${(p.paperName || 'Paper 1').toLowerCase().trim()}`));
+
+                if (classPaperItems.length > 0) {
+                    const filtered = classPaperItems.filter(item => {
+                        const key = `${item.subject.toLowerCase().trim()}__${(item.paperName || 'Paper 1').toLowerCase().trim()}`;
+                        return enabledPaperKeySet.has(key) || enabledSubjectSet.has(item.subject.toLowerCase().trim());
+                    });
+                    if (filtered.length > 0) {
+                        classPaperItems = filtered;
+                    }
+                }
+            }
+
             const papers = classPaperItems.map((item, sIdx) => {
                 const subName = item.subject;
                 const sClean = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -2347,6 +2440,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     backupKey,
                     rowCount: existingRows.length,
                     proceed: async () => {
+                        const cleanTested = deduplicatePapers(testedPaperConfigs);
                         const updatedExam: ExamUnitRecord = {
                             ...activeExam,
                             name: newExamName.trim(),
@@ -2355,9 +2449,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             year: parseInt(newAcademicYear) || activeExam.year,
                             studentsEnrolled: studentCount,
                             classes: targetClasses,
+                            testedPaperConfigs: cleanTested,
+                            rankingCriteria: useCustomRanking ? customRankingCriteria : activeExam.rankingCriteria,
+                            rankingScope: useCustomRanking ? rankingScope : activeExam.rankingScope,
+                            customRankingSubjectsCount: useCustomRanking ? customRankingSubjectsCount : activeExam.customRankingSubjectsCount,
+                            perClassRankingSettings: useCustomRanking && rankingScope === 'per_class' ? perClassRankingSettings : activeExam.perClassRankingSettings,
                             institution_id: currentInstitution?.id,
                             institutionId: currentInstitution?.id
                         };
+                        try {
+                            localStorage.setItem(`eduai_tested_papers_${instId}_${activeExam.id}`, JSON.stringify(cleanTested));
+                            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(cleanTested));
+                        } catch (e) { }
                         setExams(prev => {
                             const nextExams = prev.map(e => e.id === activeExam.id ? updatedExam : e);
                             try { localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams)); } catch (e) { }
@@ -2377,6 +2480,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return; // Wait for user response in dialog
             }
 
+            const cleanTested = deduplicatePapers(testedPaperConfigs);
             const updatedExam: ExamUnitRecord = {
                 ...activeExam,
                 name: newExamName.trim(),
@@ -2385,9 +2489,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 year: parseInt(newAcademicYear) || activeExam.year,
                 studentsEnrolled: studentCount,
                 classes: targetClasses,
+                testedPaperConfigs: cleanTested,
+                rankingCriteria: useCustomRanking ? customRankingCriteria : activeExam.rankingCriteria,
+                rankingScope: useCustomRanking ? rankingScope : activeExam.rankingScope,
+                customRankingSubjectsCount: useCustomRanking ? customRankingSubjectsCount : activeExam.customRankingSubjectsCount,
+                perClassRankingSettings: useCustomRanking && rankingScope === 'per_class' ? perClassRankingSettings : activeExam.perClassRankingSettings,
                 institution_id: currentInstitution?.id,
                 institutionId: currentInstitution?.id
             };
+
+            try {
+                localStorage.setItem(`eduai_tested_papers_${instId}_${activeExam.id}`, JSON.stringify(cleanTested));
+                localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(cleanTested));
+            } catch (e) { }
 
             setExams(prev => {
                 const nextExams = prev.map(e => e.id === activeExam.id ? updatedExam : e);
@@ -2409,6 +2523,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
         const newExamId = `exam_${Date.now()}`;
+        const cleanTested = deduplicatePapers(testedPaperConfigs);
 
         const newExam: ExamUnitRecord = {
             id: newExamId,
@@ -2419,11 +2534,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             status: 'in_progress',
             submittedPercent: 0,
             studentsEnrolled: studentCount,
-            missingMarks: studentCount * (testedPaperConfigs.filter(p => p.enabled).length || 7),
+            missingMarks: studentCount * (cleanTested.filter(p => p.enabled).length || 7),
             classes: targetClasses,
+            testedPaperConfigs: cleanTested,
+            rankingCriteria: useCustomRanking ? customRankingCriteria : undefined,
+            rankingScope: useCustomRanking ? rankingScope : undefined,
+            customRankingSubjectsCount: useCustomRanking ? customRankingSubjectsCount : undefined,
+            perClassRankingSettings: useCustomRanking && rankingScope === 'per_class' ? perClassRankingSettings : undefined,
             institution_id: currentInstitution?.id,
             institutionId: currentInstitution?.id
         };
+
+        try {
+            localStorage.setItem(`eduai_tested_papers_${instId}_${newExamId}`, JSON.stringify(cleanTested));
+            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(cleanTested));
+        } catch (e) { }
 
         // Construct clean zeroed marks rows for each target class in the new exam
         let freshRows: any[] = [];
@@ -2827,7 +2952,36 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             {isActionsOpen && (
                                                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 animate-scale-in">
                                                     <div className="py-1">
-                                                        <button onClick={() => { setIsActionsOpen(false); setIsEditingExam(true); setNewExamName(activeExam.name); setNewTerm(activeExam.term); setNewAcademicYear(activeExam.year.toString()); setSelectedClasses(activeExam.classes || registeredClasses); setWizardStep(1); setIsAddExamModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                                                        <button onClick={() => {
+                                                            setIsActionsOpen(false);
+                                                            setIsEditingExam(true);
+                                                            setNewExamName(activeExam.name);
+                                                            setNewTerm(activeExam.term);
+                                                            setNewAcademicYear(activeExam.year.toString());
+                                                            setSelectedClasses(activeExam.classes || registeredClasses);
+                                                            if (activeExam.testedPaperConfigs && Array.isArray(activeExam.testedPaperConfigs) && activeExam.testedPaperConfigs.length > 0) {
+                                                                setTestedPaperConfigs(activeExam.testedPaperConfigs);
+                                                            } else {
+                                                                try {
+                                                                    const savedByExam = localStorage.getItem(`eduai_tested_papers_${instId}_${activeExam.id}`);
+                                                                    if (savedByExam) {
+                                                                        const parsed = JSON.parse(savedByExam);
+                                                                        if (Array.isArray(parsed) && parsed.length > 0) setTestedPaperConfigs(parsed);
+                                                                    }
+                                                                } catch (e) { }
+                                                            }
+                                                            if (activeExam.rankingCriteria) {
+                                                                setUseCustomRanking(true);
+                                                                setCustomRankingCriteria(activeExam.rankingCriteria);
+                                                                if (activeExam.rankingScope) setRankingScope(activeExam.rankingScope);
+                                                                if (activeExam.customRankingSubjectsCount) setCustomRankingSubjectsCount(activeExam.customRankingSubjectsCount);
+                                                                if (activeExam.perClassRankingSettings) setPerClassRankingSettings(activeExam.perClassRankingSettings);
+                                                            } else {
+                                                                setUseCustomRanking(false);
+                                                            }
+                                                            setWizardStep(1);
+                                                            setIsAddExamModalOpen(true);
+                                                        }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
                                                             <PencilIcon className="w-4 h-4 text-slate-400" /> Edit Exam
                                                         </button>
                                                         <button onClick={() => { setIsActionsOpen(false); setIsBroadsheetModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
@@ -3075,6 +3229,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </button>
                             </div>
                         </div>
+
+                        {saveToastMessage && (
+                            <div className="bg-emerald-600 text-white px-6 py-2.5 font-bold text-xs flex justify-between items-center animate-in slide-in-from-top-2 shrink-0">
+                                <span>{saveToastMessage}</span>
+                                <button type="button" onClick={() => setSaveToastMessage(null)} className="hover:opacity-80 text-sm cursor-pointer">✕</button>
+                            </div>
+                        )}
 
                         {/* Modal Body */}
                         <div className="overflow-y-auto flex-1 custom-scrollbar">
@@ -3632,7 +3793,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             disabled={!tp.enabled}
                                                             onChange={e => {
                                                                 const val = parseInt(e.target.value) || 0;
-                                                                setTestedPaperConfigs(prev => prev.map(item => item.id === tp.id ? { ...item, maxInputScore: val } : item));
+                                                                setTestedPaperConfigs(prev => prev.map(item => (item.id === tp.id || (item.subject.toLowerCase().trim() === tp.subject.toLowerCase().trim() && (item.paperName || 'Paper 1').toLowerCase().trim() === (tp.paperName || 'Paper 1').toLowerCase().trim())) ? { ...item, maxInputScore: val } : item));
                                                             }}
                                                             className="w-16 h-7 px-2 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white disabled:opacity-50"
                                                         />
@@ -3646,7 +3807,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             checked={tp.convertToHundred}
                                                             disabled={!tp.enabled}
                                                             onChange={e => {
-                                                                setTestedPaperConfigs(prev => prev.map(item => item.id === tp.id ? { ...item, convertToHundred: e.target.checked } : item));
+                                                                setTestedPaperConfigs(prev => prev.map(item => (item.id === tp.id || (item.subject.toLowerCase().trim() === tp.subject.toLowerCase().trim() && (item.paperName || 'Paper 1').toLowerCase().trim() === (tp.paperName || 'Paper 1').toLowerCase().trim())) ? { ...item, convertToHundred: e.target.checked } : item));
                                                             }}
                                                             className="text-blue-600 rounded focus:ring-blue-500 disabled:opacity-50"
                                                         />
@@ -3658,7 +3819,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         type="checkbox"
                                                         checked={tp.enabled}
                                                         onChange={e => {
-                                                            setTestedPaperConfigs(prev => prev.map(item => item.id === tp.id ? { ...item, enabled: e.target.checked } : item));
+                                                            setTestedPaperConfigs(prev => prev.map(item => (item.id === tp.id || (item.subject.toLowerCase().trim() === tp.subject.toLowerCase().trim() && (item.paperName || 'Paper 1').toLowerCase().trim() === (tp.paperName || 'Paper 1').toLowerCase().trim())) ? { ...item, enabled: e.target.checked } : item));
                                                         }}
                                                         className="text-blue-600 rounded focus:ring-blue-500"
                                                     />
@@ -3704,9 +3865,49 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     onClick={() => {
                                         const cleanPapers = deduplicatePapers(testedPaperConfigs);
                                         setTestedPaperConfigs(cleanPapers);
+                                        const activeCount = cleanPapers.filter(p => p.enabled).length;
+
+                                        // 1. LocalStorage global and per-exam
                                         try {
                                             localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(cleanPapers));
+                                            if (activeExam?.id) {
+                                                localStorage.setItem(`eduai_tested_papers_${instId}_${activeExam.id}`, JSON.stringify(cleanPapers));
+                                            }
                                         } catch (e) { }
+
+                                        // 2. Persist to activeExam and exams state if activeExam exists
+                                        if (activeExam?.id) {
+                                            const updatedExamRecord: ExamUnitRecord = {
+                                                ...activeExam,
+                                                testedPaperConfigs: cleanPapers,
+                                                missingMarks: (activeExam.studentsEnrolled || 0) * (activeCount || 1)
+                                            };
+
+                                            setExams(prev => {
+                                                const next = prev.map(e => e.id === activeExam.id ? updatedExamRecord : e);
+                                                try {
+                                                    localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(next));
+                                                } catch (err) { }
+                                                return next;
+                                            });
+
+                                            if (currentInstitution?.id) {
+                                                apiService.saveModuleRecord('exam_units', updatedExamRecord).catch(() => {});
+                                                apiService.saveModuleRecord('tested_paper_configs', {
+                                                    id: `tpc_${activeExam.id}`,
+                                                    institution_id: currentInstitution.id,
+                                                    exam_id: activeExam.id,
+                                                    papers: cleanPapers,
+                                                    updated_at: new Date().toISOString()
+                                                }).catch(() => {});
+                                            }
+                                        }
+
+                                        // 3. User feedback toast
+                                        setSaveToastMessage(`✨ Saved papers configuration (${activeCount} active paper${activeCount === 1 ? '' : 's'}).`);
+                                        setTimeout(() => setSaveToastMessage(null), 4000);
+
+                                        // 4. Close modal
                                         setIsPapersModalOpen(false);
                                     }}
                                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded shadow-md transition-all cursor-pointer"
