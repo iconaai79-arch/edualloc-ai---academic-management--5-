@@ -47,6 +47,8 @@ import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
 import { RevisionMarketplaceManager } from './Academics/RevisionMarketplaceManager';
 import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
 import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
+import { LeavingCertificateManager } from './academics/LeavingCertificateManager';
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
 
 interface AcademicsOfficerViewProps {
     currentUser?: User;
@@ -179,7 +181,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     } = props;
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans' | 'tools'>('home');
-    const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace'>('lesson_plans');
+    const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace' | 'leaving_certificates'>('lesson_plans');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
@@ -774,6 +776,21 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 <SparklesIcon className="w-4 h-4" />
                                 <span>AI Revision Generator</span>
                             </button>
+
+                            <button
+                                onClick={() => {
+                                    setActiveTab('tools');
+                                    setToolsSubTab('leaving_certificates');
+                                }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                                    (activeTab === 'tools' && toolsSubTab === 'leaving_certificates')
+                                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 scale-105'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                                }`}
+                            >
+                                <AcademicCapIcon className="w-4 h-4" />
+                                <span>Leaving Certificates</span>
+                            </button>
                         </div>
                     </div>
 
@@ -796,6 +813,19 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 currentInstitution={currentInstitution}
                                 currentUser={currentUser}
                                 subjects={subjects}
+                            />
+                        </div>
+                    )}
+
+                    {/* Subtab 3: School Leaving Certificates */}
+                    {(activeTab === 'tools' && toolsSubTab === 'leaving_certificates') && (
+                        <div className="animate-fade-in space-y-6 w-full">
+                            <LeavingCertificateManager
+                                currentInstitution={currentInstitution}
+                                currentUser={currentUser}
+                                users={users}
+                                courses={courses}
+                                letterheadConfig={letterheadConfig}
                             />
                         </div>
                     )}
