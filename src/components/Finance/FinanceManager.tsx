@@ -45,7 +45,7 @@ import { ParentLedgerPortal } from './ParentLedgerPortal';
 import { AiFinancialIntelligence } from './AiFinancialIntelligence';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
-import { resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
+import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
