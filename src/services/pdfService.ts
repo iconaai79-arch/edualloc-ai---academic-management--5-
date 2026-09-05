@@ -11388,6 +11388,33 @@ export const generateStudentStatementPdfDataUri = async (
     const footerImg = footerUrl ? await loadImage(footerUrl) : null;
     const logoImg = await loadImage(logoUrl || institution?.logoUrl || (institution as any)?.logo_url || companyDetails?.logoUrl);
 
+    // Dynamic Kenyan Stamp generation / uploaded stamp loading
+    let stampImg: HTMLImageElement | null = null;
+    try {
+        const stampUrl = letterConfig?.stampImageUrl || (institution as any)?.stampImageUrl || (institution as any)?.stamp_image_url;
+        if (stampUrl) {
+            stampImg = await loadImage(stampUrl);
+        }
+        if (!stampImg && letterConfig?.showStamp !== false) {
+            const dateToStamp = new Date();
+            const resolvedStampConfig = letterConfig?.stampConfig || {
+                department: 'FINANCE DEPARTMENT',
+                showStars: true,
+                shape: 'round',
+                mode: 'auto',
+                rotationAngle: -6,
+                stampColor: '#1d4ed8',
+                daterColor: '#dc2626'
+            } as any;
+            const stampDataUri = await generateStampDataUri(resolvedStampConfig, dateToStamp, institution);
+            if (stampDataUri) {
+                stampImg = await loadImage(stampDataUri);
+            }
+        }
+    } catch (stampErr) {
+        console.warn('[pdfService] Failed to generate stamp for student statement:', stampErr);
+    }
+
     let yPos = createPdfWithLetterhead(
         doc,
         'STUDENT STATEMENT OF ACCOUNT',
@@ -11546,6 +11573,25 @@ export const generateStudentStatementPdfDataUri = async (
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
     doc.text('VERIFIED DOCUMENT', stampX + 25, finalY + 22, { align: 'center' });
+
+    // Overlay authentic institutional stamp image if available
+    if (stampImg) {
+        try {
+            const stampSize = 34; // 34mm circular/oval stamp overlay
+            const stampAspect = stampImg.height > 0 ? stampImg.width / stampImg.height : 1;
+            const stampW = stampAspect >= 1 ? stampSize : stampSize * stampAspect;
+            const stampH = stampAspect >= 1 ? stampSize / stampAspect : stampSize;
+            const stampDrawX = stampX + (50 - stampW) / 2;
+            const stampDrawY = finalY + (28 - stampH) / 2;
+
+            let format = 'PNG';
+            if (stampImg.src?.startsWith('data:image/jpeg')) format = 'JPEG';
+
+            doc.addImage(stampImg, format, stampDrawX, stampDrawY, stampW, stampH);
+        } catch (imgErr) {
+            console.warn('[pdfService] Could not add stamp image to statement PDF:', imgErr);
+        }
+    }
 
     setupPdfFooter(doc, footerImg, `${institution.name} · Student Account Statement`);
 
