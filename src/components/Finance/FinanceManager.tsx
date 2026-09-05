@@ -4542,6 +4542,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [lpoForm, setLpoForm] = useState({
         studentId: '',
+        admissionNumber: '',
+        studentClass: '',
         parentName: '',
         parentPhone: '',
         itemName: '',
@@ -4564,6 +4566,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handleOpenIssueLpoModal = () => {
         setLpoForm({
             studentId: '',
+            admissionNumber: '',
+            studentClass: '',
             parentName: '',
             parentPhone: '',
             itemName: '',
@@ -4580,13 +4584,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     };
 
     const handleSelectStudentForLpo = (stud: User) => {
-        const pName = stud.metadata?.parentName || stud.metadata?.parents?.[0]?.name || (stud as any).parentName || '';
-        const pPhone = stud.metadata?.parentPhone || stud.metadata?.parents?.[0]?.phone || stud.phoneNumber || (stud as any).parentPhone || '';
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        const sId = stud.id || (stud as any).userId || (stud as any).user_id;
+        const enr = allEnrs.find((e: any) => e && (
+            e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId ||
+            (cleanId(e.userId) && cleanId(e.userId) === cleanId(sId))
+        ));
+
+        const resolvedAdm = getStudentAdmNumber(stud) || enr?.admissionNumber || enr?.admission_number || enr?.admissionNo || (enr as any)?.admNo || stud.admissionNumber || stud.admissionNo || stud.admission_number || (stud as any)?.admNo || stud.metadata?.admissionNumber || stud.metadata?.admissionNo || stud.metadata?.admission_number || '';
+        const resolvedParentName = enr?.metadata?.parentName || enr?.metadata?.guardianName || enr?.metadata?.parents?.[0]?.name || stud.metadata?.parentName || stud.metadata?.parents?.[0]?.name || (stud as any).parentName || (stud as any).guardianName || '';
+        const resolvedParentPhone = enr?.metadata?.parentPhone || enr?.metadata?.parentPhoneNumber || enr?.metadata?.parents?.[0]?.phone || enr?.metadata?.secondaryPhone || stud.metadata?.parentPhone || stud.metadata?.parents?.[0]?.phone || (stud as any).parentPhone || (stud as any).fatherPhone || (stud as any).motherPhone || stud.phoneNumber || '';
+        const resolvedClass = studentClassGroup(stud) || enr?.metadata?.gradeLevel || stud.studentClass || stud.metadata?.gradeLevel || '';
+
         setLpoForm(prev => ({
             ...prev,
             studentId: stud.id,
-            parentName: pName,
-            parentPhone: pPhone
+            admissionNumber: resolvedAdm,
+            studentClass: resolvedClass,
+            parentName: resolvedParentName,
+            parentPhone: resolvedParentPhone
         }));
     };
 
@@ -4626,6 +4642,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 institution_id: instId,
                 studentId: lpoForm.studentId,
                 student_id: lpoForm.studentId,
+                admissionNumber: (lpoForm.admissionNumber || '').trim(),
+                admission_number: (lpoForm.admissionNumber || '').trim(),
+                studentClass: (lpoForm.studentClass || '').trim(),
+                student_class: (lpoForm.studentClass || '').trim(),
                 lpoNumber: lpoNo,
                 lpo_number: lpoNo,
                 parentName: lpoForm.parentName,
@@ -11764,7 +11784,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <td className="py-3.5 px-4">
                                                             <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">{student?.name || 'Unknown Student'}</div>
                                                             <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                                                                {student?.admissionNumber || 'No Adm'} • {student?.studentClass || student?.metadata?.gradeLevel || 'Enrolled'}
+                                                                {p.admissionNumber || p.admission_number || (student ? getStudentAdmNumber(student) : '') || 'No Adm'} • {p.studentClass || (student ? studentClassGroup(student) : '') || 'Enrolled'}
                                                             </div>
                                                             <div className="text-[10px] text-slate-600 dark:text-slate-400 mt-0.5">
                                                                 Parent: {parentName} {parentPhone ? `(${parentPhone})` : ''}
@@ -11901,26 +11921,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </div>
 
                                             {lpoStudentSearch.trim() && (
-                                                <div className="max-h-36 overflow-y-auto mt-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 shadow-lg">
+                                                <div className="max-h-48 overflow-y-auto mt-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 shadow-xl z-20 relative">
                                                     {props.students
-                                                        .filter(s => 
-                                                            (s.name || '').toLowerCase().includes(lpoStudentSearch.toLowerCase()) ||
-                                                            (s.admissionNumber || '').toLowerCase().includes(lpoStudentSearch.toLowerCase())
-                                                        )
-                                                        .slice(0, 8)
-                                                        .map(s => (
-                                                            <div
-                                                                key={s.id}
-                                                                onClick={() => {
-                                                                    handleSelectStudentForLpo(s);
-                                                                    setLpoStudentSearch(`${s.name} (${s.admissionNumber || 'No Adm'})`);
-                                                                }}
-                                                                className="px-3 py-2 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer flex justify-between items-center"
-                                                            >
-                                                                <span className="font-bold text-slate-800 dark:text-slate-200">{s.name}</span>
-                                                                <span className="text-[10px] text-slate-400 font-mono">{s.admissionNumber || 'No Adm'} • {s.studentClass || 'Class'}</span>
-                                                            </div>
-                                                        ))}
+                                                        .filter(s => {
+                                                            const adm = getStudentAdmNumber(s);
+                                                            const q = lpoStudentSearch.toLowerCase();
+                                                            return (s.name || '').toLowerCase().includes(q) ||
+                                                                   adm.toLowerCase().includes(q);
+                                                        })
+                                                        .slice(0, 10)
+                                                        .map(s => {
+                                                            const adm = getStudentAdmNumber(s);
+                                                            const cls = studentClassGroup(s);
+                                                            return (
+                                                                <div
+                                                                    key={s.id}
+                                                                    onClick={() => {
+                                                                        handleSelectStudentForLpo(s);
+                                                                        setLpoStudentSearch(`${s.name}${adm ? ` (Adm: ${adm})` : ''}`);
+                                                                    }}
+                                                                    className="px-3.5 py-2.5 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-950/50 cursor-pointer flex justify-between items-center transition-colors"
+                                                                >
+                                                                    <div>
+                                                                        <span className="font-bold text-slate-800 dark:text-slate-200 block">{s.name}</span>
+                                                                        <span className="text-[10px] text-slate-400">Class: {cls || '—'}</span>
+                                                                    </div>
+                                                                    <span className="text-[10.5px] font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200/80 dark:border-indigo-800">
+                                                                        {adm ? `Adm: ${adm}` : 'No Adm Assigned'}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
                                                 </div>
                                             )}
 
@@ -11930,6 +11961,37 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     Student selected: {props.students.find(s => s.id === lpoForm.studentId)?.name}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Admission Number & Class Display / Edit */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                                                    Student Admission Number *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. ADM-00123"
+                                                    value={lpoForm.admissionNumber}
+                                                    onChange={e => setLpoForm({ ...lpoForm, admissionNumber: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white font-mono"
+                                                />
+                                                <span className="text-[9.5px] text-slate-400 mt-0.5 block">
+                                                    Auto-filled from enrollment records. You can modify if needed.
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                                                    Student Class / Grade
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. Grade 4 / Form 2"
+                                                    value={lpoForm.studentClass}
+                                                    onChange={e => setLpoForm({ ...lpoForm, studentClass: e.target.value })}
+                                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-white"
+                                                />
+                                            </div>
                                         </div>
 
                                         {/* Parent Details */}

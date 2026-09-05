@@ -5723,9 +5723,11 @@ export const generateParentInKindLpoPdf = async (
         doc.text(`Notes: ${String(proposal.notes).slice(0, 45)}`, margin, nextY + 20);
     }
 
-    doc.text(`Student Name: ${student?.name || 'Student'}`, pageWidth / 2 + 5, nextY + 5);
-    doc.text(`Admission No: ${student?.admissionNumber || student?.admission_number || 'N/A'}`, pageWidth / 2 + 5, nextY + 10);
-    const classLevel = student?.studentClass || student?.metadata?.gradeLevel || 'Enrolled';
+    const studentAdm = proposal.admissionNumber || proposal.admission_number || student?.admissionNumber || student?.admission_number || student?.admissionNo || student?.metadata?.admissionNumber || student?.metadata?.admissionNo || student?.metadata?.admission_number || (student as any)?.admNo || 'N/A';
+    const classLevel = proposal.studentClass || proposal.student_class || student?.studentClass || student?.metadata?.gradeLevel || 'Enrolled';
+
+    doc.text(`Student Name: ${student?.name || proposal.studentName || 'Student'}`, pageWidth / 2 + 5, nextY + 5);
+    doc.text(`Admission No: ${studentAdm}`, pageWidth / 2 + 5, nextY + 10);
     doc.text(`Class/Grade: ${classLevel}`, pageWidth / 2 + 5, nextY + 15);
     doc.text(`Target Offset: ${proposal.targetVotehead || 'Outstanding Fees'}`, pageWidth / 2 + 5, nextY + 20);
 
