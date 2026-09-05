@@ -101,7 +101,7 @@ const generateCircleStampSvg = (
     const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.8 : 1.2);
 
     return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="100%" height="100%" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: block; transform: rotate(${resolved.rotationAngle}deg); transform-origin: center center; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path (Clockwise Arc: Left to Right across top) -->
             <path id="${topPathId}" d="M 38 140 A 102 102 0 0 1 242 140" fill="none" />
@@ -197,7 +197,7 @@ const generateOvalStampSvg = (
     const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.7 : 1.0);
 
     return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="320" height="220" style="transform: rotate(${resolved.rotationAngle}deg); overflow: visible; font-family: 'Arial Black', 'Arial', sans-serif;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="100%" height="100%" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: block; transform: rotate(${resolved.rotationAngle}deg); transform-origin: center center; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path on Ellipse (Clockwise) -->
             <path id="${topPathId}" d="M 42 110 A 118 68 0 0 1 278 110" fill="none" />

@@ -24058,7 +24058,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <div
                                         key={pIdx}
                                         id={page.isFirst ? "printable-pdf-document" : undefined}
-                                        className="pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl max-w-3xl font-sans relative border border-slate-200 flex flex-col justify-between min-h-[950px] transition-all"
+                                        className="pdf-page-sheet mx-auto bg-white text-slate-900 p-6 sm:p-8 md:p-10 rounded-2xl shadow-2xl max-w-3xl font-sans relative border border-slate-200 flex flex-col justify-between min-h-[950px] transition-all overflow-hidden"
                                     >
                                         {/* Watermark */}
                                         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none select-none no-print">
@@ -24206,9 +24206,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <p className="font-black text-slate-800">{props.currentUser?.name || 'Chief Accountant'}</p>
                                                             <p className="text-[9px] text-slate-500 font-mono">Digital Signature ID: #FIN-{Math.floor(100000 + Math.random() * 900000)}</p>
                                                         </div>
-                                                        <div className="text-right flex flex-col items-end">
+                                                        <div className="text-right flex flex-col items-end shrink-0">
                                                             <KenyanOfficialStamp institution={props.institution} size={80} className="mb-1" />
-                                                            <p className="text-[9px] font-bold text-slate-400 uppercase">Authorized Official Stamp</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Authorized Official Stamp</p>
                                                         </div>
                                                     </div>
                                                 </div>

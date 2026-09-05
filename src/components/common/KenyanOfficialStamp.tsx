@@ -40,11 +40,14 @@ export const KenyanOfficialStamp: React.FC<KenyanOfficialStampProps> = ({
         const imgUrl = resolved.stampImageUrl || institution?.letterheadConfig?.stampImageUrl;
         return (
             <div 
-                className={`relative inline-flex items-center justify-center select-none pointer-events-none ${className}`}
+                className={`relative inline-flex items-center justify-center select-none pointer-events-none shrink-0 ${className}`}
                 style={{ 
                     width: `${size}px`, 
                     height: `${size}px`,
-                    transform: `rotate(${resolved.rotationAngle}deg)`
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    transform: `rotate(${resolved.rotationAngle}deg)`,
+                    transformOrigin: 'center center'
                 }}
             >
                 <img 
@@ -78,10 +81,12 @@ export const KenyanOfficialStamp: React.FC<KenyanOfficialStampProps> = ({
 
     return (
         <div 
-            className={`relative inline-flex items-center justify-center select-none pointer-events-none transition-transform ${className}`}
+            className={`relative inline-flex items-center justify-center select-none pointer-events-none transition-transform shrink-0 [&>svg]:w-full [&>svg]:h-full [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:block ${className}`}
             style={{ 
                 width: `${stampWidth}px`, 
-                height: `${stampHeight}px`
+                height: `${stampHeight}px`,
+                maxWidth: '100%',
+                maxHeight: '100%'
             }}
             dangerouslySetInnerHTML={{ __html: svgString }}
         />
