@@ -184,6 +184,23 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return [];
     });
 
+    // Load saved broadsheet store from Exam Units / institution_module_states
+    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch(e) {}
+        return {};
+    });
+
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) { }
+        return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
+    });
+
     useEffect(() => {
         if (currentInstitution?.id) {
             apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id)
@@ -509,23 +526,6 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             setSelectedYearGroup(yearGroupOptions[0]);
         }
     }, [selectedExamId, selectedExamObj, yearGroupOptions]);
-
-    // Load saved broadsheet store from Exam Units / institution_module_states
-    const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
-            if (saved) return JSON.parse(saved) || {};
-        } catch(e) {}
-        return {};
-    });
-
-    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
-            if (saved) return JSON.parse(saved) || {};
-        } catch (e) { }
-        return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
-    });
 
     useEffect(() => {
         if (currentInstitution?.id) {

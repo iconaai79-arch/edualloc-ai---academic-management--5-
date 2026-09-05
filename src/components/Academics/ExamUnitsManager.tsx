@@ -202,21 +202,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }).filter(Boolean) as any[];
     }, [instId]);
 
-    /** Restore rows from a snapshot key */
-    const restoreFromSnapshot = useCallback((snapshotKey: string) => {
-        try {
-            const raw = localStorage.getItem(snapshotKey);
-            if (!raw) { alert('Backup not found.'); return; }
-            const snap = JSON.parse(raw);
-            if (!Array.isArray(snap.rows) || snap.rows.length === 0) { alert('Backup is empty.'); return; }
-            setBroadsheetStudentRows(snap.rows);
-            setExamMarksStore(prev => ({ ...prev, [snap.examId]: snap.rows }));
-            setSaveToastMessage(`✅ Restored ${snap.rows.length} student marks from backup (${snap.classes?.join(', ')} — ${new Date(snap.savedAt).toLocaleString()})`);
-            setTimeout(() => setSaveToastMessage(null), 6000);
-            setIsBackupPanelOpen(false);
-        } catch (e) { alert('Failed to restore backup.'); }
-    }, []);
-
     // Accordion state for class progress table
     const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({
         'c_form_3_central': true,
@@ -357,6 +342,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return unique;
     }, []);
 
+    // Persistent Student Exemptions Store (from Student Subject Enrollment Manager)
+    const [studentSubjectExemptions, setStudentSubjectExemptions] = useState<Record<string, boolean>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
+            if (saved) return JSON.parse(saved) || {};
+        } catch (e) { }
+        return {};
+    });
+
     // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
     useEffect(() => {
         const handleSync = () => {
@@ -372,15 +366,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         window.addEventListener('eduai_academics_synced', handleSync);
         return () => window.removeEventListener('eduai_academics_synced', handleSync);
     }, [instId]);
-
-    // Persistent Student Exemptions Store (from Student Subject Enrollment Manager)
-    const [studentSubjectExemptions, setStudentSubjectExemptions] = useState<Record<string, boolean>>(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
-            if (saved) return JSON.parse(saved) || {};
-        } catch (e) { }
-        return {};
-    });
 
     useEffect(() => {
         if (currentInstitution?.id) {
@@ -1277,6 +1262,21 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
     const [searchStudentQuery, setSearchStudentQuery] = useState('');
 
+    /** Restore rows from a snapshot key */
+    const restoreFromSnapshot = useCallback((snapshotKey: string) => {
+        try {
+            const raw = localStorage.getItem(snapshotKey);
+            if (!raw) { alert('Backup not found.'); return; }
+            const snap = JSON.parse(raw);
+            if (!Array.isArray(snap.rows) || snap.rows.length === 0) { alert('Backup is empty.'); return; }
+            setBroadsheetStudentRows(snap.rows);
+            setExamMarksStore(prev => ({ ...prev, [snap.examId]: snap.rows }));
+            setSaveToastMessage(`✅ Restored ${snap.rows.length} student marks from backup (${snap.classes?.join(', ')} — ${new Date(snap.savedAt).toLocaleString()})`);
+            setTimeout(() => setSaveToastMessage(null), 6000);
+            setIsBackupPanelOpen(false);
+        } catch (e) { alert('Failed to restore backup.'); }
+    }, []);
+
     // Fetch saved exams and broadsheets from DB on mount
     useEffect(() => {
         if (currentInstitution?.id) {
@@ -1681,76 +1681,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
     }, [selectedExamId, activeExamClasses, allRealStudents, resolveCleanAdmNo, resolveCleanStudentName, getStudentClass]);
 
-    const handleSaveSubjectMarks = async (subjectName: string) => {
-        setIsSavingMarks(true);
-        const updatedStore = { ...examMarksStore, [selectedExamId]: broadsheetStudentRows };
-        setExamMarksStore(updatedStore);
-        try {
-            localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
-            window.dispatchEvent(new CustomEvent('eduai_broadsheets_updated', { detail: { examId: selectedExamId } }));
-            window.dispatchEvent(new CustomEvent('eduai_academics_synced'));
-        } catch (e) { }
-
-        // ── AUTO-SNAPSHOT: Save a timestamped class-keyed backup of these marks ──
-        if (activeExam && broadsheetStudentRows.length > 0) {
-            const classesForSnap = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
-            snapshotMarks(selectedExamId, classesForSnap, broadsheetStudentRows);
-        }
-
-        // ── UPDATE EXAM SUBMITTED PERCENT IN EXAMS LIST ──
-        if (activeExam && classPaperRows.length > 0) {
-            const sumProgress = classPaperRows.reduce((acc, c) => acc + c.overallProgress, 0);
-            const calculatedSubmittedPct = parseFloat((sumProgress / classPaperRows.length).toFixed(1));
-
-            setExams(prevExams => {
-                const nextExams = prevExams.map(e => {
-                    if (e.id === selectedExamId) {
-                        return {
-                            ...e,
-                            submittedPercent: calculatedSubmittedPct
-                        };
-                    }
-                    return e;
-                });
-                try {
-                    localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams));
-                } catch (e) { }
-
-                const updatedExam = nextExams.find(e => e.id === selectedExamId);
-                if (updatedExam && currentInstitution?.id) {
-                    apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
-                }
-                return nextExams;
-            });
-        }
-
-        if (currentInstitution?.id) {
-            await apiService.saveModuleRecord('institution_module_states', {
-                id: `broadsheets_${currentInstitution.id}`,
-                institution_id: currentInstitution.id,
-                institutionId: currentInstitution.id,
-                module_id: 'exam_broadsheets',
-                moduleId: 'exam_broadsheets',
-                module_name: 'Exam Broadsheets',
-                moduleName: 'Exam Broadsheets',
-                status: 'active',
-                settings: updatedStore,
-                stateData: updatedStore
-            }).catch(() => { });
-        }
-
-        try {
-            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'marks', instId } }));
-        } catch (e) { }
-
-        setTimeout(() => {
-            setIsSavingMarks(false);
-            setSaveToastMessage(`✅ Marks for ${subjectName} updated and saved successfully!`);
-            setTimeout(() => setSaveToastMessage(null), 4000);
-        }, 300);
-    };
-
-    const inProgressExams = useMemo(() => exams.filter(e => e.status === 'in_progress'), [exams]);
     const publishedExams = useMemo(() => exams.filter(e => e.status === 'published'), [exams]);
 
     // Group published exams by year (only include years with at least 1 published exam)
@@ -2503,6 +2433,76 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
         return examObj.submittedPercent || 0;
     }, [selectedExamId, classPaperRows]);
+
+    const inProgressExams = useMemo(() => exams.filter(e => e.status === 'in_progress'), [exams]);
+
+    const handleSaveSubjectMarks = async (subjectName: string) => {
+        setIsSavingMarks(true);
+        const updatedStore = { ...examMarksStore, [selectedExamId]: broadsheetStudentRows };
+        setExamMarksStore(updatedStore);
+        try {
+            localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
+            window.dispatchEvent(new CustomEvent('eduai_broadsheets_updated', { detail: { examId: selectedExamId } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced'));
+        } catch (e) { }
+
+        // ── AUTO-SNAPSHOT: Save a timestamped class-keyed backup of these marks ──
+        if (activeExam && broadsheetStudentRows.length > 0) {
+            const classesForSnap = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
+            snapshotMarks(selectedExamId, classesForSnap, broadsheetStudentRows);
+        }
+
+        // ── UPDATE EXAM SUBMITTED PERCENT IN EXAMS LIST ──
+        if (activeExam && classPaperRows.length > 0) {
+            const sumProgress = classPaperRows.reduce((acc, c) => acc + c.overallProgress, 0);
+            const calculatedSubmittedPct = parseFloat((sumProgress / classPaperRows.length).toFixed(1));
+
+            setExams(prevExams => {
+                const nextExams = prevExams.map(e => {
+                    if (e.id === selectedExamId) {
+                        return {
+                            ...e,
+                            submittedPercent: calculatedSubmittedPct
+                        };
+                    }
+                    return e;
+                });
+                try {
+                    localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams));
+                } catch (e) { }
+
+                const updatedExam = nextExams.find(e => e.id === selectedExamId);
+                if (updatedExam && currentInstitution?.id) {
+                    apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
+                }
+                return nextExams;
+            });
+        }
+
+        if (currentInstitution?.id) {
+            await apiService.saveModuleRecord('institution_module_states', {
+                id: `broadsheets_${currentInstitution.id}`,
+                institution_id: currentInstitution.id,
+                institutionId: currentInstitution.id,
+                module_id: 'exam_broadsheets',
+                moduleId: 'exam_broadsheets',
+                moduleName: 'Exam Broadsheets',
+                status: 'active',
+                settings: updatedStore,
+                stateData: updatedStore
+            }).catch(() => { });
+        }
+
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'marks', instId } }));
+        } catch (e) { }
+
+        setTimeout(() => {
+            setIsSavingMarks(false);
+            setSaveToastMessage(`✅ Marks for ${subjectName} updated and saved successfully!`);
+            setTimeout(() => setSaveToastMessage(null), 4000);
+        }, 300);
+    };
 
     const handleCreateExam = async () => {
         if (!newExamName.trim()) {

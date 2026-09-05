@@ -497,56 +497,6 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return fallback;
     };
 
-    // Helper to construct exact SMS body for a student with direct PDF download link
-    const buildStudentResultSmsBody = (
-        st: any,
-        stSubjects: { code: string; name: string; percent: number; isExempted?: boolean }[],
-        stTotalMarks: number,
-        stMeanGrade: string,
-        stPoints: number,
-        stRank: number,
-        totalCohortCount: number,
-        explicitShortLink?: string
-    ): string => {
-        const studentName = String(st.name || 'STUDENT').toUpperCase().trim();
-        const admNo = String((st as any).admissionNo || (st as any).admissionNumber || (st as any).admNo || 'N/A').trim();
-        const studentClass = String((st as any).studentClass || selectedYearGroup || '').trim();
-        const year = selectedExamObj.year || '2026';
-        const term = selectedExamObj.term || 'TERM 1';
-
-        // 1. Header Line: "2021 TERM 3 results slip for JABALI GITHINJI"
-        const headerLine = `${year} ${term} results slip for ${studentName}`;
-        const metaLines = `Adm no: ${admNo}\nClass: ${studentClass}`;
-
-        // 2. Summary Block:
-        // Marks: 533
-        // Grade: C-
-        // Points: 5
-        // Stream Pos: 1 / 59
-        const summaryBlock = `Marks: ${stTotalMarks}\nGrade: ${stMeanGrade}\nPoints: ${stPoints}\nStream Pos: ${stRank} / ${totalCohortCount}`;
-
-        // 3. Subject Lines:
-        // Eng: 41 D+
-        // Kisw: 70 B+
-        // Math: 46 C-
-        // ...
-        const subjectLines = stSubjects
-            .filter(s => !s.isExempted)
-            .map(s => {
-                const { grade } = getGradeInfo(s.percent);
-                const smsCode = formatSubjectSmsCode(s.code, s.name);
-                return `${smsCode}: ${s.percent} ${grade}`;
-            })
-            .join('\n');
-
-        // 4. Shortened Direct PDF Download Link (validated)
-        const cleanAdm = admNo.replace(/[^a-zA-Z0-9_-]/g, '') || 'link';
-        const finalShortLink = explicitShortLink || activeValidatedShortLink || `sms.ke/r/${cleanAdm}`;
-        const downloadLine = `Download: ${finalShortLink}`;
-
-        return `${headerLine}\n${metaLines}\n\n${summaryBlock}\n\n${subjectLines}\n\n${downloadLine}`;
-    };
-
     // Combined dynamic exams list (STRICTLY PUBLISHED EXAMS ONLY)
     const allExamsList = useMemo(() => {
         const customConverted = savedExamUnits.map(ex => {
@@ -1046,6 +996,48 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             if (pct >= 30) return { grade: 'D-', points: 2, remark: 'Very Poor' };
             return { grade: 'E', points: 1, remark: 'Fail' };
         }
+    };
+
+    // Helper to construct exact SMS body for a student with direct PDF download link
+    const buildStudentResultSmsBody = (
+        st: any,
+        stSubjects: { code: string; name: string; percent: number; isExempted?: boolean }[],
+        stTotalMarks: number,
+        stMeanGrade: string,
+        stPoints: number,
+        stRank: number,
+        totalCohortCount: number,
+        explicitShortLink?: string
+    ): string => {
+        const studentName = String(st.name || 'STUDENT').toUpperCase().trim();
+        const admNo = String((st as any).admissionNo || (st as any).admissionNumber || (st as any).admNo || 'N/A').trim();
+        const studentClass = String((st as any).studentClass || selectedYearGroup || '').trim();
+        const year = selectedExamObj.year || '2026';
+        const term = selectedExamObj.term || 'TERM 1';
+
+        // 1. Header Line: "2021 TERM 3 results slip for JABALI GITHINJI"
+        const headerLine = `${year} ${term} results slip for ${studentName}`;
+        const metaLines = `Adm no: ${admNo}\nClass: ${studentClass}`;
+
+        // 2. Summary Block:
+        const summaryBlock = `Marks: ${stTotalMarks}\nGrade: ${stMeanGrade}\nPoints: ${stPoints}\nStream Pos: ${stRank} / ${totalCohortCount}`;
+
+        // 3. Subject Lines:
+        const subjectLines = stSubjects
+            .filter(s => !s.isExempted)
+            .map(s => {
+                const { grade } = getGradeInfo(s.percent);
+                const smsCode = formatSubjectSmsCode(s.code, s.name);
+                return `${smsCode}: ${s.percent} ${grade}`;
+            })
+            .join('\n');
+
+        // 4. Shortened Direct PDF Download Link (validated)
+        const cleanAdm = admNo.replace(/[^a-zA-Z0-9_-]/g, '') || 'link';
+        const finalShortLink = explicitShortLink || activeValidatedShortLink || `sms.ke/r/${cleanAdm}`;
+        const downloadLine = `Download: ${finalShortLink}`;
+
+        return `${headerLine}\n${metaLines}\n\n${summaryBlock}\n\n${subjectLines}\n\n${downloadLine}`;
     };
 
     // 1. Calculate overall year group performance matrix
