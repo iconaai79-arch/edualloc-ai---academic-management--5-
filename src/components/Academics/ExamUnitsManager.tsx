@@ -124,6 +124,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [isSendResultsModalOpen, setIsSendResultsModalOpen] = useState(false);
     const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
     const [selectedClassFilter, setSelectedClassFilter] = useState<string>('all');
+    const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
+    const [dashboardGradeFilter, setDashboardGradeFilter] = useState<string>('all');
+    const [addExamGradeFilter, setAddExamGradeFilter] = useState<string>('all');
     const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
     const [isSavingMarks, setIsSavingMarks] = useState(false);
 
@@ -976,57 +979,69 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return '';
     }, [courses]);
 
+    // Helper to reliably extract the clean Grade/Level label (e.g. "Form 3", "Grade 7", "PP1")
+    const extractGradeLabel = useCallback((str: string): string => {
+        if (!str) return '';
+        const clean = str.replace(/\s+\d{4}$/, '').trim();
+        const lower = clean.toLowerCase();
+        if (lower.includes('pp1') || lower.includes('pp 1') || lower.includes('pre-primary 1') || lower.includes('pre primary 1') || lower.includes('baby') || lower.includes('playgroup')) return 'PP1';
+        if (lower.includes('pp2') || lower.includes('pp 2') || lower.includes('pre-primary 2') || lower.includes('pre primary 2') || lower.includes('kg') || lower.includes('kindergarten')) return 'PP2';
+
+        const match = clean.match(/\b(form|grade|std|standard|class)\s*(\d+)\b/i);
+        if (match) {
+            const prefix = match[1].toLowerCase().startsWith('f') ? 'Form' : 'Grade';
+            return `${prefix} ${match[2]}`;
+        }
+        const shortMatch = clean.match(/\b([fg])\s*(\d+)\b/i);
+        if (shortMatch) {
+            const prefix = shortMatch[1].toLowerCase() === 'f' ? 'Form' : 'Grade';
+            return `${prefix} ${shortMatch[2]}`;
+        }
+        return clean;
+    }, []);
+
+    // Helper to extract the stream part of a class (e.g. "Central", "East", "West", "Blue")
+    const extractStreamName = useCallback((str: string): string | null => {
+        if (!str) return null;
+        const clean = str.replace(/\s+\d{4}$/, '').trim();
+        const m = clean.match(/\b(east|west|north|south|central|alpha|beta|blue|green|red|yellow|white|gold|silver|ruby|stream\s*[a-z0-9]*|[a-e])\b/i);
+        return m ? m[1].toLowerCase() : null;
+    }, []);
+
     const isStudentInTargetClasses = useCallback((stClassRaw: string, targetClasses: string[]) => {
         if (!stClassRaw || !targetClasses || targetClasses.length === 0) return false;
         if (targetClasses.includes('all') || targetClasses.includes('All Classes')) return true;
 
-        const cleanStr = (s: string) => s.toLowerCase().trim();
+        const cleanStr = (s: string) => s.toLowerCase().replace(/\s+\d{4}$/, '').trim();
         const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         const stClean = cleanStr(stClassRaw);
         const stNorm = normalize(stClean);
-
-        const extractGradeIdentifier = (str: string): string | null => {
-            const lower = str.toLowerCase();
-            if (lower.includes('pp1') || lower.includes('pp 1') || lower.includes('pre-primary 1') || lower.includes('pre primary 1') || lower.includes('baby') || lower.includes('playgroup')) return 'pp1';
-            if (lower.includes('pp2') || lower.includes('pp 2') || lower.includes('pre-primary 2') || lower.includes('pre primary 2') || lower.includes('kg') || lower.includes('kindergarten')) return 'pp2';
-
-            const match = lower.match(/(grade|std|standard|class|form|g|f)\s*(\d+)/i);
-            if (match) {
-                const prefix = match[1].toLowerCase().startsWith('f') ? 'form' : 'grade';
-                return `${prefix}_${match[2]}`;
-            }
-            return null;
-        };
-
-        const stGradeId = extractGradeIdentifier(stClean);
+        const stGrade = extractGradeLabel(stClean).toLowerCase();
+        const stStream = extractStreamName(stClean);
 
         return targetClasses.some(tc => {
             if (!tc || tc === 'all' || tc === 'All Classes') return true;
             const tcClean = cleanStr(tc);
             const tcNorm = normalize(tcClean);
+            const tcGrade = extractGradeLabel(tcClean).toLowerCase();
+            const tcStream = extractStreamName(tcClean);
 
             if (stClean === tcClean || stNorm === tcNorm) return true;
 
-            const tcGradeId = extractGradeIdentifier(tcClean);
-            if (stGradeId && tcGradeId) {
-                // If both have specific grade identifiers, they MUST match exactly
-                if (stGradeId === tcGradeId) {
-                    const extractStream = (s: string) => {
-                        const m = s.match(/\b(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d])\b/i);
-                        return m ? m[1].toLowerCase() : null;
-                    };
-                    const tcStream = extractStream(tcClean);
-                    const stStream = extractStream(stClean);
-                    if (tcStream && stStream) {
+            if (stGrade && tcGrade) {
+                if (stGrade !== tcGrade) return false;
+
+                if (tcStream) {
+                    if (stStream) {
                         return tcStream === stStream;
                     }
-                    return true;
+                    return false;
                 }
-                return false;
+                return true;
             }
 
-            const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|alpha|blue|green|red|stream\s*[a-z0-9]*|[a-d]|\d{4})$/i, '').trim();
+            const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|alpha|beta|blue|green|red|stream\s*[a-z0-9]*|[a-e]|\d{4})$/i, '').trim();
             const tcNoStreamNorm = normalize(tcNoStream);
 
             if (tcNoStreamNorm && (stClean === tcNoStream || stNorm === tcNoStreamNorm)) return true;
@@ -1034,7 +1049,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             return false;
         });
-    }, []);
+    }, [extractGradeLabel, extractStreamName]);
 
     // Helper to resolve clean real student admission numbers across all schema types (strictly real DB student data, NO artificial generation)
     const resolveCleanAdmNo = useCallback((st: any, idx: number): string => {
@@ -1472,21 +1487,100 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
     }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, resolveCleanStudentName, examMarksStore]);
 
+    // Distinct unique grades available across the institution
+    const availableGrades = useMemo(() => {
+        const gradeSet = new Set<string>();
+
+        const allCandidateClasses = [
+            ...registeredClasses,
+            ...activeExamClasses,
+            ...(users || []).map(u => (u as any).studentClass || (u as any).classLevel || (u as any).class || ''),
+            ...(allRealStudents || []).map(st => getStudentClass(st))
+        ];
+
+        allCandidateClasses.forEach(c => {
+            if (!c || typeof c !== 'string') return;
+            const g = extractGradeLabel(c);
+            if (g && g.trim().length > 0 && g.toLowerCase() !== 'all' && g.toLowerCase() !== 'all classes') {
+                gradeSet.add(g.trim());
+            }
+        });
+
+        if (gradeSet.size === 0) {
+            ['Form 1', 'Form 2', 'Form 3', 'Form 4'].forEach(g => gradeSet.add(g));
+        }
+
+        return Array.from(gradeSet).sort((a, b) => {
+            const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
+            const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
+            if (numA !== numB) return numA - numB;
+            return a.localeCompare(b);
+        });
+    }, [registeredClasses, activeExamClasses, users, allRealStudents, getStudentClass, extractGradeLabel]);
+
+    // Available class streams in modal, strictly isolated to selectedGradeFilter when a grade is chosen
+    const modalAvailableClasses = useMemo(() => {
+        const baseClasses = activeExamClasses.length > 0 ? activeExamClasses : registeredClasses;
+        const cleanedSet = new Set<string>();
+
+        baseClasses.forEach(c => {
+            if (!c || typeof c !== 'string') return;
+            const clean = c.replace(/\s+\d{4}$/, '').trim();
+            if (clean && clean.toLowerCase() !== 'all' && clean.toLowerCase() !== 'all classes') {
+                cleanedSet.add(clean);
+            }
+        });
+
+        allRealStudents.forEach(st => {
+            const cl = getStudentClass(st);
+            if (cl && typeof cl === 'string') {
+                const clean = cl.replace(/\s+\d{4}$/, '').trim();
+                if (clean && clean.toLowerCase() !== 'all' && clean.toLowerCase() !== 'all classes') {
+                    cleanedSet.add(clean);
+                }
+            }
+        });
+
+        const list = Array.from(cleanedSet);
+
+        if (selectedGradeFilter && selectedGradeFilter !== 'all') {
+            const normSelectedGrade = extractGradeLabel(selectedGradeFilter).toLowerCase();
+            const filtered = list.filter(c => extractGradeLabel(c).toLowerCase() === normSelectedGrade);
+            return filtered.length > 0 ? filtered : list;
+        }
+
+        return list;
+    }, [activeExamClasses, registeredClasses, allRealStudents, getStudentClass, selectedGradeFilter, extractGradeLabel]);
+
     const filteredStudentRows = useMemo(() => {
         const activeStList = allRealStudents.length > 0
             ? allRealStudents
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
-        const targetClasses = (selectedClassFilter && selectedClassFilter !== 'all')
-            ? [selectedClassFilter]
-            : (activeExamClasses.length > 0 ? activeExamClasses : []);
+        // Determine effective target classes based on both grade filter and class filter
+        let targetClasses: string[] = [];
+        if (selectedClassFilter && selectedClassFilter !== 'all') {
+            targetClasses = [selectedClassFilter];
+        } else if (selectedGradeFilter && selectedGradeFilter !== 'all') {
+            targetClasses = modalAvailableClasses.length > 0 ? modalAvailableClasses : [selectedGradeFilter];
+        } else if (activeExamClasses.length > 0) {
+            targetClasses = activeExamClasses;
+        }
 
         let rows = broadsheetStudentRows;
 
         if (activeStList.length > 0) {
-            // Find real students strictly enrolled in targetClasses
+            // Find real students strictly enrolled in targetClasses and matching selected grade
             const matchedReal = targetClasses.length > 0
-                ? activeStList.filter(st => isStudentInTargetClasses(getStudentClass(st), targetClasses))
+                ? activeStList.filter(st => {
+                    const stClass = getStudentClass(st);
+                    if (selectedGradeFilter && selectedGradeFilter !== 'all') {
+                        const stGrade = extractGradeLabel(stClass).toLowerCase();
+                        const reqGrade = extractGradeLabel(selectedGradeFilter).toLowerCase();
+                        if (stGrade && reqGrade && stGrade !== reqGrade) return false;
+                    }
+                    return isStudentInTargetClasses(stClass, targetClasses);
+                })
                 : activeStList;
 
             if (matchedReal.length > 0 && targetClasses.length > 0) {
@@ -1507,8 +1601,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     };
                 });
             } else if (targetClasses.length > 0) {
-                rows = rows.filter(r => isStudentInTargetClasses(r.class || '', targetClasses));
+                rows = rows.filter(r => {
+                    if (selectedGradeFilter && selectedGradeFilter !== 'all') {
+                        const rGrade = extractGradeLabel(r.class || '').toLowerCase();
+                        const reqGrade = extractGradeLabel(selectedGradeFilter).toLowerCase();
+                        if (rGrade && reqGrade && rGrade !== reqGrade) return false;
+                    }
+                    return isStudentInTargetClasses(r.class || '', targetClasses);
+                });
             }
+        } else if (targetClasses.length > 0) {
+            rows = rows.filter(r => {
+                if (selectedGradeFilter && selectedGradeFilter !== 'all') {
+                    const rGrade = extractGradeLabel(r.class || '').toLowerCase();
+                    const reqGrade = extractGradeLabel(selectedGradeFilter).toLowerCase();
+                    if (rGrade && reqGrade && rGrade !== reqGrade) return false;
+                }
+                return isStudentInTargetClasses(r.class || '', targetClasses);
+            });
         }
 
         if (searchStudentQuery.trim()) {
@@ -1534,7 +1644,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
             return sortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [broadsheetStudentRows, selectedClassFilter, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, sortField, sortOrder]);
+    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder]);
 
     const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
         setBroadsheetStudentRows(prevRows => {
@@ -1657,11 +1767,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({ 2026: true, 2025: false });
 
-    // Compute applicable subjects ONLY for selectedClassFilter (or all active exam classes if selectedClassFilter === 'all')
+    // Compute applicable subjects ONLY for selectedClassFilter or selectedGradeFilter (or all active exam classes if all)
     const modalAvailableSubjects = useMemo(() => {
         const targetClass = (selectedClassFilter && selectedClassFilter !== 'all')
             ? selectedClassFilter
-            : (activeExamClasses[0] || '');
+            : (selectedGradeFilter && selectedGradeFilter !== 'all' ? selectedGradeFilter : (activeExamClasses[0] || ''));
 
         // 1. PRIMARY Authority: testedPaperConfigs (Filtered to only papers with enabled === true)
         const activeTested = testedPaperConfigs.filter(p => p && p.enabled).map(p => p.subject.trim());
@@ -1714,7 +1824,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         return ['Mathematics', 'English', 'Kiswahili'];
-    }, [selectedClassFilter, activeExamClasses, instId, currentInstitution, subjects, testedPaperConfigs]);
+    }, [selectedClassFilter, selectedGradeFilter, activeExamClasses, instId, currentInstitution, subjects, testedPaperConfigs]);
 
     // Helper to resolve papers and distinct unique property keys for any subject
     const getSubjectPapers = useCallback((subName: string) => {
@@ -2327,6 +2437,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             };
         });
     }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore]);
+
+    const displayClassPaperRows = useMemo(() => {
+        if (!dashboardGradeFilter || dashboardGradeFilter === 'all') return classPaperRows;
+        const normG = extractGradeLabel(dashboardGradeFilter).toLowerCase();
+        return classPaperRows.filter(r => extractGradeLabel(r.rawClassName).toLowerCase() === normG);
+    }, [classPaperRows, dashboardGradeFilter, extractGradeLabel]);
 
     // Dynamic Teacher Progress
     const teacherProgressList = useMemo(() => {
@@ -3084,7 +3200,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className={`pb-3 border-b-2 font-black text-xs uppercase tracking-wider transition-all ${activeSubTab === 'irregularities' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'
                                             }`}
                                     >
-                                        Exam Irregularities
+                                        Irregularities / Missing
                                     </button>
                                     <button
                                         onClick={() => setActiveSubTab('history')}
@@ -3098,6 +3214,38 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 {/* SUBTAB 1: MARKS ENTRY PROGRESS */}
                                 {activeSubTab === 'progress' && (
                                     <div className="space-y-4">
+                                        {/* Dashboard Grade Filter Pills */}
+                                        {availableGrades.length > 1 && (
+                                            <div className="flex items-center gap-2 flex-wrap pb-1">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">Filter Grade:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDashboardGradeFilter('all')}
+                                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                        dashboardGradeFilter === 'all'
+                                                            ? 'bg-blue-600 text-white shadow-xs'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    All Grades
+                                                </button>
+                                                {availableGrades.map(gName => (
+                                                    <button
+                                                        key={gName}
+                                                        type="button"
+                                                        onClick={() => setDashboardGradeFilter(gName)}
+                                                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                            dashboardGradeFilter === gName
+                                                                ? 'bg-blue-600 text-white shadow-xs'
+                                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                        }`}
+                                                    >
+                                                        {gName}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
                                             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
                                                 <thead className="bg-slate-700 text-white font-bold text-xs uppercase">
@@ -3110,7 +3258,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                                    {classPaperRows.map(cRow => {
+                                                    {displayClassPaperRows.map(cRow => {
                                                         const isExpanded = expandedClasses[cRow.classKey];
                                                         return (
                                                             <React.Fragment key={cRow.classKey}>
@@ -3134,11 +3282,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => {
-                                                                                setSelectedClassFilter(cRow.className);
+                                                                                const rawCls = cRow.rawClassName || cRow.className.replace(/\s+\d{4}$/, '').trim();
+                                                                                const grade = extractGradeLabel(rawCls);
+                                                                                if (grade) setSelectedGradeFilter(grade);
+                                                                                setSelectedClassFilter(rawCls);
                                                                                 setSelectedSubjectFilter('all');
                                                                                 setIsBroadsheetModalOpen(true);
                                                                             }}
-                                                                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                                                                            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                                                                         >
                                                                             View Broadsheet
                                                                         </button>
@@ -3163,11 +3314,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => {
-                                                                                    setSelectedClassFilter(cRow.className);
+                                                                                    const rawCls = cRow.rawClassName || cRow.className.replace(/\s+\d{4}$/, '').trim();
+                                                                                    const grade = extractGradeLabel(rawCls);
+                                                                                    if (grade) setSelectedGradeFilter(grade);
+                                                                                    setSelectedClassFilter(rawCls);
                                                                                     setSelectedSubjectFilter(p.subject);
                                                                                     setIsBroadsheetModalOpen(true);
                                                                                 }}
-                                                                                className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-800 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/50 transition-all shadow-2xs active:scale-95"
+                                                                                className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 dark:text-blue-300 hover:text-blue-800 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800/50 transition-all shadow-2xs active:scale-95 cursor-pointer"
                                                                                 title={`Edit and view marks for ${p.subject}`}
                                                                             >
                                                                                 <PencilIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
@@ -3483,6 +3637,39 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 </button>
                                             </div>
                                         </div>
+
+                                        {/* Grade filter buttons for class selection */}
+                                        {availableGrades.length > 1 && (
+                                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                                                <span className="text-[10px] font-bold text-slate-400 mr-1">Filter Grade:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAddExamGradeFilter('all')}
+                                                    className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                                                        addExamGradeFilter === 'all'
+                                                            ? 'bg-blue-600 text-white shadow-xs'
+                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    All Grades
+                                                </button>
+                                                {availableGrades.map(g => (
+                                                    <button
+                                                        key={g}
+                                                        type="button"
+                                                        onClick={() => setAddExamGradeFilter(g)}
+                                                        className={`px-2.5 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                                                            addExamGradeFilter === g
+                                                                ? 'bg-blue-600 text-white shadow-xs'
+                                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                        }`}
+                                                    >
+                                                        {g}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 p-2 rounded-lg">
                                             {(() => {
                                                 const q = targetStudentSearch.trim().toLowerCase();
@@ -3497,9 +3684,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         }
                                                     });
                                                 }
-                                                const visibleClasses = q
+                                                let visibleClasses = q
                                                     ? registeredClasses.filter(c => c.toLowerCase().includes(q) || studentMatchedClasses.has(c))
                                                     : registeredClasses;
+                                                if (addExamGradeFilter && addExamGradeFilter !== 'all') {
+                                                    const normG = extractGradeLabel(addExamGradeFilter).toLowerCase();
+                                                    visibleClasses = visibleClasses.filter(c => extractGradeLabel(c).toLowerCase() === normG);
+                                                }
                                                 return visibleClasses.map(cName => {
                                                     const isChecked = selectedClasses.includes(cName);
                                                     const hasDirectStudentMatch = studentMatchedClasses.has(cName);
@@ -3941,8 +4132,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     <h3 className="font-black text-lg text-slate-900 dark:text-white tracking-tight">
                                         {selectedSubjectFilter === 'all' ? '📊 Exam Broadsheet Overview' : `📝 Editable Marks Entry: ${selectedSubjectFilter}`}
                                     </h3>
-                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                        {selectedClassFilter || 'Form 3 Central'}
+                                    {selectedGradeFilter && selectedGradeFilter !== 'all' && (
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                            {selectedGradeFilter}
+                                        </span>
+                                    )}
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                        {selectedClassFilter === 'all'
+                                            ? (selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Classes` : 'All Classes')
+                                            : selectedClassFilter}
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -3974,16 +4172,46 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     )}
                                 </div>
 
+                                {/* Grade Selector Dropdown */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Grade:</span>
+                                    <select
+                                        value={selectedGradeFilter}
+                                        onChange={(e) => {
+                                            const newG = e.target.value;
+                                            setSelectedGradeFilter(newG);
+                                            setSelectedClassFilter('all');
+                                        }}
+                                        className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
+                                    >
+                                        <option value="all">All Grades</option>
+                                        {availableGrades.map(gName => (
+                                            <option key={gName} value={gName}>{gName}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 {/* Class Selector Dropdown */}
                                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Class:</span>
                                     <select
                                         value={selectedClassFilter}
-                                        onChange={(e) => setSelectedClassFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            const newCls = e.target.value;
+                                            setSelectedClassFilter(newCls);
+                                            if (newCls !== 'all') {
+                                                const g = extractGradeLabel(newCls);
+                                                if (g && (!selectedGradeFilter || selectedGradeFilter === 'all')) {
+                                                    setSelectedGradeFilter(g);
+                                                }
+                                            }
+                                        }}
                                         className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
                                     >
-                                        <option value="all">All Classes</option>
-                                        {activeExamClasses.map(cName => (
+                                        <option value="all">
+                                            {selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Classes` : 'All Classes'}
+                                        </option>
+                                        {modalAvailableClasses.map(cName => (
                                             <option key={cName} value={cName}>{cName}</option>
                                         ))}
                                     </select>
