@@ -60,7 +60,7 @@ export const LeavingCertificateSheet: React.FC<LeavingCertificateSheetProps> = (
                 <div>
                     {/* Centered Official Coat of Arms */}
                     <div className="flex justify-center mb-3">
-                        <KenyaCoatOfArms width={105 * scale} height={105 * scale} />
+                        <KenyaCoatOfArms width={118 * scale} height={105 * scale} />
                     </div>
 
                     {/* Official Ministry & Examination Headers */}
