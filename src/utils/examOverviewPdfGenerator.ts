@@ -75,7 +75,7 @@ export const generateExamOverviewPdf = async (data: ExamOverviewPdfPayload) => {
     const examTitle = String(data.selectedExam?.title || 'ACADEMIC EXAM OVERVIEW');
     const selectedYearGroup = String(data.selectedYearGroup || 'Cohort');
     const selectedStream = String(data.selectedStream || 'all');
-    const cohortStr = `${selectedYearGroup} (${selectedStream === 'all' ? 'All Streams' : `${selectedStream} Stream`})`;
+    const cohortStr = `${selectedYearGroup} (${selectedStream === 'all' ? 'All Streams' : selectedStream.replace(/\s*stream\s*$/i, '').trim()})`;
 
     const drawRunningHeader = (d: jsPDF, pageNum: number) => {
         if (pageNum === 1) return;

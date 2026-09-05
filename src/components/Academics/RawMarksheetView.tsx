@@ -1114,7 +1114,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                     >
                                         {streamOptions.map(st => (
                                             <option key={st} value={st}>
-                                                {st === 'all' ? 'All Streams' : `${st} Stream`}
+                                                {st === 'all' ? 'All Streams' : st.replace(/\s*stream\s*$/i, '').trim()}
                                             </option>
                                         ))}
                                     </select>

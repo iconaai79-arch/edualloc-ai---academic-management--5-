@@ -1849,7 +1849,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                     >
                                         {streamOptions.map(st => (
                                             <option key={st} value={st}>
-                                                {st === 'all' ? 'All Streams' : `${st} Stream`}
+                                                {st === 'all' ? 'All Streams' : st.replace(/\s*stream\s*$/i, '').trim()}
                                             </option>
                                         ))}
                                     </select>

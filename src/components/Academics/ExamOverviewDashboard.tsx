@@ -2337,7 +2337,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                 >
                                     {streamOptions.map(stOpt => (
                                         <option key={stOpt} value={stOpt}>
-                                            {stOpt === 'all' ? 'All Streams' : `${stOpt} Stream`}
+                                            {stOpt === 'all' ? 'All Streams' : stOpt.replace(/\s*stream\s*$/i, '').trim()}
                                         </option>
                                     ))}
                                 </select>
@@ -5874,7 +5874,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                                                 OFFICIAL ACADEMIC EXAM OVERVIEW & PERFORMANCE ANALYSIS REPORT
                                             </p>
                                             <p className="text-[11px] font-semibold text-slate-700 mt-2">
-                                                Class Cohort: <strong className="text-slate-900">{selectedYearGroup}</strong> &bull; Stream: <strong className="text-slate-900">{selectedStream === 'all' ? 'All Streams' : `${selectedStream} Stream`}</strong> &bull; Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong>
+                                                Class Cohort: <strong className="text-slate-900">{selectedYearGroup}</strong> &bull; Stream: <strong className="text-slate-900">{selectedStream === 'all' ? 'All Streams' : selectedStream.replace(/\s*stream\s*$/i, '').trim()}</strong> &bull; Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong>
                                             </p>
                                             <p className="text-[11px] font-semibold text-slate-600">
                                                 Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong> &bull; Total Candidates: <strong className="text-slate-900">{studentPerformanceData.length}</strong>
