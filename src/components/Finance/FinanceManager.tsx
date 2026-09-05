@@ -204,7 +204,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [voteheadDistPage, setVoteheadDistPage] = useState(1);
     const [voteheadDistRowsPerPage, setVoteheadDistRowsPerPage] = useState<number | 'All'>(25);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('futuristic');
+    const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('classic');
     const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
     const [enrollments, setEnrollments] = useState<any[]>([]);
 
@@ -370,6 +370,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const cleanId = useCallback((id?: string) => id ? String(id).trim().replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '') : '', []);
 
+    const isSyntheticAdm = useCallback((val: any): boolean => {
+        if (!val) return true;
+        const str = String(val).trim();
+        if (!str || str === '—' || str === '-' || str === 'N/A' || str === 'undefined' || str === 'null' || str === 'none') return true;
+        if (str.startsWith('usr_') || str.startsWith('user_') || str.startsWith('stu_') || str.startsWith('st_') || str.startsWith('inst_') || str.startsWith('br_')) return true;
+        if (/^ADM-?[_]/i.test(str)) return true;
+        if (/^ADM-10\d{2,}$/i.test(str)) return true;
+        if (/^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(str)) return true;
+        return false;
+    }, []);
+
     const getStudentAdmNumber = useCallback((s: any): string => {
         if (!s) return '';
         // 1. Direct properties on student object
@@ -379,92 +390,231 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             s.admissionNo,
             s.admNo,
             s.adm_no,
-            s.staffId,
-            s.staff_id,
-            s.studentId,
-            s.student_id,
-            s.customStudentId,
-            s.custom_student_id,
+            s.studentAdmissionNumber,
+            s.student_admission_number,
             s.regNo,
             s.reg_no,
             s.registrationNumber,
-            s.registration_number
+            s.registration_number,
+            s.customStudentId,
+            s.custom_student_id,
+            s.indexNumber,
+            s.index_number,
+            s.upi,
+            s.nemis,
+            s.staffId,
+            s.staff_id
         ];
         for (const val of directCandidates) {
-            if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A') {
+            if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
                 return String(val).trim();
             }
         }
 
-        // 2. Metadata properties on student object
-        if (s.metadata && typeof s.metadata === 'object') {
+        // 2. Metadata properties on student object (parsing if stringified JSON)
+        let meta = s.metadata;
+        if (typeof meta === 'string' && meta.trim().startsWith('{')) {
+            try { meta = JSON.parse(meta); } catch (e) {}
+        }
+        if (meta && typeof meta === 'object') {
             const metaCandidates = [
-                s.metadata.admissionNumber,
-                s.metadata.admission_number,
-                s.metadata.admissionNo,
-                s.metadata.admNo,
-                s.metadata.adm_no,
-                s.metadata.staffId,
-                s.metadata.staff_id,
-                s.metadata.studentId,
-                s.metadata.student_id,
-                s.metadata.regNo,
-                s.metadata.registrationNumber
+                meta.admissionNumber,
+                meta.admission_number,
+                meta.admissionNo,
+                meta.admission_no,
+                meta.admNo,
+                meta.adm_no,
+                meta.studentAdmissionNumber,
+                meta.registrationNumber,
+                meta.regNo,
+                meta.staffId,
+                meta.staff_id,
+                meta.studentId,
+                meta.student_id
             ];
             for (const val of metaCandidates) {
-                if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A') {
+                if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
                     return String(val).trim();
                 }
             }
         }
 
-        // 3. Match from student_enrollments state
+        // 3. User sub-object or user metadata
+        let userMeta = s.user?.metadata;
+        if (typeof userMeta === 'string' && userMeta.trim().startsWith('{')) {
+            try { userMeta = JSON.parse(userMeta); } catch (e) {}
+        }
+        const userCandidates = [
+            s.user?.admissionNumber,
+            s.user?.admission_number,
+            s.user?.admissionNo,
+            s.user?.admNo,
+            s.user?.adm_no,
+            userMeta?.admissionNumber,
+            userMeta?.admission_number,
+            userMeta?.admissionNo,
+            userMeta?.admNo
+        ];
+        for (const val of userCandidates) {
+            if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
+                return String(val).trim();
+            }
+        }
+
+        // 4. Match from student_enrollments state (by ID, cleanId, and student name)
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        const sId = String(s.id || s.userId || s.user_id || '').trim();
+        const cleanSId = cleanId(sId).toLowerCase();
+        const sName = String(s.name || s.fullName || '').trim().toLowerCase();
+
         if (allEnrs.length > 0) {
-            const sId = s.id || s.userId || s.user_id;
-            const enr = allEnrs.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
+            const enr = allEnrs.find((e: any) => {
+                if (!e) return false;
+                const eUserId = String(e.userId || e.user_id || e.studentId || e.student_id || e.id || '').trim().toLowerCase();
+                if (sId && eUserId === sId.toLowerCase()) return true;
+                if (cleanSId && cleanId(eUserId).toLowerCase() === cleanSId) return true;
+                if (sName && String(e.student_name || e.studentName || e.name || '').trim().toLowerCase() === sName) return true;
+                return false;
+            });
             if (enr) {
+                let enrMeta = enr.metadata;
+                if (typeof enrMeta === 'string' && enrMeta.trim().startsWith('{')) {
+                    try { enrMeta = JSON.parse(enrMeta); } catch (e) {}
+                }
                 const enrCandidates = [
                     enr.admissionNumber,
                     enr.admission_number,
                     enr.admissionNo,
                     enr.admNo,
                     enr.adm_no,
+                    enr.studentAdmissionNumber,
+                    enrMeta?.admissionNumber,
+                    enrMeta?.admission_number,
+                    enrMeta?.admissionNo,
+                    enrMeta?.admNo,
+                    enrMeta?.studentAdmissionNumber,
                     enr.staffId,
-                    enr.metadata?.admissionNumber,
-                    enr.metadata?.admission_number,
-                    enr.metadata?.admissionNo,
-                    enr.metadata?.admNo,
-                    enr.metadata?.staffId,
-                    enr.metadata?.studentId
+                    enrMeta?.staffId
                 ];
                 for (const val of enrCandidates) {
-                    if (val !== undefined && val !== null && String(val).trim() !== '' && String(val).trim() !== 'undefined' && String(val).trim() !== 'null' && String(val).trim() !== 'N/A') {
+                    if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
                         return String(val).trim();
                     }
                 }
             }
         }
 
+        // 5. Match from historical Invoices (by studentId, cleanId, or exact student name)
+        const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])];
+        const matchedInv = allInvs.find((inv: any) => {
+            if (!inv) return false;
+            const invStId = String(inv.studentId || inv.student_id || inv.userId || inv.user_id || '').trim().toLowerCase();
+            if (sId && invStId === sId.toLowerCase()) return true;
+            if (cleanSId && cleanId(invStId).toLowerCase() === cleanSId) return true;
+            if (sName && String(inv.studentName || inv.student_name || '').trim().toLowerCase() === sName) return true;
+            return false;
+        });
+        if (matchedInv) {
+            let invMeta = matchedInv.metadata;
+            if (typeof invMeta === 'string' && invMeta.trim().startsWith('{')) {
+                try { invMeta = JSON.parse(invMeta); } catch (e) {}
+            }
+            const invCandidates = [
+                matchedInv.admissionNumber,
+                matchedInv.studentAdmissionNumber,
+                matchedInv.admission_number,
+                matchedInv.admNo,
+                matchedInv.adm_no,
+                invMeta?.admissionNumber,
+                invMeta?.studentAdmissionNumber,
+                invMeta?.admNo
+            ];
+            for (const val of invCandidates) {
+                if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
+                    return String(val).trim();
+                }
+            }
+        }
+
+        // 6. Match from historical Receipts (by studentId, cleanId, or exact student name)
+        const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])];
+        const matchedRec = allRecs.find((rec: any) => {
+            if (!rec) return false;
+            const recStId = String(rec.studentId || rec.student_id || rec.userId || rec.user_id || '').trim().toLowerCase();
+            if (sId && recStId === sId.toLowerCase()) return true;
+            if (cleanSId && cleanId(recStId).toLowerCase() === cleanSId) return true;
+            if (sName && String(rec.studentName || rec.student_name || '').trim().toLowerCase() === sName) return true;
+            return false;
+        });
+        if (matchedRec) {
+            let recMeta = matchedRec.metadata;
+            if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
+                try { recMeta = JSON.parse(recMeta); } catch (e) {}
+            }
+            const recCandidates = [
+                rec.admissionNumber,
+                rec.studentAdmissionNumber,
+                rec.admission_number,
+                rec.admNo,
+                rec.adm_no,
+                recMeta?.admissionNumber,
+                recMeta?.studentAdmissionNumber,
+                recMeta?.admNo
+            ];
+            for (const val of recCandidates) {
+                if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
+                    return String(val).trim();
+                }
+            }
+        }
+
+        // 7. Canonical academic resolver utility
+        const utilAdm = resolveRealStudentAdmNo(s, undefined, allEnrs);
+        if (utilAdm && !isSyntheticAdm(utilAdm)) {
+            return utilAdm;
+        }
+
         return '';
-    }, [enrollments, allBranchEnrollments]);
+    }, [enrollments, allBranchEnrollments, props.invoices, allBranchInvoices, props.receipts, allBranchReceipts, cleanId, isSyntheticAdm]);
 
     const getStudentClassName = useCallback((s: any): string => {
         if (!s) return 'Unclassified';
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
         const res = resolveRealStudentClass(s, allEnrs, props.courses, '');
-        if (res) return res;
+        if (res && res !== 'Unclassified' && res !== '—') return res;
 
-        // Check invoices for this student if not found
-        const sInvs = (props.invoices || []).filter((inv: any) => inv && (inv.studentId === s.id || inv.userId === s.id));
+        // Check invoices for this student
+        const sId = String(s.id || s.userId || s.user_id || '').trim().toLowerCase();
+        const cleanSId = cleanId(sId).toLowerCase();
+        const sName = String(s.name || s.fullName || '').trim().toLowerCase();
+
+        const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])];
+        const sInvs = allInvs.filter((inv: any) => {
+            if (!inv) return false;
+            const invStId = String(inv.studentId || inv.student_id || inv.userId || inv.user_id || '').trim().toLowerCase();
+            if (sId && invStId === sId) return true;
+            if (cleanSId && cleanId(invStId).toLowerCase() === cleanSId) return true;
+            if (sName && String(inv.studentName || inv.student_name || '').trim().toLowerCase() === sName) return true;
+            return false;
+        });
+
         for (const inv of sInvs) {
-            const invCls = (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || (inv as any).metadata?.className || (inv as any).metadata?.studentClass;
+            const invCls = (inv as any).studentClass || (inv as any).className || (inv as any).gradeLevel || (inv as any).courseName || (inv as any).metadata?.className || (inv as any).metadata?.studentClass;
             const norm = normalizeClassName(invCls);
-            if (norm) return norm;
+            if (norm && norm !== 'Unclassified') return norm;
+        }
+
+        // Match enrollment by student name
+        if (sName) {
+            const enrByName = allEnrs.find((e: any) => e && String(e.student_name || e.studentName || e.name || '').trim().toLowerCase() === sName);
+            if (enrByName) {
+                const enrCls = resolveRealStudentClass(enrByName, allEnrs, props.courses, '');
+                if (enrCls && enrCls !== 'Unclassified') return enrCls;
+            }
         }
 
         return 'Unclassified';
-    }, [enrollments, allBranchEnrollments, props.courses, props.invoices]);
+    }, [enrollments, allBranchEnrollments, props.courses, props.invoices, allBranchInvoices, cleanId]);
 
     const studentClassGroup = useCallback((s: any): string => {
         return getStudentClassName(s);
@@ -2724,55 +2874,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     function studentAdmissionNumber(student: any): string {
         if (!student) return '—';
-
-        // 1. Direct student fields
-        const directAdm = 
-            student.admissionNumber ||
-            student.admission_number ||
-            student.admNo ||
-            student.adm_no ||
-            student.staffId ||
-            student.staff_id ||
-            student.metadata?.admissionNumber ||
-            student.metadata?.admission_number ||
-            student.metadata?.admNo ||
-            student.metadata?.staffId ||
-            student.metadata?.registrationNumber ||
-            student.metadata?.regNo;
-
-        if (directAdm && String(directAdm).trim() !== '' && String(directAdm).trim() !== '—') {
-            return String(directAdm).trim();
-        }
-
-        // 2. Find enrollment for this student
-        const enr = enrollments.find(e => 
-            e.userId === student.id ||
-            (e as any).user_id === student.id ||
-            e.studentId === student.id ||
-            (e as any).student_id === student.id ||
-            (e.metadata && (e.metadata.userId === student.id || e.metadata.studentId === student.id)) ||
-            (e.student_name && student.name && String(e.student_name).toLowerCase().trim() === String(student.name).toLowerCase().trim())
-        );
-
-        if (enr) {
-            const enrAdm = 
-                enr.admissionNumber ||
-                (enr as any).admission_number ||
-                (enr as any).admNo ||
-                (enr as any).adm_no ||
-                enr.metadata?.admissionNumber ||
-                enr.metadata?.admission_number ||
-                enr.metadata?.admNo ||
-                enr.metadata?.staffId;
-            
-            if (enrAdm && String(enrAdm).trim() !== '' && String(enrAdm).trim() !== '—') {
-                return String(enrAdm).trim();
-            }
-        }
-
-        // 3. Fallback: Generate a clean admission code from staffId or student ID slice
-        const cleanId = (student.staffId || student.id || '').replace(/^user_/, '').replace(/^stu_/, '').slice(-6).toUpperCase();
-        return cleanId ? `ADM-${cleanId}` : '—';
+        const adm = getStudentAdmNumber(student);
+        if (adm && !isSyntheticAdm(adm)) return adm;
+        return '—';
     }
 
     const exportCSV = (filename: string, headers: string[], rows: (string | number | undefined | null)[][]) => {
@@ -2964,8 +3068,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const filteredStudents = mergedStudents.filter(s => matchesSelectedBranch(s));
         return filteredStudents.map(s => {
             const enrollment = mergedEnrollments.find(e => e.userId === s.id || (e as any).user_id === s.id || (e as any).studentId === s.id);
-            const adm = getStudentAdmNumber(s) || studentAdmissionNumber(s);
-            const cls = resolveRealStudentClass(s, mergedEnrollments, props.courses, 'Unclassified');
+            const adm = getStudentAdmNumber(s) || studentAdmissionNumber(s) || '—';
+            let cls = resolveRealStudentClass(s, mergedEnrollments, props.courses, '');
+            if (!cls || cls === 'Unclassified' || cls === '—') {
+                cls = getStudentClassName(s);
+            }
             const stream = resolveRealStudentStream(s, mergedEnrollments);
 
             // Collect all student identifier variants for robust matching
@@ -19829,15 +19936,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const paginatedList = filteredList.slice(startIndex, startIndex + balItemsPerPage);
 
                                             return (
-                                                <div className={`p-6 rounded-[2.5rem] border shadow-xl ${
-                                                    themeMode === 'futuristic'
-                                                    ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
-                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
-                                                }`}>
+                                                <div className="p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
                                                     <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 mb-6">
                                                         <div>
-                                                            <h3 className={`text-base font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white drop-shadow-sm' : 'text-slate-900 dark:text-white'}`}>All Outstanding Fee Balances</h3>
-                                                            <p className={`text-[10px] font-bold mt-0.5 ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>{totalItems} students with active fee arrears</p>
+                                                            <h3 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">All Outstanding Fee Balances</h3>
+                                                            <p className="text-[10px] font-bold mt-0.5 text-slate-500 dark:text-slate-400">{totalItems} students with active fee arrears</p>
                                                         </div>
 
                                                         <div className="flex flex-wrap items-center gap-2 max-w-full">
@@ -19849,11 +19952,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalFilter(e.target.value);
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold transition-all ${
-                                                                    themeMode === 'futuristic'
-                                                                        ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-rose-500'
-                                                                }`}
+                                                                className="px-3.5 py-2 rounded-xl outline-none text-xs font-bold transition-all bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-rose-500"
                                                             />
                                                             <select
                                                                 value={balClass}
@@ -19861,11 +19960,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalClass(e.target.value);
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all ${
-                                                                    themeMode === 'futuristic'
-                                                                        ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
-                                                                }`}
+                                                                className="px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                                                             >
                                                                 <option value="">All Classes</option>
                                                                 {classes.map((c: any) => <option key={c} value={c}>{c}</option>)}
@@ -19877,11 +19972,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalStream(e.target.value);
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all ${
-                                                                    themeMode === 'futuristic'
-                                                                        ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
-                                                                }`}
+                                                                className="px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                                                             >
                                                                 <option value="">All Streams</option>
                                                                 {streams.map((st: string) => <option key={st} value={st}>{st}</option>)}
@@ -19895,10 +19986,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 }}
                                                                 className={`px-3.5 py-2 rounded-xl outline-none text-xs font-black cursor-pointer transition-all ${
                                                                     balGraduatedFilter === 'graduated'
-                                                                        ? 'bg-purple-900/90 text-purple-200 border border-purple-500 shadow-xs'
-                                                                        : themeMode === 'futuristic'
-                                                                            ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                                                                            : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
+                                                                        ? 'bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-600'
+                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
                                                                 }`}
                                                                 title="Filter active students vs graduated alumni"
                                                             >
@@ -19912,11 +20001,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setBalItemsPerPage(Number(e.target.value));
                                                                     setBalCurrentPage(1);
                                                                 }}
-                                                                className={`px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all ${
-                                                                    themeMode === 'futuristic'
-                                                                        ? 'bg-slate-900 border border-slate-700 text-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
-                                                                        : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500'
-                                                                }`}
+                                                                className="px-3.5 py-2 rounded-xl outline-none text-xs font-bold cursor-pointer transition-all bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500"
                                                             >
                                                                 <option value={10}>10 / page</option>
                                                                 <option value={25}>25 / page</option>
@@ -19984,16 +20069,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </div>
                                                     </div>
 
-                                                    <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>{['#', 'Student', 'Adm No.', 'Class', 'Arrears / Prepay', 'Invoiced', 'Paid', 'Balance Owed'].map(h => TH(h))}</tr></thead>
+                                                            <thead><tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">{['#', 'Student', 'Adm No.', 'Class', 'Arrears / Prepay', 'Invoiced', 'Paid', 'Balance Owed'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
                                                                 {paginatedList.map((s: any, idx: number) => {
                                                                     const itemIndex = startIndex + idx + 1;
                                                                     return (
-                                                                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-900/60 transition-colors">
+                                                                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                                             <TD cls="text-slate-400 font-bold">{itemIndex}</TD>
-                                                                            <TD cls={`font-extrabold text-xs sm:text-sm tracking-tight ${themeMode === 'futuristic' ? 'text-cyan-300 drop-shadow-sm' : 'text-slate-900 dark:text-cyan-300'}`}>
+                                                                            <TD cls="font-extrabold text-xs sm:text-sm tracking-tight text-slate-900 dark:text-white">
                                                                                 <div className="flex items-center gap-2 flex-wrap">
                                                                                     <span>{s.name}</span>
                                                                                     {s.isGraduated && (
@@ -20003,8 +20088,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                     )}
                                                                                 </div>
                                                                             </TD>
-                                                                            <TD cls={`font-mono font-bold ${themeMode === 'futuristic' ? 'text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{s.admissionNumber}</TD>
-                                                                            <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'}`}>{s.className || studentClassGroup(s)}</TD>
+                                                                            <TD cls="font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                                                {s.admissionNumber && s.admissionNumber !== '—' ? (
+                                                                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                                                        {s.admissionNumber}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-slate-400 font-normal">—</span>
+                                                                                )}
+                                                                            </TD>
+                                                                            <TD cls="font-bold text-slate-600 dark:text-slate-300">{s.className || studentClassGroup(s)}</TD>
                                                                             <TD cls="font-bold text-right text-slate-700 dark:text-slate-300">
                                                                                 {(s.totals?.openingBalance || 0) > 0 ? (
                                                                                     <span className="text-amber-600 dark:text-amber-400 font-black">KSh {(s.totals.openingBalance).toLocaleString()}</span>
@@ -20017,7 +20110,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
                                                                             <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
                                                                             <TD cls="font-black text-rose-600 dark:text-rose-400">
-                                                                                <span className="px-2.5 py-1 bg-rose-500/10 border border-rose-500/30 rounded-lg inline-block">
+                                                                                <span className="px-2.5 py-1 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 rounded-lg inline-block font-black">
                                                                                     KSh {s.totals.balance.toLocaleString()}
                                                                                 </span>
                                                                             </TD>
@@ -20084,15 +20177,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {outstandingSubTab === 'student_summary' && (() => {
                                             const filteredVoteData = studentVoteData.filter((s: any) => s.totals.balance > 0);
                                             return (
-                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
-                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
-                                                }`}>
+                                                <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-6 bg-white dark:bg-slate-900">
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
                                                         <div>
-                                                            <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Student Summary by Votehead</h3>
-                                                            <p className="text-[10px] text-slate-400 font-medium">Amount invoiced and received per votehead per student across classes</p>
+                                                            <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Student Summary by Votehead</h3>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Amount invoiced and received per votehead per student across classes</p>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <button
@@ -20121,9 +20210,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-x-auto">
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>
+                                                            <thead><tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
                                                                 {TH('Student')}
                                                                 {TH('Adm No.')}
                                                                 {TH('Class')}
@@ -20134,24 +20223,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </tr></thead>
                                                             <tbody>
                                                                 {filteredVoteData.map((s: any, i: number) => (
-                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls={`font-bold whitespace-nowrap ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{s.name}</TD>
-                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-mono' : 'text-slate-500'}>{s.admissionNumber}</TD>
-                                                                        <TD cls={`font-bold ${themeMode === 'futuristic' ? 'text-slate-300' : 'text-slate-600'}`}>{s.className || studentClassGroup(s)}</TD>
+                                                                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                        <TD cls="font-bold whitespace-nowrap text-slate-900 dark:text-white">{s.name}</TD>
+                                                                        <TD cls="text-slate-600 dark:text-slate-400 font-mono font-bold">{s.admissionNumber}</TD>
+                                                                        <TD cls="font-bold text-slate-600 dark:text-slate-300">{s.className || studentClassGroup(s)}</TD>
                                                                         {allVoteHeads.map(v => (
                                                                             <TD key={v} cls="text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                                                                 {s.voteMap[v] ? (
                                                                                     <div>
-                                                                                        <div className={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>{s.voteMap[v].invoiced.toLocaleString()}</div>
-                                                                                        <div className="text-emerald-400">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
-                                                                                        <div className="text-rose-400 text-[10px]">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                        <div className="font-black text-slate-800 dark:text-slate-200">{s.voteMap[v].invoiced.toLocaleString()}</div>
+                                                                                        <div className="text-emerald-600 dark:text-emerald-400 font-bold">{Math.round(s.voteMap[v].paid).toLocaleString()}</div>
+                                                                                        <div className="text-rose-600 dark:text-rose-400 text-[10px] font-bold">{Math.round(s.voteMap[v].invoiced - s.voteMap[v].paid).toLocaleString()}</div>
                                                                                     </div>
-                                                                                ) : <span className="text-slate-500">—</span>}
+                                                                                ) : <span className="text-slate-400">—</span>}
                                                                             </TD>
                                                                         ))}
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {s.totals.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-400">KSh {s.totals.balance.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-slate-800 dark:text-slate-200">KSh {s.totals.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {s.totals.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600 dark:text-rose-400">KSh {s.totals.balance.toLocaleString()}</TD>
                                                                     </tr>
                                                                 ))}
                                                             </tbody>
@@ -20176,13 +20265,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             }).filter(r => r.invoiced > 0);
                                             const totals = classSummary.reduce((a: any, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
-                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
-                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
-                                                }`}>
+                                                <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-6 bg-white dark:bg-slate-900">
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                        <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Class Summary</h3>
+                                                        <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Class Summary</h3>
                                                         <div className="flex items-center gap-2">
                                                             <button
                                                                 onClick={() => exportCSV('class_summary_report', ['Class', 'Students Count', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection Rate %'], classSummary.map(r => [r.cls, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))}
@@ -20195,21 +20280,21 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-x-auto">
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>{['Class', 'Students', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
+                                                            <thead><tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">{['Class', 'Students', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
                                                                 {classSummary.map((r, i) => (
-                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{r.cls}</TD>
-                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-bold' : 'text-slate-500 font-bold'}>{r.count}</TD>
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {r.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-400">KSh {r.balance.toLocaleString()}</TD>
+                                                                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                        <TD cls="font-black text-slate-900 dark:text-white">{r.cls}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">{r.count}</TD>
+                                                                        <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600 dark:text-rose-400">KSh {r.balance.toLocaleString()}</TD>
                                                                         <TD cls="">
                                                                             <div className="flex items-center gap-2">
                                                                                 <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${r.invoiced > 0 ? Math.min(100, (r.paid / r.invoiced) * 100) : 0}%` }} /></div>
-                                                                                <span className={`text-[10px] font-black ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-600'}`}>{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
+                                                                                <span className="text-[10px] font-black text-slate-600 dark:text-slate-400">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
                                                                             </div>
                                                                         </TD>
                                                                     </tr>
@@ -20218,9 +20303,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">{classSummary.reduce((a, r) => a + r.count, 0)}</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
-                                                                    <TD cls="text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
-                                                                    <TD cls="text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
-                                                                    <TD cls={themeMode === 'futuristic' ? 'text-slate-300' : 'text-slate-700'}>{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                    <TD cls="text-emerald-600 dark:text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="text-rose-600 dark:text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
+                                                                    <TD cls="text-slate-700 dark:text-slate-300">{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
                                                                 </tr>
                                                             </tbody>
                                                         </table>
@@ -20239,30 +20324,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 return { term, invoiced, paid, balance: invoiced - paid, count: invs.length };
                                             }).filter(r => r.invoiced > 0);
                                             return (
-                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
-                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
-                                                }`}>
+                                                <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-6 bg-white dark:bg-slate-900">
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                        <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Term Summary Balances</h3>
+                                                        <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Term Summary Balances</h3>
                                                         <div className="flex items-center gap-2">
                                                             <button onClick={() => exportCSV('term_summary_balances', ['Term', 'Invoices Count', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'], termSummary.map(r => [r.term, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">📥 CSV</button>
                                                             <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">🖨️ Print</button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-x-auto">
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>{['Term', 'Invoices', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
+                                                            <thead><tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">{['Term', 'Invoices', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
                                                                 {termSummary.map((r, i) => (
-                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{r.term}</TD>
-                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-bold' : 'text-slate-500 font-bold'}>{r.count}</TD>
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {r.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-400">KSh {r.balance.toLocaleString()}</TD>
-                                                                        <TD cls={themeMode === 'futuristic' ? 'text-slate-400 font-black' : 'text-slate-600 font-black'}>{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                        <TD cls="font-black text-slate-900 dark:text-white">{r.term}</TD>
+                                                                        <TD cls="text-slate-500 font-bold">{r.count}</TD>
+                                                                        <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600 dark:text-rose-400">KSh {r.balance.toLocaleString()}</TD>
+                                                                        <TD cls="text-slate-600 dark:text-slate-400 font-black">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : 0}%</TD>
                                                                     </tr>
                                                                 ))}
                                                                 {termSummary.length === 0 && (<tr><td colSpan={6} className="py-8 text-center text-slate-400 text-xs font-medium">No term data found</td></tr>)}
@@ -20292,32 +20373,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             }).filter(r => r.invoiced > 0).sort((a, b) => b.balance - a.balance);
                                             const totals = vhSummary.reduce((a, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
-                                                <div className={`rounded-[2rem] border shadow-sm p-6 ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
-                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
-                                                }`}>
+                                                <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-6 bg-white dark:bg-slate-900">
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                                                        <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Voteheads Summary</h3>
+                                                        <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Voteheads Summary</h3>
                                                         <div className="flex items-center gap-2">
                                                             <button onClick={() => exportCSV('voteheads_summary', ['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection %'], vhSummary.map(r => [r.vh, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))} className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">📥 CSV</button>
                                                             <button onClick={() => window.print()} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0">🖨️ Print</button>
                                                         </div>
                                                     </div>
-                                                    <div className="overflow-x-auto">
+                                                    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
                                                         <table className="w-full text-left">
-                                                            <thead><tr>{['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
+                                                            <thead><tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">{['Votehead', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
                                                                 {vhSummary.map((r, i) => (
-                                                                    <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-cyan-300' : 'text-slate-800 dark:text-white'}`}>{r.vh}</TD>
-                                                                        <TD cls={`font-black ${themeMode === 'futuristic' ? 'text-slate-200' : 'text-slate-700'}`}>KSh {r.invoiced.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
-                                                                        <TD cls="font-black text-rose-400">KSh {r.balance.toLocaleString()}</TD>
+                                                                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                        <TD cls="font-black text-slate-900 dark:text-white">{r.vh}</TD>
+                                                                        <TD cls="font-black text-slate-700 dark:text-slate-200">KSh {r.invoiced.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-emerald-600 dark:text-emerald-400">KSh {r.paid.toLocaleString()}</TD>
+                                                                        <TD cls="font-black text-rose-600 dark:text-rose-400">KSh {r.balance.toLocaleString()}</TD>
                                                                         <TD cls="">
                                                                             <div className="flex items-center gap-2">
                                                                                 <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${r.invoiced > 0 ? Math.min(100, (r.paid / r.invoiced) * 100) : 0}%` }} /></div>
-                                                                                <span className={`text-[10px] font-black ${themeMode === 'futuristic' ? 'text-slate-400' : 'text-slate-600'}`}>{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
+                                                                                <span className="text-[10px] font-black text-slate-600 dark:text-slate-400">{r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(0) : 0}%</span>
                                                                             </div>
                                                                         </TD>
                                                                     </tr>
@@ -20325,9 +20402,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
                                                                     <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
-                                                                    <TD cls="text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
-                                                                    <TD cls="text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
-                                                                    <TD cls={themeMode === 'futuristic' ? 'text-slate-300' : 'text-slate-600'}>{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
+                                                                    <TD cls="text-emerald-600 dark:text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
+                                                                    <TD cls="text-rose-600 dark:text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
+                                                                    <TD cls="text-slate-700 dark:text-slate-300">{totals.invoiced > 0 ? ((totals.paid / totals.invoiced) * 100).toFixed(1) : 0}%</TD>
                                                                 </tr>
                                                             </tbody>
                                                         </table>
@@ -20376,16 +20453,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const filteredTotalBalance = filteredDistStudents.reduce((a: number, s: any) => a + s.totals.balance, 0);
 
                                             return (
-                                                <div className={`rounded-[2rem] border shadow-sm p-6 space-y-4 ${
-                                                    themeMode === 'futuristic'
-                                                        ? 'bg-slate-950/90 text-white border-rose-500/30 shadow-rose-500/10'
-                                                        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60'
-                                                }`}>
+                                                <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4 bg-white dark:bg-slate-900">
                                                     {/* Header with Title & Global Action Buttons */}
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <h3 className={`text-sm font-black uppercase tracking-tight ${themeMode === 'futuristic' ? 'text-white' : 'text-slate-900 dark:text-white'}`}>Votehead Distribution</h3>
+                                                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Votehead Distribution</h3>
                                                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
                                                                     {totalItems} {totalItems === 1 ? 'Debtor' : 'Debtors'}
                                                                 </span>
