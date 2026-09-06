@@ -3368,7 +3368,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         {/* Dashboard Grade Filter Pills */}
                                         {availableGrades.length > 1 && (
                                             <div className="flex items-center gap-2 flex-wrap pb-1">
-                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">Filter Grade:</span>
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">Filter Grades:</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => setDashboardGradeFilter('all')}
@@ -3792,7 +3792,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         {/* Grade filter buttons for class selection */}
                                         {availableGrades.length > 1 && (
                                             <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                                                <span className="text-[10px] font-bold text-slate-400 mr-1">Filter Grade:</span>
+                                                <span className="text-[10px] font-bold text-slate-400 mr-1">Filter Grades:</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => setAddExamGradeFilter('all')}
@@ -4290,7 +4290,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     )}
                                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                                         {selectedClassFilter === 'all'
-                                            ? (selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Classes` : 'All Classes')
+                                            ? (selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Streams` : 'All Streams')
                                             : selectedClassFilter}
                                     </span>
                                 </div>
@@ -4325,7 +4325,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                                 {/* Grade Selector Dropdown */}
                                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Grade:</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Grades:</span>
                                     <select
                                         value={selectedGradeFilter}
                                         onChange={(e) => {
@@ -4342,9 +4342,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     </select>
                                 </div>
 
-                                {/* Class Selector Dropdown */}
+                                {/* Class/Stream Selector Dropdown */}
                                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-xs">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Class:</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Streams:</span>
                                     <select
                                         value={selectedClassFilter}
                                         onChange={(e) => {
@@ -4360,7 +4360,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
                                     >
                                         <option value="all">
-                                            {selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Classes` : 'All Classes'}
+                                            {selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Streams` : 'All Streams'}
                                         </option>
                                         {modalAvailableClasses.map(cName => (
                                             <option key={cName} value={cName}>{cName}</option>
