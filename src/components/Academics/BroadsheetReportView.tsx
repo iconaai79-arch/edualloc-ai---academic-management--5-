@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
+import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -826,50 +827,101 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     // Helper to test if a student mark row key matches a specific subject
     const isSubjectKeyMatch = (k: string, sub: any): boolean => {
         if (!k || !sub) return false;
-        const kNorm = k.toLowerCase().trim();
+        const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
         const subName = (sub.name || (sub as any).title || '').toLowerCase().trim();
         const subCode = (sub.code || '').toLowerCase().trim();
         const subId = (sub.id || '').toLowerCase().trim();
 
-        // Direct ID, Code, or exact Name match
+        // 1. Direct ID, Code, or exact Name match
         if (kNorm === subId || kNorm === subCode || kNorm === subName) return true;
 
         const sClean = subName.replace(/[^a-z0-9]/g, '_');
         const sCompact = subName.replace(/[^a-z0-9]/g, '');
         const cCompact = subCode.replace(/[^a-z0-9]/g, '');
-        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
+
+        // 2. Strip paper suffixes and prefixes (e.g. mathP1 -> math, subj_chemistry_p2 -> chemistry)
+        const kStripped = kNorm
+            .replace(/^subj_/, '')
+            .replace(/^(?:kcse_|cbe_|cbc_)/, '')
+            .replace(/(?:_?paper_?|_?p)\d+$/i, '')
+            .replace(/[^a-z0-9]/g, '');
 
         if (kNorm === `subj_${sClean}_p1` || kNorm === `subj_${sClean}` || kNorm === sClean) return true;
         if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
         if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
 
-        // Semantic Curriculum Root Matching:
-        // Kiswahili
-        if ((subCode.startsWith('kisw') || subName.includes('kisw')) && (kNorm.includes('kisw') || kNorm.includes('insha'))) return true;
-        // Hygiene / Nutrition
-        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
-        // Environmental / Science
-        if ((subCode.startsWith('env') || subName.includes('env')) && (kNorm.includes('env') || kNorm.includes('environment'))) return true;
-        // Creative / Psychomotor / Art
-        if ((subCode.startsWith('creat') || subName.includes('creat') || subName.includes('art') || subName.includes('psycho')) && 
-            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement'))) return true;
+        // 3. Standard secondary & primary curriculum subjects:
         // Mathematics
-        if ((subCode.startsWith('math') || subName.includes('math')) && (kNorm.includes('math') || kNorm.includes('numeracy'))) return true;
+        if ((subCode.startsWith('math') || subCode === '121' || subName.includes('math')) && 
+            (kNorm.includes('math') || kNorm.includes('numeracy') || kNorm === 'mat' || kStripped === 'mat' || kStripped === 'math')) return true;
+
         // English
-        if ((subCode.startsWith('eng') || subName.includes('eng')) && (kNorm.includes('eng') || kNorm.includes('literacy'))) return true;
-        // Religious Education (CRE / IRE / HRE)
-        if ((subCode.startsWith('cre') || subCode.startsWith('ire') || subCode.startsWith('hre') || subName.includes('religio')) && 
-            (kNorm.includes('cre') || kNorm.includes('ire') || kNorm.includes('hre') || kNorm.includes('religio'))) return true;
-        // Agriculture
-        if ((subCode.startsWith('agri') || subName.includes('agri')) && kNorm.includes('agri')) return true;
-        // Social Studies
-        if ((subCode.startsWith('soc') || subName.includes('social')) && (kNorm.includes('soc') || kNorm.includes('social'))) return true;
+        if ((subCode.startsWith('eng') || subCode === '101' || subName.includes('eng')) && 
+            (kNorm.includes('eng') || kNorm.includes('literacy') || kStripped === 'eng')) return true;
+
+        // Kiswahili
+        if ((subCode.startsWith('kisw') || subCode === '102' || subName.includes('kisw') || subName.includes('swahili')) && 
+            (kNorm.includes('kisw') || kNorm.includes('insha') || kNorm.includes('lugha') || kNorm.includes('swahili') || kStripped === 'kisw')) return true;
+
         // Biology
-        if (subCode.startsWith('bio') && kNorm.includes('bio')) return true;
+        if ((subCode.startsWith('bio') || subCode === '231' || subName.includes('bio')) && 
+            (kNorm.includes('bio') || kStripped === 'bio')) return true;
+
         // Chemistry
-        if (subCode.startsWith('chem') && kNorm.includes('chem')) return true;
+        if ((subCode.startsWith('chem') || subCode === '233' || subName.includes('chem')) && 
+            (kNorm.includes('chem') || kStripped === 'chem')) return true;
+
         // Physics
-        if (subCode.startsWith('phy') && (kNorm.includes('phy') || kNorm.includes('physics'))) return true;
+        if ((subCode.startsWith('phy') || subCode === '232' || subName.includes('phy')) && 
+            (kNorm.includes('phy') || kNorm.includes('physics') || kStripped === 'phy')) return true;
+
+        // History & Government
+        if ((subCode.startsWith('hist') || subCode === '311' || subName.includes('hist')) && 
+            (kNorm.includes('hist') || kNorm.includes('govt') || kNorm.includes('government') || kStripped === 'hist')) return true;
+
+        // Geography
+        if ((subCode.startsWith('geo') || subCode === '312' || subName.includes('geo')) && 
+            (kNorm.includes('geo') || kNorm.includes('geog') || kStripped === 'geo')) return true;
+
+        // CRE / IRE / HRE
+        if ((subCode.startsWith('cre') || subCode === '313' || subName.includes('cre') || subName.includes('christian')) && 
+            (kNorm.includes('cre') || kNorm.includes('christian') || kStripped === 'cre')) return true;
+        if ((subCode.startsWith('ire') || subCode === '314' || subName.includes('ire') || subName.includes('islamic')) && 
+            (kNorm.includes('ire') || kNorm.includes('islamic') || kStripped === 'ire')) return true;
+        if ((subCode.startsWith('hre') || subCode === '315' || subName.includes('hre') || subName.includes('hindu')) && 
+            (kNorm.includes('hre') || kNorm.includes('hindu') || kStripped === 'hre')) return true;
+
+        // Agriculture
+        if ((subCode.startsWith('agr') || subCode === '443' || subName.includes('agri')) && 
+            (kNorm.includes('agri') || kNorm.includes('agr') || kStripped === 'agri' || kStripped === 'agr')) return true;
+
+        // Business Studies
+        if ((subCode.startsWith('bst') || subCode.startsWith('bus') || subCode === '565' || subName.includes('business')) && 
+            (kNorm.includes('bst') || kNorm.includes('bus') || kNorm.includes('business') || kStripped === 'bst' || kStripped === 'bus')) return true;
+
+        // Computer Studies
+        if ((subCode.startsWith('cmp') || subCode.startsWith('comp') || subCode === '451' || subName.includes('computer')) && 
+            (kNorm.includes('cmp') || kNorm.includes('comp') || kNorm.includes('computer') || kStripped === 'cmp' || kStripped === 'comp')) return true;
+
+        // Home Science
+        if ((subCode.startsWith('hsc') || subCode === '441' || subName.includes('home science')) && 
+            (kNorm.includes('hsc') || kNorm.includes('homescience') || kStripped === 'hsc')) return true;
+
+        // Science / Integrated Science (Primary & JSS)
+        if ((subCode.startsWith('sci') || subName.includes('science')) && 
+            (kNorm.includes('sci') || kNorm.includes('science') || kNorm.includes('sayansi') || kStripped === 'sci')) return true;
+
+        // Social Studies (Primary & JSS)
+        if ((subCode.startsWith('soc') || subName.includes('social')) && 
+            (kNorm.includes('soc') || kNorm.includes('social') || kStripped === 'soc')) return true;
+
+        // Creative Arts / Psychomotor / Art
+        if ((subCode.startsWith('creat') || subCode.startsWith('art') || subName.includes('art') || subName.includes('creative') || subName.includes('psycho')) && 
+            (kNorm.includes('creat') || kNorm.includes('art') || kNorm.includes('psycho') || kNorm.includes('music') || kNorm.includes('movement'))) return true;
+
+        // Hygiene / Nutrition
+        if ((subCode.startsWith('hyg') || subName.includes('hyg') || subName.includes('nutri')) && 
+            (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
 
         // Normalized word token match (tokens of length >= 4)
         const subTokens = subName.split(/[^a-z0-9]/).filter(t => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
@@ -878,115 +930,361 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return false;
     };
 
+    // Helper to resolve student real KCPE marks (or null if not entered)
+    const resolveStudentKcpe = (
+        stRow: any,
+        matchedSt: any,
+        currentInst: any
+    ): number | null => {
+        // 1. Direct candidate properties on stRow
+        const rowCandidates = [
+            stRow?.kcpe,
+            stRow?.kcpeScore,
+            stRow?.kcpe_score,
+            stRow?.kcpeMarks,
+            stRow?.kcpe_marks,
+            stRow?.metadata?.kcpe,
+            stRow?.metadata?.kcpeScore,
+        ];
+        for (const cand of rowCandidates) {
+            if (cand !== null && cand !== undefined && cand !== '') {
+                const n = typeof cand === 'number' ? cand : parseFloat(String(cand));
+                if (!isNaN(n) && n > 0 && n <= 500) {
+                    return Math.round(n);
+                }
+            }
+        }
+
+        // 2. Direct candidate properties on matched student user record
+        if (matchedSt) {
+            const stCandidates = [
+                matchedSt.kcpe,
+                matchedSt.kcpeScore,
+                matchedSt.kcpe_score,
+                matchedSt.kcpeMarks,
+                matchedSt.kcpe_marks,
+                matchedSt.metadata?.kcpe,
+                matchedSt.metadata?.kcpeScore,
+                matchedSt.metadata?.kcpe_score,
+                matchedSt.metadata?.kcpeMarks,
+                matchedSt.metadata?.kcpe_marks,
+                matchedSt.admissionData?.kcpeScore,
+                matchedSt.admissionData?.kcpe,
+            ];
+            for (const cand of stCandidates) {
+                if (cand !== null && cand !== undefined && cand !== '') {
+                    const n = typeof cand === 'number' ? cand : parseFloat(String(cand));
+                    if (!isNaN(n) && n > 0 && n <= 500) {
+                        return Math.round(n);
+                    }
+                }
+            }
+        }
+
+        // 3. Check currentInstitution?.kcpeScoresRecords
+        const kcpeRecords: any[] = (currentInst as any)?.kcpeScoresRecords || [];
+        if (Array.isArray(kcpeRecords) && kcpeRecords.length > 0) {
+            const stAdm = String(matchedSt?.admissionNumber || matchedSt?.admissionNo || matchedSt?.admNo || stRow?.admNo || stRow?.admissionNo || '').trim().toLowerCase();
+            const stName = String(matchedSt?.name || stRow?.name || stRow?.studentName || '').trim().toLowerCase();
+
+            const match = kcpeRecords.find((rec: any) => {
+                const rIdx = String(rec.indexNumber || rec.index_number || rec.admissionNo || rec.admNo || '').trim().toLowerCase();
+                const rName = String(rec.studentName || rec.student_name || rec.name || '').trim().toLowerCase();
+                if (stAdm && rIdx && (stAdm === rIdx || stAdm.replace(/^0+/, '') === rIdx.replace(/^0+/, ''))) return true;
+                if (stName && rName && (stName === rName || (stName.length > 3 && rName.includes(stName)) || (rName.length > 3 && stName.includes(rName)))) return true;
+                return false;
+            });
+
+            if (match) {
+                const tot = match.totalScore ?? match.total_score ?? match.total_kcpe_marks ?? match.total;
+                if (tot !== null && tot !== undefined && tot !== '') {
+                    const n = typeof tot === 'number' ? tot : parseFloat(String(tot));
+                    if (!isNaN(n) && n > 0 && n <= 500) {
+                        return Math.round(n);
+                    }
+                }
+            }
+        }
+
+        // 4. Check localStorage for institution KCPE registry
+        try {
+            const instKey = currentInst?.id || instId;
+            if (instKey) {
+                const rawStored = localStorage.getItem(`eduai_kcpe_scores_${instKey}`);
+                if (rawStored) {
+                    const parsed = JSON.parse(rawStored);
+                    if (Array.isArray(parsed)) {
+                        const stAdm = String(matchedSt?.admissionNumber || matchedSt?.admissionNo || matchedSt?.admNo || stRow?.admNo || stRow?.admissionNo || '').trim().toLowerCase();
+                        const stName = String(matchedSt?.name || stRow?.name || stRow?.studentName || '').trim().toLowerCase();
+                        const match = parsed.find((rec: any) => {
+                            const rIdx = String(rec.indexNumber || rec.index_number || rec.admissionNo || rec.admNo || '').trim().toLowerCase();
+                            const rName = String(rec.studentName || rec.student_name || rec.name || '').trim().toLowerCase();
+                            if (stAdm && rIdx && (stAdm === rIdx || stAdm.replace(/^0+/, '') === rIdx.replace(/^0+/, ''))) return true;
+                            if (stName && rName && (stName === rName || (stName.length > 3 && rName.includes(stName)))) return true;
+                            return false;
+                        });
+                        if (match) {
+                            const tot = match.totalScore ?? match.total_score ?? match.total_kcpe_marks ?? match.total;
+                            const n = typeof tot === 'number' ? tot : parseFloat(String(tot));
+                            if (!isNaN(n) && n > 0 && n <= 500) {
+                                return Math.round(n);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+
+        return null;
+    };
+
+    // Helper to extract a student's real mark for a subject across all storage structures
+    const extractSubjectScoreForStudent = (
+        sub: any,
+        stRow: any,
+        matchedSt: any,
+        allAssessmentMarks: AssessmentMark[] = [],
+        examId: string,
+        isPrimary: boolean
+    ): { score: number; grade: string; points: number } | null => {
+        const dictionariesToCheck: Record<string, any>[] = [
+            stRow,
+            (stRow?.marks && typeof stRow.marks === 'object' ? stRow.marks : null),
+            (stRow?.subjectMarks && typeof stRow.subjectMarks === 'object' ? stRow.subjectMarks : null),
+            (stRow?.subjectMarksMap && typeof stRow.subjectMarksMap === 'object' ? stRow.subjectMarksMap : null),
+            (stRow?.scores && typeof stRow.scores === 'object' ? stRow.scores : null),
+        ].filter(Boolean);
+
+        let paper1: number | null = null;
+        let paper2: number | null = null;
+        let paper3: number | null = null;
+        let directScore: number | null = null;
+
+        const ignoredKeys = new Set([
+            'admno', 'name', 'class', 'kcpe', 'student', 'id', 'admissionno', 
+            'admissionnumber', 'total', 'mean', 'average', 'stream', 'rank',
+            'overallpos', 'streampos', 'vap', 'entry', 'studentname', 'studentclass',
+            'gender', 'courselevelid', 'levelid'
+        ]);
+
+        for (const dict of dictionariesToCheck) {
+            for (const [key, val] of Object.entries(dict)) {
+                if (val === null || val === undefined || val === '') continue;
+                const kNorm = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (ignoredKeys.has(kNorm)) continue;
+
+                let num: number | null = null;
+                if (typeof val === 'number') {
+                    num = val;
+                } else if (typeof val === 'string') {
+                    const parsed = parseFloat(val);
+                    if (!isNaN(parsed)) num = parsed;
+                } else if (typeof val === 'object' && val !== null) {
+                    const inner = (val as any).score ?? (val as any).mark ?? (val as any).marks;
+                    if (inner !== null && inner !== undefined && !isNaN(Number(inner))) {
+                        num = Number(inner);
+                    }
+                }
+
+                if (num === null || isNaN(num) || num < 0) continue;
+
+                if (isSubjectKeyMatch(key, sub)) {
+                    const kLower = key.toLowerCase();
+                    const isP1 = /(?:_?p|_?paper_?)\s*1\b/i.test(kLower) || kLower.endsWith('p1');
+                    const isP2 = /(?:_?p|_?paper_?)\s*2\b/i.test(kLower) || kLower.endsWith('p2');
+                    const isP3 = /(?:_?p|_?paper_?)\s*3\b/i.test(kLower) || kLower.endsWith('p3');
+
+                    if (isP1) {
+                        paper1 = num;
+                    } else if (isP2) {
+                        paper2 = num;
+                    } else if (isP3) {
+                        paper3 = num;
+                    } else {
+                        directScore = (directScore === null || num > directScore) ? num : directScore;
+                    }
+                }
+            }
+        }
+
+        // Check props.marks if not found in stRow
+        if (paper1 === null && paper2 === null && paper3 === null && directScore === null && allAssessmentMarks.length > 0) {
+            const studentId = matchedSt?.id || stRow?.id || stRow?.studentId;
+            const studentAdm = String(matchedSt?.admissionNumber || matchedSt?.admissionNo || matchedSt?.admNo || stRow?.admNo || '').trim().toLowerCase();
+
+            const matchedMarks = allAssessmentMarks.filter((m: any) => {
+                const mExId = m.assessmentId || m.assessment_id || m.examId;
+                const matchesExam = !examId || !mExId || mExId === examId;
+                if (!matchesExam) return false;
+
+                const mStId = m.studentId || m.student_id;
+                const matchesStudent = (studentId && mStId === studentId) || (studentAdm && String((m as any).admNo || (m as any).admissionNo || '').toLowerCase() === studentAdm);
+                if (!matchesStudent) return false;
+
+                const mSubId = m.subjectId || m.subject_id || m.subject;
+                const mSubName = (m as any).subjectName || (m as any).subjectCode || (m as any).name || '';
+                return (mSubId && (mSubId === sub.id || mSubId === sub.code)) || (mSubName && isSubjectKeyMatch(mSubName, sub));
+            });
+
+            if (matchedMarks.length > 0) {
+                let maxM = -1;
+                matchedMarks.forEach((m: any) => {
+                    const val = m.marks ?? m.score ?? m.percentage ?? m.rawMark;
+                    if (val !== null && val !== undefined) {
+                        const n = Number(val);
+                        if (!isNaN(n) && n > maxM) maxM = n;
+                    }
+                });
+                if (maxM >= 0) {
+                    directScore = maxM;
+                }
+            }
+        }
+
+        const hasPapers = paper1 !== null || paper2 !== null || paper3 !== null;
+        let finalScore: number | null = null;
+
+        if (hasPapers) {
+            const sumPapers = (paper1 || 0) + (paper2 || 0) + (paper3 || 0);
+            if (directScore !== null && directScore > sumPapers) {
+                finalScore = directScore;
+            } else {
+                finalScore = sumPapers;
+            }
+        } else if (directScore !== null) {
+            finalScore = directScore;
+        }
+
+        if (finalScore === null || isNaN(finalScore)) {
+            return null;
+        }
+
+        const cleanScore = Math.round(finalScore * 10) / 10;
+        const { grade, points } = getGradeInfo(cleanScore, isPrimary);
+        return { score: cleanScore, grade, points };
+    };
+
     // Active subjects for broadsheet columns (filtered by class subject allocation & current exam's entered subjects)
     const broadsheetSubjects = useMemo(() => {
-        // 1. All candidate subjects
-        const rawCandidates = subjects.length > 0 ? subjects : [
-            { id: 'sub_1', name: 'English', code: 'ENG' },
-            { id: 'sub_2', name: 'Kiswahili', code: 'KISW' },
-            { id: 'sub_3', name: 'Mathematics', code: 'MATH' },
-            { id: 'sub_4', name: 'Biology', code: 'BIO' },
-            { id: 'sub_5', name: 'Physics', code: 'PHY' },
-            { id: 'sub_6', name: 'Chemistry', code: 'CHEM' },
-            { id: 'sub_7', name: 'History & Govt', code: 'HIST' },
-            { id: 'sub_8', name: 'Geography', code: 'GEO' },
-            { id: 'sub_9', name: 'Christian Rel. Ed.', code: 'CRE' },
-            { id: 'sub_10', name: 'Computer Studies', code: 'CMP' },
-            { id: 'sub_11', name: 'Business Studies', code: 'BST' },
+        // Standard Kenyan 8-4-4 High School fallback
+        const secondaryDefaultSubjects: any[] = [
+            { id: 'sub_eng', name: 'English', code: 'ENG' },
+            { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW' },
+            { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
+            { id: 'sub_bio', name: 'Biology', code: 'BIO' },
+            { id: 'sub_chem', name: 'Chemistry', code: 'CHEM' },
+            { id: 'sub_phy', name: 'Physics', code: 'PHY' },
+            { id: 'sub_hist', name: 'History & Govt', code: 'HIST' },
+            { id: 'sub_geo', name: 'Geography', code: 'GEO' },
+            { id: 'sub_cre', name: 'CRE', code: 'CRE' },
+            { id: 'sub_agri', name: 'Agriculture', code: 'AGRI' },
+            { id: 'sub_bst', name: 'Business Studies', code: 'BST' },
+            { id: 'sub_cmp', name: 'Computer Studies', code: 'CMP' },
         ];
 
+        // Standard Primary fallback
+        const primaryDefaultSubjects: any[] = [
+            { id: 'sub_p_math', name: 'Mathematics', code: 'MATH' },
+            { id: 'sub_p_eng', name: 'English', code: 'ENG' },
+            { id: 'sub_p_kisw', name: 'Kiswahili', code: 'KISW' },
+            { id: 'sub_p_sci', name: 'Science & Tech', code: 'SCI' },
+            { id: 'sub_p_soc', name: 'Social Studies', code: 'SOC' },
+            { id: 'sub_p_cre', name: 'CRE', code: 'CRE' },
+            { id: 'sub_p_agri', name: 'Agriculture', code: 'AGRI' },
+            { id: 'sub_p_art', name: 'Creative Arts', code: 'ART' },
+        ];
+
+        const defaultPool = isPrimarySchool ? primaryDefaultSubjects : secondaryDefaultSubjects;
+        const baseClass = selectedYearGroup || (isPrimarySchool ? 'Grade 6' : 'Form 3');
+
+        // 1. Gather candidate subjects applicable to current class
+        let candidateList: any[] = [];
+        const seenCandidateNames = new Set<string>();
+
+        const addCandidate = (sub: any) => {
+            if (!sub) return;
+            const norm = (sub.code || sub.name || sub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!norm || seenCandidateNames.has(norm)) return;
+            seenCandidateNames.add(norm);
+            candidateList.push(sub);
+        };
+
+        if (subjects && subjects.length > 0) {
+            subjects.forEach(sub => {
+                if (isSubjectApplicableToClass(sub, baseClass)) {
+                    addCandidate(sub);
+                }
+            });
+        }
+
+        // If no applicable subjects from props.subjects, seed with defaultPool
+        if (candidateList.length === 0) {
+            defaultPool.forEach(sub => {
+                if (isSubjectApplicableToClass(sub, baseClass)) {
+                    addCandidate(sub);
+                }
+            });
+        }
+        if (candidateList.length === 0) {
+            defaultPool.forEach(sub => addCandidate(sub));
+        }
+
+        // 2. Class allocations store filter (with safety check so broadsheet is never empty)
         const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
         const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
-        const isUpperPrimaryGroup = /grade\s*[4-8]|std\s*[4-8]|standard\s*[4-8]/i.test(selectedYearGroup);
-        const isLowerPrimaryGroup = /grade\s*[1-3]|std\s*[1-3]|standard\s*[1-3]|pp[1-2]|playgroup/i.test(selectedYearGroup);
 
-        // 2. Filter candidate subjects strictly by class allocations if configured
-        let allocatedSubjectIdentifiers: string[] | null = null;
-        if (yGrpClean && yGrpClean !== 'all') {
-            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
+        if (yGrpClean && yGrpClean !== 'all' && classAllocationsStore && Object.keys(classAllocationsStore).length > 0) {
+            const matchedKey = Object.keys(classAllocationsStore).find(k => {
                 const kClean = k.toLowerCase().trim();
                 const kNorm = kClean.replace(/[^a-z0-9]/g, '');
                 return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
             });
-            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
-                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
+            const allocIds = matchedKey ? classAllocationsStore[matchedKey] : null;
+
+            if (Array.isArray(allocIds) && allocIds.length > 0) {
+                const allocatedCandidates = candidateList.filter(sub => {
+                    const subId = (sub.id || '').toLowerCase().trim();
+                    const sName = (sub.name || '').toLowerCase().trim();
+                    const sCode = (sub.code || '').toLowerCase().trim();
+                    const normName = sName.replace(/[^a-z0-9]/g, '');
+                    return allocIds.some(allocId => {
+                        const aClean = String(allocId).toLowerCase().trim();
+                        const aNorm = aClean.replace(/[^a-z0-9]/g, '');
+                        return aClean === subId || aClean === sName || aClean === sCode ||
+                               (aNorm.length >= 3 && normName.includes(aNorm)) ||
+                               (normName.length >= 3 && aNorm.includes(normName));
+                    });
+                });
+                // SAFETY: Only apply allocation filter if it retains at least 1 valid subject
+                if (allocatedCandidates.length > 0) {
+                    candidateList = allocatedCandidates;
+                }
             }
         }
 
-        const candidateList: any[] = [];
-        const seenCandidateNames = new Set<string>();
-
-        rawCandidates.forEach(sub => {
-            const sCode = (sub.code || '').toUpperCase().trim();
-            const sName = (sub.name || '').toUpperCase().trim();
-            const subId = (sub.id || '').trim();
-            const normName = (sub.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            // If class allocations are defined for this year group, verify subject is allocated
-            if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
-                const isAllocated = allocatedSubjectIdentifiers.some(allocId => {
-                    const aClean = String(allocId).toLowerCase().trim();
-                    const aNorm = aClean.replace(/[^a-z0-9]/g, '');
-                    return aClean === subId.toLowerCase() ||
-                           aClean === sName.toLowerCase() ||
-                           aClean === sCode.toLowerCase() ||
-                           (aNorm.length >= 3 && normName.includes(aNorm)) ||
-                           (normName.length >= 3 && aNorm.includes(normName));
-                });
-                if (!isAllocated) return;
-            } else {
-                // Curricula division filter only when no explicit allocation is set
-                if (isUpperPrimaryGroup) {
-                    if (sCode.endsWith('-LP') || sCode.endsWith('_LP') || sName.includes('LOWER PRIMARY') || sName.includes('(LP)')) return;
-                }
-                if (isLowerPrimaryGroup) {
-                    if (sCode.endsWith('-UP') || sCode.endsWith('_UP') || sName.includes('UPPER PRIMARY') || sName.includes('(UP)')) return;
-                }
-            }
-
-            if (normName && !seenCandidateNames.has(normName)) {
-                seenCandidateNames.add(normName);
-                candidateList.push(sub);
-            }
-        });
-
-        // 3. Filter by active marks entered for this exam & class
+        // 3. Ensure any subject that has recorded marks in the saved rows is ALWAYS included
         const savedRows = resolveEffectiveExamRows(selectedExamId);
         if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
-            const classRows = yGrpClean && yGrpClean !== 'all'
-                ? savedRows.filter((r: any) => {
-                    const stCls = String(r.class || r.studentClass || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return !stCls || stCls.includes(yGrpNorm) || yGrpNorm.includes(stCls);
-                })
-                : savedRows;
+            const allAvailableSubjectsPool = [...(subjects || []), ...defaultPool];
+            allAvailableSubjectsPool.forEach(poolSub => {
+                if (candidateList.some(c => c.id === poolSub.id || (c.code && poolSub.code && c.code.toLowerCase() === poolSub.code.toLowerCase()))) return;
 
-            if (classRows.length > 0) {
-                const activeSubjIds = new Set<string>();
-                candidateList.forEach(sub => {
-                    const hasDataInRows = classRows.some(stRow => {
-                        return Object.entries(stRow).some(([k, val]) => {
-                            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo'].includes(k)) return false;
-                            if (val === null || val === undefined || val === '') return false;
-                            if (typeof val === 'number' && val >= 0) {
-                                return isSubjectKeyMatch(k, sub);
-                            }
-                            return false;
-                        });
+                const hasMarksInRows = savedRows.some(row => {
+                    return Object.entries(row).some(([k, v]) => {
+                        if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean'].includes(k)) return false;
+                        if (v === null || v === undefined || v === '') return false;
+                        const num = typeof v === 'number' ? v : parseFloat(String(v));
+                        return !isNaN(num) && num >= 0 && isSubjectKeyMatch(k, poolSub);
                     });
-
-                    if (hasDataInRows) {
-                        activeSubjIds.add(sub.id);
-                    }
                 });
-
-                if (activeSubjIds.size > 0) {
-                    return candidateList.filter(sub => activeSubjIds.has(sub.id));
+                if (hasMarksInRows) {
+                    addCandidate(poolSub);
                 }
-            }
+            });
         }
 
         return candidateList;
-    }, [subjects, selectedExamObj, resolveEffectiveExamRows, selectedExamId, isPrimarySchool, selectedYearGroup, classAllocationsStore]);
+    }, [subjects, selectedYearGroup, isPrimarySchool, classAllocationsStore, resolveEffectiveExamRows, selectedExamId]);
 
     // Helper to resolve real student stream with cross-referencing
     const resolveStudentStream = (st: any, row: any): string => {
@@ -1019,7 +1317,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return '';
     };
 
-    // Student broadsheet list (combining real saved marks and student registry)
+    // Student broadsheet list (combining real saved marks, student registry, and live calculations)
     const sampleStudents = useMemo(() => {
         const savedRows = resolveEffectiveExamRows(selectedExamId);
         if (!savedRows || !Array.isArray(savedRows) || savedRows.length === 0) return [];
@@ -1050,31 +1348,17 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const cleanGrade = extractGradeOnly(rawClass) || rawClass;
             const realClass = cleanStream ? `${cleanGrade} ${cleanStream}`.trim() : cleanGrade;
 
-            const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
+            const subjectMarksMap: Record<string, { score: number; grade: string; points: number }> = {};
             let total = 0;
             let totalPts = 0;
             let validCount = 0;
 
             broadsheetSubjects.forEach(sub => {
-                let sc = 0;
-                let hasMark = false;
-
-                Object.entries(stRow).forEach(([k, val]) => {
-                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean', 'average', 'stream'].includes(k)) return;
-                    if (val === null || val === undefined || val === '' || isNaN(val as any)) return;
-
-                    const numVal = typeof val === 'number' ? val : parseFloat(String(val));
-                    if (!isNaN(numVal) && isSubjectKeyMatch(k, sub)) {
-                        sc += numVal;
-                        hasMark = true;
-                    }
-                });
-
-                if (hasMark) {
-                    const { grade, points } = getGradeInfo(sc, isPrimarySchool);
-                    subjectMarksMap[sub.id] = { score: sc, grade };
-                    total += sc;
-                    totalPts += points;
+                const markInfo = extractSubjectScoreForStudent(sub, stRow, matchedSt, marks, selectedExamId, isPrimarySchool);
+                if (markInfo) {
+                    subjectMarksMap[sub.id] = markInfo;
+                    total += markInfo.score;
+                    totalPts += markInfo.points;
                     validCount++;
                 }
             });
@@ -1082,6 +1366,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const meanPts = validCount > 0 ? parseFloat((totalPts / validCount).toFixed(4)) : 0;
             const meanScore = validCount > 0 ? parseFloat((total / validCount).toFixed(1)) : 0;
             const { grade: meanGrade } = getGradeInfo(meanScore, isPrimarySchool);
+            const realKcpe = resolveStudentKcpe(stRow, matchedSt, currentInstitution);
 
             return {
                 student: {
@@ -1093,10 +1378,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     stream: cleanStream || matchedSt?.stream || (stRow as any).stream || '',
                     courseLevelId: (matchedSt as any)?.courseLevelId || (stRow as any)?.courseLevelId
                 },
-                kcpe: 250 + (idx * 5) % 150,
-                entry: validCount > 0 ? validCount : (broadsheetSubjects.length || 1),
+                kcpe: realKcpe,
+                entry: validCount > 0 ? validCount : broadsheetSubjects.length,
                 subjectMarksMap,
-                total,
+                total: Math.round(total * 10) / 10,
                 meanScore,
                 meanGrade,
                 meanPts,
@@ -1107,7 +1392,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [resolveEffectiveExamRows, selectedExamId, activeStudents, selectedYearGroup, broadsheetSubjects, isPrimarySchool, courses]);
+    }, [resolveEffectiveExamRows, selectedExamId, activeStudents, selectedYearGroup, broadsheetSubjects, isPrimarySchool, courses, marks, currentInstitution, instId]);
 
     // Filtered student rows (sorted by total marks descending and re-ranked 1, 2, 3, 4...)
     const filteredBroadsheetRows = useMemo(() => {
@@ -1268,7 +1553,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const rowObj: any = {
                 'ID': getStudentAdmNo(r.student, idx),
                 'Name': r.student.name,
-                ...(!isPrimarySchool ? { 'KCPE': r.kcpe } : {}),
+                ...(!isPrimarySchool ? { 'KCPE': r.kcpe ?? '—' } : {}),
                 'Class': r.student.studentClass || '3 Central',
                 'Entry': r.entry
             };
@@ -1963,7 +2248,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                                             <tr key={r.student?.id || rowIdx} className={rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                                                 <td className="p-2 font-bold font-mono border border-slate-300 text-slate-900">{getStudentAdmNo(r.student, startIdx + rowIdx, activeStudents) || r.student?.admissionNo || r.student?.id || 'N/A'}</td>
                                                                 <td className="p-2 font-black border border-slate-300 uppercase">{r.student?.name}</td>
-                                                                {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe}</td>}
+                                                                {!isPrimarySchool && <td className="p-2 border border-slate-300 text-center font-bold">{r.kcpe ?? '—'}</td>}
                                                                 <td className="p-2 border border-slate-300">{(r.student as any)?.studentClass || selectedYearGroup}</td>
                                                                 {broadsheetSubjects.map(sub => {
                                                                     const m = r.subjectMarksMap[sub.id];
