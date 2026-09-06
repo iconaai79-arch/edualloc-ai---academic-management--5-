@@ -332,11 +332,42 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             return savedBroadsheets[examId];
         }
 
+        // Tier 1b: Direct localStorage lookup for institution broadsheets store
+        try {
+            const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                             (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null) ||
+                             localStorage.getItem('eduai_exam_broadsheets_default');
+            if (storeRaw) {
+                const parsed = JSON.parse(storeRaw);
+                if (parsed && parsed[examId] && Array.isArray(parsed[examId]) && parsed[examId].length > 0) {
+                    return parsed[examId];
+                }
+            }
+        } catch(e) {}
+
         // Tier 2: Check active exam object's broadsheetData or rows
         const matchedExam = allExamsList.find(e => e.id === examId);
         if (matchedExam) {
             const exData = (matchedExam as any).broadsheetData || (matchedExam as any).rows;
             if (Array.isArray(exData) && exData.length > 0) return exData;
+
+            // Also check by exam title or name if different from id
+            const exName = matchedExam.title || matchedExam.name;
+            if (exName && exName !== examId) {
+                if (savedBroadsheets[exName] && Array.isArray(savedBroadsheets[exName]) && savedBroadsheets[exName].length > 0) {
+                    return savedBroadsheets[exName];
+                }
+                try {
+                    const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                                     (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null);
+                    if (storeRaw) {
+                        const parsed = JSON.parse(storeRaw);
+                        if (parsed && parsed[exName] && Array.isArray(parsed[exName]) && parsed[exName].length > 0) {
+                            return parsed[exName];
+                        }
+                    }
+                } catch(e) {}
+            }
         }
 
         // Tier 3: Check snapshot backups in localStorage
@@ -362,11 +393,24 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 if (Array.isArray(parsed) && parsed.length > 0) return parsed;
                 if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
             }
+            if (matchedExam) {
+                const nameKey = localStorage.getItem(`eduai_exam_broadsheet_${matchedExam.title}`) || localStorage.getItem(`eduai_exam_broadsheet_${matchedExam.name}`);
+                if (nameKey) {
+                    const parsed = JSON.parse(nameKey);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
+                }
+            }
         } catch (e) { }
 
         // Tier 5: Construct from props.marks if matching records exist
         if (marks && marks.length > 0) {
-            const examMarks = marks.filter((m: any) => m.assessmentId === examId || m.assessment_id === examId || m.examId === examId);
+            const examMarks = marks.filter((m: any) => 
+                m.assessmentId === examId || 
+                m.assessment_id === examId || 
+                m.examId === examId ||
+                (matchedExam && (m.assessmentId === matchedExam.title || m.assessmentId === matchedExam.name))
+            );
             if (examMarks.length > 0) {
                 const studentMap = new Map<string, any>();
                 examMarks.forEach((m: any) => {
@@ -378,7 +422,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             id: sId,
                             admNo: (stObj as any)?.admissionNumber || (stObj as any)?.admNo || sId,
                             name: stObj?.name || 'Student',
-                            class: (stObj as any)?.studentClass || selectedYearGroup || 'Class'
+                            class: (stObj as any)?.studentClass || selectedYearGroup || 'Class',
+                            stream: (stObj as any)?.stream || (stObj as any)?.streamName || ''
                         });
                     }
                     const row = studentMap.get(sId);
@@ -394,7 +439,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
 
         return [];
-    }, [savedBroadsheets, allExamsList, instId, marks, activeStudents, selectedYearGroup]);
+    }, [savedBroadsheets, allExamsList, instId, marks, activeStudents, selectedYearGroup, currentInstitution]);
 
     // Auto-select published exam or the exam with broadsheet rows
     useEffect(() => {
@@ -403,8 +448,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const currentHasData = resolveEffectiveExamRows(selectedExamId).length > 0;
             const currentIsPub = currentObj && (currentObj.isPublished || String(currentObj.status || '').toLowerCase().trim() === 'published');
 
-            // If current selected exam is published and has data, stay on it
-            if (currentIsPub && currentHasData) return;
+            // If current selected exam has data or is published and valid, stay on it!
+            if (currentHasData || (currentIsPub && currentObj)) return;
 
             // 1. Prioritize a published exam that has broadsheet data
             const pubWithData = allExamsList.find(e =>
@@ -416,17 +461,18 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 return;
             }
 
-            // 2. Prioritize ANY published exam
-            const anyPub = allExamsList.find(e => e.isPublished || String(e.status || '').toLowerCase().trim() === 'published');
-            if (anyPub && (!currentIsPub || !currentObj) && anyPub.id !== selectedExamId) {
-                setSelectedExamId(anyPub.id);
+            // 2. Prioritize any exam that has broadsheet data
+            const anyWithData = allExamsList.find(e => resolveEffectiveExamRows(e.id).length > 0);
+            if (anyWithData && anyWithData.id !== selectedExamId) {
+                setSelectedExamId(anyWithData.id);
                 return;
             }
 
-            // 3. Prioritize any exam that has data
-            const anyWithData = allExamsList.find(e => resolveEffectiveExamRows(e.id).length > 0);
-            if (anyWithData && !currentHasData && anyWithData.id !== selectedExamId) {
-                setSelectedExamId(anyWithData.id);
+            // 3. Prioritize ANY published exam
+            const anyPub = allExamsList.find(e => e.isPublished || String(e.status || '').toLowerCase().trim() === 'published');
+            if (anyPub && anyPub.id !== selectedExamId) {
+                setSelectedExamId(anyPub.id);
+                return;
             }
         }
     }, [allExamsList, resolveEffectiveExamRows, selectedExamId]);
@@ -525,11 +571,17 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
             if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
 
+            // Exclude pure numbers (e.g. "3" from "Form 3")
+            if (/^\d+$/.test(clean)) return;
+
+            // Exclude generic grade/form prefixes
+            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
+
             if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
                 clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
             }
             clean = clean.replace(/^\((.+)\)$/, '$1').trim();
-            if (!clean || clean.toLowerCase() === yearGroupClean) return;
+            if (!clean || clean.toLowerCase() === yearGroupClean || /^\d+$/.test(clean)) return;
 
             const key = clean.toLowerCase();
             const existing = streamMap.get(key);
@@ -544,6 +596,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             }
         };
 
+        // 1. Registered course levels for this cohort
         if (courses && courses.length > 0) {
             courses.forEach(c => {
                 const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
@@ -557,6 +610,15 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             });
         }
 
+        // 2. Institution stream definitions
+        if (currentInstitution && (currentInstitution as any).streamDefinitions && Array.isArray((currentInstitution as any).streamDefinitions)) {
+            (currentInstitution as any).streamDefinitions.forEach((sDef: any) => {
+                if (typeof sDef === 'string') addStream(sDef, true);
+                else if (sDef?.name) addStream(sDef.name, true);
+            });
+        }
+
+        // 3. Saved broadsheet rows
         const savedRows = resolveEffectiveExamRows(selectedExamId);
         if (savedRows && savedRows.length > 0) {
             savedRows.forEach((r: any) => {
@@ -565,16 +627,42 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 if (rStream) addStream(rStream);
                 if (stClass.toLowerCase().includes(yearGroupClean)) {
                     const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
-                    if (match && match[1]) addStream(match[1]);
+                    if (match && match[1] && !/^\d+$/.test(match[1])) {
+                        addStream(match[1]);
+                    } else if (stClass.toLowerCase() !== yearGroupClean) {
+                        addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
+                    }
                 }
             });
         }
 
+        // 4. Active registered students
         activeStudents.forEach((st: any) => {
             const stClass = String(st.studentClass || st.classLevel || st.className || st.class || '').trim();
-            const directStream = String(st.stream || st.streamName || st.metadata?.stream || '').trim();
-            if (directStream && (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean)) {
+            const directStream = String(st.stream || st.streamName || st.metadata?.stream || st.metadata?.streamName || '').trim();
+            if (directStream && (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean || yearGroupClean === 'all')) {
                 addStream(directStream);
+            }
+
+            // Check courseLevelId
+            const lvlId = (st as any).courseLevelId || (st as any).levelId || (st as any).metadata?.courseLevelId;
+            if (lvlId && courses && courses.length > 0) {
+                for (const c of courses) {
+                    const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                    if (cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName)) {
+                        const matchedLevel = (c.levels || []).find((l: any) => l.id === lvlId);
+                        if (matchedLevel?.name) addStream(matchedLevel.name, true);
+                    }
+                }
+            }
+
+            if (stClass.toLowerCase().includes(yearGroupClean)) {
+                const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
+                if (match && match[1] && !/^\d+$/.test(match[1])) {
+                    addStream(match[1]);
+                } else if (stClass.toLowerCase() !== yearGroupClean) {
+                    addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
+                }
             }
         });
 
@@ -583,7 +671,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         }
 
         return ['all', ...Array.from(streamMap.values()).filter(Boolean)];
-    }, [courses, selectedYearGroup, selectedExamId, resolveEffectiveExamRows, activeStudents]);
+    }, [courses, selectedYearGroup, selectedExamId, resolveEffectiveExamRows, activeStudents, currentInstitution]);
 
     // Auto-sync selectedYearGroup when active exam changes
     useEffect(() => {
@@ -801,14 +889,57 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return candidateList;
     }, [subjects, selectedExamObj, resolveEffectiveExamRows, selectedExamId, isPrimarySchool, selectedYearGroup, classAllocationsStore]);
 
-    // Student broadsheet list (combining real saved marks and student registry)
-    const sampleStudents = useMemo(() => {
-        // 1. If the selected exam is NOT published, return empty array so broadsheet stays empty!
-        if (!isExamPublished) {
-            return [];
+    // Helper to resolve real student stream with cross-referencing
+    const resolveStudentStream = (st: any, row: any): string => {
+        // Direct stream property on row or student
+        const direct = row?.stream || row?.streamName || row?.stream_name || st?.stream || st?.streamName || st?.metadata?.stream || st?.metadata?.streamName || '';
+        if (direct && String(direct).trim()) {
+            return String(direct).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
         }
 
-        if (!isExamPublished) return [];
+        // Check courseLevelId
+        const lvlId = st?.courseLevelId || st?.levelId || st?.metadata?.courseLevelId || row?.courseLevelId || row?.levelId;
+        if (lvlId && courses && courses.length > 0) {
+            for (const c of courses) {
+                const lvl = (c.levels || []).find((l: any) => l.id === lvlId);
+                if (lvl?.name) {
+                    return String(lvl.name).trim();
+                }
+            }
+        }
+
+        // Check if class string contains stream (e.g. "Form 3 EAST")
+        const stClass = String(row?.class || row?.studentClass || st?.studentClass || st?.classLevel || '').trim();
+        if (stClass) {
+            const yGrp = (selectedYearGroup || '').trim();
+            if (yGrp && stClass.toLowerCase().startsWith(yGrp.toLowerCase())) {
+                const rest = stClass.slice(yGrp.length).replace(/^[-–—:]+\s*/, '').trim();
+                if (rest && !/^\d+$/.test(rest) && !/^(grade|form|standard|std)\s*\d*$/i.test(rest)) {
+                    return rest;
+                }
+            }
+
+            if (courses && courses.length > 0) {
+                for (const c of courses) {
+                    const cName = (c.name || '').trim().toLowerCase();
+                    const matchesYear = !yGrp || cName === yGrp.toLowerCase() || cName.includes(yGrp.toLowerCase());
+                    if (matchesYear && c.levels && Array.isArray(c.levels)) {
+                        for (const l of c.levels) {
+                            const lName = (l.name || '').trim();
+                            if (lName && stClass.toLowerCase().includes(lName.toLowerCase())) {
+                                return lName;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return '';
+    };
+
+    // Student broadsheet list (combining real saved marks and student registry)
+    const sampleStudents = useMemo(() => {
         const savedRows = resolveEffectiveExamRows(selectedExamId);
         if (!savedRows || !Array.isArray(savedRows) || savedRows.length === 0) return [];
 
@@ -817,14 +948,24 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const realName = stRow.name || (stRow as any).studentName || (stRow as any).student?.name || `Student ${idx + 1}`;
             
             const matchedSt = activeStudents.find(s => {
+                if (s.id && ((stRow as any).id === s.id || (stRow as any).studentId === s.id || (stRow as any).student?.id === s.id)) {
+                    return true;
+                }
                 const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
                 const rAdm = String(realAdmNo).trim().toLowerCase();
-                return sAdm && rAdm && sAdm === rAdm;
+                if (sAdm && rAdm) {
+                    if (sAdm === rAdm) return true;
+                    if (sAdm.replace(/^0+/, '') === rAdm.replace(/^0+/, '')) return true;
+                }
+                const sName = String(s.name || '').trim().toLowerCase();
+                const rName = String(realName).trim().toLowerCase();
+                if (sName && rName && sName === rName) return true;
+                return false;
             });
-            const rawStream = (stRow as any).stream || (stRow as any).streamName || matchedSt?.stream || (matchedSt as any)?.streamName || '';
-            const cleanStream = String(rawStream || '').replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
 
-            let realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || selectedYearGroup || 'Grade 6';
+            const cleanStream = resolveStudentStream(matchedSt, stRow);
+
+            let realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || (matchedSt as any)?.studentClass || selectedYearGroup || 'Form 3';
             if (cleanStream && !realClass.toLowerCase().includes(cleanStream.toLowerCase())) {
                 realClass = `${realClass} ${cleanStream}`.trim();
             }
@@ -839,11 +980,12 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 let hasMark = false;
 
                 Object.entries(stRow).forEach(([k, val]) => {
-                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo'].includes(k)) return;
+                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean', 'average', 'stream'].includes(k)) return;
                     if (val === null || val === undefined || val === '' || isNaN(val as any)) return;
 
-                    if (typeof val === 'number' && isSubjectKeyMatch(k, sub)) {
-                        sc += val;
+                    const numVal = typeof val === 'number' ? val : parseFloat(String(val));
+                    if (!isNaN(numVal) && isSubjectKeyMatch(k, sub)) {
+                        sc += numVal;
                         hasMark = true;
                     }
                 });
@@ -868,7 +1010,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     name: realName,
                     admissionNo: realAdmNo,
                     studentClass: realClass,
-                    stream: cleanStream || matchedSt?.stream
+                    stream: cleanStream || matchedSt?.stream || (stRow as any).stream || '',
+                    courseLevelId: (matchedSt as any)?.courseLevelId || (stRow as any)?.courseLevelId
                 },
                 kcpe: 250 + (idx * 5) % 150,
                 entry: validCount > 0 ? validCount : (broadsheetSubjects.length || 1),
@@ -884,7 +1027,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             overallPos: idx + 1,
             streamPos: (idx % 5) + 1
         }));
-    }, [isExamPublished, resolveEffectiveExamRows, selectedExamId, activeStudents, selectedYearGroup, broadsheetSubjects, isPrimarySchool]);
+    }, [resolveEffectiveExamRows, selectedExamId, activeStudents, selectedYearGroup, broadsheetSubjects, isPrimarySchool, courses]);
 
     // Filtered student rows (sorted by total marks descending and re-ranked 1, 2, 3, 4...)
     const filteredBroadsheetRows = useMemo(() => {
@@ -895,13 +1038,27 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const matchesYearGroup = !yGrp ||
                 yGrp === 'all' ||
                 stClass.toLowerCase().includes(yGrp.toLowerCase()) ||
-                yGrp.toLowerCase().includes(stClass.toLowerCase());
+                yGrp.toLowerCase().includes(stClass.toLowerCase()) ||
+                (courses && courses.some(c => {
+                    const cName = (c.name || '').trim().toLowerCase();
+                    if (cName !== yGrp.toLowerCase()) return false;
+                    return (c.levels || []).some((l: any) => 
+                        stClass.toLowerCase().includes(l.name.toLowerCase().trim()) ||
+                        String((r.student as any)?.stream || '').toLowerCase().trim() === l.name.toLowerCase().trim()
+                    );
+                }));
 
             const stStream = String((r.student as any)?.stream || '').toLowerCase().trim();
             const selClean = selectedStream.toLowerCase().trim();
             const matchesStream = selectedStream === 'all' ||
                 stClass.toLowerCase().includes(selClean) ||
-                (stStream && (stStream === selClean || stStream.includes(selClean) || selClean.includes(stStream)));
+                (stStream && (stStream === selClean || stStream.includes(selClean) || selClean.includes(stStream))) ||
+                (courses && courses.some(c => (c.levels || []).some((l: any) => 
+                    l.name.toLowerCase().trim() === selClean && (
+                        (r.student as any)?.courseLevelId === l.id || 
+                        (r.student as any)?.levelId === l.id
+                    )
+                )));
 
             const admStr = (r.student?.admissionNo || (r.student as any)?.admNo || '').toLowerCase();
             const nameStr = (r.student?.name || '').toLowerCase();
@@ -926,7 +1083,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 streamPos: currentRank
             };
         });
-    }, [sampleStudents, selectedYearGroup, selectedStream, searchQuery]);
+    }, [sampleStudents, selectedYearGroup, selectedStream, searchQuery, courses]);
 
     // Paginated rows
     const paginatedRows = useMemo(() => {
@@ -961,7 +1118,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         for (let i = 0; i < sortedPdfRows.length; i += size) {
             pages.push(sortedPdfRows.slice(i, i + size));
         }
-        return pages.length > 0 ? pages : [[]];
+        return pages;
     }, [sortedPdfRows, pdfPageSize]);
 
     // Keep pdfCurrentPage bounded
@@ -998,10 +1155,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
     // Calculate Class / Institutional Mean Score & Grade following school grading system
     const classMeanInfo = useMemo(() => {
-        if (!isExamPublished || sampleStudents.length === 0) {
+        if (sampleStudents.length === 0) {
             return {
                 meanScore: '—',
-                meanGrade: 'Unpublished',
+                meanGrade: '—',
                 meanPts: '0.00'
             };
         }
@@ -1017,7 +1174,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             meanGrade,
             meanPts
         };
-    }, [sampleStudents, isPrimarySchool, isExamPublished]);
+    }, [sampleStudents, isPrimarySchool]);
 
     // Export Broadsheet Excel
     const handleExportExcel = () => {
@@ -1400,7 +1557,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                         <td className="p-3 text-right font-mono font-bold text-slate-500">{row.vap > 0 ? `+${row.vap}` : row.vap}</td>
                                     </tr>
                                 ))}
-                                {(!isExamPublished || paginatedRows.length === 0) && (
+                                {paginatedRows.length === 0 && (
                                     <tr>
                                         <td colSpan={broadsheetSubjects.length + 10} className="px-6 py-16 text-center">
                                             <div className="max-w-md mx-auto space-y-3">
@@ -1408,12 +1565,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                                     🔒
                                                 </div>
                                                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                                                    {!isExamPublished ? 'Exam Results Unpublished' : 'No Broadsheet Results Available'}
+                                                    No Broadsheet Results Available
                                                 </h3>
                                                 <p className="text-xs text-slate-500 font-medium">
-                                                    {!isExamPublished 
-                                                        ? `This broadsheet is empty because "${selectedExamObj.title}" has not been published yet. Please publish the exam in Exam Units & Marksheet to reveal the broadsheet.`
-                                                        : 'No student results were found matching the selected class or stream filters.'}
+                                                    No student results were found matching the selected class or stream filters.
                                                 </p>
                                             </div>
                                         </td>

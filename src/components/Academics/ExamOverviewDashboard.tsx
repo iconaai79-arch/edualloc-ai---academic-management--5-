@@ -351,13 +351,19 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
             if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
 
+            // Exclude pure numbers (e.g. "3" from "Form 3")
+            if (/^\d+$/.test(clean)) return;
+
+            // Exclude generic grade/form prefixes
+            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
+
             // Strip year group prefix if embedded: e.g. "Form 3 WEST" -> "WEST"
             if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
                 clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
             }
             // Strip parentheses: "(WEST)" -> "WEST"
             clean = clean.replace(/^\((.+)\)$/, '$1').trim();
-            if (!clean || clean.toLowerCase() === yearGroupClean) return;
+            if (!clean || clean.toLowerCase() === yearGroupClean || /^\d+$/.test(clean)) return;
 
             const key = clean.toLowerCase();
             const existing = streamMap.get(key);
@@ -407,7 +413,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 }
                 if (stClass.toLowerCase().includes(yearGroupClean)) {
                     const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
-                    if (match && match[1]) {
+                    if (match && match[1] && !/^\d+$/.test(match[1])) {
                         addStream(match[1]);
                     } else if (stClass.toLowerCase() !== yearGroupClean) {
                         addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
@@ -442,7 +448,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
             if (stClass.toLowerCase().includes(yearGroupClean)) {
                 const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
-                if (match && match[1]) {
+                if (match && match[1] && !/^\d+$/.test(match[1])) {
                     addStream(match[1]);
                 } else if (stClass.toLowerCase() !== yearGroupClean) {
                     addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
@@ -561,6 +567,36 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
     };
 
+    // Helper to resolve canonical unique subject identifier for strict deduplication
+    const getCanonicalSubjectKey = (name?: string, code?: string): string => {
+        const n = String(name || '').toLowerCase().trim();
+        const c = String(code || '').toLowerCase().trim();
+        const cleanN = n.replace(/[^a-z0-9]/g, '');
+        const cleanC = c.replace(/[^a-z0-9]/g, '');
+
+        if (cleanC.startsWith('math') || cleanC === 'mat' || cleanC === 'mth' || cleanN.includes('math') || cleanN.includes('numeracy')) return 'MATH';
+        if (cleanC.startsWith('eng') || cleanN.includes('english') || cleanN.includes('literacy')) return 'ENG';
+        if (cleanC.startsWith('kisw') || cleanC === 'kis' || cleanN.includes('kiswahili') || cleanN.includes('insha') || cleanN.includes('lugha')) return 'KISW';
+        if (cleanC.startsWith('bio') || cleanN.includes('biology')) return 'BIO';
+        if (cleanC.startsWith('chem') || cleanN.includes('chemistry')) return 'CHEM';
+        if (cleanC.startsWith('phy') || cleanN.includes('physics')) return 'PHYS';
+        if (cleanC.startsWith('cre') || cleanN.includes('christian religious') || cleanN.includes('c.r.e') || cleanN.includes('cre')) return 'CRE';
+        if (cleanC.startsWith('ire') || cleanN.includes('islamic religious') || cleanN.includes('i.r.e') || cleanN.includes('ire')) return 'IRE';
+        if (cleanC.startsWith('hre') || cleanN.includes('hindu religious') || cleanN.includes('h.r.e') || cleanN.includes('hre')) return 'HRE';
+        if (cleanC.startsWith('env') || cleanN.includes('environment')) return 'ENV';
+        if (cleanC.startsWith('hyg') || cleanN.includes('hygiene') || cleanN.includes('nutri')) return 'HYG';
+        if (cleanC.startsWith('creat') || cleanC === 'art' || cleanC === 'ca' || cleanC === 'c/a' || cleanN.includes('creative') || cleanN.includes('art') || cleanN.includes('craft') || cleanN.includes('music')) return 'C/A';
+        if (cleanC.startsWith('soc') || cleanN.includes('social studies')) return 'SOC';
+        if (cleanC.startsWith('agri') || cleanC === 'agr' || cleanN.includes('agriculture')) return 'AGR';
+        if (cleanC.startsWith('bst') || cleanC === 'bus' || cleanN.includes('business')) return 'BST';
+        if (cleanC.startsWith('cmp') || cleanC === 'ict' || cleanC === 'comp' || cleanN.includes('computer')) return 'CMP';
+        if (cleanC.startsWith('hist') || cleanN.includes('history')) return 'HIST';
+        if (cleanC.startsWith('geo') || cleanN.includes('geography')) return 'GEO';
+        if (cleanC.startsWith('hsci') || cleanN.includes('home science')) return 'H/SCI';
+
+        return cleanC || cleanN;
+    };
+
     // Active subjects for selected class & exam (strictly filtered by class allocation and deduplicated)
     const activeClassSubjects = useMemo(() => {
         const rawCandidates = subjects.length > 0 ? subjects : [
@@ -574,6 +610,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
         const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
         const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
+        const isSecondaryGroup = /form\s*[1-4]|grade\s*(?:9|1[0-2])/i.test(selectedYearGroup);
 
         let allocatedSubjectIdentifiers: string[] | null = null;
         if (yGrpClean && yGrpClean !== 'all') {
@@ -588,7 +625,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         }
 
         const filteredList: typeof rawCandidates = [];
-        const seenCodes = new Set<string>();
+        const seenCanonicalKeys = new Set<string>();
 
         rawCandidates.forEach(sub => {
             const sCode = (sub.code || '').toUpperCase().trim();
@@ -608,16 +645,36 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                            (normName.length >= 3 && aNorm.includes(normName));
                 });
                 if (!isAllocated) return;
+            } else if (isSecondaryGroup) {
+                // For secondary school, exclude Lower Primary tagged subjects
+                if (sCode.endsWith('-LP') || sCode.endsWith('_LP') || sCode.endsWith('-UP') || sCode.endsWith('_UP') ||
+                    sName.toLowerCase().includes('(lp)') || sName.toLowerCase().includes('(up)') ||
+                    sName.toLowerCase().includes('activities')) {
+                    return;
+                }
             }
 
-            const dedupKey = normCode || normName;
-            if (dedupKey && !seenCodes.has(dedupKey)) {
-                seenCodes.add(dedupKey);
+            const canonicalKey = getCanonicalSubjectKey(sName, sCode);
+            if (canonicalKey && !seenCanonicalKeys.has(canonicalKey)) {
+                seenCanonicalKeys.add(canonicalKey);
                 filteredList.push(sub);
             }
         });
 
-        return filteredList.length > 0 ? filteredList : rawCandidates;
+        if (filteredList.length > 0) return filteredList;
+
+        // Deduplicate rawCandidates if fallback is used
+        const fallbackList: typeof rawCandidates = [];
+        const seenFallback = new Set<string>();
+        rawCandidates.forEach(sub => {
+            const k = getCanonicalSubjectKey(sub.name, sub.code);
+            if (k && !seenFallback.has(k)) {
+                seenFallback.add(k);
+                fallbackList.push(sub);
+            }
+        });
+
+        return fallbackList.length > 0 ? fallbackList : rawCandidates;
     }, [subjects, selectedYearGroup, classAllocationsStore]);
 
     // Active Filtered Students with Real Calculated Scores & Ranks
@@ -1159,14 +1216,23 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
         };
     }, [studentPerformanceData]);
 
-    // Subject Performance Ranking
+    // Subject Performance Ranking (strictly deduplicated by canonical subject key)
     const subjectRankings = useMemo(() => {
-        const list = activeClassSubjects.map(sub => {
+        const seenRankKeys = new Set<string>();
+        const list: any[] = [];
+
+        activeClassSubjects.forEach(sub => {
+            const subName = sub.name || (sub as any).title || 'Subject';
+            const subCode = (sub.code || subName).toUpperCase().trim();
+            const canonicalKey = getCanonicalSubjectKey(subName, subCode);
+            if (seenRankKeys.has(canonicalKey)) return;
+            seenRankKeys.add(canonicalKey);
+
             let totalSubScore = 0;
             let subCount = 0;
 
             studentPerformanceData.forEach(st => {
-                const subScore = st.subjectScores[sub.code] ?? st.subjectScores[sub.id] ?? st.subjectScores[sub.name];
+                const subScore = st.subjectScores[sub.code] ?? st.subjectScores[sub.id] ?? st.subjectScores[sub.name] ?? st.subjectScores[canonicalKey];
                 if (subScore !== undefined && subScore !== null && !isNaN(subScore)) {
                     totalSubScore += Number(subScore);
                     subCount++;
@@ -1179,21 +1245,26 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             // If mean is 0 in mock data, calculate sensible defaults
             if (mean === 0 && studentPerformanceData.length > 0) {
                 const sampleScores: Record<string, number> = {
-                    'MATH': 93.0, 'ENV': 87.0, 'CRE': 87.0, 'ENG': 86.0, 'KISW': 83.0, 'ART': 78.0, 'BIO': 82.5, 'CHEM': 79.0, 'PHYS': 75.5
+                    'MATH': 93.0, 'ENV': 87.0, 'CRE': 87.0, 'ENG': 86.0, 'KISW': 83.0, 'C/A': 78.0, 'BIO': 82.5, 'CHEM': 79.0, 'PHYS': 75.5
                 };
-                mean = sampleScores[sub.code] || 82.0;
+                mean = sampleScores[subCode] || sampleScores[canonicalKey] || 82.0;
             }
 
             const { grade, points } = getGradeInfo(mean);
-            return {
-                subject: sub,
+            list.push({
+                subject: {
+                    ...sub,
+                    code: canonicalKey || subCode,
+                    name: subName
+                },
+                canonicalKey,
                 entry: entryCount,
                 meanScore: mean,
                 meanScoreFormatted: mean.toFixed(2),
                 grade,
                 points,
                 prevExamMean: parseFloat((mean > 0 ? Math.max(20, mean - 2.1) : 0).toFixed(2))
-            };
+            });
         });
 
         list.sort((a, b) => b.meanScore - a.meanScore);
@@ -1827,34 +1898,40 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     const subjectPerformancePerClassData = useMemo(() => {
         const yrClean = (selectedYearGroup || '').trim();
 
-        // 1. Available subjects
-        const subjects = (subjectRankings && subjectRankings.length > 0)
+        // 1. Available subjects (strictly deduplicated by canonical key)
+        const rawSubjects = (subjectRankings && subjectRankings.length > 0)
             ? subjectRankings.map(s => {
                 const subName = typeof s.subject === 'string' ? s.subject : (s.subject?.name || s.subject?.title || 'Subject');
                 const subCode = typeof s.subject === 'string' ? s.subject : (s.subject?.code || subName);
-                let code = subCode;
-                if (code.toLowerCase().includes('art') || code.toLowerCase().includes('c/a') || code.toLowerCase().includes('creative')) code = 'C/A';
-                else if (code.toLowerCase().includes('eng')) code = 'ENG';
-                else if (code.toLowerCase().includes('env')) code = 'ENV';
-                else if (code.toLowerCase().includes('kis')) code = 'KISW';
-                else if (code.toLowerCase().includes('mat')) code = 'MATH';
-                else if (code.toLowerCase().includes('cre') || code.toLowerCase().includes('rel')) code = 'CRE';
+                const canonicalKey = s.canonicalKey || getCanonicalSubjectKey(subName, subCode);
                 return {
                     name: subName,
-                    code: code,
+                    code: canonicalKey || subCode,
+                    canonicalKey,
                     rawSub: s.subject,
                     meanMarks: s.meanScore || (s as any).meanMarks || 80.0,
                     grade: s.grade || 'EE'
                 };
             })
             : [
-                { name: 'Creative Arts', code: 'C/A', rawSub: null, meanMarks: 78.2609, grade: 'EE' },
-                { name: 'English', code: 'ENG', rawSub: null, meanMarks: 85.8696, grade: 'EE' },
-                { name: 'Environmental Activities', code: 'ENV', rawSub: null, meanMarks: 87.2174, grade: 'EE' },
-                { name: 'Kiswahili', code: 'KISW', rawSub: null, meanMarks: 83.2174, grade: 'EE' },
-                { name: 'Mathematics', code: 'MATH', rawSub: null, meanMarks: 92.6957, grade: 'EE' },
-                { name: 'C.R.E', code: 'CRE', rawSub: null, meanMarks: 86.9565, grade: 'EE' }
+                { name: 'Creative Arts', code: 'C/A', canonicalKey: 'C/A', rawSub: null, meanMarks: 78.2609, grade: 'EE' },
+                { name: 'English', code: 'ENG', canonicalKey: 'ENG', rawSub: null, meanMarks: 85.8696, grade: 'EE' },
+                { name: 'Environmental Activities', code: 'ENV', canonicalKey: 'ENV', rawSub: null, meanMarks: 87.2174, grade: 'EE' },
+                { name: 'Kiswahili', code: 'KISW', canonicalKey: 'KISW', rawSub: null, meanMarks: 83.2174, grade: 'EE' },
+                { name: 'Mathematics', code: 'MATH', canonicalKey: 'MATH', rawSub: null, meanMarks: 92.6957, grade: 'EE' },
+                { name: 'C.R.E', code: 'CRE', canonicalKey: 'CRE', rawSub: null, meanMarks: 86.9565, grade: 'EE' }
             ];
+
+        // Deduplicate subjects strictly so NO subject appears twice in columns
+        const seenSubjectKeys = new Set<string>();
+        const subjects: typeof rawSubjects = [];
+        rawSubjects.forEach(sub => {
+            const k = (sub.code || sub.name).toUpperCase().trim();
+            if (k && !seenSubjectKeys.has(k)) {
+                seenSubjectKeys.add(k);
+                subjects.push(sub);
+            }
+        });
 
         // 2. Discover related classes/streams for this specific cohort
         const foundStreams = new Map<string, string>(); // lowercase key -> display name
@@ -1910,7 +1987,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
 
                 classStudents.forEach(st => {
                     const subId = (sub.rawSub as any)?.id || sub.code;
-                    const val = st.subjectScores[sub.code] ?? st.subjectScores[subId] ?? st.subjectScores[sub.name];
+                    const val = st.subjectScores[sub.code] ?? st.subjectScores[subId] ?? st.subjectScores[sub.name] ?? st.subjectScores[sub.canonicalKey];
                     if (val !== undefined && val !== null && !isNaN(Number(val))) {
                         totalSubScore += Number(val);
                         count++;
@@ -1962,8 +2039,17 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
             ? ['EE', 'ME', 'AE', 'BE']
             : ['A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'];
 
+        const seenSubjects = new Set<string>();
+        const subjectsData: any[] = [];
+
         // Compute from studentPerformanceData subject scores if available or use accurate distribution
-        const subjectsData = subjectPerformancePerClassData.subjects.map(subj => {
+        subjectPerformancePerClassData.subjects.forEach(subj => {
+            const subjectLabel = subj.code === 'C/A' ? 'Art & Craft' : (subj.name || subj.code);
+            const subjectCode = subj.code || (subj.name ? subj.name.slice(0, 4).toUpperCase() : 'SUBJ');
+            const dedupKey = subjectCode.toUpperCase().trim();
+            if (seenSubjects.has(dedupKey)) return;
+            seenSubjects.add(dedupKey);
+
             const counts: Record<string, number> = {};
             expectedGrades.forEach(g => {
                 counts[g] = 0;
@@ -1981,6 +2067,9 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                     else if (subj.code === 'KISW' && kLow.includes('kis')) foundScore = Number(val);
                     else if (subj.code === 'MATH' && kLow.includes('mat')) foundScore = Number(val);
                     else if (subj.code === 'CRE' && (kLow.includes('cre') || kLow.includes('rel'))) foundScore = Number(val);
+                    else if (subj.code === 'BIO' && kLow.includes('bio')) foundScore = Number(val);
+                    else if (subj.code === 'CHEM' && kLow.includes('chem')) foundScore = Number(val);
+                    else if (subj.code === 'PHYS' && (kLow.includes('phy') || kLow.includes('phys'))) foundScore = Number(val);
                 });
 
                 if (foundScore !== undefined && !isNaN(foundScore)) {
@@ -2001,10 +2090,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 else { counts['EE'] = 20; counts['ME'] = 3; }
             }
 
-            const subjectLabel = subj.code === 'C/A' ? 'Art & Craft' : (subj.name || subj.code);
-            const subjectCode = subj.code || (subj.name ? subj.name.slice(0, 4).toUpperCase() : 'SUBJ');
-
-            return {
+            subjectsData.push({
                 subject: subjectLabel,
                 name: subjectLabel,
                 code: subjectCode,
@@ -2012,7 +2098,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 entry: totalStudents,
                 meanMarks: subj.meanMarks,
                 grade: subj.grade
-            };
+            });
         });
 
         // Compute Total counts across all subjects
@@ -2042,23 +2128,28 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
     const subjectPerformanceComparisonVsPreviousData = useMemo(() => {
         const examSeries = dynamicExamSeries;
 
-        // Dynamic subjects derived from active subjectRankings or standard curriculum subjects
+        // Dynamic subjects derived from active subjectRankings with strict canonical deduplication
         let subjectsList: Array<{ name: string; code: string }> = [];
+        const seenSubjList = new Set<string>();
 
         if (subjectRankings && subjectRankings.length > 0) {
-            subjectsList = subjectRankings.map(sr => {
+            subjectRankings.forEach(sr => {
                 const sName = typeof sr.subject === 'string' ? sr.subject : (sr.subject?.name || sr.subject?.title || 'Subject');
                 const sCode = typeof sr.subject === 'string' ? sr.subject.slice(0, 4) : (sr.subject?.code || sName.slice(0, 4));
-                return { name: sName, code: sCode };
+                const canonicalCode = sr.canonicalKey || getCanonicalSubjectKey(sName, sCode);
+                if (!seenSubjList.has(canonicalCode)) {
+                    seenSubjList.add(canonicalCode);
+                    subjectsList.push({ name: sName, code: canonicalCode });
+                }
             });
         } else {
             subjectsList = [
-                { name: 'Art & craft', code: 'C/a' },
-                { name: 'English language activities', code: 'Eng' },
-                { name: 'Environmental activities', code: 'Env' },
-                { name: 'Kiswahili language activities', code: 'Kisw' },
-                { name: 'Mathematical activities', code: 'Math' },
-                { name: 'Religious education activities', code: 'Cre' }
+                { name: 'Art & craft', code: 'C/A' },
+                { name: 'English language activities', code: 'ENG' },
+                { name: 'Environmental activities', code: 'ENV' },
+                { name: 'Kiswahili language activities', code: 'KISW' },
+                { name: 'Mathematical activities', code: 'MATH' },
+                { name: 'Religious education activities', code: 'CRE' }
             ];
         }
 
