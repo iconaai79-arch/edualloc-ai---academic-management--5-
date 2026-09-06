@@ -782,6 +782,8 @@ CREATE TABLE IF NOT EXISTS student_enrollments (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     enrollment_type TEXT NOT NULL,
     admission_number TEXT,
+    assessment_no TEXT,
+    date_of_birth DATE,
     status TEXT DEFAULT 'Enrolled',
     enrollment_date TEXT,
     metadata JSONB DEFAULT '{}'::jsonb,
@@ -1783,6 +1785,7 @@ CREATE TABLE IF NOT EXISTS his_patients (
     op_number TEXT,
     grade_level TEXT,
     stream TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -805,6 +805,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...p };
                     const opVal = copy.admission_number || copy.admissionNumber || copy.custom_patient_id || copy.customPatientId || copy.patient_number || copy.patientNumber || copy.op_number || copy.opNumber;
                     if (opVal) copy.admission_number = String(opVal).trim();
+                    if (copy.fullName && !copy.full_name) copy.full_name = copy.fullName;
+                    if (copy.bloodGroup && !copy.blood_group) copy.blood_group = copy.bloodGroup;
+                    if (copy.insuranceProvider && !copy.insurance_provider) copy.insurance_provider = copy.insuranceProvider;
+                    if (copy.shaNumber && !copy.sha_number) copy.sha_number = copy.shaNumber;
+                    if (copy.emergencyContactName && !copy.emergency_contact_name) copy.emergency_contact_name = copy.emergencyContactName;
+                    if (copy.emergencyContactPhone && !copy.emergency_contact_phone) copy.emergency_contact_phone = copy.emergencyContactPhone;
+                    if (copy.gradeLevel && !copy.grade_level) copy.grade_level = copy.gradeLevel;
+                    if (copy.recordedBy && !copy.recorded_by) copy.recorded_by = copy.recordedBy;
+                    if ((copy.dateOfBirth || copy.date_of_birth) && !copy.dob) copy.dob = copy.dateOfBirth || copy.date_of_birth;
+                    if ((copy.phoneNumber || copy.phone) && (!copy.contact || copy.contact === 'N/A')) copy.contact = copy.phoneNumber || copy.phone;
+                    if (copy.emergencyContact && !copy.emergency_contact_name) copy.emergency_contact_name = copy.emergencyContact;
+
+                    // Harmonize guardian fields into standard emergency contact & contact fields
+                    const gName = copy.guardian_name || copy.guardianName;
+                    const gPhone = copy.guardian_phone || copy.guardianPhone;
+                    if (gName && !copy.emergency_contact_name) copy.emergency_contact_name = gName;
+                    if (gPhone && !copy.emergency_contact_phone) copy.emergency_contact_phone = gPhone;
+                    if (gPhone && (!copy.contact || copy.contact === 'N/A')) copy.contact = gPhone;
+
                     delete copy.custom_patient_id;
                     delete copy.customPatientId;
                     delete copy.patient_number;
@@ -813,6 +832,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.opNumber;
                     delete copy.admissionNumber;
                     delete copy.name;
+                    delete copy.fullName;
+                    delete copy.bloodGroup;
+                    delete copy.insuranceProvider;
+                    delete copy.shaNumber;
+                    delete copy.emergencyContactName;
+                    delete copy.emergencyContactPhone;
+                    delete copy.emergencyContact;
+                    delete copy.dateOfBirth;
+                    delete copy.date_of_birth;
+                    delete copy.phoneNumber;
+                    delete copy.phone;
+                    delete copy.guardian_name;
+                    delete copy.guardianName;
+                    delete copy.guardian_phone;
+                    delete copy.guardianPhone;
+                    delete copy.guardian_national_id;
+                    delete copy.guardianNationalId;
+                    delete copy.first_name;
+                    delete copy.firstName;
+                    delete copy.last_name;
+                    delete copy.lastName;
+                    delete copy.gradeLevel;
+                    delete copy.recordedBy;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanPatient) : cleanPatient(currentPayload);
@@ -1275,11 +1319,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanUserRecord) : cleanUserRecord(currentPayload);
+            } else if (moduleName === 'student_enrollments') {
+                const cleanEnrollmentRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const meta = { ...(copy.metadata || {}) };
+
+                    const dobVal = copy.date_of_birth || copy.dateOfBirth || copy.dob;
+                    if (dobVal) {
+                        meta.dateOfBirth = dobVal;
+                        meta.dob = dobVal;
+                    }
+                    const assVal = copy.assessment_no || copy.assessmentNo || copy.assessment_number || copy.assessmentNumber;
+                    if (assVal) {
+                        meta.assessmentNo = assVal;
+                        meta.assessmentNumber = assVal;
+                    }
+                    const nameVal = copy.full_name || copy.fullName || copy.name;
+                    if (nameVal && !meta.fullName) meta.fullName = nameVal;
+
+                    const genderVal = copy.gender;
+                    if (genderVal && !meta.gender) meta.gender = genderVal;
+
+                    const gradeVal = copy.grade_level || copy.gradeLevel;
+                    if (gradeVal && !meta.gradeLevel) meta.gradeLevel = gradeVal;
+
+                    const streamVal = copy.stream;
+                    if (streamVal && !meta.stream) meta.stream = streamVal;
+
+                    copy.metadata = meta;
+
+                    // Strip virtual / non-column attributes to prevent schema cache stale warnings & retries
+                    delete copy.date_of_birth;
+                    delete copy.dateOfBirth;
+                    delete copy.dob;
+                    delete copy.assessment_no;
+                    delete copy.assessmentNo;
+                    delete copy.assessment_number;
+                    delete copy.assessmentNumber;
+                    delete copy.full_name;
+                    delete copy.fullName;
+                    delete copy.name;
+                    delete copy.gender;
+                    delete copy.grade_level;
+                    delete copy.gradeLevel;
+                    delete copy.stream;
+                    delete copy.parent_name;
+                    delete copy.parentName;
+                    delete copy.guardian_name;
+                    delete copy.guardianName;
+                    delete copy.parent_phone;
+                    delete copy.parentPhone;
+                    delete copy.parent_email;
+                    delete copy.parentEmail;
+                    delete copy.boarding_status;
+                    delete copy.boardingStatus;
+                    delete copy.upi;
+                    delete copy.upi_number;
+                    delete copy.upiNumber;
+                    delete copy.kcpe_score;
+                    delete copy.kcpeScore;
+                    delete copy.birth_certificate_no;
+                    delete copy.birthCertificateNo;
+                    delete copy.nemis_number;
+                    delete copy.nemisNumber;
+                    delete copy.subjects;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
             }
 
             let data: any = null;
             let error: any = null;
             let maxRetries = 15;
+            let tableSupportsMetadata = true;
 
             while (maxRetries >= 0) {
                 const queryRes = await supabase.from(targetDbTable).upsert(currentPayload).select();
@@ -1291,16 +1405,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
                 if (colMatch && colMatch[1] && maxRetries > 0) {
                     const offendingCol = colMatch[1];
+                    if (offendingCol === 'metadata') {
+                        tableSupportsMetadata = false;
+                    }
                     console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
                     const stripCol = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        if (copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
+                        if (tableSupportsMetadata && offendingCol !== 'metadata' && copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
                             const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                             meta[offendingCol] = copy[offendingCol];
                             copy.metadata = meta;
                         }
                         delete copy[offendingCol];
+                        if (!tableSupportsMetadata) {
+                            delete copy.metadata;
+                        }
                         return copy;
                     };
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripCol) : stripCol(currentPayload);
@@ -1420,6 +1540,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...currentUpdateData };
                     const opVal = copy.admission_number || copy.admissionNumber || copy.custom_patient_id || copy.customPatientId || copy.patient_number || copy.patientNumber || copy.op_number || copy.opNumber;
                     if (opVal) copy.admission_number = String(opVal).trim();
+                    if (copy.fullName && !copy.full_name) copy.full_name = copy.fullName;
+                    if (copy.bloodGroup && !copy.blood_group) copy.blood_group = copy.bloodGroup;
+                    if (copy.insuranceProvider && !copy.insurance_provider) copy.insurance_provider = copy.insuranceProvider;
+                    if (copy.shaNumber && !copy.sha_number) copy.sha_number = copy.shaNumber;
+                    if (copy.emergencyContactName && !copy.emergency_contact_name) copy.emergency_contact_name = copy.emergencyContactName;
+                    if (copy.emergencyContactPhone && !copy.emergency_contact_phone) copy.emergency_contact_phone = copy.emergencyContactPhone;
+                    if (copy.gradeLevel && !copy.grade_level) copy.grade_level = copy.gradeLevel;
+                    if (copy.recordedBy && !copy.recorded_by) copy.recorded_by = copy.recordedBy;
+                    if ((copy.dateOfBirth || copy.date_of_birth) && !copy.dob) copy.dob = copy.dateOfBirth || copy.date_of_birth;
+                    if ((copy.phoneNumber || copy.phone) && (!copy.contact || copy.contact === 'N/A')) copy.contact = copy.phoneNumber || copy.phone;
+                    if (copy.emergencyContact && !copy.emergency_contact_name) copy.emergency_contact_name = copy.emergencyContact;
+
+                    // Harmonize guardian fields into standard emergency contact & contact fields
+                    const gName = copy.guardian_name || copy.guardianName;
+                    const gPhone = copy.guardian_phone || copy.guardianPhone;
+                    if (gName && !copy.emergency_contact_name) copy.emergency_contact_name = gName;
+                    if (gPhone && !copy.emergency_contact_phone) copy.emergency_contact_phone = gPhone;
+                    if (gPhone && (!copy.contact || copy.contact === 'N/A')) copy.contact = gPhone;
+
                     delete copy.custom_patient_id;
                     delete copy.customPatientId;
                     delete copy.patient_number;
@@ -1428,6 +1567,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.opNumber;
                     delete copy.admissionNumber;
                     delete copy.name;
+                    delete copy.fullName;
+                    delete copy.bloodGroup;
+                    delete copy.insuranceProvider;
+                    delete copy.shaNumber;
+                    delete copy.emergencyContactName;
+                    delete copy.emergencyContactPhone;
+                    delete copy.emergencyContact;
+                    delete copy.dateOfBirth;
+                    delete copy.date_of_birth;
+                    delete copy.phoneNumber;
+                    delete copy.phone;
+                    delete copy.guardian_name;
+                    delete copy.guardianName;
+                    delete copy.guardian_phone;
+                    delete copy.guardianPhone;
+                    delete copy.guardian_national_id;
+                    delete copy.guardianNationalId;
+                    delete copy.first_name;
+                    delete copy.firstName;
+                    delete copy.last_name;
+                    delete copy.lastName;
+                    delete copy.gradeLevel;
+                    delete copy.recordedBy;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
                     currentUpdateData = copy;
                 } else if (moduleName === 'ds_students' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
@@ -1643,9 +1807,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     currentUpdateData = copy;
                 }
+
+                if (moduleName === 'student_enrollments' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const meta = { ...(copy.metadata || {}) };
+
+                    const dobVal = copy.date_of_birth || copy.dateOfBirth || copy.dob;
+                    if (dobVal) {
+                        meta.dateOfBirth = dobVal;
+                        meta.dob = dobVal;
+                    }
+                    const assVal = copy.assessment_no || copy.assessmentNo || copy.assessment_number || copy.assessmentNumber;
+                    if (assVal) {
+                        meta.assessmentNo = assVal;
+                        meta.assessmentNumber = assVal;
+                    }
+                    const nameVal = copy.full_name || copy.fullName || copy.name;
+                    if (nameVal && !meta.fullName) meta.fullName = nameVal;
+
+                    const genderVal = copy.gender;
+                    if (genderVal && !meta.gender) meta.gender = genderVal;
+
+                    const gradeVal = copy.grade_level || copy.gradeLevel;
+                    if (gradeVal && !meta.gradeLevel) meta.gradeLevel = gradeVal;
+
+                    const streamVal = copy.stream;
+                    if (streamVal && !meta.stream) meta.stream = streamVal;
+
+                    copy.metadata = meta;
+
+                    // Strip virtual / non-column attributes to prevent schema cache stale warnings & retries
+                    delete copy.date_of_birth;
+                    delete copy.dateOfBirth;
+                    delete copy.dob;
+                    delete copy.assessment_no;
+                    delete copy.assessmentNo;
+                    delete copy.assessment_number;
+                    delete copy.assessmentNumber;
+                    delete copy.full_name;
+                    delete copy.fullName;
+                    delete copy.name;
+                    delete copy.gender;
+                    delete copy.grade_level;
+                    delete copy.gradeLevel;
+                    delete copy.stream;
+                    delete copy.parent_name;
+                    delete copy.parentName;
+                    delete copy.guardian_name;
+                    delete copy.guardianName;
+                    delete copy.parent_phone;
+                    delete copy.parentPhone;
+                    delete copy.parent_email;
+                    delete copy.parentEmail;
+                    delete copy.boarding_status;
+                    delete copy.boardingStatus;
+                    delete copy.upi;
+                    delete copy.upi_number;
+                    delete copy.upiNumber;
+                    delete copy.kcpe_score;
+                    delete copy.kcpeScore;
+                    delete copy.birth_certificate_no;
+                    delete copy.birthCertificateNo;
+                    delete copy.nemis_number;
+                    delete copy.nemisNumber;
+                    delete copy.subjects;
+
+                    currentUpdateData = copy;
+                }
                 let data: any = null;
                 let error: any = null;
                 let patchRetries = 15;
+                let patchTableSupportsMetadata = true;
 
                 while (patchRetries >= 0) {
                     let q = supabase.from(targetDbTable).update(currentUpdateData);
@@ -1684,14 +1916,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
                     if (colMatch && colMatch[1] && patchRetries > 0) {
                         const offendingCol = colMatch[1];
+                        if (offendingCol === 'metadata') {
+                            patchTableSupportsMetadata = false;
+                        }
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
                         const copy = { ...currentUpdateData };
-                        if (copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
+                        if (patchTableSupportsMetadata && offendingCol !== 'metadata' && copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
                             const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                             meta[offendingCol] = copy[offendingCol];
                             copy.metadata = meta;
                         }
                         delete copy[offendingCol];
+                        if (!patchTableSupportsMetadata) {
+                            delete copy.metadata;
+                        }
                         currentUpdateData = copy;
                         patchRetries--;
                     } else {

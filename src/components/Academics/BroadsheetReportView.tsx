@@ -112,6 +112,75 @@ export const getGradeInfo = (score: number, isPrimary?: boolean, customDefs?: an
     }
 };
 
+// Pure helper: Extract strictly the Grade/Form level without stream or extraneous suffixes
+export const extractGradeOnly = (rawClass: string): string => {
+    if (!rawClass || typeof rawClass !== 'string') return '';
+    let val = rawClass.trim();
+    if (!val || val.toLowerCase() === 'all') return val;
+
+    // Check for curriculum qualifier in parentheses (e.g. "Grade 10 (8-4-4)", "Grade 10 (CBE)")
+    const curriculumMatch = val.match(/\((8-4-4|cbe|cbc|kcse|igcse|cambridge)\)/i);
+    const curriculumSuffix = curriculumMatch ? ` (${curriculumMatch[1].toUpperCase()})` : '';
+
+    // Remove curriculum part temporarily to clean the base grade
+    let clean = val.replace(/\((8-4-4|cbe|cbc|kcse|igcse|cambridge)\)/gi, '').trim();
+
+    // Collapse duplicated grade/form prefixes (e.g. "Grade 10 Grade 10 Alpha" -> "Grade 10 Alpha")
+    clean = clean.replace(/\b(Grade\s*\d+|Form\s*\d+|Std\s*\d+|Standard\s*\d+|Class\s*\d+|PP\s*[12]|Playgroup)\s+\1\b/gi, '$1');
+
+    // Match leading Grade/Form/Class/Standard/PP/Playgroup pattern
+    const gradePrefixMatch = clean.match(/^(Grade\s*\d+|Form\s*\d+|Std(?:andard)?\s*\d+|Class\s*\d+|PP\s*[12]|Playgroup)/i);
+    if (gradePrefixMatch) {
+        const baseGrade = gradePrefixMatch[1].replace(/\s+/g, ' ').trim();
+        const formattedGrade = baseGrade.charAt(0).toUpperCase() + baseGrade.slice(1);
+        return `${formattedGrade}${curriculumSuffix}`.trim();
+    }
+
+    // If no standard prefix matched, strip known stream endings and "Stream ..."
+    clean = clean
+        .replace(/\s*[-–—:]+\s*stream\s*[a-z0-9_-]*/i, '')
+        .replace(/\s+stream\s+[a-z0-9_-]+/i, '')
+        .replace(/\s+(east|west|north|south|central|alpha|beta|gamma|delta|blue|red|green|yellow|white|gold|silver|[a-f])$/i, '')
+        .trim();
+
+    return `${clean}${curriculumSuffix}`.trim();
+};
+
+// Pure helper: Extract strictly the Stream name without Grade or Year Group prefixes
+export const extractStreamOnly = (rawName: string, activeYearGroup?: string): string => {
+    if (!rawName || typeof rawName !== 'string') return '';
+    let val = rawName.trim();
+    if (!val || val.toLowerCase() === 'all' || val === '—' || val.toLowerCase() === 'null' || val.toLowerCase() === 'undefined') {
+        return '';
+    }
+
+    // Remove curriculum tags e.g. (8-4-4), (CBE)
+    val = val.replace(/\((8-4-4|cbe|cbc|kcse|igcse|cambridge)\)/gi, '').trim();
+
+    // If activeYearGroup provided, strip it safely using literal escape
+    if (activeYearGroup && typeof activeYearGroup === 'string') {
+        const escapedYg = activeYearGroup.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        val = val.replace(new RegExp(`^${escapedYg}\\s*[-–—:]*\\s*`, 'i'), '').trim();
+    }
+
+    // Strip any generic Grade/Form/Class/Standard prefixes if still present
+    // e.g. "Form 3 WEST" -> "WEST", "Grade 10 Alpha" -> "Alpha", "Grade 10 Grade 10 Alpha" -> "Alpha"
+    val = val.replace(/^(?:(?:Grade\s*\d+|Form\s*\d+|Std(?:andard)?\s*\d+|Class\s*\d+|PP\s*[12]|Playgroup)\s*[-–—:]*\s*)+/i, '').trim();
+
+    // Strip "Stream" prefix or suffix
+    val = val.replace(/^stream\s*[-–—:]*\s*/i, '').replace(/\s*stream\s*$/i, '').trim();
+
+    // Strip surrounding parentheses or hyphens
+    val = val.replace(/^[-–—:]+\s*/, '').replace(/^\((.+)\)$/, '$1').trim();
+
+    // If what's left is a pure number (e.g. "3") or matches a grade pattern, reject it
+    if (!val || /^\d+$/.test(val) || /^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(val)) {
+        return '';
+    }
+
+    return val;
+};
+
 interface BroadsheetReportViewProps {
     assessments?: Assessment[];
     marks?: AssessmentMark[];
@@ -499,7 +568,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         );
     }, [currentInstitution, selectedYearGroup, selectedExamObj]);
 
-    // Dynamic List of Year Group Options
+    // Dynamic List of Year Group Options (Grade ONLY without stream)
     const yearGroupOptions = useMemo(() => {
         const set = new Set<string>();
 
@@ -509,42 +578,58 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             if (Array.isArray(exClasses)) {
                 exClasses.forEach((c: any) => {
                     if (c && typeof c === 'string' && c.trim()) {
-                        const clean = c.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                        set.add(clean);
-                        set.add(c.trim());
+                        const clean = extractGradeOnly(c);
+                        if (clean) set.add(clean);
                     }
                 });
             }
         }
 
-        // 2. Registered Classes in Institution
+        // 2. Registered Classes in Institution / Courses
         if (courses && courses.length > 0) {
             courses.forEach(c => {
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
-                if (name) set.add(name);
-            });
-        }
-
-        if (activeStudents && activeStudents.length > 0) {
-            activeStudents.forEach(u => {
-                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
-                if (cl && typeof cl === 'string' && cl.trim()) {
-                    const clean = cl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                    set.add(clean);
-                    set.add(cl.trim());
+                if (name) {
+                    const clean = extractGradeOnly(name);
+                    if (clean) set.add(clean);
                 }
             });
         }
 
+        // 3. From active students
+        if (activeStudents && activeStudents.length > 0) {
+            activeStudents.forEach(u => {
+                const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = extractGradeOnly(cl);
+                    if (clean) set.add(clean);
+                }
+            });
+        }
+
+        // 4. From saved broadsheet rows of the exam
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
+        if (savedRows && savedRows.length > 0) {
+            savedRows.forEach((r: any) => {
+                const cl = r.class || r.studentClass;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    const clean = extractGradeOnly(cl);
+                    if (clean) set.add(clean);
+                }
+            });
+        }
+
+        // 5. From saved registered classes
         try {
             const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
             if (savedClasses) {
                 const parsed = JSON.parse(savedClasses);
                 if (Array.isArray(parsed)) {
                     parsed.forEach(c => {
-                        const clean = c.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                        set.add(clean);
-                        set.add(c.trim());
+                        if (c && typeof c === 'string') {
+                            const clean = extractGradeOnly(c);
+                            if (clean) set.add(clean);
+                        }
                     });
                 }
             }
@@ -558,30 +643,34 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             }
         }
 
-        return Array.from(set);
-    }, [selectedExamObj, courses, activeStudents, instId, isPrimarySchool]);
+        const gradeRank = (str: string): number => {
+            const s = str.toLowerCase();
+            const numMatch = s.match(/\d+/);
+            const num = numMatch ? parseInt(numMatch[0], 10) : 0;
+            if (s.includes('playgroup')) return 1;
+            if (s.includes('pp1')) return 2;
+            if (s.includes('pp2')) return 3;
+            if (s.includes('pp') || s.includes('pre-primary')) return 4;
+            if (s.includes('grade') || s.includes('class') || s.includes('std')) return 100 + num;
+            if (s.includes('form')) return 200 + num;
+            return 300 + num;
+        };
 
-    // Dynamic Streams Options for Selected Class (Preserves exact registered casing: e.g. WEST, EAST)
+        return Array.from(set).sort((a, b) => {
+            const diff = gradeRank(a) - gradeRank(b);
+            return diff !== 0 ? diff : a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }, [selectedExamObj, selectedExamId, resolveEffectiveExamRows, courses, activeStudents, instId, isPrimarySchool]);
+
+    // Dynamic Streams Options for Selected Class (Stream ONLY without Grade prefix)
     const streamOptions = useMemo(() => {
         const streamMap = new Map<string, string>();
         const yearGroupClean = (selectedYearGroup || '').toLowerCase().trim();
+        const baseGradeOnly = extractGradeOnly(selectedYearGroup).toLowerCase().trim();
 
         const addStream = (rawName: string, isFromRegistration = false) => {
-            if (!rawName) return;
-            let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
-            if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
-
-            // Exclude pure numbers (e.g. "3" from "Form 3")
-            if (/^\d+$/.test(clean)) return;
-
-            // Exclude generic grade/form prefixes
-            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
-
-            if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
-                clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
-            }
-            clean = clean.replace(/^\((.+)\)$/, '$1').trim();
-            if (!clean || clean.toLowerCase() === yearGroupClean || /^\d+$/.test(clean)) return;
+            const clean = extractStreamOnly(rawName, selectedYearGroup);
+            if (!clean) return;
 
             const key = clean.toLowerCase();
             const existing = streamMap.get(key);
@@ -600,7 +689,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         if (courses && courses.length > 0) {
             courses.forEach(c => {
                 const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
-                const matchesCourse = cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName);
+                const cGrade = extractGradeOnly(cName).toLowerCase();
+                const matchesCourse = !baseGradeOnly || cGrade === baseGradeOnly || cName === yearGroupClean || cName.includes(baseGradeOnly);
                 if (matchesCourse && c.levels && Array.isArray(c.levels)) {
                     c.levels.forEach((l: any) => {
                         const lName = (l.name || l.title || l.code || '').trim();
@@ -610,7 +700,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             });
         }
 
-        // 2. Institution stream definitions
+        // 2. Institution stream definitions (e.g. East, West, North, South)
         if (currentInstitution && (currentInstitution as any).streamDefinitions && Array.isArray((currentInstitution as any).streamDefinitions)) {
             (currentInstitution as any).streamDefinitions.forEach((sDef: any) => {
                 if (typeof sDef === 'string') addStream(sDef, true);
@@ -623,15 +713,14 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         if (savedRows && savedRows.length > 0) {
             savedRows.forEach((r: any) => {
                 const stClass = String(r.class || r.studentClass || '').trim();
+                const stGrade = extractGradeOnly(stClass).toLowerCase();
                 const rStream = String(r.stream || r.streamName || r.stream_name || '').trim();
-                if (rStream) addStream(rStream);
-                if (stClass.toLowerCase().includes(yearGroupClean)) {
-                    const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
-                    if (match && match[1] && !/^\d+$/.test(match[1])) {
-                        addStream(match[1]);
-                    } else if (stClass.toLowerCase() !== yearGroupClean) {
-                        addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
-                    }
+                
+                const matchesYear = !baseGradeOnly || stGrade === baseGradeOnly || stClass.toLowerCase().includes(baseGradeOnly);
+                if (matchesYear) {
+                    if (rStream) addStream(rStream);
+                    const streamFromClass = extractStreamOnly(stClass, selectedYearGroup);
+                    if (streamFromClass) addStream(streamFromClass);
                 }
             });
         }
@@ -639,30 +728,27 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         // 4. Active registered students
         activeStudents.forEach((st: any) => {
             const stClass = String(st.studentClass || st.classLevel || st.className || st.class || '').trim();
+            const stGrade = extractGradeOnly(stClass).toLowerCase();
             const directStream = String(st.stream || st.streamName || st.metadata?.stream || st.metadata?.streamName || '').trim();
-            if (directStream && (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean || yearGroupClean === 'all')) {
-                addStream(directStream);
-            }
+            
+            const matchesYear = !baseGradeOnly || stGrade === baseGradeOnly || stClass.toLowerCase().includes(baseGradeOnly);
+            if (matchesYear) {
+                if (directStream) addStream(directStream);
 
-            // Check courseLevelId
-            const lvlId = (st as any).courseLevelId || (st as any).levelId || (st as any).metadata?.courseLevelId;
-            if (lvlId && courses && courses.length > 0) {
-                for (const c of courses) {
-                    const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
-                    if (cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName)) {
-                        const matchedLevel = (c.levels || []).find((l: any) => l.id === lvlId);
-                        if (matchedLevel?.name) addStream(matchedLevel.name, true);
+                // Check courseLevelId
+                const lvlId = (st as any).courseLevelId || (st as any).levelId || (st as any).metadata?.courseLevelId;
+                if (lvlId && courses && courses.length > 0) {
+                    for (const c of courses) {
+                        const cGrade = extractGradeOnly(c.name || '').toLowerCase();
+                        if (cGrade === baseGradeOnly || !baseGradeOnly) {
+                            const matchedLevel = (c.levels || []).find((l: any) => l.id === lvlId);
+                            if (matchedLevel?.name) addStream(matchedLevel.name, true);
+                        }
                     }
                 }
-            }
 
-            if (stClass.toLowerCase().includes(yearGroupClean)) {
-                const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
-                if (match && match[1] && !/^\d+$/.test(match[1])) {
-                    addStream(match[1]);
-                } else if (stClass.toLowerCase() !== yearGroupClean) {
-                    addStream(stClass.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim());
-                }
+                const streamFromClass = extractStreamOnly(stClass, selectedYearGroup);
+                if (streamFromClass) addStream(streamFromClass);
             }
         });
 
@@ -670,8 +756,19 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             ['East', 'West', 'North', 'South'].forEach(s => addStream(s));
         }
 
-        return ['all', ...Array.from(streamMap.values()).filter(Boolean)];
+        const sortedStreams = Array.from(streamMap.values()).filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        return ['all', ...sortedStreams];
     }, [courses, selectedYearGroup, selectedExamId, resolveEffectiveExamRows, activeStudents, currentInstitution]);
+
+    // Auto-reset stream to 'all' if selected stream is not in active streamOptions
+    useEffect(() => {
+        if (selectedStream !== 'all' && streamOptions.length > 0) {
+            const exists = streamOptions.some(opt => opt.toLowerCase() === selectedStream.toLowerCase());
+            if (!exists) {
+                setSelectedStream('all');
+            }
+        }
+    }, [selectedYearGroup, streamOptions, selectedStream]);
 
     // Auto-sync selectedYearGroup when active exam changes
     useEffect(() => {
@@ -679,9 +776,11 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const exClasses = (selectedExamObj as any).classes || (selectedExamObj as any).targetClasses || [(selectedExamObj as any).class];
             if (Array.isArray(exClasses) && exClasses.length > 0 && exClasses[0]) {
                 const firstCl = String(exClasses[0]).trim();
-                const cleanCl = firstCl.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                setSelectedYearGroup(cleanCl || firstCl);
-                return;
+                const cleanCl = extractGradeOnly(firstCl);
+                if (cleanCl) {
+                    setSelectedYearGroup(cleanCl);
+                    return;
+                }
             }
         }
         if (yearGroupOptions.length > 0 && !yearGroupOptions.includes(selectedYearGroup)) {
@@ -894,7 +993,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         // Direct stream property on row or student
         const direct = row?.stream || row?.streamName || row?.stream_name || st?.stream || st?.streamName || st?.metadata?.stream || st?.metadata?.streamName || '';
         if (direct && String(direct).trim()) {
-            return String(direct).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+            const cleaned = extractStreamOnly(String(direct), selectedYearGroup);
+            if (cleaned) return cleaned;
         }
 
         // Check courseLevelId
@@ -903,7 +1003,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             for (const c of courses) {
                 const lvl = (c.levels || []).find((l: any) => l.id === lvlId);
                 if (lvl?.name) {
-                    return String(lvl.name).trim();
+                    const cleaned = extractStreamOnly(String(lvl.name), selectedYearGroup);
+                    if (cleaned) return cleaned;
                 }
             }
         }
@@ -911,28 +1012,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         // Check if class string contains stream (e.g. "Form 3 EAST")
         const stClass = String(row?.class || row?.studentClass || st?.studentClass || st?.classLevel || '').trim();
         if (stClass) {
-            const yGrp = (selectedYearGroup || '').trim();
-            if (yGrp && stClass.toLowerCase().startsWith(yGrp.toLowerCase())) {
-                const rest = stClass.slice(yGrp.length).replace(/^[-–—:]+\s*/, '').trim();
-                if (rest && !/^\d+$/.test(rest) && !/^(grade|form|standard|std)\s*\d*$/i.test(rest)) {
-                    return rest;
-                }
-            }
-
-            if (courses && courses.length > 0) {
-                for (const c of courses) {
-                    const cName = (c.name || '').trim().toLowerCase();
-                    const matchesYear = !yGrp || cName === yGrp.toLowerCase() || cName.includes(yGrp.toLowerCase());
-                    if (matchesYear && c.levels && Array.isArray(c.levels)) {
-                        for (const l of c.levels) {
-                            const lName = (l.name || '').trim();
-                            if (lName && stClass.toLowerCase().includes(lName.toLowerCase())) {
-                                return lName;
-                            }
-                        }
-                    }
-                }
-            }
+            const fromClass = extractStreamOnly(stClass, selectedYearGroup);
+            if (fromClass) return fromClass;
         }
 
         return '';
@@ -965,10 +1046,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
             const cleanStream = resolveStudentStream(matchedSt, stRow);
 
-            let realClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || (matchedSt as any)?.studentClass || selectedYearGroup || 'Form 3';
-            if (cleanStream && !realClass.toLowerCase().includes(cleanStream.toLowerCase())) {
-                realClass = `${realClass} ${cleanStream}`.trim();
-            }
+            let rawClass = stRow.class || (stRow as any).studentClass || (stRow as any).student?.studentClass || (matchedSt as any)?.studentClass || selectedYearGroup || 'Form 3';
+            const cleanGrade = extractGradeOnly(rawClass) || rawClass;
+            const realClass = cleanStream ? `${cleanGrade} ${cleanStream}`.trim() : cleanGrade;
 
             const subjectMarksMap: Record<string, { score: number; grade: string }> = {};
             let total = 0;
@@ -1033,28 +1113,34 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     const filteredBroadsheetRows = useMemo(() => {
         const filtered = sampleStudents.filter(r => {
             const stClass = (r.student?.studentClass || '').trim();
+            const stGrade = extractGradeOnly(stClass);
             const yGrp = (selectedYearGroup || '').trim();
+            const selGrade = extractGradeOnly(yGrp);
 
-            const matchesYearGroup = !yGrp ||
-                yGrp === 'all' ||
-                stClass.toLowerCase().includes(yGrp.toLowerCase()) ||
-                yGrp.toLowerCase().includes(stClass.toLowerCase()) ||
+            // 1. Match Year Group (Grade level)
+            const matchesYearGroup = !selGrade ||
+                selGrade.toLowerCase() === 'all' ||
+                stGrade.toLowerCase() === selGrade.toLowerCase() ||
                 (courses && courses.some(c => {
-                    const cName = (c.name || '').trim().toLowerCase();
-                    if (cName !== yGrp.toLowerCase()) return false;
+                    const cGrade = extractGradeOnly(c.name || (c as any).title || c.code || '');
+                    if (cGrade.toLowerCase() !== selGrade.toLowerCase()) return false;
                     return (c.levels || []).some((l: any) => 
                         stClass.toLowerCase().includes(l.name.toLowerCase().trim()) ||
                         String((r.student as any)?.stream || '').toLowerCase().trim() === l.name.toLowerCase().trim()
                     );
                 }));
 
-            const stStream = String((r.student as any)?.stream || '').toLowerCase().trim();
-            const selClean = selectedStream.toLowerCase().trim();
-            const matchesStream = selectedStream === 'all' ||
-                stClass.toLowerCase().includes(selClean) ||
-                (stStream && (stStream === selClean || stStream.includes(selClean) || selClean.includes(stStream))) ||
+            // 2. Match Stream
+            const directStream = String((r.student as any)?.stream || '').trim();
+            const streamFromClass = extractStreamOnly(stClass, selGrade);
+            const effectiveStream = (directStream ? extractStreamOnly(directStream, selGrade) : '') || streamFromClass;
+            
+            const selStreamClean = extractStreamOnly(selectedStream, selGrade).toLowerCase();
+            const matchesStream = selectedStream === 'all' || !selStreamClean ||
+                effectiveStream.toLowerCase() === selStreamClean ||
+                stClass.toLowerCase().includes(` ${selStreamClean}`) ||
                 (courses && courses.some(c => (c.levels || []).some((l: any) => 
-                    l.name.toLowerCase().trim() === selClean && (
+                    extractStreamOnly(l.name || '', selGrade).toLowerCase() === selStreamClean && (
                         (r.student as any)?.courseLevelId === l.id || 
                         (r.student as any)?.levelId === l.id
                     )
@@ -1380,10 +1466,10 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                     <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6">
                         <div>
                             <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">
-                                {selectedYearGroup.toUpperCase()} &bull; {selectedExamObj.title.toUpperCase()} BROADSHEET
+                                {selectedYearGroup.toUpperCase()}{selectedStream !== 'all' ? ` ${selectedStream.toUpperCase()}` : ''} &bull; {selectedExamObj.title.toUpperCase()} BROADSHEET
                             </span>
                             <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 dark:text-white mt-2">
-                                {selectedYearGroup} &mdash; {selectedExamObj.title} BROADSHEET
+                                {selectedYearGroup}{selectedStream !== 'all' ? ` ${selectedStream}` : ''} &mdash; {selectedExamObj.title} BROADSHEET
                             </h2>
                         </div>
 
@@ -1424,7 +1510,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                 >
                                     {streamOptions.map(stOpt => (
                                         <option key={stOpt} value={stOpt}>
-                                            {stOpt === 'all' ? 'All Streams' : stOpt.replace(/\s*stream\s*$/i, '').trim()}
+                                            {stOpt === 'all' ? 'All Streams' : (extractStreamOnly(stOpt, selectedYearGroup) || stOpt)}
                                         </option>
                                     ))}
                                 </select>
@@ -1834,7 +1920,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                                             OFFICIAL ACADEMIC BROADSHEET REPORT &bull; CONFIDENTIAL
                                                         </p>
                                                         <p className="text-[10px] font-semibold text-slate-600 mt-1">
-                                                            Class: <strong className="text-slate-900">{selectedYearGroup}</strong> | Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong> | Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong>
+                                                            Class: <strong className="text-slate-900">{selectedYearGroup}{selectedStream !== 'all' ? ` ${selectedStream}` : ''}</strong> | Exam: <strong className="text-slate-900">{selectedExamObj.title}</strong> | Term: <strong className="text-slate-900">{selectedExamObj.term || 'TERM 1'} {selectedExamObj.year || '2026'}</strong>
                                                         </p>
                                                     </div>
                                                 </div>

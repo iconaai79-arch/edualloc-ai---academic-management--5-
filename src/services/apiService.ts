@@ -1385,6 +1385,30 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'student_enrollments' && Array.isArray(result)) {
+                    result.forEach((enr: any) => {
+                        const meta = typeof enr.metadata === 'object' && enr.metadata !== null ? enr.metadata : {};
+                        const dobVal = enr.dateOfBirth || enr.date_of_birth || enr.dob || meta.dateOfBirth || meta.date_of_birth || meta.dob || '';
+                        if (dobVal) {
+                            enr.dateOfBirth = dobVal;
+                            enr.dob = dobVal;
+                        }
+                        const assVal = enr.assessmentNo || enr.assessment_no || enr.assessmentNumber || enr.assessment_number || meta.assessmentNo || meta.assessment_no || meta.assessmentNumber || '';
+                        if (assVal) {
+                            enr.assessmentNo = assVal;
+                            enr.assessmentNumber = assVal;
+                        }
+                        if (!enr.fullName && (meta.fullName || meta.name || meta.full_name)) {
+                            enr.fullName = meta.fullName || meta.name || meta.full_name;
+                        }
+                        if (!enr.gradeLevel && (meta.gradeLevel || meta.grade_level)) {
+                            enr.gradeLevel = meta.gradeLevel || meta.grade_level;
+                        }
+                        if (!enr.stream && meta.stream) {
+                            enr.stream = meta.stream;
+                        }
+                    });
+                }
 
                 if (Array.isArray(result)) {
                     const localData = queryLocal();
@@ -1760,7 +1784,24 @@ export const apiService = {
                     item.admission_number = String(opNo).trim();
                 }
                 
-                // Delete non-existent DB alias keys to prevent Supabase schema cache stale errors & retries
+                // Delete non-existent DB alias keys and harmonize camelCase to prevent Supabase schema cache stale errors & retries
+                if (item.fullName && !item.full_name) item.full_name = item.fullName;
+                if (item.bloodGroup && !item.blood_group) item.blood_group = item.bloodGroup;
+                if (item.insuranceProvider && !item.insurance_provider) item.insurance_provider = item.insuranceProvider;
+                if (item.shaNumber && !item.sha_number) item.sha_number = item.shaNumber;
+                if (item.emergencyContactName && !item.emergency_contact_name) item.emergency_contact_name = item.emergencyContactName;
+                if (item.emergencyContactPhone && !item.emergency_contact_phone) item.emergency_contact_phone = item.emergencyContactPhone;
+                if (item.gradeLevel && !item.grade_level) item.grade_level = item.gradeLevel;
+                if (item.recordedBy && !item.recorded_by) item.recorded_by = item.recordedBy;
+                if (item.dateOfBirth && !item.dob) item.dob = item.dateOfBirth;
+
+                // Harmonize guardian fields into standard emergency contact & contact fields
+                const gName = item.guardian_name || item.guardianName;
+                const gPhone = item.guardian_phone || item.guardianPhone;
+                if (gName && !item.emergency_contact_name) item.emergency_contact_name = gName;
+                if (gPhone && !item.emergency_contact_phone) item.emergency_contact_phone = gPhone;
+                if (gPhone && (!item.contact || item.contact === 'N/A')) item.contact = gPhone;
+
                 delete item.custom_patient_id;
                 delete item.customPatientId;
                 delete item.patient_number;
@@ -1769,6 +1810,31 @@ export const apiService = {
                 delete item.opNumber;
                 delete item.admissionNumber;
                 delete item.name;
+                delete item.fullName;
+                delete item.bloodGroup;
+                delete item.insuranceProvider;
+                delete item.shaNumber;
+                delete item.emergencyContactName;
+                delete item.emergencyContactPhone;
+                delete item.guardian_name;
+                delete item.guardianName;
+                delete item.guardian_phone;
+                delete item.guardianPhone;
+                delete item.guardian_national_id;
+                delete item.guardianNationalId;
+                delete item.first_name;
+                delete item.firstName;
+                delete item.last_name;
+                delete item.lastName;
+                delete item.gradeLevel;
+                delete item.recordedBy;
+                delete item.dateOfBirth;
+                delete item.createdAt;
+                delete item.updatedAt;
+
+                if (item.metadata && typeof item.metadata === 'object' && Object.keys(item.metadata).length === 0) {
+                    delete item.metadata;
+                }
             }
 
             // Feedback submissions normalization
@@ -1782,13 +1848,63 @@ export const apiService = {
 
             // Student enrollments normalization
             if (module === 'student_enrollments') {
-                if (item.assessmentNo || item.assessment_no) {
-                    const assVal = item.assessmentNo || item.assessment_no;
-                    item.metadata = {
-                        ...(item.metadata || {}),
-                        assessmentNo: assVal
-                    };
+                const dobVal = item.dateOfBirth || item.date_of_birth || item.dob;
+                const assVal = item.assessmentNo || item.assessment_no || item.assessmentNumber || item.assessment_number;
+                const nameVal = item.fullName || item.full_name || item.name;
+                const genderVal = item.gender;
+                const gradeVal = item.gradeLevel || item.grade_level;
+                const streamVal = item.stream;
+                
+                const meta = { ...(item.metadata || {}) };
+                if (dobVal) {
+                    meta.dateOfBirth = dobVal;
+                    meta.dob = dobVal;
                 }
+                if (assVal) {
+                    meta.assessmentNo = assVal;
+                    meta.assessmentNumber = assVal;
+                }
+                if (nameVal && !meta.fullName) meta.fullName = nameVal;
+                if (genderVal && !meta.gender) meta.gender = genderVal;
+                if (gradeVal && !meta.gradeLevel) meta.gradeLevel = gradeVal;
+                if (streamVal && !meta.stream) meta.stream = streamVal;
+                item.metadata = meta;
+
+                // Strip virtual fields from root payload so PostgREST schema cache never complains or retries
+                delete item.dateOfBirth;
+                delete item.date_of_birth;
+                delete item.dob;
+                delete item.assessmentNo;
+                delete item.assessment_no;
+                delete item.assessmentNumber;
+                delete item.assessment_number;
+                delete item.fullName;
+                delete item.full_name;
+                delete item.name;
+                delete item.gender;
+                delete item.gradeLevel;
+                delete item.grade_level;
+                delete item.stream;
+                delete item.parentName;
+                delete item.parent_name;
+                delete item.guardianName;
+                delete item.guardian_name;
+                delete item.parentPhone;
+                delete item.parent_phone;
+                delete item.parentEmail;
+                delete item.parent_email;
+                delete item.boardingStatus;
+                delete item.boarding_status;
+                delete item.upi;
+                delete item.upiNumber;
+                delete item.upi_number;
+                delete item.kcpeScore;
+                delete item.kcpe_score;
+                delete item.birthCertificateNo;
+                delete item.birth_certificate_no;
+                delete item.nemisNumber;
+                delete item.nemis_number;
+                delete item.subjects;
             }
 
             // Commission withdrawal requests normalization

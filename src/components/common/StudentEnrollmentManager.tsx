@@ -900,12 +900,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
                     enrollment_type TEXT NOT NULL,
                     admission_number TEXT,
+                    assessment_no TEXT,
+                    date_of_birth DATE,
                     status TEXT DEFAULT 'Enrolled',
                     enrollment_date TEXT,
                     metadata JSONB DEFAULT '{}'::jsonb,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                 );
+
+                ALTER TABLE public.student_enrollments ADD COLUMN IF NOT EXISTS date_of_birth DATE;
+                ALTER TABLE public.student_enrollments ADD COLUMN IF NOT EXISTS assessment_no TEXT;
 
                 CREATE TABLE IF NOT EXISTS public.broadcaster_messages (
                     id TEXT PRIMARY KEY,

@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS his_patients (
     admission_number TEXT,
     grade_level TEXT,
     stream TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
     status TEXT DEFAULT 'Active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
