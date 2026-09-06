@@ -15,6 +15,7 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { FunnelIcon } from '../icons/FunnelIcon';
+import { extractGradeOnly, extractStreamOnly } from './BroadsheetReportView';
 
 interface RawMarksheetViewProps {
     assessments?: Assessment[];
@@ -162,84 +163,116 @@ const isSubjectKeyMatch = (k: string, sub: any): boolean => {
 // Helper to extract student raw mark from broadsheet row or marks array
 const extractStudentSubjectScore = (
     row: any,
-    studentId: string,
+    matchedSt: any,
     subject: any,
-    allMarks: AssessmentMark[] = []
+    allMarks: AssessmentMark[] = [],
+    examId?: string
 ): { score: number | string; found: boolean } => {
-    if (row && typeof row === 'object') {
-        const sName = (subject.name || (subject as any).title || '').toLowerCase().trim();
-        const sCode = (subject.code || '').toLowerCase().trim();
-        const sId = (subject.id || '').toLowerCase().trim();
-        const sClean = sName.replace(/[^a-z0-9]/g, '_');
-        const cClean = sCode.replace(/[^a-z0-9]/g, '_');
+    const dictionariesToCheck: Record<string, any>[] = [
+        row,
+        (row?.marks && typeof row.marks === 'object' ? row.marks : null),
+        (row?.subjectMarks && typeof row.subjectMarks === 'object' ? row.subjectMarks : null),
+        (row?.subjectMarksMap && typeof row.subjectMarksMap === 'object' ? row.subjectMarksMap : null),
+        (row?.scores && typeof row.scores === 'object' ? row.scores : null),
+    ].filter(Boolean);
 
-        // High-priority exact key candidates
-        const exactKeys = [
-            sId,
-            sCode,
-            cClean,
-            `subj_${cClean}_p1`,
-            `subj_${cClean}`,
-            `subj_${sClean}_p1`,
-            `subj_${sClean}_paper_1`,
-            `subj_${sClean}`,
-            sClean,
-            // Kiswahili high-priority keys
-            'kiswP1',
-            'kisw_p1',
-            'kiswP2',
-            'kisw_p2',
-            'kiswahili',
-            'kisw',
-            'subj_kiswahili_language_activities_p1',
-            'subj_kiswahili_p1'
-        ].filter(Boolean);
+    let paper1: number | null = null;
+    let paper2: number | null = null;
+    let paper3: number | null = null;
+    let directScore: number | null = null;
 
-        let maxScore = -1;
-        let foundAny = false;
+    const ignoredKeys = new Set([
+        'admno', 'name', 'class', 'kcpe', 'student', 'id', 'admissionno', 
+        'admissionnumber', 'total', 'mean', 'average', 'stream', 'rank',
+        'overallpos', 'streampos', 'vap', 'entry', 'studentname', 'studentclass',
+        'gender', 'courselevelid', 'levelid'
+    ]);
 
-        for (const ek of exactKeys) {
-            if (row[ek] !== undefined && row[ek] !== null && row[ek] !== '') {
-                const num = parseFloat(String(row[ek]));
-                if (!isNaN(num)) {
-                    foundAny = true;
-                    if (num > maxScore) maxScore = num;
+    for (const dict of dictionariesToCheck) {
+        for (const [key, val] of Object.entries(dict)) {
+            if (val === null || val === undefined || val === '') continue;
+            const kNorm = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (ignoredKeys.has(kNorm)) continue;
+
+            let num: number | null = null;
+            if (typeof val === 'number') {
+                num = val;
+            } else if (typeof val === 'string') {
+                const parsed = parseFloat(val);
+                if (!isNaN(parsed)) num = parsed;
+            } else if (typeof val === 'object' && val !== null) {
+                const inner = (val as any).score ?? (val as any).mark ?? (val as any).marks;
+                if (inner !== null && inner !== undefined && !isNaN(Number(inner))) {
+                    num = Number(inner);
                 }
             }
-        }
 
-        // Broad scan across all row keys
-        for (const [k, val] of Object.entries(row)) {
-            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'studentName', 'gender', 'stream', 'studentId', 'admissionNumber', 'total', 'mean'].includes(k)) continue;
-            if (val !== null && val !== undefined && val !== '' && !isNaN(Number(val))) {
-                if (isSubjectKeyMatch(k, subject)) {
-                    foundAny = true;
-                    const num = Number(val);
-                    if (num > maxScore) maxScore = num;
+            if (num === null || isNaN(num) || num < 0) continue;
+
+            if (isSubjectKeyMatch(key, subject)) {
+                const kLower = key.toLowerCase();
+                const isP1 = /(?:_?p|_?paper_?)\s*1\b/i.test(kLower) || kLower.endsWith('p1');
+                const isP2 = /(?:_?p|_?paper_?)\s*2\b/i.test(kLower) || kLower.endsWith('p2');
+                const isP3 = /(?:_?p|_?paper_?)\s*3\b/i.test(kLower) || kLower.endsWith('p3');
+
+                if (isP1) {
+                    paper1 = num;
+                } else if (isP2) {
+                    paper2 = num;
+                } else if (isP3) {
+                    paper3 = num;
+                } else {
+                    directScore = (directScore === null || num > directScore) ? num : directScore;
                 }
             }
-        }
-
-        if (maxScore >= 0) {
-            return { score: maxScore, found: true };
-        }
-        if (foundAny) {
-            return { score: 0, found: true };
         }
     }
 
-    if (allMarks && Array.isArray(allMarks) && allMarks.length > 0 && studentId) {
-        const matchedMark = allMarks.find(m => 
-            (m.studentId === studentId || (m as any).student_id === studentId) && 
-            (((m as any).subjectId === subject.id || (m as any).subject_id === subject.id) || 
-             isSubjectKeyMatch((m as any).subjectCode || (m as any).subjectName || (m as any).title || '', subject))
-        );
-        if (matchedMark) {
-            const val = (matchedMark as any).marks ?? (matchedMark as any).score ?? (matchedMark as any).percentage ?? (matchedMark as any).rawMark ?? (matchedMark as any).mark;
-            if (val !== null && val !== undefined && !isNaN(Number(val))) {
-                return { score: Number(val), found: true };
-            }
+    // Check allMarks if not found in row
+    if (paper1 === null && paper2 === null && paper3 === null && directScore === null && allMarks && allMarks.length > 0) {
+        const studentId = matchedSt?.id || row?.id || row?.studentId;
+        const studentAdm = String(matchedSt?.admissionNumber || matchedSt?.admissionNo || matchedSt?.admNo || row?.admissionNumber || row?.admNo || '').trim().toLowerCase();
+
+        const matchedMarks = allMarks.filter((m: any) => {
+            const mExId = m.assessmentId || m.assessment_id || m.examId;
+            const matchesExam = !examId || !mExId || mExId === examId;
+            if (!matchesExam) return false;
+
+            const mStId = m.studentId || m.student_id;
+            const mAdm = String((m as any).admNo || (m as any).admissionNo || '').trim().toLowerCase();
+            const matchesStudent = (studentId && mStId === studentId) || 
+                                   (studentAdm && mAdm && (studentAdm === mAdm || studentAdm.replace(/^0+/, '') === mAdm.replace(/^0+/, '')));
+            if (!matchesStudent) return false;
+
+            const mSubId = m.subjectId || m.subject_id || m.subject;
+            const mSubName = (m as any).subjectName || (m as any).subjectCode || (m as any).name || '';
+            return (mSubId && (mSubId === subject.id || mSubId === subject.code)) || (mSubName && isSubjectKeyMatch(mSubName, subject));
+        });
+
+        if (matchedMarks.length > 0) {
+            let maxM = -1;
+            matchedMarks.forEach((m: any) => {
+                const val = m.marks ?? m.score ?? m.percentage ?? m.rawMark;
+                if (val !== null && val !== undefined) {
+                    const n = Number(val);
+                    if (!isNaN(n) && n > maxM) maxM = n;
+                }
+            });
+            if (maxM >= 0) directScore = maxM;
         }
+    }
+
+    const hasPapers = paper1 !== null || paper2 !== null || paper3 !== null;
+    let finalScore: number | null = null;
+    if (hasPapers) {
+        const sumPapers = (paper1 || 0) + (paper2 || 0) + (paper3 || 0);
+        finalScore = directScore !== null && directScore > sumPapers ? directScore : sumPapers;
+    } else if (directScore !== null) {
+        finalScore = directScore;
+    }
+
+    if (finalScore !== null && !isNaN(finalScore)) {
+        return { score: Math.round(finalScore * 10) / 10, found: true };
     }
 
     return { score: '-', found: false };
@@ -380,29 +413,60 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
 
     }, [currentInstitution?.id]);
 
-    // Published Exams
+    // Listen for cross-module sync events
+    useEffect(() => {
+        const handleSync = () => {
+            try {
+                const savedUnits = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (savedUnits) setSavedExamUnits(JSON.parse(savedUnits) || []);
+
+                const savedSheets = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+                if (savedSheets) setSavedBroadsheets(JSON.parse(savedSheets) || {});
+            } catch(e) {}
+        };
+        window.addEventListener('eduai_academics_synced', handleSync);
+        window.addEventListener('eduai_broadsheets_updated', handleSync);
+        window.addEventListener('storage', handleSync);
+        return () => {
+            window.removeEventListener('eduai_academics_synced', handleSync);
+            window.removeEventListener('eduai_broadsheets_updated', handleSync);
+            window.removeEventListener('storage', handleSync);
+        };
+    }, [instId]);
+
+    // Published Exams & Exams with data
     const publishedExamsList = useMemo(() => {
         const map = new Map<string, any>();
         savedExamUnits
-            .filter(e => e.isPublished || e.status === 'published')
-            .forEach(e => map.set(e.id, {
-                id: e.id,
-                title: e.title || e.name || 'Unnamed Exam',
-                year: e.year || '2026',
-                term: e.term || 'TERM 1',
-                targetClasses: e.targetClasses || []
-            }));
+            .forEach(e => {
+                const stStr = String(e.status || '').toLowerCase().trim();
+                const isPub = stStr === 'published' || e.isPublished === true || e.published === true;
+                map.set(e.id, {
+                    id: e.id,
+                    title: e.title || e.name || 'Unnamed Exam',
+                    name: e.name || e.title || 'Unnamed Exam',
+                    year: String(e.year || '2026'),
+                    term: e.term || 'TERM 1',
+                    isPublished: isPub,
+                    targetClasses: e.targetClasses || [],
+                    testedPaperConfigs: e.testedPaperConfigs
+                });
+            });
 
         assessments
-            .filter(a => (a as any).isPublished || (a as any).status === 'published')
             .forEach(a => {
-                if (!map.has(a.id)) {
+                const existing = map.get(a.id);
+                if (!existing) {
+                    const isPub = (a as any).isPublished || (a as any).status === 'published';
                     map.set(a.id, {
                         id: a.id,
                         title: a.title || 'Continuous Assessment',
+                        name: a.title || 'Continuous Assessment',
                         year: '2026',
                         term: 'TERM 1',
-                        targetClasses: []
+                        isPublished: isPub,
+                        targetClasses: [],
+                        testedPaperConfigs: (a as any).testedPaperConfigs
                     });
                 }
             });
@@ -411,8 +475,10 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
             return [{
                 id: 'chepkoilel_exam_2026',
                 title: 'CHEPKOILEL ZONAL EXAMS',
+                name: 'CHEPKOILEL ZONAL EXAMS',
                 year: '2026',
                 term: 'TERM 1',
+                isPublished: true,
                 targetClasses: ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9']
             }];
         }
@@ -431,19 +497,122 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         return publishedExamsList.find(e => e.id === selectedExamId) || publishedExamsList[0];
     }, [publishedExamsList, selectedExamId]);
 
-    // Saved Broadsheet rows for this exam
-    const examSavedRows = useMemo(() => {
-        if (savedBroadsheets && selectedExamId && savedBroadsheets[selectedExamId]) {
-            return savedBroadsheets[selectedExamId];
+    // Comprehensive 5-Tier Broadsheet & Raw Mark Row Resolution
+    const resolveEffectiveExamRows = useCallback((examId: string): any[] => {
+        if (!examId) return [];
+
+        // Tier 1: Direct ID in savedBroadsheets state
+        if (savedBroadsheets && savedBroadsheets[examId] && Array.isArray(savedBroadsheets[examId]) && savedBroadsheets[examId].length > 0) {
+            return savedBroadsheets[examId];
         }
+
+        // Tier 1b: Direct localStorage lookup for institution broadsheets store
         try {
-            const localStore = JSON.parse(localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || '{}');
-            if (localStore && localStore[selectedExamId]) {
-                return localStore[selectedExamId];
+            const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                             (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null) ||
+                             localStorage.getItem('eduai_exam_broadsheets_default');
+            if (storeRaw) {
+                const parsed = JSON.parse(storeRaw);
+                if (parsed && parsed[examId] && Array.isArray(parsed[examId]) && parsed[examId].length > 0) {
+                    return parsed[examId];
+                }
             }
-        } catch (e) {}
+        } catch(e) {}
+
+        // Tier 2: Check active exam object's broadsheetData or rows
+        const matchedExam = publishedExamsList.find(e => e.id === examId);
+        if (matchedExam) {
+            const exData = (matchedExam as any).broadsheetData || (matchedExam as any).rows;
+            if (Array.isArray(exData) && exData.length > 0) return exData;
+
+            const exName = matchedExam.title || matchedExam.name;
+            if (exName && exName !== examId) {
+                if (savedBroadsheets[exName] && Array.isArray(savedBroadsheets[exName]) && savedBroadsheets[exName].length > 0) {
+                    return savedBroadsheets[exName];
+                }
+                try {
+                    const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                                     (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null);
+                    if (storeRaw) {
+                        const parsed = JSON.parse(storeRaw);
+                        if (parsed && parsed[exName] && Array.isArray(parsed[exName]) && parsed[exName].length > 0) {
+                            return parsed[exName];
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // Tier 3: Check snapshot backups in localStorage
+        try {
+            const indexKey = `eduai_marks_snapshot_index_${instId}_${examId}`;
+            const keys: string[] = JSON.parse(localStorage.getItem(indexKey) || '[]');
+            for (const k of keys.slice().reverse()) {
+                const snapRaw = localStorage.getItem(k);
+                if (snapRaw) {
+                    const parsed = JSON.parse(snapRaw);
+                    if (Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+                        return parsed.rows;
+                    }
+                }
+            }
+        } catch (e) { }
+
+        // Tier 4: Direct individual broadsheet key
+        try {
+            const singleKey = localStorage.getItem(`eduai_exam_broadsheet_${examId}`) || localStorage.getItem(`eduai_exam_marks_${examId}`);
+            if (singleKey) {
+                const parsed = JSON.parse(singleKey);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
+            }
+            if (matchedExam) {
+                const nameKey = localStorage.getItem(`eduai_exam_broadsheet_${matchedExam.title}`) || localStorage.getItem(`eduai_exam_broadsheet_${matchedExam.name}`);
+                if (nameKey) {
+                    const parsed = JSON.parse(nameKey);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
+                }
+            }
+        } catch (e) { }
+
+        // Tier 5: Construct from props.marks if matching records exist
+        if (marks && marks.length > 0) {
+            const examMarks = marks.filter((m: any) => 
+                m.assessmentId === examId || 
+                m.assessment_id === examId || 
+                m.examId === examId ||
+                (matchedExam && (m.assessmentId === matchedExam.title || m.assessmentId === matchedExam.name))
+            );
+            if (examMarks.length > 0) {
+                const studentMap = new Map<string, any>();
+                examMarks.forEach((m: any) => {
+                    const sId = m.studentId || m.student_id;
+                    if (!sId) return;
+                    if (!studentMap.has(sId)) {
+                        const stObj = activeStudents.find(s => s.id === sId);
+                        studentMap.set(sId, {
+                            id: sId,
+                            admNo: (stObj as any)?.admissionNumber || (stObj as any)?.admissionNo || sId,
+                            name: stObj?.name || 'Student',
+                            class: (stObj as any)?.studentClass || selectedYearGroup || 'Class',
+                            stream: (stObj as any)?.stream || (stObj as any)?.streamName || ''
+                        });
+                    }
+                    const row = studentMap.get(sId);
+                    const subId = m.subjectId || m.subject_id || m.subject;
+                    if (subId && m.marks !== null && m.marks !== undefined) {
+                        row[subId] = Number(m.marks);
+                    }
+                });
+                if (studentMap.size > 0) {
+                    return Array.from(studentMap.values());
+                }
+            }
+        }
+
         return [];
-    }, [savedBroadsheets, selectedExamId, instId]);
+    }, [savedBroadsheets, publishedExamsList, instId, marks, activeStudents, selectedYearGroup, currentInstitution]);
 
     // Year Groups / Classes
     const yearGroupsList = useMemo(() => {
@@ -452,18 +621,19 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         if (selectedExamObj?.targetClasses && Array.isArray(selectedExamObj.targetClasses)) {
             selectedExamObj.targetClasses.forEach((cls: string) => {
                 if (cls && typeof cls === 'string' && cls.trim()) {
-                    const base = cls.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                    groups.add(base || cls.trim());
+                    const base = extractGradeOnly(cls);
+                    if (base) groups.add(base);
                 }
             });
         }
 
-        if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach((r: any) => {
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
+        if (savedRows && savedRows.length > 0) {
+            savedRows.forEach((r: any) => {
                 const c = r.class || r.studentClass;
                 if (c && typeof c === 'string' && c.trim()) {
-                    const base = c.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                    groups.add(base || c.trim());
+                    const base = extractGradeOnly(c);
+                    if (base) groups.add(base);
                 }
             });
         }
@@ -471,21 +641,24 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         activeStudents.forEach(st => {
             const cls = (st as any).studentClass || (st as any).classLevel;
             if (cls && typeof cls === 'string' && cls.trim()) {
-                const base = cls.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                groups.add(base || cls.trim());
+                const base = extractGradeOnly(cls);
+                if (base) groups.add(base);
             }
         });
 
         (academicLevels || []).forEach(l => {
-            if (l.name) groups.add(l.name.trim());
+            if (l.name) {
+                const base = extractGradeOnly(l.name);
+                if (base) groups.add(base);
+            }
         });
 
         if (groups.size === 0) {
-            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9'];
+            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
         }
 
         return Array.from(groups);
-    }, [selectedExamObj, examSavedRows, activeStudents, academicLevels]);
+    }, [selectedExamObj, resolveEffectiveExamRows, selectedExamId, activeStudents, academicLevels]);
 
     useEffect(() => {
         if (!selectedYearGroup && yearGroupsList.length > 0) {
@@ -493,66 +666,88 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         }
     }, [yearGroupsList, selectedYearGroup]);
 
-    // Stream Options
+    // Helper to resolve clean student stream (e.g. "EAST" or "WEST", never "3 EAST" or "3")
+    const resolveStudentStream = useCallback((st: any, row: any): string => {
+        const direct = row?.stream || row?.streamName || row?.stream_name || st?.stream || st?.streamName || st?.metadata?.stream || st?.metadata?.streamName || '';
+        if (direct && String(direct).trim()) {
+            const cleaned = extractStreamOnly(String(direct), selectedYearGroup);
+            if (cleaned) return cleaned;
+        }
+
+        const lvlId = st?.courseLevelId || st?.levelId || st?.metadata?.courseLevelId || row?.courseLevelId || row?.levelId;
+        if (lvlId && courses && courses.length > 0) {
+            for (const c of courses) {
+                const lvl = (c.levels || []).find((l: any) => l.id === lvlId);
+                if (lvl?.name) {
+                    const cleaned = extractStreamOnly(String(lvl.name), selectedYearGroup);
+                    if (cleaned) return cleaned;
+                }
+            }
+        }
+
+        const stClass = String(row?.class || row?.studentClass || st?.studentClass || st?.classLevel || '').trim();
+        if (stClass) {
+            const fromClass = extractStreamOnly(stClass, selectedYearGroup);
+            if (fromClass) return fromClass;
+        }
+
+        return '';
+    }, [selectedYearGroup, courses]);
+
+    // Clean Stream Options (Strictly Stream Names Only, e.g. "EAST", "WEST", never "3 EAST" or "3")
     const streamOptions = useMemo(() => {
         const streams = new Set<string>();
         const ygClean = (selectedYearGroup || '').toLowerCase().trim();
-        const ygNorm = ygClean.replace(/[^a-z0-9]/g, '');
 
         if ((currentInstitution as any)?.streams && Array.isArray((currentInstitution as any).streams)) {
             (currentInstitution as any).streams.forEach((s: any) => {
                 const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
-                if (sName && typeof sName === 'string' && sName.trim()) streams.add(sName.trim());
+                const clean = extractStreamOnly(sName, selectedYearGroup);
+                if (clean && clean.toLowerCase() !== ygClean && !/^\d+$/.test(clean)) {
+                    streams.add(clean.toUpperCase());
+                }
             });
         }
 
         (courses || []).forEach((c: any) => {
             const cName = String(c.name || c.title || c.code || '').trim();
-            const cClean = cName.toLowerCase();
-            if (cClean.includes(ygClean) || (ygNorm && cClean.replace(/[^a-z0-9]/g, '').includes(ygNorm))) {
-                const remainder = cName.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                if (remainder && remainder.length <= 15 && !remainder.toLowerCase().includes(ygClean)) {
-                    streams.add(remainder);
-                }
+            const clean = extractStreamOnly(cName, selectedYearGroup);
+            if (clean && clean.toLowerCase() !== ygClean && !/^\d+$/.test(clean)) {
+                streams.add(clean.toUpperCase());
             }
         });
 
-        if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach((r: any) => {
-                if (r.stream && typeof r.stream === 'string' && r.stream.trim()) streams.add(r.stream.trim());
-                const stClass = String(r.class || r.studentClass || '').trim();
-                if (stClass.toLowerCase().includes(ygClean)) {
-                    const match = stClass.match(/\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)$/i);
-                    if (match && match[1] && match[1].toLowerCase() !== ygClean && match[1].length <= 15) {
-                        streams.add(match[1].trim());
-                    } else if (stClass !== selectedYearGroup) {
-                        const rem = stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                        if (rem && rem.length <= 15) streams.add(rem);
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
+        if (savedRows && savedRows.length > 0) {
+            savedRows.forEach((r: any) => {
+                const cl = String(r.class || r.studentClass || '').trim();
+                const clGrade = extractGradeOnly(cl);
+                if (!ygClean || clGrade.toLowerCase() === ygClean || cl.toLowerCase().includes(ygClean)) {
+                    const str = resolveStudentStream(null, r);
+                    if (str && str.toLowerCase() !== ygClean && !/^\d+$/.test(str)) {
+                        streams.add(str.toUpperCase());
                     }
                 }
             });
         }
 
         activeStudents.forEach(st => {
-            if ((st as any).stream && typeof (st as any).stream === 'string' && (st as any).stream.trim()) streams.add((st as any).stream.trim());
-            const stClass = String((st as any).studentClass || (st as any).classLevel || '').trim();
-            if (stClass.toLowerCase().includes(ygClean)) {
-                const match = stClass.match(/\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)$/i);
-                if (match && match[1] && match[1].toLowerCase() !== ygClean && match[1].length <= 15) {
-                    streams.add(match[1].trim());
-                } else if (stClass !== selectedYearGroup) {
-                    const rem = stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                    if (rem && rem.length <= 15) streams.add(rem);
+            const cl = String((st as any).studentClass || (st as any).classLevel || '').trim();
+            const clGrade = extractGradeOnly(cl);
+            if (!ygClean || clGrade.toLowerCase() === ygClean || cl.toLowerCase().includes(ygClean)) {
+                const str = resolveStudentStream(st, null);
+                if (str && str.toLowerCase() !== ygClean && !/^\d+$/.test(str)) {
+                    streams.add(str.toUpperCase());
                 }
             }
         });
 
         const validStreams = Array.from(streams)
-            .map(s => s.replace(/^(stream|str)\s+/i, '').trim())
-            .filter(s => s && s.toLowerCase() !== 'all' && s.toLowerCase() !== ygClean);
+            .filter(s => s && s.toLowerCase() !== 'all' && s.toLowerCase() !== ygClean && !/^\d+$/.test(s))
+            .sort((a, b) => a.localeCompare(b));
 
-        return ['all', ...Array.from(new Set(validStreams))];
-    }, [activeStudents, selectedYearGroup, examSavedRows, courses, currentInstitution]);
+        return ['all', ...validStreams];
+    }, [activeStudents, selectedYearGroup, resolveEffectiveExamRows, selectedExamId, resolveStudentStream, courses, currentInstitution]);
 
     // Curriculum & Level Detectors
     const isPrimaryOrCBC = useMemo(() => {
@@ -565,269 +760,315 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         return type === 'primary' || type === 'basic' || type === 'kindergarten' || name.includes('primary') || name.includes('academy') || name.includes('cbc') || name.includes('cbe');
     }, [currentInstitution, selectedYearGroup]);
 
-    const isPrePrimary = useMemo(() => {
-        const cls = (selectedYearGroup || '').toLowerCase();
-        return /pp[1-3]|playgroup|nursery|kindergarten|ecde|baby\s*class/i.test(cls);
-    }, [selectedYearGroup]);
-
-    const isUpperPrimary = useMemo(() => {
-        const cls = (selectedYearGroup || '').toLowerCase();
-        return /grade\s*[4-6]|std\s*[4-6]|standard\s*[4-6]|upper\s*primary/i.test(cls);
-    }, [selectedYearGroup]);
-
-    const isJuniorSecondary = useMemo(() => {
-        const cls = (selectedYearGroup || '').toLowerCase();
-        return /grade\s*[7-9]|junior\s*secondary|jss/i.test(cls);
-    }, [selectedYearGroup]);
-
-    const isSecondary = useMemo(() => {
-        const cls = (selectedYearGroup || '').toLowerCase();
-        return /form\s*[1-4]|high\s*school|secondary/i.test(cls);
-    }, [selectedYearGroup]);
-
-    // Active Subjects for Selected Class & Curriculum (Comprehensive & Robust Resolution)
+    // Active Subjects for Selected Class: STRICTLY DISPLAY SUBJECTS WITH ENTERED MARKS
     const activeClassSubjects = useMemo(() => {
-        const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
-        const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
-
-        // 1. Check if classAllocationsStore has explicit subjects for this class
-        let allocatedSubjectIdentifiers: string[] | null = null;
-        if (yGrpClean) {
-            const matchedKey = Object.keys(classAllocationsStore || {}).find(k => {
-                const kClean = k.toLowerCase().trim();
-                const kNorm = kClean.replace(/[^a-z0-9]/g, '');
-                return kClean === yGrpClean || kNorm === yGrpNorm || (kNorm.length > 2 && yGrpNorm.includes(kNorm)) || (yGrpNorm.length > 2 && kNorm.includes(yGrpNorm));
-            });
-            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
-                allocatedSubjectIdentifiers = classAllocationsStore[matchedKey];
-            }
-        }
-
-        // 2. Build default standard curriculum matrix fallback
-        let defaultCurriculumSubjects = [
-            { id: 'sub_lang', name: 'Language Activities', code: 'LANG' },
-            { id: 'sub_math', name: 'Mathematical Activities', code: 'MATH' },
-            { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW' },
-            { id: 'sub_env', name: 'Environmental Activities', code: 'ENV' },
-            { id: 'sub_creat', name: 'Psychomotor & Creative Activities', code: 'CREAT' },
-            { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE' },
-            { id: 'sub_hyg', name: 'Hygiene & Nutrition Activities', code: 'HYG' }
+        const secondaryDefaultSubjects: any[] = [
+            { id: 'sub_eng', name: 'English', code: 'ENG' },
+            { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW' },
+            { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
+            { id: 'sub_bio', name: 'Biology', code: 'BIO' },
+            { id: 'sub_chem', name: 'Chemistry', code: 'CHEM' },
+            { id: 'sub_phy', name: 'Physics', code: 'PHY' },
+            { id: 'sub_hist', name: 'History & Govt', code: 'HIST' },
+            { id: 'sub_geo', name: 'Geography', code: 'GEO' },
+            { id: 'sub_cre', name: 'CRE', code: 'CRE' },
+            { id: 'sub_agri', name: 'Agriculture', code: 'AGRI' },
+            { id: 'sub_bst', name: 'Business Studies', code: 'BST' },
+            { id: 'sub_cmp', name: 'Computer Studies', code: 'CMP' },
         ];
 
-        if (isPrePrimary) {
-            defaultCurriculumSubjects = [
-                { id: 'sub_lang', name: 'Language Activities', code: 'LANG' },
-                { id: 'sub_math', name: 'Mathematical Activities', code: 'MATH' },
-                { id: 'sub_kisw', name: 'Kiswahili Language Activities', code: 'KISW' },
-                { id: 'sub_env', name: 'Environmental Activities', code: 'ENV' },
-                { id: 'sub_creat', name: 'Psychomotor & Creative Activities', code: 'CREAT' },
-                { id: 'sub_cre', name: 'Religious Education Activities', code: 'CRE' },
-                { id: 'sub_hyg', name: 'Hygiene & Nutrition Activities', code: 'HYG' }
-            ];
-        } else if (isUpperPrimary) {
-            defaultCurriculumSubjects = [
-                { id: 'sub_math', name: 'Mathematics', code: 'MATH' },
-                { id: 'sub_eng', name: 'English Language', code: 'ENG' },
-                { id: 'sub_kisw', name: 'Kiswahili Language', code: 'KISW' },
-                { id: 'sub_sci', name: 'Science and Technology', code: 'SCI' },
-                { id: 'sub_agri', name: 'Agriculture and Nutrition', code: 'AGRI' },
-                { id: 'sub_soc', name: 'Social Studies', code: 'SOC' },
-                { id: 'sub_creat', name: 'Creative Arts and Sports', code: 'CREAT' },
-                { id: 'sub_cre', name: 'Religious Education (CRE/IRE)', code: 'CRE' }
-            ];
-        } else if (isJuniorSecondary) {
-            defaultCurriculumSubjects = [
-                { id: 'sub_eng', name: 'English', code: '101' },
-                { id: 'sub_kisw', name: 'Kiswahili', code: '102' },
-                { id: 'sub_math', name: 'Mathematics', code: '121' },
-                { id: 'sub_sci', name: 'Integrated Science', code: '230' },
-                { id: 'sub_health', name: 'Health Education', code: '234' },
-                { id: 'sub_soc', name: 'Social Studies', code: '310' },
-                { id: 'sub_agri', name: 'Agriculture and Nutrition', code: '443' },
-                { id: 'sub_pretech', name: 'Pre-Technical Studies', code: '451' },
-                { id: 'sub_cre', name: 'Religious Education (CRE/IRE)', code: '313' },
-                { id: 'sub_creat', name: 'Creative Arts and Sports', code: '511' }
-            ];
-        } else if (isSecondary) {
-            defaultCurriculumSubjects = [
-                { id: 'sub_eng', name: 'English', code: '101' },
-                { id: 'sub_kisw', name: 'Kiswahili', code: '102' },
-                { id: 'sub_math', name: 'Mathematics', code: '121' },
-                { id: 'sub_bio', name: 'Biology', code: '231' },
-                { id: 'sub_chem', name: 'Chemistry', code: '233' },
-                { id: 'sub_phys', name: 'Physics', code: '232' },
-                { id: 'sub_hist', name: 'History and Government', code: '311' },
-                { id: 'sub_geo', name: 'Geography', code: '312' },
-                { id: 'sub_cre', name: 'Christian Religious Education', code: '313' },
-                { id: 'sub_agri', name: 'Agriculture', code: '443' },
-                { id: 'sub_bus', name: 'Business Studies', code: '565' }
-            ];
-        }
+        const primaryDefaultSubjects: any[] = [
+            { id: 'sub_p_math', name: 'Mathematics', code: 'MATH' },
+            { id: 'sub_p_eng', name: 'English', code: 'ENG' },
+            { id: 'sub_p_kisw', name: 'Kiswahili', code: 'KISW' },
+            { id: 'sub_p_sci', name: 'Science & Tech', code: 'SCI' },
+            { id: 'sub_p_soc', name: 'Social Studies', code: 'SOC' },
+            { id: 'sub_p_cre', name: 'CRE', code: 'CRE' },
+            { id: 'sub_p_agri', name: 'Agriculture', code: 'AGRI' },
+            { id: 'sub_p_art', name: 'Creative Arts', code: 'ART' },
+        ];
 
-        const allCandidates = subjects.length > 0 ? [...subjects] : [...defaultCurriculumSubjects];
+        const defaultPool = isPrimaryOrCBC ? primaryDefaultSubjects : secondaryDefaultSubjects;
+        const allKnownSubjectsPool: any[] = [...(subjects || []), ...defaultPool];
 
-        // 3. If explicit class allocations exist in Lessons & Allocations, STRICTLY use them!
-        if (allocatedSubjectIdentifiers && allocatedSubjectIdentifiers.length > 0) {
-            const allocatedList: any[] = [];
-            const seen = new Set<string>();
+        // 1. Identify subjects with ACTUAL ENTERED MARKS in savedRows or props.marks
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
+        const subjectsWithEnteredMarks: any[] = [];
+        const seenEnteredKeys = new Set<string>();
 
-            allocatedSubjectIdentifiers.forEach(allocId => {
-                const aClean = String(allocId).toLowerCase().trim();
-                const aNorm = aClean.replace(/[^a-z0-9]/g, '');
+        const ignoredRowKeys = new Set([
+            'admno', 'name', 'class', 'kcpe', 'student', 'id', 'admissionno', 
+            'admissionnumber', 'total', 'mean', 'average', 'stream', 'rank',
+            'overallpos', 'streampos', 'vap', 'entry', 'studentname', 'studentclass',
+            'gender', 'courselevelid', 'levelid'
+        ]);
 
-                const matchedSub = allCandidates.find(s => {
-                    const sId = (s.id || '').toLowerCase().trim();
-                    const sName = (s.name || (s as any).title || '').toLowerCase().trim();
-                    const sCode = (s.code || '').toLowerCase().trim();
-                    const sNorm = sName.replace(/[^a-z0-9]/g, '');
-                    return aClean === sId || aClean === sName || aClean === sCode ||
-                           (aNorm.length >= 3 && sNorm.includes(aNorm)) ||
-                           (sNorm.length >= 3 && aNorm.includes(sNorm));
-                });
+        // 1a. Check pool subjects against savedRows & marks
+        allKnownSubjectsPool.forEach(sub => {
+            const key = (sub.code || sub.name || sub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!key || seenEnteredKeys.has(key)) return;
 
-                if (matchedSub) {
-                    const dedupKey = (matchedSub.code || matchedSub.name).toUpperCase().trim();
-                    if (!seen.has(dedupKey)) {
-                        seen.add(dedupKey);
-                        allocatedList.push(matchedSub);
-                    }
-                } else {
-                    const nameFormatted = allocId.replace(/_/g, ' ');
-                    const dedupKey = nameFormatted.toUpperCase();
-                    if (!seen.has(dedupKey)) {
-                        seen.add(dedupKey);
-                        allocatedList.push({
-                            id: `sub_${allocId}`,
-                            name: nameFormatted.charAt(0).toUpperCase() + nameFormatted.slice(1),
-                            code: allocId.substring(0, 4).toUpperCase()
-                        });
-                    }
-                }
+            const hasDataInRows = savedRows && Array.isArray(savedRows) && savedRows.some(stRow => {
+                const markInfo = extractStudentSubjectScore(stRow, null, sub, marks, selectedExamId);
+                return markInfo.found && markInfo.score !== '-' && markInfo.score !== undefined && markInfo.score !== null;
             });
 
-            if (allocatedList.length > 0) {
-                return allocatedList;
+            const hasDataInPropsMarks = marks && Array.isArray(marks) && marks.some((m: any) => {
+                const mExId = m.assessmentId || m.assessment_id || m.examId;
+                const matchesExam = !selectedExamId || !mExId || mExId === selectedExamId ||
+                    (selectedExamObj && (mExId === selectedExamObj.name || mExId === selectedExamObj.title));
+                if (!matchesExam) return false;
+                const mSubId = m.subjectId || m.subject_id || m.subject;
+                const mSubName = m.subjectName || m.subjectCode || m.name || '';
+                const matchesSubject = (mSubId && (mSubId === sub.id || mSubId === sub.code)) || (mSubName && isSubjectKeyMatch(mSubName, sub));
+                const val = m.marks ?? m.score ?? m.percentage ?? m.rawMark;
+                return matchesSubject && val !== null && val !== undefined && val !== '';
+            });
+
+            if (hasDataInRows || hasDataInPropsMarks) {
+                seenEnteredKeys.add(key);
+                subjectsWithEnteredMarks.push(sub);
             }
-        }
+        });
 
-        // 4. Inspect broadsheet rows for subjects with marks OR columns
-        if (examSavedRows && examSavedRows.length > 0) {
-            const classRows = examSavedRows.filter((r: any) => {
-                const stCls = String(r.class || r.studentClass || '').toLowerCase().trim();
-                return !yGrpClean || stCls.includes(yGrpClean) || yGrpClean.includes(stCls);
-            });
+        // 1b. Scan savedRows directly to uncover any custom subjects
+        if (savedRows && Array.isArray(savedRows)) {
+            savedRows.forEach(stRow => {
+                const dicts = [
+                    stRow,
+                    stRow?.marks,
+                    stRow?.subjectMarks,
+                    stRow?.subjectMarksMap,
+                    stRow?.scores
+                ].filter(d => d && typeof d === 'object');
 
-            if (classRows.length > 0) {
-                const activeSubjsFromMarks: any[] = [];
-                const seenKeys = new Set<string>();
+                dicts.forEach(dict => {
+                    Object.entries(dict).forEach(([k, v]) => {
+                        if (!k || v === null || v === undefined || v === '') return;
+                        const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (ignoredRowKeys.has(kNorm)) return;
 
-                allCandidates.forEach(sub => {
-                    const hasMarks = classRows.some((r: any) => {
-                        const { found } = extractStudentSubjectScore(r, '', sub, []);
-                        return found;
-                    });
-                    if (hasMarks) {
-                        const dedupKey = (sub.code || sub.name).toUpperCase().trim();
-                        if (!seenKeys.has(dedupKey)) {
-                            seenKeys.add(dedupKey);
-                            activeSubjsFromMarks.push(sub);
+                        let num: number | null = null;
+                        if (typeof v === 'number') num = v;
+                        else if (typeof v === 'string') {
+                            const p = parseFloat(v);
+                            if (!isNaN(p)) num = p;
+                        } else if (typeof v === 'object' && v !== null) {
+                            const inner = (v as any).score ?? (v as any).mark ?? (v as any).marks;
+                            if (inner !== null && inner !== undefined && !isNaN(Number(inner))) {
+                                num = Number(inner);
+                            }
                         }
+
+                        if (num !== null && !isNaN(num) && num >= 0) {
+                            const matchedPool = allKnownSubjectsPool.find(s => isSubjectKeyMatch(k, s));
+                            if (matchedPool) {
+                                const mKey = (matchedPool.code || matchedPool.name || matchedPool.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                if (mKey && !seenEnteredKeys.has(mKey)) {
+                                    seenEnteredKeys.add(mKey);
+                                    subjectsWithEnteredMarks.push(matchedPool);
+                                }
+                            } else {
+                                const dKey = kNorm;
+                                if (dKey && !seenEnteredKeys.has(dKey)) {
+                                    seenEnteredKeys.add(dKey);
+                                    subjectsWithEnteredMarks.push({
+                                        id: 'sub_' + dKey,
+                                        name: k.replace(/_/g, ' ').toUpperCase(),
+                                        code: k.replace(/_/g, ' ').toUpperCase()
+                                    });
+                                }
+                            }
+                        }
+                    });
+                });
+            });
+        }
+
+        // 2. Identify exam-specific configured tested papers
+        const configuredTestedSubjects: any[] = [];
+        const rawTested = (selectedExamObj as any)?.testedPaperConfigs ||
+            (() => {
+                try {
+                    const stored = localStorage.getItem(`eduai_tested_papers_${instId}_${selectedExamId}`);
+                    return stored ? JSON.parse(stored) : null;
+                } catch(e) { return null; }
+            })();
+
+        if (Array.isArray(rawTested) && rawTested.length > 0) {
+            const activeTested = rawTested.filter((p: any) => p && p.enabled !== false && p.enabled !== 0);
+            if (activeTested.length > 0) {
+                activeTested.forEach((p: any) => {
+                    const pSubName = p.subject || p.subjectName || p.subject_name || p.name || '';
+                    const pSubCode = p.code || p.subjectCode || p.subject_code || '';
+                    const pSubId = p.subjectId || p.subject_id || p.id || '';
+
+                    const matchedSub = allKnownSubjectsPool.find(sub => 
+                        (pSubId && (pSubId === sub.id || pSubId === sub.code)) ||
+                        (pSubName && isSubjectKeyMatch(pSubName, sub)) ||
+                        (pSubCode && isSubjectKeyMatch(pSubCode, sub))
+                    );
+
+                    const finalSub = matchedSub || {
+                        id: pSubId || `sub_${(pSubCode || pSubName).toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+                        name: pSubName || pSubCode,
+                        code: (pSubCode || pSubName).toUpperCase()
+                    };
+
+                    const key = (finalSub.code || finalSub.name || finalSub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (key && !seenEnteredKeys.has(key)) {
+                        seenEnteredKeys.add(key);
+                        configuredTestedSubjects.push(finalSub);
                     }
                 });
-
-                if (activeSubjsFromMarks.length > 1) {
-                    return activeSubjsFromMarks;
-                }
             }
         }
 
-        // 5. Return curriculum default subjects
-        return defaultCurriculumSubjects;
-    }, [subjects, selectedYearGroup, classAllocationsStore, examSavedRows, isPrePrimary, isUpperPrimary, isJuniorSecondary, isSecondary]);
+        // Standard subject curriculum ordering helper
+        const subjectOrder = (sub: any): number => {
+            const c = (sub.code || sub.name || '').toLowerCase();
+            if (c.includes('math') || c.includes('mat')) return 1;
+            if (c.includes('eng')) return 2;
+            if (c.includes('kisw') || c.includes('lugha') || c.includes('insha')) return 3;
+            if (c.includes('bio')) return 4;
+            if (c.includes('chem')) return 5;
+            if (c.includes('phy')) return 6;
+            if (c.includes('sci')) return 7;
+            if (c.includes('hist') || c.includes('govt')) return 8;
+            if (c.includes('geo')) return 9;
+            if (c.includes('cre') || c.includes('ire') || c.includes('relig')) return 10;
+            if (c.includes('soc')) return 11;
+            if (c.includes('agri') || c.includes('agr')) return 12;
+            if (c.includes('bst') || c.includes('bus')) return 13;
+            if (c.includes('cmp') || c.includes('comp')) return 14;
+            return 20;
+        };
 
-    // Stream Matcher Helper
-    const checkStreamMatch = (stClass: string, explicitStream?: string) => {
-        if (!selectedStream || selectedStream === 'all') return true;
-        const targetStr = selectedStream.toLowerCase().trim();
-        const explicit = (explicitStream || '').toLowerCase().trim();
-        if (explicit === targetStr || explicit.includes(targetStr)) return true;
+        // Priority 1: If marks were entered -> ONLY show the subjects that have entered marks!
+        if (subjectsWithEnteredMarks.length > 0) {
+            subjectsWithEnteredMarks.sort((a, b) => subjectOrder(a) - subjectOrder(b));
+            return subjectsWithEnteredMarks;
+        }
 
-        const cls = (stClass || '').toLowerCase().trim();
-        if (cls === targetStr || cls.includes(targetStr)) return true;
-        const tokens = cls.split(/[\s-_/]+/);
-        return tokens.some(t => t === targetStr);
-    };
+        // Priority 2: Configured tested papers
+        if (configuredTestedSubjects.length > 0) {
+            configuredTestedSubjects.sort((a, b) => subjectOrder(a) - subjectOrder(b));
+            return configuredTestedSubjects;
+        }
+
+        // Priority 3: Fallback to curriculum pool (NEVER dummy SUB1/SUB2)
+        defaultPool.sort((a, b) => subjectOrder(a) - subjectOrder(b));
+        return defaultPool;
+    }, [subjects, selectedExamId, selectedExamObj, resolveEffectiveExamRows, marks, instId, isPrimaryOrCBC]);
 
     // All Students in Year Group
     const allYearCohortStudents = useMemo(() => {
         const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
 
-        if (examSavedRows && examSavedRows.length > 0) {
-            const broadStudents = examSavedRows.filter((r: any) => {
+        if (savedRows && savedRows.length > 0) {
+            const broadStudents = savedRows.filter((r: any) => {
                 const c = String(r.class || r.studentClass || '').toLowerCase().trim();
-                return !ygClean || c.includes(ygClean) || ygClean.includes(c);
+                const cGrade = extractGradeOnly(c);
+                return !ygClean || cGrade.toLowerCase() === ygClean || c.includes(ygClean) || ygClean.includes(c);
             });
             if (broadStudents.length > 0) {
-                return broadStudents.map((r: any, idx: number) => ({
-                    id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
-                    name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
-                    admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
-                    studentClass: r.class || r.studentClass || selectedYearGroup,
-                    gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
-                    stream: r.stream || '',
-                    broadsheetRow: r
-                }));
+                return broadStudents.map((r: any, idx: number) => {
+                    const adm = extractCleanAdmissionNumber(r, activeStudents);
+                    const matchedSt = activeStudents.find(s => {
+                        if (s.id && (r.id === s.id || r.studentId === s.id)) return true;
+                        const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || '').trim().toLowerCase();
+                        const rAdm = String(adm).trim().toLowerCase();
+                        if (sAdm && rAdm && (sAdm === rAdm || sAdm.replace(/^0+/, '') === rAdm.replace(/^0+/, ''))) return true;
+                        const sName = String(s.name || '').trim().toLowerCase();
+                        const rName = String(r.name || r.studentName || '').trim().toLowerCase();
+                        if (sName && rName && sName === rName) return true;
+                        return false;
+                    });
+                    const stream = resolveStudentStream(matchedSt, r);
+                    const rawClass = r.class || r.studentClass || matchedSt?.studentClass || selectedYearGroup;
+                    const cleanGrade = extractGradeOnly(rawClass) || rawClass;
+                    const displayClass = stream ? `${cleanGrade} ${stream}`.trim() : cleanGrade;
+
+                    return {
+                        id: String(r.studentId || r.id || adm || `st_${idx}`),
+                        name: r.studentName || r.name || matchedSt?.name || `Student ${idx + 1}`,
+                        admissionNo: adm,
+                        studentClass: displayClass,
+                        gender: r.gender || (matchedSt as any)?.gender || (idx % 2 === 0 ? 'F' : 'M'),
+                        stream,
+                        broadsheetRow: r,
+                        matchedStudent: matchedSt
+                    };
+                });
             }
         }
 
         const matched = activeStudents.filter(s => {
             const c = String(s.studentClass || (s as any).classLevel || '').toLowerCase().trim();
-            return !ygClean || c.includes(ygClean) || ygClean.includes(c);
+            const cGrade = extractGradeOnly(c);
+            return !ygClean || cGrade.toLowerCase() === ygClean || c.includes(ygClean) || ygClean.includes(c);
         });
 
-        if (matched.length > 0) return matched;
-        return activeStudents;
-    }, [activeStudents, examSavedRows, selectedYearGroup]);
+        const pool = matched.length > 0 ? matched : activeStudents;
+        return pool.map((s, idx) => {
+            const stream = resolveStudentStream(s, null);
+            const rawClass = s.studentClass || (s as any).classLevel || selectedYearGroup;
+            const cleanGrade = extractGradeOnly(rawClass) || rawClass;
+            const displayClass = stream ? `${cleanGrade} ${stream}`.trim() : cleanGrade;
+
+            return {
+                id: s.id,
+                name: s.name,
+                admissionNo: extractCleanAdmissionNumber(s, activeStudents),
+                studentClass: displayClass,
+                gender: (s as any).gender || (idx % 2 === 0 ? 'F' : 'M'),
+                stream,
+                broadsheetRow: null,
+                matchedStudent: s
+            };
+        });
+    }, [activeStudents, resolveEffectiveExamRows, selectedExamId, selectedYearGroup, resolveStudentStream]);
 
     // Filtered Cohort Students by Stream
     const matchingCohortStudents = useMemo(() => {
+        if (!selectedStream || selectedStream === 'all') return allYearCohortStudents;
+        const target = selectedStream.toLowerCase().trim();
         return allYearCohortStudents.filter((s: any) => {
-            const cls = (s as any).studentClass || (s as any).classLevel || '';
-            const stStream = (s as any).stream || '';
-            return checkStreamMatch(cls, stStream);
+            const stStream = (s.stream || '').toLowerCase().trim();
+            if (stStream === target) return true;
+            const clsStream = extractStreamOnly(s.studentClass || '', selectedYearGroup).toLowerCase();
+            return clsStream === target;
         });
-    }, [allYearCohortStudents, selectedStream]);
+    }, [allYearCohortStudents, selectedStream, selectedYearGroup]);
 
     // Raw Marksheet Student Rows (Pure Raw Scores Only, NO Totals, NO Means, NO Positions)
     const rawMarksheetRows = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
 
-        const studentRows = matchingCohortStudents.map((st: any, idx: number) => {
+        const studentRows = matchingCohortStudents.map((st: any) => {
             const row = (st as any).broadsheetRow;
-            const adm = extractCleanAdmissionNumber(st, activeStudents);
-            const studentClass = (st as any).studentClass || selectedYearGroup;
-            const gender = (st as any).gender || (idx % 2 === 0 ? 'F' : 'M');
+            const adm = st.admissionNo;
+            const studentClass = st.studentClass;
+            const gender = st.gender;
 
             const rawScores: Record<string, { rawMark: number | string; isExempt: boolean }> = {};
 
-            activeClassSubjects.forEach((sub, subIdx) => {
-                const subKey = sub.code || sub.name;
+            activeClassSubjects.forEach((sub) => {
+                const subKey = sub.code || sub.name || sub.id;
                 const subName = sub.name || (sub as any).title;
-                const exemptionKey = `${st.id}_${subName.toLowerCase().trim()}`;
+                const exemptionKey = `${st.id}_${(subName || '').toLowerCase().trim()}`;
                 const isExempt = Boolean(studentSubjectExemptions[exemptionKey]);
 
                 let score: number | string = '-';
-                const result = extractStudentSubjectScore(row, st.id, sub, marks);
-                if (result.found) {
-                    score = result.score;
-                } else if (!isExempt) {
-                    // Fallback to deterministic realistic raw score
-                    const nameLen = (st.name || '').length;
-                    const seed = (nameLen * 13 + subIdx * 19 + idx * 7) % 36;
-                    score = isPrimaryOrCBC ? Math.min(98, 62 + seed) : Math.min(94, 52 + seed);
+                if (!isExempt) {
+                    const result = extractStudentSubjectScore(row, st.matchedStudent, sub, marks, selectedExamId);
+                    if (result.found && result.score !== undefined && result.score !== null) {
+                        score = result.score;
+                    }
                 }
 
-                rawScores[subKey] = { rawMark: score, isExempt };
+                rawScores[subKey] = { rawMark: isExempt ? 'EXEMPT' : score, isExempt };
             });
 
             return {
@@ -836,7 +1077,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                 admissionNo: adm,
                 studentClass,
                 gender,
-                stream: (st as any).stream || '',
+                stream: st.stream || '',
                 rawScores
             };
         });
@@ -847,7 +1088,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
             r.studentName.toLowerCase().includes(q) || 
             r.admissionNo.toLowerCase().includes(q)
         );
-    }, [matchingCohortStudents, activeClassSubjects, activeStudents, studentSubjectExemptions, selectedYearGroup, searchQuery, marks, isPrimaryOrCBC]);
+    }, [matchingCohortStudents, activeClassSubjects, studentSubjectExemptions, searchQuery, marks, selectedExamId]);
 
     // Excel Export
     const handleExportExcel = useCallback(() => {
@@ -1114,7 +1355,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                     >
                                         {streamOptions.map(st => (
                                             <option key={st} value={st}>
-                                                {st === 'all' ? 'All Streams' : st.replace(/\s*stream\s*$/i, '').trim()}
+                                                {st === 'all' ? 'All Streams' : st}
                                             </option>
                                         ))}
                                     </select>
@@ -1169,7 +1410,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                     <th className="p-2 border border-slate-700 text-center w-12">GENDER</th>
                                     <th className="p-2 border border-slate-700 text-center w-20">CLASS</th>
                                     {activeClassSubjects.map(sub => (
-                                        <th key={sub.code || sub.name} className="p-2 border border-slate-700 text-center min-w-[60px]" title={sub.name}>
+                                        <th key={sub.id || sub.code || sub.name} className="p-2 border border-slate-700 text-center min-w-[60px]" title={sub.name}>
                                             <span className="block truncate font-black">{sub.code || sub.name.substring(0, 4)}</span>
                                             <span className="text-[8px] font-medium opacity-75 block uppercase truncate max-w-[70px] mx-auto">{sub.name}</span>
                                         </th>
@@ -1195,22 +1436,23 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                                             <td className="p-2 border border-slate-200 text-center">{row.gender}</td>
                                             <td className="p-2 border border-slate-200 text-center text-slate-600">{row.studentClass}</td>
                                             {activeClassSubjects.map(sub => {
-                                                const subKey = sub.code || sub.name;
+                                                const subKey = sub.code || sub.name || sub.id;
                                                 const sc = row.rawScores[subKey] || 
                                                            (sub.code ? row.rawScores[sub.code] : undefined) || 
                                                            (sub.name ? row.rawScores[sub.name] : undefined) || 
+                                                           (sub.id ? row.rawScores[sub.id] : undefined) ||
                                                            Object.entries(row.rawScores).find(([k]) => isSubjectKeyMatch(k, sub))?.[1];
 
                                                 if (sc?.isExempt) {
                                                     return (
-                                                        <td key={sub.code || sub.name} className="p-2 border border-slate-200 text-center text-rose-600 font-bold text-[10px] bg-rose-50/50">
+                                                        <td key={sub.id || sub.code || sub.name} className="p-2 border border-slate-200 text-center text-rose-600 font-bold text-[10px] bg-rose-50/50">
                                                             EXEMPT
                                                         </td>
                                                     );
                                                 }
                                                 return (
-                                                    <td key={sub.code || sub.name} className="p-2 border border-slate-200 text-center font-mono font-bold text-slate-800">
-                                                        {sc ? sc.rawMark : '-'}
+                                                    <td key={sub.id || sub.code || sub.name} className="p-2 border border-slate-200 text-center font-mono font-bold text-slate-800">
+                                                        {sc && sc.rawMark !== undefined && sc.rawMark !== null ? sc.rawMark : '-'}
                                                     </td>
                                                 );
                                             })}
