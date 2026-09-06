@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
+import { extractStreamOnly } from './BroadsheetReportView';
 import { PlusIcon } from '../icons/PlusIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
@@ -4291,7 +4292,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                                         {selectedClassFilter === 'all'
                                             ? (selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Streams` : 'All Streams')
-                                            : selectedClassFilter}
+                                            : (extractStreamOnly(selectedClassFilter, selectedGradeFilter !== 'all' ? selectedGradeFilter : undefined) || selectedClassFilter)}
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -4362,9 +4363,22 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         <option value="all">
                                             {selectedGradeFilter !== 'all' ? `All ${selectedGradeFilter} Streams` : 'All Streams'}
                                         </option>
-                                        {modalAvailableClasses.map(cName => (
-                                            <option key={cName} value={cName}>{cName}</option>
-                                        ))}
+                                        {modalAvailableClasses
+                                            .filter(cName => {
+                                                const hasStreams = modalAvailableClasses.some(c => !!extractStreamOnly(c, selectedGradeFilter !== 'all' ? selectedGradeFilter : undefined));
+                                                if (hasStreams) {
+                                                    return !!extractStreamOnly(cName, selectedGradeFilter !== 'all' ? selectedGradeFilter : undefined);
+                                                }
+                                                return true;
+                                            })
+                                            .map(cName => {
+                                                const streamOnly = extractStreamOnly(cName, selectedGradeFilter !== 'all' ? selectedGradeFilter : undefined);
+                                                return (
+                                                    <option key={cName} value={cName}>
+                                                        {streamOnly || cName}
+                                                    </option>
+                                                );
+                                            })}
                                     </select>
                                 </div>
 
