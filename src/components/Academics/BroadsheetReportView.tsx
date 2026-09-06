@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
@@ -225,6 +226,17 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     const [pdfCurrentPage, setPdfCurrentPage] = useState<number>(1);
     const [pdfViewMode, setPdfViewMode] = useState<'all' | 'single'>('all');
     const [pdfSortOrder, setPdfSortOrder] = useState<'rank' | 'name' | 'adm'>('rank');
+
+    // Prevent background scrolling while PDF preview modal is open
+    useEffect(() => {
+        if (isPdfPreviewOpen) {
+            const originalOverflow = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = originalOverflow;
+            };
+        }
+    }, [isPdfPreviewOpen]);
 
     const activeStudents = useMemo(() => {
         const set = new Map<string, User>();
@@ -2015,9 +2027,15 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             </div>
 
             {/* ON-SCREEN PDF PREVIEW MODAL */}
-            {isPdfPreviewOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-fade-in pdf-preview-modal-root">
-                    <div className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-7xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden">
+            {isPdfPreviewOpen && typeof document !== 'undefined' && createPortal(
+                <div 
+                    className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fade-in pdf-preview-modal-root"
+                    onClick={() => setIsPdfPreviewOpen(false)}
+                >
+                    <div 
+                        className="bg-slate-900 text-white rounded-3xl border border-slate-700 w-full max-w-7xl h-[92vh] max-h-[95vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+                        onClick={e => e.stopPropagation()}
+                    >
                         {/* Modal Top Bar */}
                         <div className="p-4 bg-slate-950 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 pdf-preview-topbar">
                             <div className="flex items-center gap-3">
@@ -2381,7 +2399,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                             }
                         }
                     `}</style>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
