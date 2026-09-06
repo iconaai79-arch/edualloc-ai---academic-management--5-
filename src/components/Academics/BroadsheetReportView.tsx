@@ -1176,7 +1176,7 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         return { score: cleanScore, grade, points };
     };
 
-    // Active subjects for broadsheet columns (filtered by class subject allocation & current exam's entered subjects)
+    // Active subjects for broadsheet columns (ONLY show subjects with entered marks or configured for this exam)
     const broadsheetSubjects = useMemo(() => {
         // Standard Kenyan 8-4-4 High School fallback
         const secondaryDefaultSubjects: any[] = [
@@ -1208,16 +1208,17 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
 
         const defaultPool = isPrimarySchool ? primaryDefaultSubjects : secondaryDefaultSubjects;
         const baseClass = selectedYearGroup || (isPrimarySchool ? 'Grade 6' : 'Form 3');
+        const allKnownSubjectsPool: any[] = [...(subjects || []), ...defaultPool];
 
         // 1. Gather candidate subjects applicable to current class
-        let candidateList: any[] = [];
-        const seenCandidateNames = new Set<string>();
+        const candidateList: any[] = [];
+        const seenCandidateKeys = new Set<string>();
 
         const addCandidate = (sub: any) => {
             if (!sub) return;
-            const norm = (sub.code || sub.name || sub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (!norm || seenCandidateNames.has(norm)) return;
-            seenCandidateNames.add(norm);
+            const key = (sub.code || sub.name || sub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!key || seenCandidateKeys.has(key)) return;
+            seenCandidateKeys.add(key);
             candidateList.push(sub);
         };
 
@@ -1228,8 +1229,6 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                 }
             });
         }
-
-        // If no applicable subjects from props.subjects, seed with defaultPool
         if (candidateList.length === 0) {
             defaultPool.forEach(sub => {
                 if (isSubjectApplicableToClass(sub, baseClass)) {
@@ -1241,7 +1240,174 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             defaultPool.forEach(sub => addCandidate(sub));
         }
 
-        // 2. Class allocations store filter (with safety check so broadsheet is never empty)
+        // 2. Identify subjects with ACTUAL ENTERED MARKS in savedRows or props.marks
+        const savedRows = resolveEffectiveExamRows(selectedExamId);
+        const subjectsWithEnteredMarks: any[] = [];
+        const seenEnteredKeys = new Set<string>();
+
+        const ignoredRowKeys = new Set([
+            'admno', 'name', 'class', 'kcpe', 'student', 'id', 'admissionno', 
+            'admissionnumber', 'total', 'mean', 'average', 'stream', 'rank',
+            'overallpos', 'streampos', 'vap', 'entry', 'studentname', 'studentclass',
+            'gender', 'courselevelid', 'levelid'
+        ]);
+
+        // 2a. Check every candidate subject in allKnownSubjectsPool against savedRows and marks
+        allKnownSubjectsPool.forEach(sub => {
+            const key = (sub.code || sub.name || sub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!key || seenEnteredKeys.has(key)) return;
+
+            const hasDataInRows = savedRows && Array.isArray(savedRows) && savedRows.some(stRow => {
+                const markInfo = extractSubjectScoreForStudent(sub, stRow, null, marks, selectedExamId, isPrimarySchool);
+                return markInfo !== null && markInfo.score !== undefined && markInfo.score !== null;
+            });
+
+            const hasDataInPropsMarks = marks && Array.isArray(marks) && marks.some((m: any) => {
+                const mExId = m.assessmentId || m.assessment_id || m.examId;
+                const matchesExam = !selectedExamId || !mExId || mExId === selectedExamId ||
+                    (selectedExamObj && (mExId === selectedExamObj.name || mExId === selectedExamObj.title));
+                if (!matchesExam) return false;
+                const mSubId = m.subjectId || m.subject_id || m.subject;
+                const mSubName = m.subjectName || m.subjectCode || m.name || '';
+                const matchesSubject = (mSubId && (mSubId === sub.id || mSubId === sub.code)) || (mSubName && isSubjectKeyMatch(mSubName, sub));
+                const val = m.marks ?? m.score ?? m.percentage ?? m.rawMark;
+                return matchesSubject && val !== null && val !== undefined && val !== '';
+            });
+
+            if (hasDataInRows || hasDataInPropsMarks) {
+                seenEnteredKeys.add(key);
+                subjectsWithEnteredMarks.push(sub);
+            }
+        });
+
+        // 2b. Also scan savedRows directly to discover any keyed-in subjects
+        if (savedRows && Array.isArray(savedRows)) {
+            savedRows.forEach(stRow => {
+                const dicts = [
+                    stRow,
+                    stRow?.marks,
+                    stRow?.subjectMarks,
+                    stRow?.subjectMarksMap,
+                    stRow?.scores
+                ].filter(d => d && typeof d === 'object');
+
+                dicts.forEach(dict => {
+                    Object.entries(dict).forEach(([k, v]) => {
+                        if (!k || v === null || v === undefined || v === '') return;
+                        const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (ignoredRowKeys.has(kNorm)) return;
+
+                        let num: number | null = null;
+                        if (typeof v === 'number') num = v;
+                        else if (typeof v === 'string') {
+                            const p = parseFloat(v);
+                            if (!isNaN(p)) num = p;
+                        } else if (typeof v === 'object' && v !== null) {
+                            const inner = (v as any).score ?? (v as any).mark ?? (v as any).marks;
+                            if (inner !== null && inner !== undefined && !isNaN(Number(inner))) {
+                                num = Number(inner);
+                            }
+                        }
+
+                        if (num !== null && !isNaN(num) && num >= 0) {
+                            const matchedPool = allKnownSubjectsPool.find(s => isSubjectKeyMatch(k, s));
+                            if (matchedPool) {
+                                const mKey = (matchedPool.code || matchedPool.name || matchedPool.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                if (mKey && !seenEnteredKeys.has(mKey)) {
+                                    seenEnteredKeys.add(mKey);
+                                    subjectsWithEnteredMarks.push(matchedPool);
+                                }
+                            } else {
+                                const dKey = kNorm;
+                                if (dKey && !seenEnteredKeys.has(dKey)) {
+                                    seenEnteredKeys.add(dKey);
+                                    subjectsWithEnteredMarks.push({
+                                        id: 'sub_' + dKey,
+                                        name: k.replace(/_/g, ' ').toUpperCase(),
+                                        code: k.replace(/_/g, ' ').toUpperCase()
+                                    });
+                                }
+                            }
+                        }
+                    });
+                });
+            });
+        }
+
+        // 3. Identify exam-specific configured tested papers if present (e.g. testedPaperConfigs)
+        const configuredTestedSubjects: any[] = [];
+        const rawTested = (selectedExamObj as any)?.testedPaperConfigs ||
+            (() => {
+                try {
+                    const stored = localStorage.getItem(`eduai_tested_papers_${instId}_${selectedExamId}`);
+                    return stored ? JSON.parse(stored) : null;
+                } catch(e) { return null; }
+            })();
+
+        if (Array.isArray(rawTested) && rawTested.length > 0) {
+            const activeTested = rawTested.filter((p: any) => p && p.enabled !== false && p.enabled !== 0);
+            if (activeTested.length > 0) {
+                activeTested.forEach((p: any) => {
+                    const pSubName = p.subject || p.subjectName || p.subject_name || p.name || '';
+                    const pSubCode = p.code || p.subjectCode || p.subject_code || '';
+                    const pSubId = p.subjectId || p.subject_id || p.id || '';
+
+                    const matchedSub = allKnownSubjectsPool.find(sub => 
+                        (pSubId && (pSubId === sub.id || pSubId === sub.code)) ||
+                        (pSubName && isSubjectKeyMatch(pSubName, sub)) ||
+                        (pSubCode && isSubjectKeyMatch(pSubCode, sub))
+                    );
+
+                    const finalSub = matchedSub || {
+                        id: pSubId || `sub_${(pSubCode || pSubName).toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+                        name: pSubName || pSubCode,
+                        code: (pSubCode || pSubName).toUpperCase()
+                    };
+
+                    const key = (finalSub.code || finalSub.name || finalSub.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (key && !seenEnteredKeys.has(key)) {
+                        seenEnteredKeys.add(key);
+                        configuredTestedSubjects.push(finalSub);
+                    }
+                });
+            }
+        }
+
+        // Standard subject curriculum ordering helper
+        const subjectOrder = (sub: any): number => {
+            const c = (sub.code || sub.name || '').toLowerCase();
+            if (c.includes('math') || c.includes('mat')) return 1;
+            if (c.includes('eng')) return 2;
+            if (c.includes('kisw') || c.includes('lugha') || c.includes('insha')) return 3;
+            if (c.includes('bio')) return 4;
+            if (c.includes('chem')) return 5;
+            if (c.includes('phy')) return 6;
+            if (c.includes('sci')) return 7;
+            if (c.includes('hist') || c.includes('govt')) return 8;
+            if (c.includes('geo')) return 9;
+            if (c.includes('cre') || c.includes('ire') || c.includes('relig')) return 10;
+            if (c.includes('soc')) return 11;
+            if (c.includes('agri') || c.includes('agr')) return 12;
+            if (c.includes('bst') || c.includes('bus')) return 13;
+            if (c.includes('cmp') || c.includes('comp')) return 14;
+            return 20;
+        };
+
+        // 4. Resolve final subject list:
+        // Priority 1: If marks were entered -> ONLY show the subjects that have entered marks!
+        // (e.g. if 7 subjects had marks keyed in, show only those 7 subjects, never inflating to 12)
+        if (subjectsWithEnteredMarks.length > 0) {
+            subjectsWithEnteredMarks.sort((a, b) => subjectOrder(a) - subjectOrder(b));
+            return subjectsWithEnteredMarks;
+        }
+
+        // Priority 2: If no marks keyed in yet, but exam explicitly configured tested papers -> show configured papers
+        if (configuredTestedSubjects.length > 0) {
+            configuredTestedSubjects.sort((a, b) => subjectOrder(a) - subjectOrder(b));
+            return configuredTestedSubjects;
+        }
+
+        // Priority 3: Filter candidate subjects by class allocations store if defined
         const yGrpClean = (selectedYearGroup || '').toLowerCase().trim();
         const yGrpNorm = yGrpClean.replace(/[^a-z0-9]/g, '');
 
@@ -1267,36 +1433,17 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
                                (normName.length >= 3 && aNorm.includes(normName));
                     });
                 });
-                // SAFETY: Only apply allocation filter if it retains at least 1 valid subject
                 if (allocatedCandidates.length > 0) {
-                    candidateList = allocatedCandidates;
+                    allocatedCandidates.sort((a, b) => subjectOrder(a) - subjectOrder(b));
+                    return allocatedCandidates;
                 }
             }
         }
 
-        // 3. Ensure any subject that has recorded marks in the saved rows is ALWAYS included
-        const savedRows = resolveEffectiveExamRows(selectedExamId);
-        if (savedRows && Array.isArray(savedRows) && savedRows.length > 0) {
-            const allAvailableSubjectsPool = [...(subjects || []), ...defaultPool];
-            allAvailableSubjectsPool.forEach(poolSub => {
-                if (candidateList.some(c => c.id === poolSub.id || (c.code && poolSub.code && c.code.toLowerCase() === poolSub.code.toLowerCase()))) return;
-
-                const hasMarksInRows = savedRows.some(row => {
-                    return Object.entries(row).some(([k, v]) => {
-                        if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'total', 'mean'].includes(k)) return false;
-                        if (v === null || v === undefined || v === '') return false;
-                        const num = typeof v === 'number' ? v : parseFloat(String(v));
-                        return !isNaN(num) && num >= 0 && isSubjectKeyMatch(k, poolSub);
-                    });
-                });
-                if (hasMarksInRows) {
-                    addCandidate(poolSub);
-                }
-            });
-        }
-
+        // Case D: Fallback to class-applicable candidate subjects
+        candidateList.sort((a, b) => subjectOrder(a) - subjectOrder(b));
         return candidateList;
-    }, [subjects, selectedYearGroup, isPrimarySchool, classAllocationsStore, resolveEffectiveExamRows, selectedExamId]);
+    }, [subjects, selectedYearGroup, isPrimarySchool, classAllocationsStore, resolveEffectiveExamRows, selectedExamId, marks, selectedExamObj, instId]);
 
     // Helper to resolve real student stream with cross-referencing
     const resolveStudentStream = (st: any, row: any): string => {
