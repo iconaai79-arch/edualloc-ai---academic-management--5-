@@ -2654,18 +2654,22 @@ export const apiService = {
         });
     },
     async createNotification(userId: string, message: string, type: string = 'info'): Promise<void> {
-        const notification: AppNotification = {
+        const currentUser = apiService.getSession();
+        const notification: any = {
             id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             userId,
+            user_id: userId,
+            institution_id: currentUser?.institutionId || '',
             message,
             type,
             isRead: false,
+            is_read: false,
             timestamp: new Date().toISOString()
         };
         await apiService.saveModuleRecord('app_notifications', notification);
     },
     async markNotificationAsRead(id: string): Promise<void> {
-        await apiService.saveModuleRecord('app_notifications', { id, isRead: true } as any);
+        await apiService.saveModuleRecord('app_notifications', { id, isRead: true, is_read: true } as any);
     },
     async notifySuperAdmins(message: string, type: string = 'info'): Promise<void> {
         const admins = await apiService.fetchModuleRecords<User>('users', undefined, undefined, { 

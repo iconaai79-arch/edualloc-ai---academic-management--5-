@@ -1416,6 +1416,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVisitorRecord) : cleanVisitorRecord(currentPayload);
+            } else if (moduleName === 'app_notifications') {
+                const cleanNotificationRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.isRead !== undefined && copy.is_read === undefined) copy.is_read = copy.isRead;
+                    delete copy.userId;
+                    delete copy.isRead;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanNotificationRecord) : cleanNotificationRecord(currentPayload);
             }
 
             let data: any = null;
@@ -1468,6 +1479,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         return copy;
                     };
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(nullifyFKs) : nullifyFKs(currentPayload);
+                    maxRetries--;
+                    continue;
+                }
+
+                // Handle invalid input syntax for type uuid (22P02) by removing non-UUID string IDs so DB generates valid UUIDs
+                if ((error.code === '22P02' || String(error.message || '').toLowerCase().includes('invalid input syntax for type uuid')) && maxRetries > 0) {
+                    console.warn(`[api/records] UUID syntax mismatch on [${moduleName}]: stripping non-UUID identifiers and retrying (${maxRetries} left)...`);
+                    const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                    const stripNonUUIDs = (item: any) => {
+                        if (!item || typeof item !== 'object') return item;
+                        const copy = { ...item };
+                        if (copy.id && !isValidUUID(copy.id)) {
+                            if (tableSupportsMetadata) {
+                                const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                                meta.originalId = copy.id;
+                                copy.metadata = meta;
+                            }
+                            delete copy.id;
+                        }
+                        ['user_id', 'userId', 'institution_id', 'institutionId', 'student_id', 'studentId'].forEach(k => {
+                            if (k in copy && copy[k] && !isValidUUID(copy[k])) {
+                                if (moduleName === 'app_notifications' && (k === 'user_id' || k === 'userId')) {
+                                    copy[k] = null;
+                                }
+                            }
+                        });
+                        return copy;
+                    };
+                    currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripNonUUIDs) : stripNonUUIDs(currentPayload);
                     maxRetries--;
                     continue;
                 }
@@ -1923,6 +1963,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.exitTime;
 
                     currentUpdateData = copy;
+                } else if (moduleName === 'app_notifications') {
+                    const copy = { ...currentUpdateData };
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.isRead !== undefined && copy.is_read === undefined) copy.is_read = copy.isRead;
+                    delete copy.userId;
+                    delete copy.isRead;
+                    currentUpdateData = copy;
                 }
                 let data: any = null;
                 let error: any = null;
@@ -1982,6 +2029,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         currentUpdateData = copy;
                         patchRetries--;
+                        continue;
+                    } else if ((error.code === '22P02' || String(error.message || '').toLowerCase().includes('invalid input syntax for type uuid')) && patchRetries > 0) {
+                        console.warn(`[api/records PATCH] UUID syntax mismatch on [${moduleName}]: stripping non-UUID identifiers and retrying...`);
+                        const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                        const copy = { ...currentUpdateData };
+                        if (copy.id && !isValidUUID(copy.id)) delete copy.id;
+                        currentUpdateData = copy;
+                        patchRetries--;
+                        continue;
                     } else {
                         break;
                     }
