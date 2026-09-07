@@ -207,7 +207,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const isStudentsAlias = moduleName === 'students';
         const isTeachersAlias = moduleName === 'teachers';
-        const targetDbTable = isStudentsAlias || isTeachersAlias ? 'users' : moduleName;
+        const isBankAccountsAlias = moduleName === 'bank_accounts';
+        const targetDbTable = isStudentsAlias || isTeachersAlias 
+            ? 'users' 
+            : (isBankAccountsAlias ? 'school_bank_accounts' : moduleName);
 
         if (req.method === 'GET') {
             const targetInstParam = getStrParam(queryInstitutionId);

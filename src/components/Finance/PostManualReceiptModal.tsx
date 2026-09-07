@@ -28,7 +28,7 @@ export interface PostManualReceiptModalProps {
     onRefreshData?: () => Promise<void>;
 }
 
-export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
+export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = React.memo(({
     isOpen,
     onClose,
     institution,
@@ -57,6 +57,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
     const [sendSmsNotification, setSendSmsNotification] = useState(true);
     const [sendEmailNotification, setSendEmailNotification] = useState(true);
     const [isSavingManualPay, setIsSavingManualPay] = useState(false);
+    const [fetchedBankAccounts, setFetchedBankAccounts] = useState<any[]>([]);
 
     // Reset fields on modal open/close
     useEffect(() => {
@@ -72,6 +73,84 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
             setManualPayDate(new Date().toISOString().split('T')[0]);
         }
     }, [isOpen]);
+
+    // Dynamically load institution bank accounts if not already supplied
+    useEffect(() => {
+        if (!isOpen) return;
+        const targetInstId = (selectedBranchId && selectedBranchId !== 'ALL') ? selectedBranchId : (institution?.id || '');
+        if (!targetInstId) return;
+
+        let isMounted = true;
+        Promise.all([
+            apiService.fetchModuleRecords('school_bank_accounts', targetInstId).catch(() => []),
+            apiService.fetchModuleRecords('bank_accounts', targetInstId).catch(() => [])
+        ]).then(([schoolBanks, generalBanks]) => {
+            if (!isMounted) return;
+            const combined = [...(schoolBanks || []), ...(generalBanks || [])];
+            const seen = new Set<string>();
+            const unique: any[] = [];
+            combined.forEach((b: any) => {
+                if (!b) return;
+                const id = b.id || `${b.bankName || b.bank_name}_${b.accountNumber || b.account_number}`;
+                if (!seen.has(id)) {
+                    seen.add(id);
+                    unique.push(b);
+                }
+            });
+            setFetchedBankAccounts(unique);
+        }).catch(() => {});
+
+        return () => { isMounted = false; };
+    }, [isOpen, selectedBranchId, institution?.id]);
+
+    const activeBankAccounts = useMemo(() => {
+        const pool = (bankAccounts && bankAccounts.length > 0) ? [...bankAccounts, ...fetchedBankAccounts] : fetchedBankAccounts;
+        const seen = new Set<string>();
+        const list: Array<{ id: string; bankName: string; accountNumber: string; accountName: string }> = [];
+
+        if ((institution as any)?.coopConfig?.accountNumber) {
+            const accNo = (institution as any).coopConfig.accountNumber;
+            seen.add(accNo);
+            list.push({
+                id: 'coop_inst_acc',
+                bankName: 'Co-operative Bank',
+                accountNumber: accNo,
+                accountName: (institution as any).coopConfig.accountName || 'Collection Account'
+            });
+        }
+        if ((institution as any)?.kcbConfig?.accountNumber) {
+            const accNo = (institution as any).kcbConfig.accountNumber;
+            if (!seen.has(accNo)) {
+                seen.add(accNo);
+                list.push({
+                    id: 'kcb_inst_acc',
+                    bankName: 'KCB Bank',
+                    accountNumber: accNo,
+                    accountName: (institution as any).kcbConfig.accountName || 'Collection Account'
+                });
+            }
+        }
+
+        pool.forEach((ba: any) => {
+            if (!ba) return;
+            const bName = ba.bankName || ba.bank_name || 'Bank';
+            const accNo = ba.accountNumber || ba.account_number || '';
+            const accName = ba.accountName || ba.account_name || 'Account';
+            const key = ba.id || `${bName}_${accNo}`;
+            if (!seen.has(key) && (!accNo || !seen.has(accNo))) {
+                seen.add(key);
+                if (accNo) seen.add(accNo);
+                list.push({
+                    id: ba.id || key,
+                    bankName: bName,
+                    accountNumber: accNo,
+                    accountName: accName
+                });
+            }
+        });
+
+        return list;
+    }, [bankAccounts, fetchedBankAccounts, institution]);
 
     // Fetch next receipt number when modal opens
     useEffect(() => {
@@ -91,18 +170,59 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         }
     }, [isOpen, selectedBranchId, institution?.id]);
 
-    // Filter students for search dropdown (capped at 40 results for snappy UI)
+// Pre-compute lightweight indexed searchable students list once to avoid repeated metadata parsing
+    const searchableStudents = useMemo(() => {
+        const studentList = studentFinanceData && studentFinanceData.length > 0 ? studentFinanceData : students;
+        if (!studentList || studentList.length === 0) return [];
+
+        return studentList.map((s: any) => {
+            let adm = s.admissionNumber || s.admission_number || s.admNo || s.adm_no || '';
+            if (!adm && s.metadata) {
+                if (typeof s.metadata === 'object') {
+                    adm = s.metadata.admissionNumber || s.metadata.admission_number || s.metadata.admNo || '';
+                } else if (typeof s.metadata === 'string' && s.metadata.includes('adm')) {
+                    try {
+                        const parsed = JSON.parse(s.metadata);
+                        adm = parsed.admissionNumber || parsed.admission_number || parsed.admNo || '';
+                    } catch (e) {}
+                }
+            }
+            if (!adm) {
+                adm = resolveRealStudentAdmNo(s);
+            }
+            const cleanName = String(s.name || '').trim();
+            const cleanAdm = String(adm || '').trim() || 'No Adm';
+            return {
+                id: s.id,
+                name: cleanName,
+                adm: cleanAdm,
+                searchKey: `${cleanName} ${cleanAdm}`.toLowerCase()
+            };
+        });
+    }, [studentFinanceData, students]);
+
+    // Deferred student search query to guarantee 0ms input typing / clicking latency
+    const deferredStudentSearch = React.useDeferredValue(manualPayStudentSearch);
+
+    // Fast filtered students with early-break at 30 items
     const manualFilteredStudents = useMemo(() => {
-        const query = (manualPayStudentSearch || '').trim().toLowerCase();
+        const query = (deferredStudentSearch || '').trim().toLowerCase();
         if (!query || manualPayStudentId) return [];
 
-        const studentList = studentFinanceData && studentFinanceData.length > 0 ? studentFinanceData : students;
-        return studentList.filter(s => {
-            const name = (s.name || '').toLowerCase();
-            const adm = (resolveRealStudentAdmNo(s) || s.admissionNumber || (s as any).admission_number || '').toLowerCase();
-            return name.includes(query) || adm.includes(query);
-        }).slice(0, 40);
-    }, [manualPayStudentSearch, manualPayStudentId, studentFinanceData, students]);
+        const results: Array<{ id: string; name: string; adm: string }> = [];
+        for (let i = 0; i < searchableStudents.length; i++) {
+            const item = searchableStudents[i];
+            if (item.searchKey.includes(query)) {
+                results.push({
+                    id: item.id,
+                    name: item.name,
+                    adm: item.adm
+                });
+                if (results.length >= 30) break;
+            }
+        }
+        return results;
+    }, [deferredStudentSearch, manualPayStudentId, searchableStudents]);
 
     // Memoize receipts belonging to the selected student once for fast lookup
     const selectedStudentReceipts = useMemo(() => {
@@ -137,12 +257,12 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
             let paid = Math.max(mapPaid, directReceiptsPaid, directPaid);
             let balance = Math.max(0, total - paid);
 
-            // If an explicit balance is stored in DB that is lower
+            // If an explicit balance is stored in DB, respect it
+            let hasExplicitBalance = false;
             if ((inv as any).balance !== undefined && (inv as any).balance !== null && Number((inv as any).balance) >= 0) {
                 const explicitBal = Number((inv as any).balance);
-                if (explicitBal < balance) {
-                    balance = explicitBal;
-                }
+                balance = explicitBal;
+                hasExplicitBalance = true;
             }
 
             // Check if explicitly marked as paid / cleared / settled
@@ -150,7 +270,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                 ['paid', 'cleared', 'settled'].includes(String(inv.status || '').trim().toLowerCase()) ||
                 Boolean(inv.is_cleared || inv.isCleared);
 
-            if (isExplicitlyCleared || balance <= 0) {
+            if ((isExplicitlyCleared && !hasExplicitBalance) || balance <= 0) {
                 balance = 0;
                 paid = Math.max(paid, total);
             }
@@ -272,8 +392,12 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         }
 
         if (remainingAmount > 0) {
-            // Only allocate to outstanding invoices with actual remaining balance
-            const unpaidInvoices = studentPendingInvoices.filter(i => !i.isOpeningBalance && !i.isCleared && (i.balance > 0));
+            // Allocate to selected target invoice first (even if previously cleared/paid), then other unpaid invoices
+            const unpaidInvoices = studentPendingInvoices.filter(i => {
+                if (i.isOpeningBalance) return false;
+                if (manualPayInvoiceId && i.id === manualPayInvoiceId) return true;
+                return !i.isCleared && (i.balance > 0);
+            });
             const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
                 if (manualPayInvoiceId && !isTargetingOpeningBalance) {
                     if (a.id === manualPayInvoiceId) return -1;
@@ -294,6 +418,9 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     items = inv.items;
                 }
 
+                const maxAllocatableForInv = inv.balance > 0 ? inv.balance : (inv.totalAmount || remainingAmount);
+                let invAllocatedTotal = 0;
+
                 if (items.length > 0) {
                     const sortedItems = [...items].sort((a: any, b: any) => {
                         const prioA = a.priority !== undefined ? Number(a.priority) : 99;
@@ -303,13 +430,19 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
 
                     for (const item of sortedItems) {
                         if (remainingAmount <= 0) break;
+                        if (invAllocatedTotal >= maxAllocatableForInv) break;
+
                         const itemTotal = Number(item.amount || item.unitPrice || 0);
                         const itemPaid = Number(item.paid || 0);
                         const itemRemaining = Math.max(0, itemTotal - itemPaid);
+                        const targetCap = itemRemaining > 0 ? itemRemaining : itemTotal;
 
-                        if (itemRemaining > 0) {
-                            const allocated = Math.min(remainingAmount, itemRemaining);
+                        const availableInInvCap = Math.max(0, maxAllocatableForInv - invAllocatedTotal);
+                        const allocated = Math.min(remainingAmount, targetCap, availableInInvCap);
+
+                        if (allocated > 0) {
                             remainingAmount -= allocated;
+                            invAllocatedTotal += allocated;
                             allocations.push({
                                 invoiceNumber: inv.invoiceNumber || (inv as any).invoice_number || 'INV',
                                 description: item.description || item.name || 'Fee Item',
@@ -318,7 +451,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                         }
                     }
                 } else {
-                    const invRemaining = Number(inv.balance || inv.totalAmount || 0);
+                    const invRemaining = maxAllocatableForInv;
                     if (invRemaining > 0) {
                         const allocated = Math.min(remainingAmount, invRemaining);
                         remainingAmount -= allocated;
@@ -430,40 +563,61 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     {/* Search Student */}
                     <div className="space-y-1 relative">
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Search Student *</label>
-                        <input 
-                            type="text"
-                            placeholder="Type student name or admission number..."
-                            value={manualPayStudentSearch}
-                            onChange={e => {
-                                setManualPayStudentSearch(e.target.value);
-                                if (manualPayStudentId) {
-                                    setManualPayStudentId('');
-                                    setManualPayInvoiceId('');
-                                    setManualPayAmount('');
-                                }
-                            }}
-                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
-                        />
+                        <div className="relative">
+                            <input 
+                                type="text"
+                                placeholder="Type student name or admission number..."
+                                value={manualPayStudentSearch}
+                                onFocus={(e) => {
+                                    if (manualPayStudentId) {
+                                        e.target.select();
+                                    }
+                                }}
+                                onChange={e => {
+                                    setManualPayStudentSearch(e.target.value);
+                                    if (manualPayStudentId) {
+                                        setManualPayStudentId('');
+                                        setManualPayInvoiceId('');
+                                        setManualPayAmount('');
+                                    }
+                                }}
+                                className="w-full px-5 py-3.5 pr-10 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
+                            />
+                            {manualPayStudentSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setManualPayStudentSearch('');
+                                        setManualPayStudentId('');
+                                        setManualPayInvoiceId('');
+                                        setManualPayAmount('');
+                                    }}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                                    title="Clear search"
+                                >
+                                    <XIcon className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
                         {manualPayStudentSearch && !manualPayStudentId && (
                             <div className="absolute z-30 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                                 {manualFilteredStudents.length === 0 ? (
-                                    <div className="p-4 text-xs text-slate-400 font-medium">No students matched.</div>
+                                    <div className="p-4 text-xs text-slate-400 font-medium">No students matched &quot;{manualPayStudentSearch}&quot;.</div>
                                 ) : (
                                     manualFilteredStudents.map(student => {
-                                        const adm = resolveRealStudentAdmNo(student) || student.admissionNumber || (student as any).admission_number || 'No Adm';
                                         return (
                                             <button
                                                 key={student.id}
                                                 type="button"
                                                 onClick={() => {
                                                     setManualPayStudentId(student.id);
-                                                    setManualPayStudentSearch(`${student.name} (${adm})`);
+                                                    setManualPayStudentSearch(`${student.name} (${student.adm})`);
                                                     setManualPayAmount('');
                                                 }}
-                                                className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex flex-col cursor-pointer"
+                                                className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex flex-col cursor-pointer transition-colors"
                                             >
                                                 <span>{student.name}</span>
-                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {adm}</span>
+                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.adm}</span>
                                             </button>
                                         );
                                     })
@@ -565,7 +719,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                             className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
                         >
                             <option value="">-- Select Bank Account (Optional) --</option>
-                            {bankAccounts.map(ba => (
+                            {activeBankAccounts.map(ba => (
                                 <option key={ba.id} value={ba.id}>
                                     {ba.bankName} - {ba.accountNumber} ({ba.accountName})
                                 </option>
@@ -711,4 +865,4 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
             </div>
         </div>
     );
-};
+});

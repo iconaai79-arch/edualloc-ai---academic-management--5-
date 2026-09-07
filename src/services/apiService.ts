@@ -3658,8 +3658,11 @@ export const apiService = {
         });
 
         const unpaidInvoices = studentInvoices.filter((inv: any) => {
+            if (params.targetInvoiceId && params.targetInvoiceId === inv.id) {
+                return true;
+            }
             const isExplicitlyPaid = ['paid', 'cleared', 'settled'].includes(String(inv.status || '').trim().toLowerCase()) || Boolean(inv.is_cleared || inv.isCleared);
-            if (isExplicitlyPaid && params.targetInvoiceId !== inv.id) {
+            if (isExplicitlyPaid) {
                 return false;
             }
             const paid = invoicePaidAmounts[inv.id] || 0;
@@ -3750,24 +3753,50 @@ export const apiService = {
             });
 
             let invoiceModified = false;
-            for (const item of sortedItems) {
-                if (remainingAmount <= 0) break;
+            if (sortedItems.length > 0) {
+                const isDirectTarget = params.targetInvoiceId === inv.id;
+                for (const item of sortedItems) {
+                    if (remainingAmount <= 0) break;
 
-                const itemTotal = Number(item.amount || item.unitPrice || 0);
-                const itemPaid = Number(item.paid || 0);
-                const itemRemaining = Math.max(0, itemTotal - itemPaid);
+                    const itemTotal = Number(item.amount || item.unitPrice || 0);
+                    const itemPaid = Number(item.paid || 0);
+                    let itemRemaining = Math.max(0, itemTotal - itemPaid);
+                    if (itemRemaining <= 0 && isDirectTarget) {
+                        itemRemaining = itemTotal > 0 ? itemTotal : remainingAmount;
+                    }
 
-                if (itemRemaining > 0) {
-                    const allocated = Math.min(remainingAmount, itemRemaining);
-                    item.paid = itemPaid + allocated;
+                    if (itemRemaining > 0) {
+                        const allocated = Math.min(remainingAmount, itemRemaining);
+                        item.paid = itemPaid + allocated;
+                        remainingAmount -= allocated;
+                        invoiceModified = true;
+
+                        allocations.push({
+                            invoiceId: inv.id,
+                            invoiceNumber: inv.invoiceNumber || inv.invoice_number,
+                            voteHeadId: item.voteHeadId || item.vote_head_id,
+                            description: item.description || item.name || 'Fee Item',
+                            amount: allocated
+                        });
+                    }
+                }
+            } else {
+                // Fallback when invoice doesn't have broken-down line items
+                const invTotal = Number(inv.totalAmount || inv.total_amount || 0);
+                const invPaid = Number(inv.paidAmount || inv.paid_amount || invoicePaidAmounts[inv.id] || 0);
+                const invRemaining = Math.max(0, invTotal - invPaid);
+                const allocTarget = (params.targetInvoiceId === inv.id && invRemaining <= 0) ? (invTotal || remainingAmount) : invRemaining;
+
+                if (allocTarget > 0) {
+                    const allocated = Math.min(remainingAmount, allocTarget);
                     remainingAmount -= allocated;
                     invoiceModified = true;
 
                     allocations.push({
                         invoiceId: inv.id,
                         invoiceNumber: inv.invoiceNumber || inv.invoice_number,
-                        voteHeadId: item.voteHeadId || item.vote_head_id,
-                        description: item.description,
+                        voteHeadId: inv.voteHeadId || inv.vote_head_id,
+                        description: inv.description || 'Fees',
                         amount: allocated
                     });
                 }
