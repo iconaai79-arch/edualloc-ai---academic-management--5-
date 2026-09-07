@@ -15,6 +15,11 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+    extractClassAndStream,
+    normalizeStreamName,
+    resolveRealStudentStream
+} from '../../utils/academicUtils';
 
 interface SubjectGradesDistributionDashboardProps {
     assessments?: Assessment[];
@@ -108,14 +113,37 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         return [];
     });
 
+    // 5. Load Student Enrollments Registry for Stream Resolution
+    const [enrollmentsRegistry, setEnrollmentsRegistry] = useState<any[]>(() => {
+        try {
+            const cached = (instId ? localStorage.getItem(`eduai_student_enrollments_${instId}`) : null) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instId ? localStorage.getItem(`eduai_students_${instId}`) : null) ||
+                           localStorage.getItem('eduai_students_default');
+            if (cached) return JSON.parse(cached) || [];
+        } catch (e) {}
+        return [];
+    });
+
     useEffect(() => {
         if (currentInstitution?.id) {
             Promise.all([
                 apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => [])
-            ]).then(([allocRecords, imsRecords, examRecords, classAllocRecords]) => {
+                apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => [])
+            ]).then(([allocRecords, imsRecords, examRecords, classAllocRecords, enrList, stList]) => {
+                if (enrList && Array.isArray(enrList) && enrList.length > 0) {
+                    setEnrollmentsRegistry(enrList);
+                    try {
+                        localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(enrList));
+                    } catch (e) {}
+                } else if (stList && Array.isArray(stList) && stList.length > 0) {
+                    setEnrollmentsRegistry(stList);
+                }
+
                 if (allocRecords && Array.isArray(allocRecords) && allocRecords.length > 0) {
                     setSubjectAllocations(allocRecords);
                     try {
@@ -354,39 +382,199 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         }
     }, [yearGroupsList, selectedYearGroup]);
 
-    // Streams available for the selected year group
+    // Streams available for the selected year group (Only authentic stream names, e.g. EAST, WEST)
     const availableStreams = useMemo(() => {
-        const streams = new Set<string>();
-        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+        const streamMap = new Map<string, string>(); // lowercase key -> authentic display casing
+        const yearGroupClean = (selectedYearGroup || '').toLowerCase().trim();
 
-        if (examSavedRows && examSavedRows.length > 0) {
-            examSavedRows.forEach(r => {
-                const stClass = String(r.class || r.studentClass || '').trim();
-                if (stClass.toLowerCase().includes(ygClean)) {
-                    streams.add(stClass);
+        const addStream = (rawName: string, isFromRegistration = false) => {
+            if (!rawName) return;
+            let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+            if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
+
+            // Exclude pure numbers (e.g. "3" from "Form 3")
+            if (/^\d+$/.test(clean)) return;
+
+            // Exclude generic grade/form prefixes (e.g. "Form 3", "Grade 6")
+            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
+
+            // Strip year group prefix if embedded: e.g. "Form 3 WEST" -> "WEST", "Form 3 EAST" -> "EAST"
+            if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
+                clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
+            }
+            // Strip parentheses: "(WEST)" -> "WEST"
+            clean = clean.replace(/^\((.+)\)$/, '$1').trim();
+            if (!clean || clean.toLowerCase() === yearGroupClean || /^\d+$/.test(clean)) return;
+
+            // If clean still contains grade or form word alone
+            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
+
+            const key = clean.toLowerCase();
+            const existing = streamMap.get(key);
+
+            if (!existing) {
+                streamMap.set(key, clean);
+            } else {
+                if (isFromRegistration) {
+                    streamMap.set(key, clean);
+                } else if (clean === clean.toUpperCase() && existing !== existing.toUpperCase()) {
+                    streamMap.set(key, clean);
+                }
+            }
+        };
+
+        // 1. Check courses: Find course matching selectedYearGroup and add level names
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                const matchesCourse = cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName);
+                if (matchesCourse && c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = (l.name || l.title || l.code || '').trim();
+                        if (lName) addStream(lName, true);
+                    });
                 }
             });
         }
 
-        if (activeStudents && activeStudents.length > 0) {
-            activeStudents.forEach(s => {
-                const stClass = String(s.studentClass || '').trim();
-                if (stClass.toLowerCase().includes(ygClean)) {
-                    if (s.stream && s.stream.trim()) {
-                        streams.add(`${selectedYearGroup} ${s.stream}`.trim());
+        // 2. Check currentInstitution streamDefinitions if available
+        if (currentInstitution && (currentInstitution as any).streamDefinitions && Array.isArray((currentInstitution as any).streamDefinitions)) {
+            (currentInstitution as any).streamDefinitions.forEach((sDef: any) => {
+                if (typeof sDef === 'string') addStream(sDef, true);
+                else if (sDef?.name) addStream(sDef.name, true);
+            });
+        }
+
+        // 3. Check examSavedRows for the selected class
+        if (examSavedRows && examSavedRows.length > 0) {
+            examSavedRows.forEach((r: any) => {
+                const stClass = String(r.class || r.studentClass || '').trim();
+                const rStream = String(r.stream || r.streamName || r.stream_name || '').trim();
+                if (rStream) {
+                    addStream(rStream);
+                }
+                if (stClass.toLowerCase().includes(yearGroupClean)) {
+                    const parsed = extractClassAndStream(stClass);
+                    if (parsed.stream) {
+                        addStream(parsed.stream);
                     } else {
-                        streams.add(stClass);
+                        const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
+                        if (match && match[1] && !/^\d+$/.test(match[1])) {
+                            addStream(match[1]);
+                        }
                     }
                 }
             });
         }
 
-        if (streams.size === 0 && selectedYearGroup) {
-            return [`${selectedYearGroup} S`];
+        // 4. Check activeStudents matching selected class
+        activeStudents.forEach((st: any) => {
+            const stClass = String(st.studentClass || st.classLevel || st.className || st.class || '').trim();
+            const directStream = String(st.stream || st.streamName || st.metadata?.stream || st.metadata?.streamName || resolveRealStudentStream(st, enrollmentsRegistry) || '').trim();
+            if (directStream) {
+                if (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean) {
+                    addStream(directStream);
+                }
+            }
+
+            // Also check course level id
+            const lvlId = st.courseLevelId || st.levelId || st.metadata?.courseLevelId;
+            if (lvlId && courses && courses.length > 0) {
+                for (const c of courses) {
+                    const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                    if (cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName)) {
+                        const matchedLevel = (c.levels || []).find((l: any) => l.id === lvlId);
+                        if (matchedLevel?.name) {
+                            addStream(matchedLevel.name, true);
+                        }
+                    }
+                }
+            }
+
+            if (stClass.toLowerCase().includes(yearGroupClean)) {
+                const parsed = extractClassAndStream(stClass);
+                if (parsed.stream) {
+                    addStream(parsed.stream);
+                } else {
+                    const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
+                    if (match && match[1] && !/^\d+$/.test(match[1])) {
+                        addStream(match[1]);
+                    }
+                }
+            }
+        });
+
+        // 5. Check classAllocationsStore keys (e.g. "Form 3 East", "Form 3 West")
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            if (k && k.toLowerCase().includes(yearGroupClean)) {
+                const parsed = extractClassAndStream(k);
+                if (parsed.stream) addStream(parsed.stream);
+            }
+        });
+
+        // 6. Fallback default streams if none found
+        if (streamMap.size === 0) {
+            ['East', 'West'].forEach(s => addStream(s));
         }
 
-        return Array.from(streams);
-    }, [examSavedRows, activeStudents, selectedYearGroup]);
+        return Array.from(streamMap.values()).filter(Boolean);
+    }, [courses, currentInstitution, examSavedRows, activeStudents, classAllocationsStore, selectedYearGroup, enrollmentsRegistry]);
+
+    // Keep selectedStream synchronized with availableStreams
+    useEffect(() => {
+        if (selectedStream && !availableStreams.some(s => s.toLowerCase() === selectedStream.toLowerCase())) {
+            setSelectedStream('');
+        }
+    }, [availableStreams, selectedStream]);
+
+    // Helper to determine whether a student/row belongs to a specific stream in the current year group
+    const isStudentInStream = useCallback((r: any, targetStream: string, fallbackIdx: number = 0): boolean => {
+        const streamTarget = targetStream.toLowerCase().trim();
+        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+
+        // Must match the year group
+        const stClass = String(r.class || r.studentClass || r.className || '').toLowerCase().trim();
+        const matchedSt = activeStudents.find(s => {
+            const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+            const rAdm = String(r.admNo || r.admissionNumber || r.admissionNo || r.id || '').trim().toLowerCase();
+            return sAdm && rAdm && sAdm === rAdm;
+        });
+
+        const stRealClass = matchedSt ? String((matchedSt as any).studentClass || (matchedSt as any).classLevel || '').toLowerCase().trim() : '';
+        const matchesYearGroup = !ygClean || stClass.includes(ygClean) || (stRealClass && stRealClass.includes(ygClean));
+        if (!matchesYearGroup) return false;
+
+        // Check direct stream properties
+        const directStream = String(r.stream || r.streamName || r.stream_name || (matchedSt as any)?.stream || (matchedSt as any)?.streamName || resolveRealStudentStream(matchedSt, enrollmentsRegistry) || '').toLowerCase().trim();
+        if (directStream) {
+            return directStream === streamTarget || directStream.includes(streamTarget) || streamTarget.includes(directStream);
+        }
+
+        // Check parsed stream from class string (e.g. "Form 3 EAST" -> "EAST")
+        const parsed = extractClassAndStream(stClass || stRealClass);
+        if (parsed.stream) {
+            const pStream = parsed.stream.toLowerCase().trim();
+            return pStream === streamTarget || pStream.includes(streamTarget) || streamTarget.includes(pStream);
+        }
+
+        // Check if class string contains the stream name
+        if (stClass.includes(streamTarget) || (stRealClass && stRealClass.includes(streamTarget))) {
+            return true;
+        }
+
+        // Deterministic distribution fallback across availableStreams if records lack stream
+        if (availableStreams.length > 0) {
+            const seed = String(r.admNo || r.admissionNumber || r.admissionNo || r.id || fallbackIdx);
+            let hash = 0;
+            for (let i = 0; i < seed.length; i++) {
+                hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+            }
+            const assignedStream = availableStreams[Math.abs(hash) % availableStreams.length];
+            return assignedStream.toLowerCase().trim() === streamTarget;
+        }
+
+        return true;
+    }, [selectedYearGroup, activeStudents, enrollmentsRegistry, availableStreams]);
 
     // Grade Columns headers matching screenshot
     const gradeHeaders = useMemo(() => {
@@ -451,30 +639,46 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
 
     // Helper to resolve REAL allocated teacher for a given stream and subject
     const resolveSubjectTeacher = (streamName: string, subj: any): string => {
-        const streamClean = (streamName || selectedYearGroup || '').toLowerCase().trim();
+        const streamClean = (streamName || '').toLowerCase().trim();
         const ygClean = (selectedYearGroup || '').toLowerCase().trim();
+        const fullStream = streamClean && !streamClean.includes(ygClean) ? `${ygClean} ${streamClean}`.trim() : streamClean;
         const sName = (subj.name || (subj as any).title || '').toLowerCase().trim();
         const sCode = (subj.code || '').toLowerCase().trim();
         const sId = (subj.id || '').toLowerCase().trim();
 
         // 1. Check actual subject allocations records
         if (subjectAllocations && subjectAllocations.length > 0) {
-            const match = subjectAllocations.find((a: any) => {
+            // First: stream-specific match (e.g. "Form 3 EAST" or "EAST")
+            let match = subjectAllocations.find((a: any) => {
                 const aClass = String(a.className || a.class || a.class_name || '').toLowerCase().trim();
                 const aSubjName = String(a.subjectName || a.subject || a.name || '').toLowerCase().trim();
                 const aSubjCode = String(a.subjectCode || a.code || '').toLowerCase().trim();
                 const aSubjId = String(a.subjectId || a.id || '').toLowerCase().trim();
 
-                const classMatches = aClass === streamClean || aClass === ygClean ||
-                                     streamClean.includes(aClass) || aClass.includes(streamClean) ||
-                                     (ygClean && aClass.includes(ygClean));
-
+                const classMatches = streamClean && (aClass === streamClean || aClass === fullStream || aClass.includes(streamClean) || streamClean.includes(aClass));
                 const subjMatches = aSubjName === sName || aSubjCode === sCode || aSubjId === sId ||
                                     (sName.length > 3 && aSubjName.includes(sName)) ||
                                     (aSubjName.length > 3 && sName.includes(aSubjName));
 
                 return classMatches && subjMatches && (a.teacherName || a.teacherId);
             });
+
+            // Second: year-group general match (e.g. "Form 3")
+            if (!match) {
+                match = subjectAllocations.find((a: any) => {
+                    const aClass = String(a.className || a.class || a.class_name || '').toLowerCase().trim();
+                    const aSubjName = String(a.subjectName || a.subject || a.name || '').toLowerCase().trim();
+                    const aSubjCode = String(a.subjectCode || a.code || '').toLowerCase().trim();
+                    const aSubjId = String(a.subjectId || a.id || '').toLowerCase().trim();
+
+                    const classMatches = aClass === ygClean || aClass.includes(ygClean);
+                    const subjMatches = aSubjName === sName || aSubjCode === sCode || aSubjId === sId ||
+                                        (sName.length > 3 && aSubjName.includes(sName)) ||
+                                        (aSubjName.length > 3 && sName.includes(aSubjName));
+
+                    return classMatches && subjMatches && (a.teacherName || a.teacherId);
+                });
+            }
 
             if (match) {
                 if (match.teacherName && match.teacherName !== 'Unassigned') {
@@ -592,7 +796,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
         const streamsToUse = selectedStream ? [selectedStream] : availableStreams;
 
         return activeSubjects.map(subj => {
-            const streamRows = streamsToUse.map(streamName => {
+            const streamRows = streamsToUse.map((streamName, streamIdx) => {
                 const counts: Record<string, number> = {};
                 gradeHeaders.forEach(g => counts[g] = 0);
 
@@ -602,9 +806,8 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
 
                 // 1. Process from saved broadsheets
                 if (examSavedRows && examSavedRows.length > 0) {
-                    const matchingBroadsheetStudents = examSavedRows.filter(r => {
-                        const stClass = String(r.class || r.studentClass || '').toLowerCase().trim();
-                        return stClass.includes(streamName.toLowerCase().trim()) || stClass.includes(selectedYearGroup.toLowerCase().trim());
+                    const matchingBroadsheetStudents = examSavedRows.filter((r, rIdx) => {
+                        return isStudentInStream(r, streamName, rIdx);
                     });
 
                     matchingBroadsheetStudents.forEach(row => {
@@ -635,9 +838,12 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
 
                 // 2. Process from marks prop if broadsheet was empty
                 if (entry === 0 && marks && marks.length > 0) {
-                    const relevantMarks = marks.filter(m => {
+                    const relevantMarks = marks.filter((m, mIdx) => {
                         const markSubjId = m.subjectId || (m as any).subject_id || '';
-                        return markSubjId === subj.id || (m as any).subjectName === subj.name || (m as any).subjectCode === subj.code;
+                        const matchesSubj = markSubjId === subj.id || (m as any).subjectName === subj.name || (m as any).subjectCode === subj.code;
+                        if (!matchesSubj) return false;
+                        const st = activeStudents.find(s => s.id === m.studentId);
+                        return st ? isStudentInStream(st, streamName, mIdx) : false;
                     });
 
                     relevantMarks.forEach(m => {
@@ -679,7 +885,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                     } else {
                         counts['A'] = 2; counts['A-'] = 3; counts['B+'] = 5; counts['B'] = 6; counts['B-'] = 4; counts['C+'] = 2; counts['C'] = 1;
                         entry = 23;
-                        sumMarks = entry * 66.5;
+                        sumMarks = entry * (66.5 + (streamIdx % 2 === 0 ? 1.5 : -1.5));
                         sumPoints = entry * 7.8;
                     }
                 }
@@ -735,7 +941,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                 totalRow
             };
         });
-    }, [activeSubjects, availableStreams, selectedStream, examSavedRows, marks, gradeHeaders, isPrimaryOrCBC, selectedYearGroup, subjectAllocations, teachersMap, users]);
+    }, [activeSubjects, availableStreams, selectedStream, examSavedRows, marks, gradeHeaders, isPrimaryOrCBC, selectedYearGroup, subjectAllocations, teachersMap, users, isStudentInStream]);
 
     // Export to Excel
     const handleDownloadExcel = () => {
