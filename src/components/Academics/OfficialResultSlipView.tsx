@@ -87,11 +87,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
     // 2. Load Saved Broadsheet Data for Exam Marks Calculation
     const [savedBroadsheets, setSavedBroadsheets] = useState<Record<string, any[]>>(() => {
         try {
-            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+            const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) ||
+                          (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null) ||
+                          localStorage.getItem('eduai_exam_broadsheets_default');
             if (saved) return JSON.parse(saved) || {};
         } catch (e) {}
         return {};
     });
+
+    // Fetched database assessment marks
+    const [fetchedMarks, setFetchedMarks] = useState<AssessmentMark[]>([]);
 
     // 3. Load Class Subject Allocations Store
     const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
@@ -132,6 +137,44 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return [];
     });
 
+    // Real-time synchronization for broadsheets & exam marks
+    useEffect(() => {
+        const handleSync = () => {
+            try {
+                const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                                 (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null) ||
+                                 localStorage.getItem('eduai_exam_broadsheets_default');
+                if (storeRaw) {
+                    const parsed = JSON.parse(storeRaw);
+                    if (parsed && typeof parsed === 'object') {
+                        setSavedBroadsheets(prev => ({ ...prev, ...parsed }));
+                    }
+                }
+                const savedUnits = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (savedUnits) {
+                    const parsedUnits = JSON.parse(savedUnits);
+                    if (Array.isArray(parsedUnits)) {
+                        setSavedExamUnits(prev => {
+                            const combined = [...parsedUnits, ...prev];
+                            const seen = new Set<string>();
+                            return combined.filter(ex => ex.id && !seen.has(ex.id) && (seen.add(ex.id), true));
+                        });
+                    }
+                }
+            } catch(e) {}
+        };
+
+        window.addEventListener('eduai_academics_synced', handleSync);
+        window.addEventListener('eduai_broadsheets_updated', handleSync);
+        window.addEventListener('storage', handleSync);
+
+        return () => {
+            window.removeEventListener('eduai_academics_synced', handleSync);
+            window.removeEventListener('eduai_broadsheets_updated', handleSync);
+            window.removeEventListener('storage', handleSync);
+        };
+    }, [currentInstitution, instId]);
+
     useEffect(() => {
         if (currentInstitution?.id) {
             Promise.all([
@@ -141,8 +184,13 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => [])
-            ]).then(([allocRecords, imsRecords, examRecords, classAllocRecords, exempRecords, enrList, stList]) => {
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
+                apiService.fetchAssessmentMarks(currentInstitution.id).catch(() => [])
+            ]).then(([allocRecords, imsRecords, examRecords, classAllocRecords, exempRecords, enrList, stList, asmtMarks]) => {
+                if (asmtMarks && Array.isArray(asmtMarks) && asmtMarks.length > 0) {
+                    setFetchedMarks(asmtMarks);
+                }
+
                 if (enrList && Array.isArray(enrList) && enrList.length > 0) {
                     setEnrollmentsRegistry(enrList);
                     try {
@@ -228,11 +276,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         const sClean = subName.replace(/[^a-z0-9]/g, '_');
         const sCompact = subName.replace(/[^a-z0-9]/g, '');
         const cCompact = subCode.replace(/[^a-z0-9]/g, '');
-        const kStripped = kNorm.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
+        const idCompact = subId.replace(/[^a-z0-9]/g, '');
+        const kStripped = kNorm.replace(/^subj_/, '').replace(/^sub_/, '').replace(/_p\d+$/, '').replace(/[^a-z0-9]/g, '');
 
         if (kNorm === `subj_${sClean}_p1` || kNorm === `subj_${sClean}` || kNorm === sClean) return true;
         if (cCompact && (kNorm === `subj_${cCompact}_p1` || kNorm === `subj_${cCompact}` || kNorm === cCompact)) return true;
-        if (kStripped && (kStripped === sCompact || kStripped === cCompact)) return true;
+        if (kStripped) {
+            if (sCompact && (kStripped === sCompact || kStripped.includes(sCompact) || sCompact.includes(kStripped))) return true;
+            if (cCompact && (kStripped === cCompact || kStripped.startsWith(cCompact))) return true;
+            if (idCompact && (kStripped === idCompact || kStripped.includes(idCompact) || idCompact.includes(kStripped))) return true;
+        }
 
         // Kiswahili matches
         if ((subCode.startsWith('kisw') || subName.includes('kisw') || subCode === '906' || subCode === '102') && 
@@ -289,10 +342,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return false;
     };
 
-    // Robust extractor for student subject marks from a broadsheet row
-    // Prioritizes positive entered marks over placeholder zero keys (e.g. kiswP1: 0)
-    const extractStudentSubjectScore = (row: any, sub: any): { score: number; found: boolean } => {
-        if (!row || typeof row !== 'object' || !sub) return { score: 0, found: false };
+    // Robust extractor for student subject marks from a broadsheet row or assessment marks
+    const extractStudentSubjectScore = (row: any, sub: any, student?: any): { score: number; found: boolean } => {
+        if (!sub) return { score: 0, found: false };
 
         const sName = (sub.name || (sub as any).title || '').toLowerCase().trim();
         const sCode = (sub.code || '').toLowerCase().trim();
@@ -301,44 +353,118 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         const cClean = sCode.replace(/[^a-z0-9]/g, '_');
 
         let maxScore = -1;
+        let paperSum = 0;
         let foundAnyKey = false;
 
-        // High-priority exact key candidates
-        const exactKeys = [
-            sId,
-            sCode,
-            cClean,
-            `subj_${cClean}_p1`,
-            `subj_${cClean}`,
-            `subj_${sClean}_p1`,
-            `subj_${sClean}_paper_1`,
-            `subj_${sClean}`,
-            sClean
-        ].filter(Boolean);
-
-        for (const ek of exactKeys) {
-            if (row[ek] !== undefined && row[ek] !== null && row[ek] !== '') {
-                const num = parseFloat(String(row[ek]));
-                if (!isNaN(num)) {
-                    foundAnyKey = true;
-                    if (num > maxScore) {
-                        maxScore = num;
+        const parseVal = (v: any): number => {
+            if (v === null || v === undefined || v === '') return -1;
+            if (typeof v === 'number') return isNaN(v) ? -1 : v;
+            if (typeof v === 'object') {
+                const inner = v.score ?? v.mark ?? v.marks ?? v.total ?? v.val ?? v.value;
+                if (inner !== undefined && inner !== null && !isNaN(Number(inner))) {
+                    return Number(inner);
+                }
+                let objPaperSum = 0;
+                let objFoundPaper = false;
+                for (const [k, pVal] of Object.entries(v)) {
+                    if (/(p\d+|paper\s*\d+)/i.test(k) && !isNaN(Number(pVal))) {
+                        objPaperSum += Number(pVal);
+                        objFoundPaper = true;
                     }
+                }
+                if (objFoundPaper) return objPaperSum;
+                return -1;
+            }
+            const parsed = parseFloat(String(v));
+            return isNaN(parsed) ? -1 : parsed;
+        };
+
+        if (row && typeof row === 'object') {
+            const targetContainers = [
+                row,
+                row.marks,
+                row.subjectMarks,
+                row.subjectMarksMap,
+                row.scores,
+                row.paperMarks
+            ].filter(o => o && typeof o === 'object');
+
+            for (const container of targetContainers) {
+                const exactKeys = [
+                    sId,
+                    sCode,
+                    cClean,
+                    `subj_${cClean}_p1`,
+                    `subj_${cClean}`,
+                    `subj_${sClean}_p1`,
+                    `subj_${sClean}_paper_1`,
+                    `subj_${sClean}`,
+                    sClean
+                ].filter(Boolean);
+
+                for (const ek of exactKeys) {
+                    if (container[ek] !== undefined && container[ek] !== null && container[ek] !== '') {
+                        const val = parseVal(container[ek]);
+                        if (val >= 0) {
+                            foundAnyKey = true;
+                            if (val > maxScore) maxScore = val;
+                        }
+                    }
+                }
+
+                const paperMap = new Map<string, number>();
+                for (const [k, val] of Object.entries(container)) {
+                    if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'admissionNumber', 'total', 'mean', 'meanScore', 'average', 'studentClass', 'gender', 'studentName', 'marks', 'subjectMarks', 'scores', 'broadsheetRow'].includes(k)) continue;
+                    if (val === null || val === undefined || val === '') continue;
+
+                    const numVal = parseVal(val);
+                    if (numVal < 0) continue;
+
+                    if (isSubjectKeyMatch(k, sub)) {
+                        foundAnyKey = true;
+                        const paperMatch = k.toLowerCase().match(/(?:_|^)(?:p|paper)(\d+)$/i);
+                        if (paperMatch && paperMatch[1]) {
+                            paperMap.set(paperMatch[1], numVal);
+                        } else {
+                            if (numVal > maxScore) {
+                                maxScore = numVal;
+                            }
+                        }
+                    }
+                }
+
+                if (paperMap.size > 0) {
+                    let sum = 0;
+                    paperMap.forEach(v => sum += v);
+                    paperSum = Math.max(paperSum, sum);
                 }
             }
         }
 
-        // Search all keys in row with isSubjectKeyMatch
-        for (const [k, val] of Object.entries(row)) {
-            if (['admNo', 'name', 'class', 'kcpe', 'student', 'id', 'admissionNo', 'admissionNumber', 'total', 'mean', 'meanScore', 'average', 'studentClass', 'gender', 'studentName'].includes(k)) continue;
-            if (val === null || val === undefined || val === '' || isNaN(Number(val))) continue;
+        const effectiveRowScore = Math.max(maxScore, paperSum);
+        if (effectiveRowScore > 0) {
+            return { score: effectiveRowScore, found: true };
+        }
 
-            const numVal = parseFloat(String(val));
-            if (isSubjectKeyMatch(k, sub)) {
-                foundAnyKey = true;
-                if (numVal > maxScore) {
-                    maxScore = numVal;
-                }
+        // Tier 5 Fallback: Search allAvailableMarks for this student & subject
+        const allMarks = [...(marks || []), ...(fetchedMarks || [])];
+        if (allMarks.length > 0) {
+            const stId = student?.id || row?.id || row?.studentId || row?.student_id;
+            const stAdm = String(student?.admissionNo || student?.admissionNumber || row?.admissionNo || row?.admissionNumber || row?.admNo || '').trim().toLowerCase();
+
+            const matchedMark = allMarks.find((m: any) => {
+                const mStId = String(m.studentId || m.student_id || '').trim();
+                const mAdm = String(m.admissionNumber || m.admissionNo || m.admNo || '').trim().toLowerCase();
+                const studentMatch = (stId && mStId === String(stId)) || (stAdm && mAdm === stAdm) || (stAdm && mStId === stAdm);
+                if (!studentMatch) return false;
+
+                const mSubId = String(m.subjectId || m.subject_id || m.subject || '').trim();
+                return mSubId === sub.id || mSubId === sub.code || isSubjectKeyMatch(mSubId, sub);
+            });
+
+            if (matchedMark && matchedMark.marks !== null && matchedMark.marks !== undefined && !isNaN(Number(matchedMark.marks))) {
+                const markVal = Number(matchedMark.marks);
+                return { score: markVal, found: true };
             }
         }
 
@@ -557,9 +683,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         combined.forEach(item => {
             if (item.id && !seen.has(item.id)) {
                 seen.add(item.id);
-                if (item.isPublished || item.status === 'published') {
-                    unique.push(item);
-                }
+                unique.push(item);
             }
         });
 
@@ -572,14 +696,153 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return unique;
     }, [savedExamUnits, assessments]);
 
+    // Comprehensive 5-Tier Broadsheet & Raw Mark Row Resolution
+    const resolveEffectiveExamRows = useCallback((examId: string): any[] => {
+        if (!examId) return [];
+
+        // Tier 1: Direct lookup in savedBroadsheets state
+        if (savedBroadsheets && savedBroadsheets[examId] && Array.isArray(savedBroadsheets[examId]) && savedBroadsheets[examId].length > 0) {
+            return savedBroadsheets[examId];
+        }
+
+        // Tier 1b: Direct localStorage lookup for institution broadsheets store
+        try {
+            const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                             (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null) ||
+                             localStorage.getItem('eduai_exam_broadsheets_default');
+            if (storeRaw) {
+                const parsed = JSON.parse(storeRaw);
+                if (parsed && parsed[examId] && Array.isArray(parsed[examId]) && parsed[examId].length > 0) {
+                    return parsed[examId];
+                }
+            }
+        } catch(e) {}
+
+        // Tier 2: Check active exam object's broadsheetData or rows
+        const matchedExam = allExamsList.find(e => e.id === examId);
+        if (matchedExam) {
+            const exData = (matchedExam as any).broadsheetData || (matchedExam as any).rows;
+            if (Array.isArray(exData) && exData.length > 0) return exData;
+
+            const exName = matchedExam.title || (matchedExam as any).name;
+            if (exName && exName !== examId) {
+                if (savedBroadsheets[exName] && Array.isArray(savedBroadsheets[exName]) && savedBroadsheets[exName].length > 0) {
+                    return savedBroadsheets[exName];
+                }
+                try {
+                    const storeRaw = localStorage.getItem(`eduai_exam_broadsheets_${instId}`) || 
+                                     (currentInstitution?.id ? localStorage.getItem(`eduai_exam_broadsheets_${currentInstitution.id}`) : null);
+                    if (storeRaw) {
+                        const parsed = JSON.parse(storeRaw);
+                        if (parsed && parsed[exName] && Array.isArray(parsed[exName]) && parsed[exName].length > 0) {
+                            return parsed[exName];
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+
+        // Tier 3: Check snapshot backups in localStorage
+        try {
+            const indexKey = `eduai_marks_snapshot_index_${instId}_${examId}`;
+            const keys: string[] = JSON.parse(localStorage.getItem(indexKey) || '[]');
+            for (const k of keys.slice().reverse()) {
+                const snapRaw = localStorage.getItem(k);
+                if (snapRaw) {
+                    const parsed = JSON.parse(snapRaw);
+                    if (Array.isArray(parsed.rows) && parsed.rows.length > 0) {
+                        return parsed.rows;
+                    }
+                }
+            }
+        } catch (e) { }
+
+        // Tier 4: Direct individual broadsheet key
+        try {
+            const singleKey = localStorage.getItem(`eduai_exam_broadsheet_${examId}`) || localStorage.getItem(`eduai_exam_marks_${examId}`);
+            if (singleKey) {
+                const parsed = JSON.parse(singleKey);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
+            }
+            if (matchedExam) {
+                const nameKey = localStorage.getItem(`eduai_exam_broadsheet_${matchedExam.title}`) || localStorage.getItem(`eduai_exam_broadsheet_${(matchedExam as any).name}`);
+                if (nameKey) {
+                    const parsed = JSON.parse(nameKey);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    if (parsed && Array.isArray(parsed.rows) && parsed.rows.length > 0) return parsed.rows;
+                }
+            }
+        } catch (e) { }
+
+        // Tier 4b: Partial match across all saved broadsheet keys
+        const allKeys = Object.keys(savedBroadsheets || {});
+        for (const bk of allKeys) {
+            const rows = savedBroadsheets[bk];
+            if (Array.isArray(rows) && rows.length > 0) {
+                if (bk.toLowerCase().includes(examId.toLowerCase()) || (matchedExam && bk.toLowerCase().includes((matchedExam.title || '').toLowerCase()))) {
+                    return rows;
+                }
+            }
+        }
+
+        // Tier 5: Construct from marks & fetchedMarks if matching records exist
+        const availMarks = [...(marks || []), ...(fetchedMarks || [])];
+        if (availMarks.length > 0) {
+            const examMarks = availMarks.filter((m: any) => 
+                m.assessmentId === examId || 
+                m.assessment_id === examId || 
+                m.examId === examId ||
+                (matchedExam && (m.assessmentId === matchedExam.title || m.assessmentId === (matchedExam as any).name))
+            );
+            if (examMarks.length > 0) {
+                const studentMap = new Map<string, any>();
+                examMarks.forEach((m: any) => {
+                    const sId = m.studentId || m.student_id;
+                    if (!sId) return;
+                    if (!studentMap.has(sId)) {
+                        const stObj = activeStudents.find(s => s.id === sId);
+                        studentMap.set(sId, {
+                            id: sId,
+                            admNo: (stObj as any)?.admissionNumber || (stObj as any)?.admissionNo || sId,
+                            admissionNumber: (stObj as any)?.admissionNumber || (stObj as any)?.admissionNo || sId,
+                            name: stObj?.name || 'Student',
+                            studentName: stObj?.name || 'Student',
+                            class: (stObj as any)?.studentClass || selectedYearGroup || 'Class',
+                            studentClass: (stObj as any)?.studentClass || selectedYearGroup || 'Class',
+                            stream: (stObj as any)?.stream || (stObj as any)?.streamName || ''
+                        });
+                    }
+                    const row = studentMap.get(sId);
+                    const subId = m.subjectId || m.subject_id || m.subject;
+                    if (subId && m.marks !== null && m.marks !== undefined) {
+                        row[subId] = Number(m.marks);
+                        const foundSub = subjects.find(s => s.id === subId || s.code === subId);
+                        if (foundSub) {
+                            if (foundSub.code) row[foundSub.code] = Number(m.marks);
+                            if (foundSub.code) row[`subj_${foundSub.code.toLowerCase()}_p1`] = Number(m.marks);
+                        }
+                    }
+                });
+                if (studentMap.size > 0) {
+                    return Array.from(studentMap.values());
+                }
+            }
+        }
+
+        return [];
+    }, [savedBroadsheets, allExamsList, instId, currentInstitution, marks, fetchedMarks, activeStudents, selectedYearGroup, subjects]);
+
     // Ensure selectedExamId is valid
     useEffect(() => {
         if (allExamsList.length > 0) {
             if (!selectedExamId || !allExamsList.some(e => e.id === selectedExamId)) {
-                setSelectedExamId(allExamsList[0].id);
+                // If there's an exam with broadsheet rows, prefer it
+                const withRows = allExamsList.find(e => resolveEffectiveExamRows(e.id).length > 0);
+                setSelectedExamId(withRows ? withRows.id : allExamsList[0].id);
             }
         }
-    }, [allExamsList, selectedExamId]);
+    }, [allExamsList, selectedExamId, resolveEffectiveExamRows]);
 
     // Active selected exam object
     const selectedExamObj = useMemo(() => {
@@ -594,8 +857,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     // Broadsheet rows for the selected exam
     const examSavedRows = useMemo(() => {
-        return (selectedExamId && savedBroadsheets[selectedExamId]) || [];
-    }, [savedBroadsheets, selectedExamId]);
+        return resolveEffectiveExamRows(selectedExamId);
+    }, [resolveEffectiveExamRows, selectedExamId]);
 
     // Dynamic Year Groups list
     const yearGroupsList = useMemo(() => {
@@ -683,18 +946,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             // If clean still contains grade or form word alone
             if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
 
-            const key = clean.toLowerCase();
-            const existing = streamMap.get(key);
-
-            if (!existing) {
-                streamMap.set(key, clean);
-            } else {
-                if (isFromRegistration) {
-                    streamMap.set(key, clean);
-                } else if (clean === clean.toUpperCase() && existing !== existing.toUpperCase()) {
-                    streamMap.set(key, clean);
-                }
-            }
+            const cleanUpper = clean.toUpperCase().trim();
+            const key = cleanUpper.toLowerCase();
+            streamMap.set(key, cleanUpper);
         };
 
         // 1. Check courses: Find course matching selectedYearGroup and add level names
@@ -805,12 +1059,63 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
         // 7. Fallback default streams if none found
         if (streamMap.size === 0) {
-            ['East', 'West'].forEach(s => addStream(s));
+            ['EAST', 'WEST'].forEach(s => addStream(s));
         }
 
         const validStreams = Array.from(streamMap.values()).filter(Boolean);
         return ['all', ...validStreams];
     }, [activeStudents, selectedYearGroup, examSavedRows, courses, selectedExamObj, currentInstitution, enrollmentsRegistry, classAllocationsStore]);
+
+    // Auto-register any active streams (such as NORTH) into currentInstitution.streamDefinitions if not yet registered
+    useEffect(() => {
+        if (!currentInstitution?.id) return;
+        const currentDefs: string[] = (currentInstitution as any).streamDefinitions || (currentInstitution as any).streams || [];
+        const normalizedDefs = new Set(currentDefs.map(s => String(typeof s === 'string' ? s : s?.name || '').toUpperCase().trim()));
+
+        const missingStreams: string[] = [];
+        streamOptions.forEach(opt => {
+            if (opt && opt !== 'all') {
+                const upper = opt.toUpperCase().trim();
+                if (upper && !normalizedDefs.has(upper) && !['ALL', 'ALL STREAMS'].includes(upper)) {
+                    missingStreams.push(upper);
+                }
+            }
+        });
+
+        // Also ensure NORTH is registered if ever present in enrollments, students, or broadsheets
+        if (!normalizedDefs.has('NORTH')) {
+            const hasNorth = activeStudents.some(s => {
+                const stStr = String((s as any).stream || (s as any).streamName || (s as any).studentClass || '').toUpperCase();
+                return stStr.includes('NORTH');
+            }) || (examSavedRows || []).some((r: any) => {
+                const rStr = String(r.stream || r.streamName || r.class || '').toUpperCase();
+                return rStr.includes('NORTH');
+            });
+            if (hasNorth && !missingStreams.includes('NORTH')) {
+                missingStreams.push('NORTH');
+            }
+        }
+
+        if (missingStreams.length > 0) {
+            const updatedDefs = [...currentDefs, ...missingStreams];
+            (currentInstitution as any).streamDefinitions = updatedDefs;
+
+            apiService.saveModuleRecord('institutions', {
+                ...currentInstitution,
+                streamDefinitions: updatedDefs
+            }).catch(() => {});
+
+            try {
+                localStorage.setItem(`eduai_institution_${currentInstitution.id}`, JSON.stringify({
+                    ...currentInstitution,
+                    streamDefinitions: updatedDefs
+                }));
+            } catch (e) {}
+
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced'));
+            window.dispatchEvent(new CustomEvent('eduai_institutions_updated'));
+        }
+    }, [currentInstitution, streamOptions, activeStudents, examSavedRows]);
 
     // Keep selectedStream synchronized with streamOptions
     useEffect(() => {
@@ -972,6 +1277,26 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             });
 
             if (allocatedList.length > 0) {
+                // Also merge any subjects from examSavedRows with positive entered marks so no entered subjects are missed
+                if (examSavedRows && examSavedRows.length > 0) {
+                    const classRows = examSavedRows.filter((r: any) => {
+                        const stCls = String(r.class || r.studentClass || '').toLowerCase().trim();
+                        return !yGrpClean || stCls.includes(yGrpClean) || yGrpClean.includes(stCls);
+                    });
+                    allCandidates.forEach(sub => {
+                        const dedupKey = (sub.code || sub.name).toUpperCase().trim();
+                        if (!seen.has(dedupKey)) {
+                            const hasPositive = classRows.some((r: any) => {
+                                const { score, found } = extractStudentSubjectScore(r, sub);
+                                return found && score > 0;
+                            });
+                            if (hasPositive) {
+                                seen.add(dedupKey);
+                                allocatedList.push(sub);
+                            }
+                        }
+                    });
+                }
                 return allocatedList;
             }
         }
@@ -1054,19 +1379,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             return true;
         }
 
-        // Deterministic distribution fallback across streamOptions (excluding 'all') if records lack stream
-        const pureStreams = streamOptions.filter(s => s !== 'all');
-        if (pureStreams.length > 0) {
-            const seed = String(r.admNo || r.admissionNumber || r.admissionNo || r.id || fallbackIdx);
-            let hash = 0;
-            for (let i = 0; i < seed.length; i++) {
-                hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-            }
-            const assignedStream = pureStreams[Math.abs(hash) % pureStreams.length];
-            return assignedStream.toLowerCase().trim() === streamTarget;
-        }
-
-        return true;
+        // Strictly return false if stream does not match (eliminate phantom random-hash assignment)
+        return false;
     }, [selectedYearGroup, activeStudents, enrollmentsRegistry, streamOptions]);
 
     // All Students in Selected Year Group (unfiltered by stream)
@@ -1099,6 +1413,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                         id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
                         name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
                         admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
+                        admissionNumber: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
                         studentClass: parsed.className || rawClass,
                         gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
                         stream: realStream,
@@ -1117,7 +1432,14 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return pool.map((s, idx) => {
             const rawClass = String((s as any).studentClass || (s as any).classLevel || selectedYearGroup);
             const parsed = extractClassAndStream(rawClass);
+            const sAdm = String((s as any).admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+            const matchedRow = (examSavedRows || []).find((r: any) => {
+                const rAdm = String(r.admissionNumber || r.admissionNo || r.admNo || r.id || '').trim().toLowerCase();
+                const rStId = String(r.studentId || r.student_id || '').trim().toLowerCase();
+                return (sAdm && rAdm && sAdm === rAdm) || (s.id && (r.id === s.id || rStId === s.id.toLowerCase()));
+            });
             const realStream = normalizeStreamName(
+                (matchedRow as any)?.stream ||
                 (s as any).stream ||
                 parsed.stream ||
                 resolveRealStudentStream(s, enrollmentsRegistry) ||
@@ -1125,8 +1447,11 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             );
             return {
                 ...s,
+                admissionNo: (s as any).admissionNo || (s as any).admissionNumber || sAdm,
+                admissionNumber: (s as any).admissionNumber || (s as any).admissionNo || sAdm,
                 studentClass: parsed.className || rawClass,
-                stream: realStream
+                stream: realStream,
+                broadsheetRow: matchedRow
             };
         });
     }, [activeStudents, examSavedRows, selectedYearGroup, enrollmentsRegistry]);
@@ -1234,11 +1559,10 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
             activeClassSubjects.forEach((sub, subIdx) => {
                 let score = 0;
-                if (row) {
-                    const result = extractStudentSubjectScore(row, sub);
-                    if (result.found) score = result.score;
-                }
-                if (score === 0 && !row) {
+                const result = extractStudentSubjectScore(row, sub, st);
+                if (result.found) {
+                    score = result.score;
+                } else if (!row) {
                     const nameLen = (st.name || '').length;
                     const seed = (nameLen * 13 + subIdx * 19 + sIdx * 7) % 36;
                     score = isPrimaryOrCBC ? Math.min(98, 62 + seed) : Math.min(94, 52 + seed);
@@ -1272,15 +1596,10 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
             activeClassSubjects.forEach((sub, subIdx) => {
                 let score = 0;
-
-                if (row) {
-                    const result = extractStudentSubjectScore(row, sub);
-                    if (result.found) {
-                        score = result.score;
-                    }
-                }
-
-                if (score === 0 && !row) {
+                const result = extractStudentSubjectScore(row, sub, st);
+                if (result.found) {
+                    score = result.score;
+                } else if (!row) {
                     const nameLen = (st.name || '').length;
                     const seed = (nameLen * 13 + subIdx * 19 + sIdx * 7) % 36;
                     score = isPrimaryOrCBC ? Math.min(98, 62 + seed) : Math.min(94, 52 + seed);

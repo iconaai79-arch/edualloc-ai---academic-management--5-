@@ -196,24 +196,124 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
         return studentData.name.substring(0, 2).toUpperCase();
     }, [studentData]);
 
+    // Determine educational level & curriculum
+    const studentClassLower = (studentData?.studentClass || '').toLowerCase().trim();
+    const isSecondary = studentClassLower.includes('form') || studentClassLower.includes('sec') || studentClassLower.includes('standard') || studentClassLower.includes('std');
+    const isJuniorSecondary = studentClassLower.includes('grade 7') || studentClassLower.includes('grade 8') || studentClassLower.includes('grade 9') || studentClassLower.includes('jss');
+    const isUpperPrimary = studentClassLower.includes('grade 4') || studentClassLower.includes('grade 5') || studentClassLower.includes('grade 6');
+    const isPrimaryOrCBC = !isSecondary;
+
     // Subject scoring helper
     const getGradeInfo = (pct: number) => {
-        if (pct >= 80) return { grade: 'EE', points: 4, remark: 'Exceeding Expectation' };
-        if (pct >= 65) return { grade: 'ME', points: 3, remark: 'Meeting Expectation' };
-        if (pct >= 50) return { grade: 'AE', points: 2, remark: 'Approaching Expectation' };
-        return { grade: 'BE', points: 1, remark: 'Below Expectation' };
+        if (isPrimaryOrCBC) {
+            if (pct >= 80) return { grade: 'EE', points: 4, remark: 'Exceeding Expectation' };
+            if (pct >= 65) return { grade: 'ME', points: 3, remark: 'Meeting Expectation' };
+            if (pct >= 50) return { grade: 'AE', points: 2, remark: 'Approaching Expectation' };
+            return { grade: 'BE', points: 1, remark: 'Below Expectation' };
+        } else {
+            if (pct >= 80) return { grade: 'A', points: 12, remark: 'Excellent' };
+            if (pct >= 75) return { grade: 'A-', points: 11, remark: 'Very Good' };
+            if (pct >= 70) return { grade: 'B+', points: 10, remark: 'Good' };
+            if (pct >= 65) return { grade: 'B', points: 9, remark: 'Good' };
+            if (pct >= 60) return { grade: 'B-', points: 8, remark: 'Fairly Good' };
+            if (pct >= 55) return { grade: 'C+', points: 7, remark: 'Satisfactory' };
+            if (pct >= 50) return { grade: 'C', points: 6, remark: 'Average' };
+            if (pct >= 45) return { grade: 'C-', points: 5, remark: 'Pass' };
+            if (pct >= 40) return { grade: 'D+', points: 4, remark: 'Weak' };
+            if (pct >= 35) return { grade: 'D', points: 3, remark: 'Poor' };
+            if (pct >= 30) return { grade: 'D-', points: 2, remark: 'Very Poor' };
+            return { grade: 'E', points: 1, remark: 'Fail' };
+        }
     };
 
     // Subject breakdown
     const subjectRows = useMemo(() => {
-        const defaultSubjects = [
+        const row = studentData?.broadsheetRow;
+
+        // Default curriculum subjects
+        let defaultSubjects = [
             { code: 'KISW-LP', name: 'Kiswahili Language Activities', defaultPercent: 88, sign: 'M.N.' },
             { code: 'ENV-LP', name: 'Environmental Activities', defaultPercent: 92, sign: 'J.O.' },
             { code: 'HYG-LP', name: 'Hygiene and Nutrition Activities', defaultPercent: 84, sign: 'C.K.' },
             { code: 'CREAT-LP', name: 'Movement & Creative Activities', defaultPercent: 90, sign: 'E.W.' }
         ];
 
-        const row = studentData?.broadsheetRow;
+        if (isUpperPrimary) {
+            defaultSubjects = [
+                { code: 'MATH-UP', name: 'Mathematics Activities', defaultPercent: 85, sign: 'J.K.' },
+                { code: 'ENG-UP', name: 'English Language', defaultPercent: 82, sign: 'M.W.' },
+                { code: 'KISW-UP', name: 'Kiswahili Language', defaultPercent: 80, sign: 'O.M.' },
+                { code: 'SCI-UP', name: 'Science and Technology', defaultPercent: 86, sign: 'P.K.' },
+                { code: 'AGRI-UP', name: 'Agriculture and Nutrition', defaultPercent: 78, sign: 'R.N.' },
+                { code: 'SOC-UP', name: 'Social Studies', defaultPercent: 84, sign: 'E.K.' }
+            ];
+        } else if (isJuniorSecondary) {
+            defaultSubjects = [
+                { code: '101', name: 'English', defaultPercent: 76, sign: 'A.N.' },
+                { code: '102', name: 'Kiswahili', defaultPercent: 74, sign: 'M.S.' },
+                { code: '121', name: 'Mathematics', defaultPercent: 82, sign: 'P.K.' },
+                { code: '230', name: 'Integrated Science', defaultPercent: 80, sign: 'T.O.' },
+                { code: '310', name: 'Social Studies', defaultPercent: 78, sign: 'W.M.' },
+                { code: '443', name: 'Agriculture and Nutrition', defaultPercent: 85, sign: 'B.C.' },
+                { code: '451', name: 'Pre-Technical Studies', defaultPercent: 81, sign: 'K.L.' }
+            ];
+        } else if (isSecondary) {
+            defaultSubjects = [
+                { code: '101', name: 'English', defaultPercent: 72, sign: 'A.N.' },
+                { code: '102', name: 'Kiswahili', defaultPercent: 75, sign: 'M.S.' },
+                { code: '121', name: 'Mathematics', defaultPercent: 78, sign: 'P.K.' },
+                { code: '231', name: 'Biology', defaultPercent: 70, sign: 'S.W.' },
+                { code: '233', name: 'Chemistry', defaultPercent: 68, sign: 'D.K.' },
+                { code: '232', name: 'Physics', defaultPercent: 74, sign: 'E.N.' },
+                { code: '311', name: 'History and Government', defaultPercent: 82, sign: 'F.M.' },
+                { code: '312', name: 'Geography', defaultPercent: 76, sign: 'G.O.' },
+                { code: '313', name: 'Christian Religious Education', defaultPercent: 84, sign: 'H.P.' }
+            ];
+        }
+
+        // If broadsheet row contains dynamic subjects, map them directly
+        if (row && typeof row === 'object') {
+            const excludedKeys = new Set([
+                'id', 'studentid', 'student_id', 'admissionnumber', 'admissionno', 'admno',
+                'name', 'studentname', 'class', 'studentclass', 'stream', 'streamname',
+                'gender', 'total', 'mean', 'meanscore', 'average', 'rank', 'pos', 'position',
+                'kcpe', 'remarks', 'comments', 'grade', 'points', 'broadsheetrow', 'scores', 'marks', 'subjectmarks'
+            ]);
+
+            const dynamicSubjectEntries: { code: string; name: string; percent: number; sign: string }[] = [];
+            for (const [k, v] of Object.entries(row)) {
+                if (excludedKeys.has(k.toLowerCase())) continue;
+                if (v === null || v === undefined || v === '') continue;
+                const num = parseFloat(String(v));
+                if (!isNaN(num) && num >= 0) {
+                    const cleanKey = k.replace(/^subj_/, '').replace(/_p\d+$/, '').replace(/_/g, ' ').trim();
+                    const code = k.length <= 6 ? k.toUpperCase() : cleanKey.substring(0, 4).toUpperCase();
+                    const name = cleanKey.charAt(0).toUpperCase() + cleanKey.slice(1);
+                    dynamicSubjectEntries.push({
+                        code,
+                        name,
+                        percent: num,
+                        sign: 'TR'
+                    });
+                }
+            }
+
+            if (dynamicSubjectEntries.length >= 3) {
+                return dynamicSubjectEntries.map((sub, idx) => {
+                    const { grade, points, remark } = getGradeInfo(sub.percent);
+                    return {
+                        code: sub.code,
+                        name: sub.name,
+                        percent: sub.percent,
+                        grade,
+                        points,
+                        pos: 1 + idx,
+                        remark,
+                        sign: sub.sign
+                    };
+                });
+            }
+        }
 
         return defaultSubjects.map((sub, idx) => {
             let pct = sub.defaultPercent;
@@ -240,11 +340,79 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                 sign: sub.sign
             };
         });
-    }, [studentData]);
+    }, [studentData, isUpperPrimary, isJuniorSecondary, isSecondary, isPrimaryOrCBC]);
 
     const totalMarks = useMemo(() => subjectRows.reduce((sum, s) => sum + s.percent, 0), [subjectRows]);
-    const meanScore = useMemo(() => (totalMarks / subjectRows.length).toFixed(2), [totalMarks, subjectRows]);
-    const overallGrade = useMemo(() => getGradeInfo(parseFloat(meanScore)), [meanScore]);
+    const meanScore = useMemo(() => (subjectRows.length > 0 ? (totalMarks / subjectRows.length).toFixed(2) : '0.00'), [totalMarks, subjectRows]);
+    const overallGrade = useMemo(() => getGradeInfo(parseFloat(meanScore)), [meanScore, isPrimaryOrCBC, isSecondary]);
+
+    // Cohort analysis & accurate ranks
+    const { overallRank, overallTotal, streamRank, streamTotal, classMean } = useMemo(() => {
+        if (!broadsheetRows || broadsheetRows.length === 0) {
+            return {
+                overallRank: 1,
+                overallTotal: 1,
+                streamRank: 1,
+                streamTotal: 1,
+                classMean: meanScore
+            };
+        }
+
+        const currentCls = (studentData?.studentClass || '').toLowerCase().trim();
+        const currentStream = (studentData?.studentStream || '').toLowerCase().trim();
+
+        // Match cohort in same class
+        const classCohort = broadsheetRows.filter(r => {
+            const rCls = String(r.class || r.studentClass || '').toLowerCase().trim();
+            return !currentCls || rCls.includes(currentCls) || currentCls.includes(rCls);
+        });
+
+        const effectiveClassCohort = classCohort.length > 0 ? classCohort : broadsheetRows;
+
+        // Calculate score/mean for each row in cohort
+        const scoredCohort = effectiveClassCohort.map(r => {
+            const rMean = Number(r.mean || r.meanScore || r.average || 0);
+            const rTotal = Number(r.total || r.totalMarks || 0);
+            const rAdm = String(r.admissionNumber || r.admissionNo || r.admNo || r.studentId || r.id || '').trim().toLowerCase();
+            const rStream = normalizeStreamName(r.stream || r.streamName || extractClassAndStream(String(r.class || r.studentClass || '')).stream || '');
+            return {
+                adm: rAdm,
+                mean: rMean || (rTotal > 0 ? rTotal / 5 : 0),
+                total: rTotal,
+                stream: rStream.toLowerCase().trim()
+            };
+        });
+
+        // Sort descending
+        scoredCohort.sort((a, b) => (b.mean || b.total) - (a.mean || a.total));
+
+        const targetAdm = String(studentData?.admissionNo || '').trim().toLowerCase();
+        const myIndex = scoredCohort.findIndex(c => c.adm && (c.adm === targetAdm || targetAdm.includes(c.adm)));
+        const oRank = myIndex >= 0 ? myIndex + 1 : 1;
+        const oTotal = scoredCohort.length;
+
+        // Stream cohort
+        const streamCohort = scoredCohort.filter(c => currentStream && c.stream === currentStream);
+        let sRank = oRank;
+        let sTotal = oTotal;
+        if (streamCohort.length > 0) {
+            const streamIdx = streamCohort.findIndex(c => c.adm && (c.adm === targetAdm || targetAdm.includes(c.adm)));
+            sRank = streamIdx >= 0 ? streamIdx + 1 : 1;
+            sTotal = streamCohort.length;
+        }
+
+        // Class mean
+        const sumMeans = scoredCohort.reduce((sum, c) => sum + (c.mean || 0), 0);
+        const calcMean = scoredCohort.length > 0 ? (sumMeans / scoredCohort.length).toFixed(2) : meanScore;
+
+        return {
+            overallRank: oRank,
+            overallTotal: oTotal,
+            streamRank: sRank,
+            streamTotal: sTotal,
+            classMean: calcMean
+        };
+    }, [broadsheetRows, studentData, meanScore]);
 
     // Auto-trigger print if requested via query param
     useEffect(() => {
@@ -448,11 +616,13 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                                 </div>
                                 <div className="p-1.5 col-span-3 flex items-center gap-1">
                                     <span className="font-bold text-slate-900 shrink-0">Class Mean:</span>
-                                    <span className="font-bold text-slate-900">{meanScore}%</span>
+                                    <span className="font-bold text-slate-900">{classMean}%</span>
                                 </div>
                                 <div className="p-1.5 col-span-6 flex items-center gap-1">
                                     <span className="font-bold text-slate-900 shrink-0">Curriculum:</span>
-                                    <span className="font-bold text-slate-900 uppercase">CBC ASSESSMENT</span>
+                                    <span className="font-bold text-slate-900 uppercase">
+                                        {isSecondary ? '8-4-4 SYSTEM' : 'CBC ASSESSMENT'}
+                                    </span>
                                 </div>
                             </div>
 
@@ -464,7 +634,7 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                                 </div>
                                 <div className="p-1.5 col-span-9 flex items-center gap-1">
                                     <span className="font-bold text-slate-900 shrink-0">Overall pos:</span>
-                                    <span className="font-bold text-slate-900">1 / 59</span>
+                                    <span className="font-bold text-slate-900">{overallRank} / {overallTotal}</span>
                                 </div>
                             </div>
 
@@ -476,7 +646,7 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                                 </div>
                                 <div className="p-1.5 col-span-9 flex items-center gap-1">
                                     <span className="font-bold text-slate-900 shrink-0">Stream pos:</span>
-                                    <span className="font-bold text-slate-900">1 / 59</span>
+                                    <span className="font-bold text-slate-900">{streamRank} / {streamTotal}</span>
                                 </div>
                             </div>
                         </div>
@@ -525,7 +695,11 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                                 <p className="font-medium text-slate-800 italic">
                                     {parseFloat(meanScore) >= 80
                                         ? 'Outstanding performance! Consistently demonstrating mastery in all learning areas.'
-                                        : 'Good work and steady progress. Keep up the high level of dedication.'}
+                                        : parseFloat(meanScore) >= 65
+                                        ? 'Good work and steady progress. Keep up the high level of dedication and aim even higher.'
+                                        : parseFloat(meanScore) >= 50
+                                        ? 'Fair effort. More practice needed in key competency areas to improve overall ranking.'
+                                        : 'Requires remedial support and focused attention to meet the expected competencies.'}
                                 </p>
                             </div>
                             <div className="col-span-3 p-2.5 flex items-center justify-center font-black uppercase text-slate-900">
@@ -542,7 +716,11 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                                 <p className="font-medium text-slate-800 italic">
                                     {parseFloat(meanScore) >= 80
                                         ? 'An exemplary report. Commended for scholastic excellence and discipline.'
-                                        : 'Commendable result. Maintain this momentum into the next term.'}
+                                        : parseFloat(meanScore) >= 65
+                                        ? 'Commendable result. Maintain this momentum into the next term.'
+                                        : parseFloat(meanScore) >= 50
+                                        ? 'Promising capability shown. Encourage consistent revision at home and school.'
+                                        : 'Urgent parental conference and guided study recommended for academic turnaround.'}
                                 </p>
                             </div>
                             <div className="col-span-3 p-2.5 flex items-center justify-center text-slate-400 text-[10px] font-bold">

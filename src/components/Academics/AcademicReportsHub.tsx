@@ -699,7 +699,7 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                 {/* 5. RESULTS SLIPS */}
                 {activeSubTab === 'result_slips' && (
                     <OfficialResultSlipView
-                        assessments={assessments}
+                        assessments={effectiveAssessments}
                         marks={marks}
                         students={activeStudents}
                         users={users}
