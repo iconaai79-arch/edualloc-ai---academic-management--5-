@@ -2924,10 +2924,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         URL.revokeObjectURL(url);
     };
 
-    const createBlobUrlFromPdfData = (sourceUrl?: string | null): string => {
+    const pdfBlobCache = useRef<Map<string, string>>(new Map());
+
+    const createBlobUrlFromPdfData = useCallback((sourceUrl?: string | null): string => {
         if (!sourceUrl) return '';
         if (sourceUrl.startsWith('blob:') || sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://')) {
             return sourceUrl;
+        }
+        if (pdfBlobCache.current.has(sourceUrl)) {
+            return pdfBlobCache.current.get(sourceUrl)!;
         }
         try {
             if (sourceUrl.includes(';base64,') || sourceUrl.startsWith('data:application/pdf')) {
@@ -2940,14 +2945,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         bytes[i] = binaryStr.charCodeAt(i);
                     }
                     const blob = new Blob([bytes], { type: 'application/pdf' });
-                    return URL.createObjectURL(blob);
+                    const blobUrl = URL.createObjectURL(blob);
+                    pdfBlobCache.current.set(sourceUrl, blobUrl);
+                    return blobUrl;
                 }
             }
         } catch (e) {
             console.error("Failed to convert data URI to blob URL:", e);
         }
         return sourceUrl;
-    };
+    }, []);
 
     const printStudentStatementHtml = (params: {
         student: any;
@@ -3308,7 +3315,41 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [collection3DMode, setCollection3DMode] = useState<'3d_bars' | '3d_donuts' | 'matrix'>('3d_bars');
     const [collection3DSelectedClass, setCollection3DSelectedClass] = useState<string | null>(null);
 
-    // Ensure statement preview scrolls to top when opened and lock background scrolling
+    // Instant zero-lag close handlers using optimistic DOM hiding and non-blocking React transitions
+    const closeBalPreview = useCallback(() => {
+        const overlay = document.getElementById('bal-preview-overlay');
+        if (overlay) overlay.style.display = 'none';
+        document.body.style.overflow = '';
+        React.startTransition(() => {
+            setBalPreviewStudentId('');
+            setIsGeneratingStmtPdf(false);
+        });
+    }, []);
+
+    const closeStmtReport = useCallback(() => {
+        const container = document.getElementById('student-stmt-report-container');
+        if (container) container.style.display = 'none';
+        React.startTransition(() => {
+            setStmtStudentId('');
+            setStmtPdfDataUri(null);
+            setIsGeneratingStmtPdf(false);
+        });
+    }, []);
+
+    const closeStmtPdfModal = useCallback(() => {
+        const modalEl = document.getElementById('stmt-pdf-modal-overlay');
+        if (modalEl) modalEl.style.display = 'none';
+        if (stmtPdfDataUri && stmtPdfDataUri.startsWith('blob:')) {
+            try { URL.revokeObjectURL(stmtPdfDataUri); } catch (_) {}
+        }
+        React.startTransition(() => {
+            setShowStmtPdfModal(false);
+            setStmtPdfDataUri(null);
+            setIsGeneratingStmtPdf(false);
+        });
+    }, [stmtPdfDataUri]);
+
+    // Ensure statement preview scrolls to top when opened, lock background scrolling, and listen for Escape key
     useEffect(() => {
         if (balPreviewStudentId) {
             const originalOverflow = document.body.style.overflow;
@@ -3319,11 +3360,33 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const panelEl = document.getElementById('bal-preview-panel');
                 if (panelEl) panelEl.scrollTop = 0;
             }, 10);
+
+            const handleKeyDown = (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                    closeBalPreview();
+                }
+            };
+            window.addEventListener('keydown', handleKeyDown);
+
             return () => {
                 document.body.style.overflow = originalOverflow;
+                window.removeEventListener('keydown', handleKeyDown);
             };
         }
-    }, [balPreviewStudentId, balPreviewViewMode]);
+    }, [balPreviewStudentId, balPreviewViewMode, closeBalPreview]);
+
+    // Handle Escape key for PDF viewer modal
+    useEffect(() => {
+        if (showStmtPdfModal) {
+            const handleKeyDown = (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                    closeStmtPdfModal();
+                }
+            };
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
+        }
+    }, [showStmtPdfModal, closeStmtPdfModal]);
 
     const studentFinanceData = useMemo(() => {
         const filteredStudents = mergedStudents.filter(s => matchesSelectedBranch(s));
@@ -8833,7 +8896,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             props.institution.logoUrl || (props.institution as any).logo_url,
                             props.currentUser?.name
                         );
-                        setStmtPdfDataUri(uri);
+                        const blobUrl = createBlobUrlFromPdfData(uri);
+                        setStmtPdfDataUri(blobUrl);
                         setShowStmtPdfModal(true);
                     } catch (err) { alert('Failed to generate PDF preview.'); } finally { setIsGeneratingStmtPdf(false); }
                 };
@@ -8842,10 +8906,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                 return (
                     <div 
+                        id="bal-preview-overlay"
                         className="fixed inset-0 z-[999999] bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden animate-in fade-in duration-200"
                         style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw', height: '100vh', zIndex: 999999, margin: 0 }}
                         onClick={(e) => {
-                            if (e.target === e.currentTarget) setBalPreviewStudentId('');
+                            if (e.target === e.currentTarget) closeBalPreview();
                         }}
                     >
                         <div 
@@ -8890,7 +8955,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         {isGeneratingStmtPdf ? '⏳ Generating...' : '📄 Download PDF'}
                                     </button>
                                     <button type="button" onClick={() => { exportCSV(`statement_${balPrevStudent!.name.replace(/\s+/g, '_')}`, ['Date', 'Reference', 'Particulars / Description', 'Charges (Dr)', 'Payments (Cr)', 'Running Balance'], balPrevLedger.map(e => [e.date, (e as any).reference || '—', e.description, e.debit, e.credit, e.balance])); }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95">📥 CSV</button>
-                                    <button type="button" onClick={() => setBalPreviewStudentId('')} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">✕ Close</button>
+                                    <button type="button" onClick={closeBalPreview} className="px-3 py-1.5 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95">✕ Close</button>
                                 </div>
                             </div>
 
@@ -23137,7 +23202,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             props.institution.logoUrl || (props.institution as any).logo_url,
                                             props.currentUser?.name
                                         );
-                                        setStmtPdfDataUri(uri);
+                                        const blobUrl = createBlobUrlFromPdfData(uri);
+                                        setStmtPdfDataUri(blobUrl);
                                         setShowStmtPdfModal(true);
                                     } catch (err) {
                                         console.error("PDF viewer error:", err);
@@ -23163,13 +23229,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     {filteredStudents.map((s: any) => {
                                                          const adm = studentAdmissionNumber(s);
                                                          return <option key={s.id} value={s.id}>{s.name}{adm && adm !== '—' ? ` (${adm})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>;
-                                                     })}
+                                                    })}
                                                 </select>
                                             </div>
                                         </div>
 
                                         {selectedStudent && (
-                                            <div className="space-y-6">
+                                            <div id="student-stmt-report-container" className="space-y-6">
                                                 {/* View Mode Toolbar - Sticky with high z-index to prevent overlay and loss of controls */}
                                                 <div className="sticky top-2 z-30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/95 backdrop-blur-md text-white p-4 px-6 rounded-2xl shadow-xl border border-slate-800">
                                                     <div className="flex items-center gap-3 flex-wrap">
@@ -23260,7 +23326,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setStmtStudentId('')}
+                                                            onClick={closeStmtReport}
                                                             className="px-3 py-2 bg-rose-800/60 hover:bg-rose-700 text-rose-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                                                             title="Close statement and choose another student"
                                                         >
