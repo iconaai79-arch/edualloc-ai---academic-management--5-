@@ -14,8 +14,45 @@ import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../../utils/academicSubjectUtils';
-import { extractClassAndStream } from '../../utils/academicUtils';
+import { extractClassAndStream, normalizeStreamName } from '../../utils/academicUtils';
 import { extractStreamOnly } from './BroadsheetReportView';
+
+/**
+ * Accurately matches candidate class/grade against target class/grade,
+ * preventing cross-class collisions (e.g. "Form 1" must never match "Form 10").
+ */
+export const isGradeMatching = (candidate?: string, target?: string): boolean => {
+    if (!candidate || !target) return false;
+    const cleanCand = candidate.trim().toLowerCase();
+    const cleanTgt = target.trim().toLowerCase();
+    if (cleanCand === cleanTgt) return true;
+
+    const parsedCand = extractClassAndStream(candidate);
+    const parsedTgt = extractClassAndStream(target);
+
+    const baseCand = (parsedCand.className || candidate).trim().toLowerCase();
+    const baseTgt = (parsedTgt.className || target).trim().toLowerCase();
+    if (baseCand === baseTgt) return true;
+
+    // Strip bracketed curriculum tags like "(8-4-4)", "(CBC)", "(CBE)"
+    const stripBrackets = (s: string) => s.replace(/\s*\([^)]*\)/g, '').trim();
+    const strippedCand = stripBrackets(baseCand);
+    const strippedTgt = stripBrackets(baseTgt);
+    if (strippedCand === strippedTgt) return true;
+
+    // Compare numeric grade values if prefixes match
+    const candNum = strippedCand.replace(/^(form|grade|class|year|standard|std)\s*/i, '').trim();
+    const tgtNum = strippedTgt.replace(/^(form|grade|class|year|standard|std)\s*/i, '').trim();
+
+    const candPrefix = (strippedCand.match(/^(form|grade|class|year|standard|std)/i) || [''])[0];
+    const tgtPrefix = (strippedTgt.match(/^(form|grade|class|year|standard|std)/i) || [''])[0];
+
+    if (candNum && tgtNum && candNum === tgtNum && candPrefix === tgtPrefix) {
+        return true;
+    }
+
+    return false;
+};
 
 export interface SubjectAllocationRecord {
     id: string;
@@ -783,110 +820,133 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Helper to get available streams for any given class (Strictly stream names, e.g. ['EAST', 'WEST'])
+    // Helper to get available streams strictly assigned to a specific grade/class (e.g. ['EAST', 'WEST'])
     const getStreamsForClass = useCallback((targetClass: string): string[] => {
         const streamSet = new Set<string>();
         if (!targetClass) return [];
         const targetClean = targetClass.toLowerCase().trim();
 
-        // 1. From institution configured streams
-        if ((currentInstitution as any)?.streams && Array.isArray((currentInstitution as any).streams)) {
-            (currentInstitution as any).streams.forEach((s: any) => {
-                const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
-                const clean = extractStreamOnly(sName, targetClass);
-                if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean)) {
+        // 1. From courses explicitly assigned to targetClass (course levels or course title stream)
+        (courses || []).forEach((c: any) => {
+            const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
+            const parsed = extractClassAndStream(cName);
+            const baseName = (parsed.className || cName).trim();
+
+            if (isGradeMatching(baseName, targetClass)) {
+                // Levels defined under this course are streams assigned to this grade
+                if (Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = String(l.name || l.title || l.streamName || '').trim();
+                        const clean = extractStreamOnly(lName, targetClass) || normalizeStreamName(lName);
+                        if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean) && clean.toLowerCase() !== 'all') {
+                            streamSet.add(clean.toUpperCase());
+                        }
+                    });
+                }
+                // If the course title itself includes a stream (e.g. "Form 3 East")
+                if (parsed.stream) {
+                    const streamClean = extractStreamOnly(parsed.stream, targetClass) || normalizeStreamName(parsed.stream);
+                    if (streamClean && streamClean.toLowerCase() !== targetClean && !/^\d+$/.test(streamClean) && streamClean.toLowerCase() !== 'all') {
+                        streamSet.add(streamClean.toUpperCase());
+                    }
+                }
+            }
+        });
+
+        // 2. From users & registered students strictly enrolled in targetClass
+        [...allRegisteredStudents, ...users].forEach((u: any) => {
+            if (!u) return;
+            const uClass = String(
+                u.studentClass || u.classLevel || u.class_name || u.class ||
+                u.metadata?.studentClass || u.metadata?.gradeLevel || u.gradeLevel || ''
+            ).trim();
+            if (!uClass) return;
+
+            const parsed = extractClassAndStream(uClass);
+            const baseName = (parsed.className || uClass).trim();
+
+            // ONLY students enrolled in this specific grade
+            if (isGradeMatching(baseName, targetClass)) {
+                const directStream = u.stream || u.streamName || u.metadata?.stream || u.metadata?.streamName || parsed.stream || '';
+                if (directStream) {
+                    const clean = extractStreamOnly(String(directStream), targetClass) || normalizeStreamName(directStream);
+                    if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean) && clean.toLowerCase() !== 'all') {
+                        streamSet.add(clean.toUpperCase());
+                    }
+                }
+            }
+        });
+
+        // 3. From saved DB allocations strictly assigned to targetClass
+        (allocations || []).forEach(a => {
+            const aClass = (a.className || '').trim();
+            if (!aClass) return;
+            const parsed = extractClassAndStream(aClass);
+            const baseName = (parsed.className || aClass).trim();
+
+            if (isGradeMatching(baseName, targetClass) && parsed.stream) {
+                const clean = extractStreamOnly(parsed.stream, targetClass) || normalizeStreamName(parsed.stream);
+                if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean) && clean.toLowerCase() !== 'all') {
                     streamSet.add(clean.toUpperCase());
+                }
+            }
+        });
+
+        // 4. From classAllocationsStore keys matching targetClass
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            const parsed = extractClassAndStream(k);
+            const baseName = (parsed.className || k).trim();
+
+            if (isGradeMatching(baseName, targetClass) && parsed.stream) {
+                const clean = extractStreamOnly(parsed.stream, targetClass) || normalizeStreamName(parsed.stream);
+                if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean) && clean.toLowerCase() !== 'all') {
+                    streamSet.add(clean.toUpperCase());
+                }
+            }
+        });
+
+        // 5. From customStreamsStore explicitly assigned to this class
+        const customForClass = customStreamsStore[targetClass] || [];
+        customForClass.forEach(cs => {
+            const clean = extractStreamOnly(cs, targetClass) || normalizeStreamName(cs);
+            if (clean && !/^\d+$/.test(clean) && clean.toLowerCase() !== 'all') {
+                streamSet.add(clean.toUpperCase());
+            }
+        });
+
+        // 6. From institution streams with explicit class/grade mapping
+        if (Array.isArray((currentInstitution as any)?.streams)) {
+            (currentInstitution as any).streams.forEach((s: any) => {
+                if (typeof s === 'object' && s !== null) {
+                    const assignedGrade = s.className || s.class || s.grade || s.gradeLevel || s.courseName;
+                    if (assignedGrade && isGradeMatching(assignedGrade, targetClass)) {
+                        const sName = s.name || s.title || s.streamName || '';
+                        const clean = extractStreamOnly(sName, targetClass) || normalizeStreamName(sName);
+                        if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean) && clean.toLowerCase() !== 'all') {
+                            streamSet.add(clean.toUpperCase());
+                        }
+                    }
                 }
             });
         }
 
-        // 2. From courses matching targetClass
-        (courses || []).forEach((c: any) => {
-            const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
-            const parsed = extractClassAndStream(cName);
-            const baseName = (parsed.className || cName).trim().toLowerCase();
-
-            if (baseName === targetClean || cName.toLowerCase().startsWith(targetClean)) {
-                if (Array.isArray(c.levels)) {
-                    c.levels.forEach((l: any) => {
-                        const lName = String(l.name || '').trim();
-                        const clean = extractStreamOnly(lName, targetClass);
-                        if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
-                    });
-                }
-                const streamClean = extractStreamOnly(cName, targetClass);
-                if (streamClean && !/^\d+$/.test(streamClean)) streamSet.add(streamClean.toUpperCase());
-            }
-        });
-
-        // 3. From users & registered students in targetClass
-        [...allRegisteredStudents, ...users].forEach((u: any) => {
-            if (!u) return;
-            const uClass = String(u.studentClass || u.classLevel || u.class_name || u.class || '').trim();
-            const parsed = extractClassAndStream(uClass);
-            const baseName = (parsed.className || uClass).trim().toLowerCase();
-
-            if (baseName === targetClean || uClass.toLowerCase().startsWith(targetClean)) {
-                const directStream = u.stream || u.streamName || u.metadata?.stream || u.metadata?.streamName || '';
-                if (directStream) {
-                    const clean = extractStreamOnly(String(directStream), targetClass);
-                    if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
-                }
-                const fromClass = extractStreamOnly(uClass, targetClass);
-                if (fromClass && !/^\d+$/.test(fromClass)) streamSet.add(fromClass.toUpperCase());
-            }
-        });
-
-        // 4. From saved DB allocations matching targetClass
-        (allocations || []).forEach(a => {
-            const aClass = (a.className || '').trim();
-            if (aClass.toLowerCase().startsWith(targetClean) && aClass.toLowerCase() !== targetClean) {
-                const clean = extractStreamOnly(aClass, targetClass);
-                if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
-            }
-        });
-
-        // 5. From classAllocationsStore keys matching targetClass
-        Object.keys(classAllocationsStore || {}).forEach(k => {
-            if (k.toLowerCase().startsWith(targetClean) && k.toLowerCase() !== targetClean) {
-                const clean = extractStreamOnly(k, targetClass);
-                if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
-            }
-        });
-
-        // 6. From customStreamsStore
-        const customForClass = customStreamsStore[targetClass] || [];
-        customForClass.forEach(cs => {
-            const clean = extractStreamOnly(cs, targetClass);
-            if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
-        });
-
-        // 7. Check localStorage cached broadsheets
-        try {
-            const cachedBroadsheets = localStorage.getItem('eduai_saved_broadsheets');
-            if (cachedBroadsheets) {
-                const parsed = JSON.parse(cachedBroadsheets);
-                Object.keys(parsed).forEach(k => {
-                    if (k.toLowerCase().includes(targetClean)) {
-                        const clean = extractStreamOnly(k, targetClass);
-                        if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
-                    }
-                });
-            }
-        } catch(e) {}
-
-        // Fallback default streams for any school class if none detected
-        if (streamSet.size === 0) {
-            streamSet.add('EAST');
-            streamSet.add('WEST');
-        }
-
+        // Strictly return only streams assigned to this grade — NO artificial fallbacks!
         return Array.from(streamSet).sort();
     }, [currentInstitution, courses, allRegisteredStudents, users, allocations, classAllocationsStore, customStreamsStore]);
 
     // Available Streams for currently selected class and modal class
     const availableStreamsForClass = useMemo(() => getStreamsForClass(selectedClass), [getStreamsForClass, selectedClass]);
     const availableStreamsForModalClass = useMemo(() => getStreamsForClass(modalClassName), [getStreamsForClass, modalClassName]);
+
+    // Automatically reset selectedStream to 'all' when switching to a class that does not have that stream assigned
+    useEffect(() => {
+        if (selectedStream !== 'all') {
+            const hasStream = availableStreamsForClass.some(s => s.toLowerCase() === selectedStream.toLowerCase());
+            if (!hasStream) {
+                setSelectedStream('all');
+            }
+        }
+    }, [selectedClass, availableStreamsForClass, selectedStream]);
 
     // Add Custom Stream Handler
     const handleAddCustomStream = (streamName: string) => {
@@ -1253,7 +1313,10 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 <button
                                     key={cls}
                                     type="button"
-                                    onClick={() => setSelectedClass(cls)}
+                                    onClick={() => {
+                                        setSelectedClass(cls);
+                                        setSelectedStream('all');
+                                    }}
                                     className={`px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shrink-0 border text-left cursor-pointer ${
                                         isSelected
                                             ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-100 dark:shadow-none scale-105'
@@ -1290,7 +1353,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 All Streams ({selectedClass})
                             </button>
 
-                            {/* Individual Stream Pills */}
+                            {/* Individual Stream Pills strictly assigned to this grade */}
                             {availableStreamsForClass.map(st => {
                                 const isSelected = selectedStream.toLowerCase() === st.toLowerCase();
                                 const streamClassKey = `${selectedClass} ${st}`.toLowerCase().trim();
@@ -1318,6 +1381,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                     </button>
                                 );
                             })}
+
+                            {availableStreamsForClass.length === 0 && (
+                                <span className="text-[11px] font-bold text-slate-400 italic px-2">
+                                    (No streams assigned to {selectedClass})
+                                </span>
+                            )}
                         </div>
 
                         {/* Add Custom Stream or Stream Action */}
@@ -1696,7 +1765,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         const targetStr = selectedStream.toLowerCase().trim();
                         const sClass = (st.studentClass || '').toLowerCase().trim();
                         const sStream = extractStreamOnly(sClass, selectedClass).toLowerCase().trim() || ((st as any).stream ? String((st as any).stream).toLowerCase().trim() : '');
-                        return sStream === targetStr || sClass.includes(targetStr);
+                        return sStream === targetStr || extractClassAndStream(sClass).stream?.toLowerCase().trim() === targetStr;
                     })
                     : rawClassStudents;
                 const classApplicableSubjects = getApplicableSubjectsForClass(selectedClass);
@@ -1775,6 +1844,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                         type="button"
                                         onClick={() => {
                                             setSelectedClass(cls);
+                                            setSelectedStream('all');
                                             setEnrollmentSelectedSubject('all');
                                         }}
                                         className={`px-4 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shrink-0 border text-left cursor-pointer ${
@@ -1812,7 +1882,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 const isSel = selectedStream.toLowerCase() === st.toLowerCase();
                                 const countInStream = rawClassStudents.filter(s => {
                                     const strClean = extractStreamOnly(s.studentClass || '', selectedClass).toLowerCase().trim() || ((s as any).stream ? String((s as any).stream).toLowerCase().trim() : '');
-                                    return strClean === st.toLowerCase().trim() || (s.studentClass || '').toLowerCase().includes(st.toLowerCase().trim());
+                                    return strClean === st.toLowerCase().trim() || extractClassAndStream(s.studentClass || '').stream?.toLowerCase().trim() === st.toLowerCase().trim();
                                 }).length;
                                 return (
                                     <button
@@ -1832,6 +1902,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                     </button>
                                 );
                             })}
+                            {availableStreamsForClass.length === 0 && (
+                                <span className="text-[11px] font-bold text-slate-400 italic px-2">
+                                    (No streams assigned to {selectedClass})
+                                </span>
+                            )}
                         </div>
 
                         {/* Filter & Subject Selection Bar */}
@@ -2060,7 +2135,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                         onChange={e => setModalStream(e.target.value)}
                                         className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
                                     >
-                                        <option value="all">Entire Class (All Streams)</option>
+                                        <option value="all">
+                                            {availableStreamsForModalClass.length > 0 ? 'Entire Class (All Streams)' : 'Entire Class (No Streams Assigned)'}
+                                        </option>
                                         {availableStreamsForModalClass.map(st => (
                                             <option key={st} value={st}>{st}</option>
                                         ))}
