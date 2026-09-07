@@ -129,7 +129,8 @@ const PUBLIC_MODULES = [
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
   'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
   'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads',
-  'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks'
+  'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks',
+  'app_notifications'
 ];
 
 const MODULE_ALIASES: Record<string, string> = {
@@ -148,7 +149,8 @@ const isTableWithoutInstitutionId = (module: string) => {
     'counties', 'constituencies', 'wards', 'political_parties',
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
-    'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
+    'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
+    'app_notifications'
   ].includes(module);
 };
 
@@ -337,32 +339,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            if (finalLimit <= CHUNK_SIZE) {
-                const res = await buildBaseQuery().range(offset, offset + finalLimit - 1);
-                data = res.data || [];
-                error = res.error;
-            } else {
-                let currentOffset = offset;
-                let remaining = finalLimit;
-
-                while (remaining > 0) {
-                    const batchSize = Math.min(CHUNK_SIZE, remaining);
-                    const res = await buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1);
-                    if (res.error) {
-                        if (data.length === 0) {
-                            error = res.error;
-                        } else {
-                            console.warn(`[API GET] Chunk fetch error for '${moduleName}' at offset ${currentOffset}:`, res.error);
-                        }
-                        break;
-                    }
-                    const chunk = res.data || [];
-                    if (chunk.length === 0) break;
-                    data.push(...chunk);
-                    if (chunk.length < batchSize) break; // Reached end of dataset
-                    currentOffset += chunk.length;
-                    remaining -= chunk.length;
+            const executeWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number = 6000): Promise<T> => {
+                let timer: any;
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error('statement timeout')), timeoutMs);
+                });
+                try {
+                    return await Promise.race([promise, timeoutPromise]);
+                } finally {
+                    clearTimeout(timer);
                 }
+            };
+
+            try {
+                if (finalLimit <= CHUNK_SIZE) {
+                    const res = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1));
+                    data = res.data || [];
+                    error = res.error;
+                } else {
+                    let currentOffset = offset;
+                    let remaining = finalLimit;
+
+                    while (remaining > 0) {
+                        const batchSize = Math.min(CHUNK_SIZE, remaining);
+                        const res = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
+                        if (res.error) {
+                            if (data.length === 0) {
+                                error = res.error;
+                            } else {
+                                console.warn(`[API GET] Chunk fetch error for '${moduleName}' at offset ${currentOffset}:`, res.error);
+                            }
+                            break;
+                        }
+                        const chunk = res.data || [];
+                        if (chunk.length === 0) break;
+                        data.push(...chunk);
+                        if (chunk.length < batchSize) break; // Reached end of dataset
+                        currentOffset += chunk.length;
+                        remaining -= chunk.length;
+                    }
+                }
+            } catch (timeoutEx: any) {
+                error = { code: '57014', message: timeoutEx?.message || 'statement timeout' };
             }
             if (error) {
                 const isTableMissing = error.code === '42P01' || 

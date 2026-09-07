@@ -1101,6 +1101,20 @@ export const apiService = {
                         })
                     );
                 }
+                if (options?.order && Array.isArray(records)) {
+                    const [orderCol, orderDir] = options.order.split('.');
+                    const isAsc = orderDir === 'asc';
+                    records.sort((a: any, b: any) => {
+                        const valA = a[orderCol] ?? a[orderCol.replace(/_([a-z])/g, (_, c) => c.toUpperCase())] ?? '';
+                        const valB = b[orderCol] ?? b[orderCol.replace(/_([a-z])/g, (_, c) => c.toUpperCase())] ?? '';
+                        if (valA < valB) return isAsc ? -1 : 1;
+                        if (valA > valB) return isAsc ? 1 : -1;
+                        return 0;
+                    });
+                }
+                if (options?.limit && typeof options.limit === 'number' && Array.isArray(records)) {
+                    records = records.slice(0, options.limit);
+                }
 
                 const result = toCamelCase(records);
                 const finalResult = Array.isArray(result) ? result : [];
@@ -1267,12 +1281,20 @@ export const apiService = {
                     });
                 }
 
-                const doFetch = (tkn: string) => fetch(url.toString(), {
-                    headers: {
-                        'Authorization': tkn ? `Bearer ${tkn}` : '',
-                        'Content-Type': 'application/json'
-                    }
-                });
+                const fetchTimeoutMs = (module === 'app_notifications' || module === 'activity_log') ? 6000 : 15000;
+                const doFetch = (tkn: string) => {
+                    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                    const timeoutId = controller ? setTimeout(() => controller.abort(), fetchTimeoutMs) : null;
+                    return fetch(url.toString(), {
+                        signal: controller ? controller.signal : undefined,
+                        headers: {
+                            'Authorization': tkn ? `Bearer ${tkn}` : '',
+                            'Content-Type': 'application/json'
+                        }
+                    }).finally(() => {
+                        if (timeoutId) clearTimeout(timeoutId);
+                    });
+                };
 
                 let response = await doFetch(token);
 
@@ -1424,9 +1446,14 @@ export const apiService = {
                     return result;
                 }
                 return queryLocal();
-            } catch (e) {
-                console.error(`Fetch Exception [${module}]:`, e);
-                console.warn(`[apiService] Falling back to local storage for module [${module}]`);
+            } catch (e: any) {
+                const isAbort = e?.name === 'AbortError' || String(e?.message || '').includes('aborted');
+                if (isAbort) {
+                    console.info(`[apiService] Fetch request for [${module}] timed out gracefully — serving local records.`);
+                } else {
+                    console.warn(`Fetch Notice [${module}]:`, e?.message || e);
+                    console.info(`[apiService] Serving local storage records for module [${module}]`);
+                }
                 return queryLocal();
             }
         };
