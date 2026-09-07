@@ -46,7 +46,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
     const [manualPayStudentId, setManualPayStudentId] = useState('');
     const [manualPayStudentSearch, setManualPayStudentSearch] = useState('');
     const [manualPayInvoiceId, setManualPayInvoiceId] = useState('');
-    const [manualPayAmount, setManualPayAmount] = useState<number>(0);
+    const [manualPayAmount, setManualPayAmount] = useState<string>('');
     const [manualPayDate, setManualPayDate] = useState(new Date().toISOString().split('T')[0]);
     const [manualPayMethod, setManualPayMethod] = useState('Cash');
     const [manualPayReference, setManualPayReference] = useState('');
@@ -64,7 +64,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
             setManualPayStudentSearch('');
             setManualPayStudentId('');
             setManualPayInvoiceId('');
-            setManualPayAmount(0);
+            setManualPayAmount('');
             setManualPayReference('');
             setManualPayBankAccountId('');
             setUseCustomReceiptNumber(false);
@@ -104,7 +104,15 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         }).slice(0, 40);
     }, [manualPayStudentSearch, manualPayStudentId, studentFinanceData, students]);
 
-    // Compute pending invoices with actual remaining balance (deducting posted payments)
+    // Memoize receipts belonging to the selected student once for fast lookup
+    const selectedStudentReceipts = useMemo(() => {
+        if (!manualPayStudentId) return [];
+        return (receipts || []).filter((r: any) => {
+            return r.studentId === manualPayStudentId || r.student_id === manualPayStudentId;
+        });
+    }, [manualPayStudentId, receipts]);
+
+    // Compute student invoices with actual remaining balance and cleared flag
     const studentPendingInvoices = useMemo(() => {
         if (!manualPayStudentId) return [];
 
@@ -121,12 +129,12 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
             const directPaid = Number(inv.paidAmount || inv.paid_amount || inv.amountPaid || inv.amount_paid || 0);
             const mapPaid = invoicePaidAmountMap?.get(inv.id) || 0;
 
-            const directReceiptsPaid = (receipts || []).filter((r: any) => {
+            const directReceiptsPaid = selectedStudentReceipts.filter((r: any) => {
                 const invId = r.invoiceId || r.invoice_id;
                 return invId && String(invId) === String(inv.id);
             }).reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount_paid || r.amount || 0), 0);
 
-            const paid = Math.max(mapPaid, directReceiptsPaid, directPaid);
+            let paid = Math.max(mapPaid, directReceiptsPaid, directPaid);
             let balance = Math.max(0, total - paid);
 
             // If an explicit balance is stored in DB that is lower
@@ -137,19 +145,33 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                 }
             }
 
-            const status = (balance <= 0 && total > 0) ? 'paid' : (paid > 0 ? 'partial' : (inv.status || 'pending'));
+            // Check if explicitly marked as paid / cleared / settled
+            const isExplicitlyCleared = 
+                ['paid', 'cleared', 'settled'].includes(String(inv.status || '').trim().toLowerCase()) ||
+                Boolean(inv.is_cleared || inv.isCleared);
+
+            if (isExplicitlyCleared || balance <= 0) {
+                balance = 0;
+                paid = Math.max(paid, total);
+            }
+
+            const status = balance <= 0 ? 'paid' : (paid > 0 ? 'partial' : (inv.status || 'pending'));
 
             return {
                 ...inv,
                 totalAmount: total,
                 paidAmount: paid,
                 balance: balance,
-                status: status
+                status: status,
+                isCleared: balance <= 0
             };
-        }).filter(inv => inv.balance > 0);
+        });
 
-        // Sort chronologically
+        // Sort: pending/outstanding invoices first, cleared invoices after; within each group chronologically
         regularInvoices.sort((a, b) => {
+            if (a.isCleared !== b.isCleared) {
+                return a.isCleared ? 1 : -1;
+            }
             const dateA = new Date(a.issueDate || a.issue_date || a.createdAt || 0).getTime();
             const dateB = new Date(b.issueDate || b.issue_date || b.createdAt || 0).getTime();
             return dateA - dateB;
@@ -162,11 +184,10 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         );
 
         if (openingBal > 0) {
-            const receiptsPaidToOpening = (receipts || []).filter((r: any) => {
-                const belongsToStudent = r.studentId === manualPayStudentId || r.student_id === manualPayStudentId;
+            const receiptsPaidToOpening = selectedStudentReceipts.filter((r: any) => {
                 const invId = r.invoiceId || r.invoice_id;
                 const isOpeningBalReceipt = !invId || String(invId).startsWith('__opening_balance__');
-                return belongsToStudent && isOpeningBalReceipt;
+                return isOpeningBalReceipt;
             }).reduce((sum: number, r: any) => {
                 let allocated = Number(r.amountPaid || r.amount_paid || r.amount || 0);
                 if (r.allocations) {
@@ -192,6 +213,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     paidAmount: receiptsPaidToOpening,
                     balance: openingBalanceRemaining,
                     status: 'pending',
+                    isCleared: false,
                     isOpeningBalance: true,
                 };
                 return [syntheticEntry, ...regularInvoices];
@@ -199,35 +221,38 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         }
 
         return regularInvoices;
-    }, [manualPayStudentId, invoices, receipts, invoicePaidAmountMap, studentFinanceData, students]);
+    }, [manualPayStudentId, invoices, selectedStudentReceipts, invoicePaidAmountMap, studentFinanceData, students]);
 
-    // Automatically select the first pending invoice and prefill its remaining unpaid balance
+    // Automatically select the first pending invoice if none selected, but keep amount empty
     useEffect(() => {
         if (studentPendingInvoices && studentPendingInvoices.length > 0) {
             const currentSelected = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
-            if (currentSelected) {
-                // Keep selected invoice and set to its outstanding balance
-                setManualPayAmount(currentSelected.balance);
-            } else {
-                const firstPending = studentPendingInvoices[0];
+            if (!currentSelected && !manualPayInvoiceId) {
+                const firstPending = studentPendingInvoices.find(inv => !inv.isCleared && inv.balance > 0) || studentPendingInvoices[0];
                 setManualPayInvoiceId(firstPending.id);
-                setManualPayAmount(firstPending.balance);
             }
-        } else {
-            setManualPayInvoiceId('');
-            setManualPayAmount(0);
+        } else if (!manualPayInvoiceId) {
+            setManualPayInvoiceId('__prepayment__');
         }
     }, [studentPendingInvoices]);
 
+    // Use deferred value for typing responsiveness so keystrokes don't lag
+    const deferredPayAmount = React.useDeferredValue(manualPayAmount);
+    const parsedPayAmount = useMemo(() => {
+        if (!deferredPayAmount) return 0;
+        const clean = String(deferredPayAmount).replace(/[^0-9.]/g, '');
+        const val = parseFloat(clean);
+        return isNaN(val) ? 0 : Math.max(0, val);
+    }, [deferredPayAmount]);
+
     // Preview vote head allocations based on remaining balances
     const previewAllocations = useMemo(() => {
-        if (!manualPayStudentId || manualPayAmount <= 0) return [];
+        if (!manualPayStudentId || parsedPayAmount <= 0) return [];
 
-        const amountPaidNum = Number(manualPayAmount);
         const selectedInvoice = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
         const isTargetingOpeningBalance = selectedInvoice?.isOpeningBalance || manualPayInvoiceId?.startsWith('__opening_balance__');
 
-        let remainingAmount = amountPaidNum;
+        let remainingAmount = parsedPayAmount;
         const allocations: Array<{
             invoiceNumber: string;
             description: string;
@@ -247,7 +272,9 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         }
 
         if (remainingAmount > 0) {
-            const sortedInvoices = [...studentPendingInvoices.filter(i => !i.isOpeningBalance)].sort((a: any, b: any) => {
+            // Only allocate to outstanding invoices with actual remaining balance
+            const unpaidInvoices = studentPendingInvoices.filter(i => !i.isOpeningBalance && !i.isCleared && (i.balance > 0));
+            const sortedInvoices = [...unpaidInvoices].sort((a: any, b: any) => {
                 if (manualPayInvoiceId && !isTargetingOpeningBalance) {
                     if (a.id === manualPayInvoiceId) return -1;
                     if (b.id === manualPayInvoiceId) return 1;
@@ -314,43 +341,50 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
         }
 
         return allocations;
-    }, [manualPayStudentId, manualPayInvoiceId, manualPayAmount, studentPendingInvoices]);
+    }, [manualPayStudentId, manualPayInvoiceId, parsedPayAmount, studentPendingInvoices]);
 
     const handlePostManualPayment = async () => {
         if (isSavingManualPay) return;
-        if (!manualPayStudentId || manualPayAmount <= 0) {
-            alert("Please select a student and enter a valid payment amount.");
+        const amountNum = parseFloat(String(manualPayAmount).replace(/[^0-9.]/g, '')) || 0;
+        if (!manualPayStudentId || amountNum <= 0) {
+            alert("Please select a student and enter a valid payment amount greater than zero.");
             return;
         }
         setIsSavingManualPay(true);
         try {
             const selectedInvoice = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
             const openingBalRemaining = selectedInvoice?.isOpeningBalance ? selectedInvoice.balance : undefined;
+            const isPrepayment = manualPayInvoiceId === '__prepayment__';
+            const targetInvId = isPrepayment ? undefined : (manualPayInvoiceId || undefined);
 
             const { receiptNumber } = await apiService.postStudentPayment({
                 studentId: manualPayStudentId,
-                amount: Number(manualPayAmount),
+                amount: amountNum,
                 paymentMethod: manualPayMethod,
                 reference: manualPayReference || '',
                 paymentDate: manualPayDate || new Date().toISOString().split('T')[0],
                 institutionId: institution.id,
-                targetInvoiceId: manualPayInvoiceId || undefined,
+                targetInvoiceId: targetInvId,
                 bankAccountId: manualPayBankAccountId || undefined,
-                customReceiptNumber: useCustomReceiptNumber ? customReceiptNumber : undefined,
+                customReceiptNumber: useCustomReceiptNumber ? customReceiptNumber.trim() : undefined,
                 openingBalanceRemaining: openingBalRemaining
             });
 
+            // Trigger immediate optimistic notification to parent view
+            if (onPaymentPosted) {
+                onPaymentPosted(receiptNumber);
+            }
             if (onRefreshData) {
                 onRefreshData().catch(() => {});
             }
 
-            // --- Receipt Notification (SMS + Email) ---
+            // Background notifications without blocking modal completion
             try {
                 const notifyStudent = students.find((s: any) => s.id === manualPayStudentId);
                 const notifySchool = institution.name || 'School';
                 const receiptLink = `${window.location.origin}/?receipt=${receiptNumber}`;
-                const smsText = `[${notifySchool}] KSh ${Number(manualPayAmount).toLocaleString()} received. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
-                const emailHtml = `<p>Dear ${notifyStudent?.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${Number(manualPayAmount).toLocaleString()}</strong> has been received.</p><p><b>Receipt No:</b> ${receiptNumber}<br/><b>Method:</b> ${manualPayMethod}<br/><b>Ref:</b> ${manualPayReference || 'N/A'}<br/><b>Date:</b> ${manualPayDate}</p><p>Download receipt: <a href="${receiptLink}">${receiptLink}</a></p><p>Thank you,<br/>${notifySchool} Accounts Office</p>`;
+                const smsText = `[${notifySchool}] KSh ${amountNum.toLocaleString()} received. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
+                const emailHtml = `<p>Dear ${notifyStudent?.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${amountNum.toLocaleString()}</strong> has been received.</p><p><b>Receipt No:</b> ${receiptNumber}<br/><b>Method:</b> ${manualPayMethod}<br/><b>Ref:</b> ${manualPayReference || 'N/A'}<br/><b>Date:</b> ${manualPayDate}</p><p>Download receipt: <a href="${receiptLink}">${receiptLink}</a></p><p>Thank you,<br/>${notifySchool} Accounts Office</p>`;
                 if (sendSmsNotification) {
                     if (notifyStudent?.phoneNumber) apiService.sendSms(notifyStudent.phoneNumber, smsText, (institution as any).smsConfig, 1, institution.id).catch(() => {});
                     if (notifyStudent?.metadata?.parentPhone) apiService.sendSms(notifyStudent.metadata.parentPhone, smsText, (institution as any).smsConfig, 1, institution.id).catch(() => {});
@@ -359,10 +393,6 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     apiService.sendEmail(notifyStudent.email, `Payment Receipt ${receiptNumber} — ${notifySchool}`, emailHtml).catch(() => {});
                 }
             } catch (_ne) { /* notifications are non-critical */ }
-
-            if (onPaymentPosted) {
-                onPaymentPosted(receiptNumber);
-            }
 
             alert(`Receipt ${receiptNumber} generated and payment allocated successfully!`);
             onClose();
@@ -374,6 +404,9 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
     };
 
     if (!isOpen) return null;
+
+    const isAmountValid = (parseFloat(String(manualPayAmount).replace(/[^0-9.]/g, '')) || 0) > 0;
+    const selectedInvoiceForAction = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
@@ -387,7 +420,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     <button 
                         type="button"
                         onClick={onClose}
-                        className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                     >
                         <XIcon className="w-5 h-5 text-slate-500" />
                     </button>
@@ -406,6 +439,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                                 if (manualPayStudentId) {
                                     setManualPayStudentId('');
                                     setManualPayInvoiceId('');
+                                    setManualPayAmount('');
                                 }
                             }}
                             className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
@@ -424,6 +458,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                                                 onClick={() => {
                                                     setManualPayStudentId(student.id);
                                                     setManualPayStudentSearch(`${student.name} (${adm})`);
+                                                    setManualPayAmount('');
                                                 }}
                                                 className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex flex-col cursor-pointer"
                                             >
@@ -445,23 +480,22 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                                 value={manualPayInvoiceId}
                                 onChange={(e) => {
                                     setManualPayInvoiceId(e.target.value);
-                                    const selectedInvoice = studentPendingInvoices.find(inv => inv.id === e.target.value);
-                                    if (selectedInvoice) {
-                                        setManualPayAmount(selectedInvoice.balance);
-                                    }
                                 }}
                                 className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs cursor-pointer"
                             >
-                                <option value="">-- Choose Invoice --</option>
+                                <option value="">-- Choose Invoice or Prepayment --</option>
+                                <option value="__prepayment__">-- General Prepayment / Credit Balance --</option>
                                 {studentPendingInvoices.map(inv => {
                                     const desc = (inv as any).description || 'Fees';
                                     let label = '';
                                     if (inv.isOpeningBalance) {
                                         label = `Opening Balance (Arrears - Due: KES ${inv.balance.toLocaleString()}) [pending]`;
+                                    } else if (inv.isCleared || inv.status === 'paid' || inv.balance <= 0) {
+                                        label = `${inv.invoiceNumber} (${desc} - Cleared) [paid]`;
                                     } else if (inv.paidAmount > 0) {
-                                        label = `${inv.invoiceNumber} (${desc} - Balance: KES ${inv.balance.toLocaleString()} / Total: KES ${inv.totalAmount.toLocaleString()}) [${inv.status}]`;
+                                        label = `${inv.invoiceNumber} (${desc} - Due: KES ${inv.balance.toLocaleString()} / Total: KES ${inv.totalAmount.toLocaleString()}) [partial]`;
                                     } else {
-                                        label = `${inv.invoiceNumber} (${desc} - Due: KES ${inv.balance.toLocaleString()}) [${inv.status}]`;
+                                        label = `${inv.invoiceNumber} (${desc} - Due: KES ${inv.balance.toLocaleString()}) [pending]`;
                                     }
                                     return (
                                         <option key={inv.id} value={inv.id}>
@@ -470,7 +504,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                                     );
                                 })}
                                 {studentPendingInvoices.length === 0 && (
-                                    <option disabled>No outstanding invoices for this student</option>
+                                    <option disabled>No invoices found for this student</option>
                                 )}
                             </select>
                         </div>
@@ -494,11 +528,28 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount Paid (KES) *</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount Paid (KES) *</label>
+                                {selectedInvoiceForAction && selectedInvoiceForAction.balance > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setManualPayAmount(String(selectedInvoiceForAction.balance))}
+                                        className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer uppercase tracking-wider"
+                                    >
+                                        Pay Full Due (KES {selectedInvoiceForAction.balance.toLocaleString()})
+                                    </button>
+                                )}
+                            </div>
                             <input
-                                type="number"
-                                value={manualPayAmount || ''}
-                                onChange={(e) => setManualPayAmount(Number(e.target.value))}
+                                type="text"
+                                inputMode="decimal"
+                                value={manualPayAmount}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, '');
+                                    const parts = val.split('.');
+                                    const cleanVal = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : val;
+                                    setManualPayAmount(cleanVal);
+                                }}
                                 placeholder="Enter amount paid"
                                 className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white text-xs"
                             />
@@ -585,7 +636,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     </div>
 
                     {/* Preview Votes Distribution */}
-                    {manualPayStudentId && manualPayAmount > 0 && (
+                    {manualPayStudentId && parsedPayAmount > 0 && (
                         <div className="space-y-2 p-5 bg-slate-50 dark:bg-slate-950/30 rounded-2xl border border-slate-100 dark:border-slate-800/80 animate-in fade-in duration-200">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Preview Votes Distribution</p>
                             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
@@ -644,7 +695,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = ({
                     <button
                         type="button"
                         onClick={handlePostManualPayment}
-                        disabled={isSavingManualPay || !manualPayStudentId || (!manualPayInvoiceId && !studentPendingInvoices.some((inv: any) => inv.isOpeningBalance && inv.id === manualPayInvoiceId)) || manualPayAmount <= 0}
+                        disabled={isSavingManualPay || !manualPayStudentId || !isAmountValid}
                         className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md transition-all text-center disabled:opacity-50 mt-4 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                     >
                         {isSavingManualPay ? (

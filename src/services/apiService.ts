@@ -3658,6 +3658,10 @@ export const apiService = {
         });
 
         const unpaidInvoices = studentInvoices.filter((inv: any) => {
+            const isExplicitlyPaid = ['paid', 'cleared', 'settled'].includes(String(inv.status || '').trim().toLowerCase()) || Boolean(inv.is_cleared || inv.isCleared);
+            if (isExplicitlyPaid && params.targetInvoiceId !== inv.id) {
+                return false;
+            }
             const paid = invoicePaidAmounts[inv.id] || 0;
             return paid < Number(inv.totalAmount || inv.total_amount || 0);
         });
