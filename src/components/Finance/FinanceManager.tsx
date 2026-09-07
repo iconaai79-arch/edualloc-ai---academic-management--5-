@@ -2924,6 +2924,236 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         URL.revokeObjectURL(url);
     };
 
+    const createBlobUrlFromPdfData = (sourceUrl?: string | null): string => {
+        if (!sourceUrl) return '';
+        if (sourceUrl.startsWith('blob:') || sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://')) {
+            return sourceUrl;
+        }
+        try {
+            if (sourceUrl.includes(';base64,') || sourceUrl.startsWith('data:application/pdf')) {
+                const base64 = sourceUrl.includes(';base64,') ? sourceUrl.split(';base64,')[1] : sourceUrl.split(',')[1];
+                if (base64) {
+                    const binaryStr = atob(base64);
+                    const len = binaryStr.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryStr.charCodeAt(i);
+                    }
+                    const blob = new Blob([bytes], { type: 'application/pdf' });
+                    return URL.createObjectURL(blob);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to convert data URI to blob URL:", e);
+        }
+        return sourceUrl;
+    };
+
+    const printStudentStatementHtml = (params: {
+        student: any;
+        ledger: Array<{ date: string; reference?: string; description: string; debit: number; credit: number; balance: number }>;
+        summary: { totalInvoiced: number; totalPaid: number; balance: number };
+        institution: any;
+        companyDetails?: any;
+        officerName?: string;
+    }) => {
+        const { student, ledger, summary, institution, companyDetails, officerName } = params;
+        if (!student) return;
+
+        const letterheadUrl = institution?.letterheadConfig?.headerImageUrl 
+            || institution?.letterheadUrl 
+            || institution?.letterhead_url 
+            || companyDetails?.letterheadConfig?.headerImageUrl;
+        const instLogo = institution?.logoUrl || institution?.logo_url || companyDetails?.logoUrl;
+        const admNo = studentAdmissionNumber(student) || student.admissionNumber || student.admission_number || student.admNo || '—';
+        const studentClass = (student as any).className || studentClassGroup(student) || (student as any).gradeLevel || '—';
+        const issueDate = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
+        const refNumber = `STMT-${new Date().getFullYear()}/${admNo !== '—' ? admNo : (student.id?.slice(-6) || 'GEN')}`;
+
+        const statusBadge = summary.balance > 0 
+            ? `<span style="color: #b91c1c; font-weight: 800;">KSh ${summary.balance.toLocaleString()} OWING</span>`
+            : summary.balance < 0 
+            ? `<span style="color: #047857; font-weight: 800;">KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT</span>`
+            : `<span style="color: #1d4ed8; font-weight: 800;">✓ FULLY PAID</span>`;
+
+        const tableRows = ledger.map((entry, idx) => {
+            const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            const drText = entry.debit > 0 ? entry.debit.toLocaleString() : '—';
+            const crText = entry.credit > 0 ? entry.credit.toLocaleString() : '—';
+            const balClass = entry.balance > 0 ? '#b91c1c' : '#047857';
+            const balSuffix = entry.balance > 0 ? 'Dr' : 'Cr';
+            const balText = `KSh ${Math.abs(entry.balance).toLocaleString()} <span style="font-size: 8px; color: #64748b;">${balSuffix}</span>`;
+
+            return `
+                <tr style="background: ${bg}; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 7px 10px; font-size: 10px; color: #475569; white-space: nowrap;">${entry.date}</td>
+                    <td style="padding: 7px 10px; font-size: 10px; font-family: monospace; font-weight: 700; color: #334155;">${entry.reference || '—'}</td>
+                    <td style="padding: 7px 10px; font-size: 10.5px; color: #1e293b; font-weight: 600;">${entry.description}</td>
+                    <td style="padding: 7px 10px; font-size: 10.5px; text-align: right; color: #0f172a; font-weight: 700;">${drText}</td>
+                    <td style="padding: 7px 10px; font-size: 10.5px; text-align: right; color: #047857; font-weight: 700;">${crText}</td>
+                    <td style="padding: 7px 10px; font-size: 10.5px; text-align: right; font-weight: 800; color: ${balClass};">${balText}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Statement_${(student.name || 'Student').replace(/\\s+/g, '_')}_${admNo}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 10mm 14mm 12mm 14mm;
+        }
+        @media print {
+            body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .no-print { display: none !important; }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #0f172a;
+            background: #fff;
+            margin: 0;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        * { box-sizing: border-box; }
+        .header-box { border-bottom: 2px solid #4338ca; padding-bottom: 12px; margin-bottom: 14px; }
+        .metadata-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; border: 1px solid #c7d2fe; border-radius: 10px; background: #eef2ff; padding: 10px 14px; margin-bottom: 16px; text-align: center; }
+        table { width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+        th { background: #4338ca !important; color: #ffffff !important; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px; text-align: left; }
+        th.text-right { text-align: right; }
+        .totals-row { background: #f1f5f9 !important; font-weight: 800; border-top: 2px solid #cbd5e1; }
+        .footer-box { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1px solid #e2e8f0; margin-top: 20px; page-break-inside: avoid; }
+        .stamp-box { border: 2px dashed #4338ca; background: #f5f3ff; border-radius: 10px; padding: 8px 12px; text-align: center; width: 140px; }
+    </style>
+</head>
+<body>
+    <div class="header-box">
+        ${letterheadUrl ? `
+            <div style="text-align: center; margin-bottom: 8px;">
+                <img src="${letterheadUrl}" alt="Letterhead" style="max-height: 85px; max-width: 100%; object-fit: contain;" />
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 6px;">
+                <span style="background: #eef2ff; color: #4338ca; font-size: 8.5px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; border: 1px solid #c7d2fe;">OFFICIAL DOCUMENT</span>
+                <h2 style="margin: 0; font-size: 13px; font-weight: 900; color: #1e293b; text-transform: uppercase;">STATEMENT OF ACCOUNT</h2>
+                <p style="margin: 0; font-size: 9.5px; color: #64748b;">Issue Date: ${issueDate}</p>
+            </div>
+        ` : `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    ${instLogo ? `<img src="${instLogo}" alt="Logo" style="width: 55px; height: 55px; object-fit: contain; border-radius: 8px;" />` : ''}
+                    <div>
+                        <h1 style="margin: 0; font-size: 18px; font-weight: 900; color: #1e1b4b; text-transform: uppercase;">${institution?.name || 'INSTITUTION'}</h1>
+                        <p style="margin: 2px 0 0 0; font-size: 10.5px; color: #64748b;">${institution?.email || ''} ${institution?.phoneNumber ? '· ' + institution.phoneNumber : ''} ${institution?.address ? '· ' + institution.address : ''}</p>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <span style="background: #eef2ff; color: #4338ca; font-size: 8.5px; font-weight: 800; text-transform: uppercase; padding: 3px 7px; border-radius: 4px; border: 1px solid #c7d2fe;">OFFICIAL DOCUMENT</span>
+                    <h2 style="margin: 4px 0 0 0; font-size: 14px; font-weight: 900; color: #1e293b; text-transform: uppercase;">STATEMENT OF ACCOUNT</h2>
+                    <p style="margin: 2px 0 0 0; font-size: 10px; color: #64748b;">Issue Date: ${issueDate}</p>
+                </div>
+            </div>
+        `}
+    </div>
+
+    <div class="metadata-box">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 10px;">
+            <div>
+                <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">STUDENT FULL NAME</div>
+                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 2px;">${student.name}</div>
+            </div>
+            <div>
+                <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">ADMISSION NUMBER</div>
+                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 2px;">${admNo}</div>
+            </div>
+            <div>
+                <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">CLASS / STREAM</div>
+                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 2px;">${studentClass}</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">ACCOUNT STATUS</div>
+                <div style="font-size: 12px; margin-top: 2px;">${statusBadge}</div>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 6px; font-size: 9.5px; color: #64748b;">
+            <span>Reference: <strong>${refNumber}</strong></span>
+            <span>Generated from: <strong>${institution?.name || 'School'} ERP</strong></span>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div>
+            <div style="font-size: 8.5px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">TOTAL INVOICED (DR)</div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #0f172a; margin-top: 2px;">KSh ${summary.totalInvoiced.toLocaleString()}</div>
+        </div>
+        <div>
+            <div style="font-size: 8.5px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">TOTAL PAYMENTS (CR)</div>
+            <div style="font-size: 13.5px; font-weight: 900; color: #047857; margin-top: 2px;">KSh ${summary.totalPaid.toLocaleString()}</div>
+        </div>
+        <div>
+            <div style="font-size: 8.5px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">NET BALANCE</div>
+            <div style="font-size: 13.5px; font-weight: 900; color: ${summary.balance > 0 ? '#b91c1c' : '#047857'}; margin-top: 2px;">
+                KSh ${Math.abs(summary.balance).toLocaleString()} ${summary.balance > 0 ? 'Dr' : 'Cr'}
+            </div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 75px;">Date</th>
+                <th style="width: 85px;">Reference</th>
+                <th>Particulars / Description</th>
+                <th class="text-right" style="width: 95px;">Charges (Dr)</th>
+                <th class="text-right" style="width: 95px;">Payments (Cr)</th>
+                <th class="text-right" style="width: 105px;">Running Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${tableRows}
+            <tr class="totals-row">
+                <td colspan="3" style="padding: 8px 10px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #334155;">Account Totals</td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: right; font-weight: 800; color: #0f172a;">KSh ${summary.totalInvoiced.toLocaleString()}</td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: right; font-weight: 800; color: #047857;">KSh ${summary.totalPaid.toLocaleString()}</td>
+                <td style="padding: 8px 10px; font-size: 11px; text-align: right; font-weight: 900; color: ${summary.balance > 0 ? '#b91c1c' : '#047857'};">KSh ${Math.abs(summary.balance).toLocaleString()}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer-box">
+        <div>
+            <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; margin-bottom: 2px;">ISSUED BY ACCOUNTS OFFICER</div>
+            <div style="font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase;">${officerName || 'ACCOUNTS OFFICER'}</div>
+            <div style="width: 160px; border-bottom: 1.5px dashed #94a3b8; margin: 16px 0 4px 0;"></div>
+            <div style="font-size: 8.5px; color: #64748b;">Signature & Date</div>
+            <div style="font-size: 8px; color: #94a3b8; font-style: italic; margin-top: 8px;">Official computer-generated record from ${institution?.name || 'School'} Finance ERP.</div>
+        </div>
+        <div class="stamp-box">
+            <div style="font-size: 14px; color: #4338ca;">✓</div>
+            <div style="font-size: 9px; font-weight: 900; color: #312e81; text-transform: uppercase; letter-spacing: 0.05em;">OFFICIAL STAMP</div>
+            <div style="font-size: 7.5px; font-weight: 700; color: #4338ca; text-transform: uppercase; margin-top: 2px;">Finance Department</div>
+            <div style="font-size: 7px; color: #64748b; margin-top: 4px;">VERIFIED DOCUMENT</div>
+        </div>
+    </div>
+</body>
+</html>`;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 300);
+        } else {
+            alert("Please allow popups to print student statements.");
+        }
+    };
+
     // State for students balances registry sub-tab
     const [studentSubTab, setStudentSubTab] = useState<'registry' | 'balances'>('registry');
     const [searchBalances, setSearchBalances] = useState('');
@@ -8638,31 +8868,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                     <button 
                                         type="button" 
-                                        disabled={isGeneratingStmtPdf} 
-                                        onClick={async () => {
+                                        onClick={() => {
                                             if (!balPrevStudent) return;
-                                            setIsGeneratingStmtPdf(true);
-                                            try {
-                                                const uri = await pdfService.generateStudentStatementPdfDataUri(
-                                                    balPrevStudent, balPrevLedger,
-                                                    { totalInvoiced: balPrevTotalInvoiced, totalPaid: balPrevTotalPaid, balance: balPrevBalance },
-                                                    props.institution, props.companyDetails,
-                                                    props.institution.logoUrl || (props.institution as any).logo_url,
-                                                    props.currentUser?.name
-                                                );
-                                                const printWindow = window.open('', '_blank');
-                                                if (printWindow) {
-                                                    printWindow.document.write(`<iframe src="${uri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                                                    printWindow.document.close();
-                                                    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 600);
-                                                }
-                                            } catch (err) {
-                                                window.print();
-                                            } finally {
-                                                setIsGeneratingStmtPdf(false);
-                                            }
+                                            printStudentStatementHtml({
+                                                student: balPrevStudent,
+                                                ledger: balPrevLedger,
+                                                summary: { totalInvoiced: balPrevTotalInvoiced, totalPaid: balPrevTotalPaid, balance: balPrevBalance },
+                                                institution: props.institution,
+                                                companyDetails: props.companyDetails,
+                                                officerName: props.currentUser?.name
+                                            });
                                         }} 
-                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
                                         title="Print Official Statement"
                                     >
                                         <PrinterIcon className="w-3.5 h-3.5" />
@@ -22978,31 +23195,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <button
                                                             type="button"
-                                                            disabled={isGeneratingStmtPdf}
-                                                            onClick={async () => {
+                                                            onClick={() => {
                                                                 if (!selectedStudent) return;
-                                                                setIsGeneratingStmtPdf(true);
-                                                                try {
-                                                                    const uri = await pdfService.generateStudentStatementPdfDataUri(
-                                                                        selectedStudent, ledger,
-                                                                        { totalInvoiced, totalPaid, balance },
-                                                                        props.institution, props.companyDetails,
-                                                                        props.institution.logoUrl || (props.institution as any).logo_url,
-                                                                        props.currentUser?.name
-                                                                    );
-                                                                    const printWindow = window.open('', '_blank');
-                                                                    if (printWindow) {
-                                                                        printWindow.document.write(`<iframe src="${uri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-                                                                        printWindow.document.close();
-                                                                        setTimeout(() => { printWindow.focus(); printWindow.print(); }, 600);
-                                                                    }
-                                                                } catch (err) {
-                                                                    window.print();
-                                                                } finally {
-                                                                    setIsGeneratingStmtPdf(false);
-                                                                }
+                                                                printStudentStatementHtml({
+                                                                    student: selectedStudent,
+                                                                    ledger,
+                                                                    summary: { totalInvoiced, totalPaid, balance },
+                                                                    institution: props.institution,
+                                                                    companyDetails: props.companyDetails,
+                                                                    officerName: props.currentUser?.name
+                                                                });
                                                             }}
-                                                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+                                                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
                                                             title="Print Statement"
                                                         >
                                                             <PrinterIcon className="w-3.5 h-3.5" />
@@ -23037,7 +23241,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         >
                                                             📥 CSV
                                                         </button>
-                                                        <button onClick={() => window.print()} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95">🖨️ Print</button>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (!selectedStudent) return;
+                                                                printStudentStatementHtml({
+                                                                    student: selectedStudent,
+                                                                    ledger,
+                                                                    summary: { totalInvoiced, totalPaid, balance },
+                                                                    institution: props.institution,
+                                                                    companyDetails: props.companyDetails,
+                                                                    officerName: props.currentUser?.name
+                                                                });
+                                                            }} 
+                                                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                        >
+                                                            🖨️ Print
+                                                        </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => setStmtStudentId('')}
@@ -23285,31 +23505,44 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <span className="text-xl">📄</span>
                                                             <div>
                                                                 <h4 className="text-base font-black">Official PDF Document Viewer</h4>
-                                                                <p className="text-[10px] text-slate-400 font-semibold">{selectedStudent?.name} · Statement of Account</p>
+                                                                <p className="text-[10px] text-slate-400 font-semibold">{(selectedStudent || balPrevStudent)?.name} · Statement of Account</p>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3">
                                                             {stmtPdfDataUri && (
-                                                                <a
-                                                                    href={stmtPdfDataUri}
-                                                                    download={`Statement_${selectedStudent?.name.replace(/\s+/g, '_')}.pdf`}
-                                                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
-                                                                >
-                                                                    📥 Download PDF
-                                                                </a>
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const blobUrl = createBlobUrlFromPdfData(stmtPdfDataUri);
+                                                                            if (blobUrl) window.open(blobUrl, '_blank');
+                                                                        }}
+                                                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                                                        title="Open PDF directly in browser tab for native printing"
+                                                                    >
+                                                                        🖨️ Native Print / Tab
+                                                                    </button>
+                                                                    <a
+                                                                        href={createBlobUrlFromPdfData(stmtPdfDataUri)}
+                                                                        download={`Statement_${((selectedStudent || balPrevStudent)?.name || 'Student').replace(/\s+/g, '_')}.pdf`}
+                                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                                                    >
+                                                                        📥 Download PDF
+                                                                    </a>
+                                                                </>
                                                             )}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setShowStmtPdfModal(false)}
                                                                 className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black transition-all"
                                                             >
-                                                                ✕¢ Close
+                                                                ✕ Close
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <div className="p-2 sm:p-4 flex-1 bg-slate-100 dark:bg-slate-950 overflow-hidden flex items-center justify-center">
                                                         {stmtPdfDataUri ? (
-                                                            <iframe src={stmtPdfDataUri} className="w-full h-full min-h-[82vh] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md" title="Student Statement PDF" />
+                                                            <iframe src={createBlobUrlFromPdfData(stmtPdfDataUri)} className="w-full h-full min-h-[82vh] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md" title="Student Statement PDF" />
                                                         ) : (
                                                             <div className="text-center space-y-3 py-12">
                                                                 <span className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin inline-block" />
