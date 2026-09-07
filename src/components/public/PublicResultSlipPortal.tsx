@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../../services/apiService';
+import { extractClassAndStream, normalizeStreamName } from '../../utils/academicUtils';
 import type { Institution, User, Assessment } from '../../types';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
@@ -110,11 +111,14 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                         return rAdm === targetAdmClean || rId === targetAdmClean;
                     });
                     if (rowMatch) {
+                        const rawCls = rowMatch.class || rowMatch.studentClass || 'PP1';
+                        const parsed = extractClassAndStream(rawCls);
                         foundStudent = {
                             id: rowMatch.studentId || rowMatch.id,
                             name: rowMatch.studentName || rowMatch.name || `Student ${rowMatch.admissionNumber}`,
                             admissionNo: rowMatch.admissionNumber || rowMatch.admissionNo || rowMatch.admNo || targetAdmClean,
-                            studentClass: rowMatch.class || rowMatch.studentClass || 'PP1',
+                            studentClass: parsed.className || rawCls,
+                            studentStream: normalizeStreamName(rowMatch.stream || parsed.stream || ''),
                             gender: rowMatch.gender || 'F',
                             broadsheetRow: rowMatch
                         };
@@ -129,11 +133,14 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                         return uAdm === targetAdmClean || uId === targetAdmClean;
                     });
                     if (userMatch) {
+                        const rawCls = (userMatch as any).studentClass || 'PP1';
+                        const parsed = extractClassAndStream(rawCls);
                         foundStudent = {
                             id: userMatch.id,
                             name: userMatch.name,
                             admissionNo: (userMatch as any).admissionNo || (userMatch as any).admissionNumber || targetAdmClean,
-                            studentClass: (userMatch as any).studentClass || 'PP1',
+                            studentClass: parsed.className || rawCls,
+                            studentStream: normalizeStreamName((userMatch as any).stream || parsed.stream || ''),
                             gender: (userMatch as any).gender || 'F'
                         };
                     }
@@ -149,6 +156,7 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                         name: 'Chanice Jerotich',
                         admissionNo: targetAdmClean || '603',
                         studentClass: 'PP1',
+                        studentStream: '',
                         gender: 'F'
                     };
                 }
@@ -408,9 +416,9 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
 
                         {/* Metadata Grid */}
                         <div className="col-span-10 divide-y divide-slate-900 font-semibold">
-                            {/* Row 1 */}
+                            {/* Row 1: Name (4 cols), Adm No (2 cols), Gender (2 cols), Class (2 cols), Stream (2 cols) */}
                             <div className="grid grid-cols-12 divide-x divide-slate-900">
-                                <div className="p-1.5 col-span-5 flex items-center gap-1.5 min-w-0">
+                                <div className="p-1.5 col-span-4 flex items-center gap-1.5 min-w-0">
                                     <span className="font-bold text-slate-900 shrink-0">Name:</span>
                                     <span className="font-bold uppercase text-slate-900 truncate">{studentData?.name}</span>
                                 </div>
@@ -422,9 +430,13 @@ export const PublicResultSlipPortal: React.FC<PublicResultSlipPortalProps> = ({
                                     <span className="font-bold text-slate-900 shrink-0">Gender:</span>
                                     <span className="font-bold text-slate-900 truncate">{studentData?.gender || 'F'}</span>
                                 </div>
-                                <div className="p-1.5 col-span-3 flex items-center gap-1">
+                                <div className="p-1.5 col-span-2 flex items-center gap-1">
                                     <span className="font-bold text-slate-900 shrink-0">Class:</span>
                                     <span className="font-bold text-slate-900 truncate">{studentData?.studentClass || 'PP1'}</span>
+                                </div>
+                                <div className="p-1.5 col-span-2 flex items-center gap-1">
+                                    <span className="font-bold text-slate-900 shrink-0">Stream:</span>
+                                    <span className="font-bold text-slate-900 truncate uppercase">{studentData?.studentStream || '—'}</span>
                                 </div>
                             </div>
 

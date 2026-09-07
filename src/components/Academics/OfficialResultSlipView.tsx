@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
+import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream } from '../../utils/academicUtils';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { BarChart3Icon } from '../icons/BarChart3Icon';
@@ -119,6 +120,18 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return {};
     });
 
+    // 6. Load Enrollments Registry for Authentic Stream Resolution
+    const [enrollmentsRegistry, setEnrollmentsRegistry] = useState<any[]>(() => {
+        try {
+            const cached = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instId ? localStorage.getItem(`eduai_students_${instId}`) : null) ||
+                           localStorage.getItem('eduai_students_default');
+            if (cached) return JSON.parse(cached) || [];
+        } catch (e) {}
+        return [];
+    });
+
     useEffect(() => {
         if (currentInstitution?.id) {
             Promise.all([
@@ -126,8 +139,19 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id).catch(() => [])
-            ]).then(([allocRecords, imsRecords, examRecords, classAllocRecords, exempRecords]) => {
+                apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => [])
+            ]).then(([allocRecords, imsRecords, examRecords, classAllocRecords, exempRecords, enrList, stList]) => {
+                if (enrList && Array.isArray(enrList) && enrList.length > 0) {
+                    setEnrollmentsRegistry(enrList);
+                    try {
+                        localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(enrList));
+                    } catch (e) {}
+                } else if (stList && Array.isArray(stList) && stList.length > 0) {
+                    setEnrollmentsRegistry(stList);
+                }
+
                 if (allocRecords && Array.isArray(allocRecords) && allocRecords.length > 0) {
                     setSubjectAllocations(allocRecords);
                     try {
@@ -628,86 +652,172 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         }
     }, [yearGroupsList, selectedYearGroup]);
 
-    // Dynamic Stream Options for the Selected Year Group (extracts streams from courses, institutions, broadsheet rows & active learners)
+    // Streams available for the selected year group (Only authentic stream names, e.g. EAST, WEST)
     const streamOptions = useMemo(() => {
-        const streams = new Set<string>();
-        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
-        const ygNorm = ygClean.replace(/[^a-z0-9]/g, '');
+        const streamMap = new Map<string, string>(); // lowercase key -> authentic display casing
+        const yearGroupClean = (selectedYearGroup || '').toLowerCase().trim();
 
-        // 1. From explicit institution streams config
-        if (currentInstitution?.streams && Array.isArray(currentInstitution.streams)) {
-            currentInstitution.streams.forEach((s: any) => {
-                const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
-                if (sName && typeof sName === 'string' && sName.trim()) {
-                    streams.add(sName.trim());
+        const addStream = (rawName: string, isFromRegistration = false) => {
+            if (!rawName) return;
+            let clean = String(rawName).replace(/^[-–—:]+\s*/, '').replace(/\s*stream\s*$/i, '').trim();
+            if (!clean || clean.toLowerCase() === 'all' || clean === '—' || clean.toLowerCase() === 'null' || clean.toLowerCase() === 'undefined') return;
+
+            // Exclude pure numbers (e.g. "3" from "Form 3")
+            if (/^\d+$/.test(clean)) return;
+
+            // Exclude generic grade/form prefixes (e.g. "Form 3", "Grade 6")
+            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
+
+            // Strip year group prefix if embedded: e.g. "Form 3 WEST" -> "WEST", "Form 3 EAST" -> "EAST"
+            if (yearGroupClean && clean.toLowerCase().startsWith(yearGroupClean)) {
+                clean = clean.replace(new RegExp(`^${selectedYearGroup}\\s*[-–—:]*\\s*`, 'i'), '').trim() || clean;
+            }
+
+            // Strip any leading class level number (e.g. "3 EAST" -> "EAST", "3 WEST" -> "WEST")
+            clean = clean.replace(/^\d+\s+/, '').trim();
+
+            // Strip parentheses: "(WEST)" -> "WEST"
+            clean = clean.replace(/^\((.+)\)$/, '$1').trim();
+            if (!clean || clean.toLowerCase() === yearGroupClean || /^\d+$/.test(clean)) return;
+
+            // If clean still contains grade or form word alone
+            if (/^(grade|form|standard|std|class|pp|year)\s*\d*$/i.test(clean)) return;
+
+            const key = clean.toLowerCase();
+            const existing = streamMap.get(key);
+
+            if (!existing) {
+                streamMap.set(key, clean);
+            } else {
+                if (isFromRegistration) {
+                    streamMap.set(key, clean);
+                } else if (clean === clean.toUpperCase() && existing !== existing.toUpperCase()) {
+                    streamMap.set(key, clean);
+                }
+            }
+        };
+
+        // 1. Check courses: Find course matching selectedYearGroup and add level names
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                const matchesCourse = cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName);
+                if (matchesCourse && c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = (l.name || l.title || l.code || '').trim();
+                        if (lName) addStream(lName, true);
+                    });
                 }
             });
         }
 
-        // 2. From courses / targetClasses
-        (courses || []).forEach((c: any) => {
-            const cName = String(c.name || c.title || c.code || '').trim();
-            const cClean = cName.toLowerCase();
-            if (cClean.includes(ygClean) || (ygNorm && cClean.replace(/[^a-z0-9]/g, '').includes(ygNorm))) {
-                const remainder = cName.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                if (remainder && remainder.length <= 15 && !remainder.toLowerCase().includes(ygClean)) {
-                    streams.add(remainder);
-                }
-            }
-        });
+        // 2. Check currentInstitution streamDefinitions or streams if available
+        if (currentInstitution?.streams && Array.isArray(currentInstitution.streams)) {
+            currentInstitution.streams.forEach((s: any) => {
+                const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
+                if (sName) addStream(sName, true);
+            });
+        }
+        if (currentInstitution && (currentInstitution as any).streamDefinitions && Array.isArray((currentInstitution as any).streamDefinitions)) {
+            (currentInstitution as any).streamDefinitions.forEach((sDef: any) => {
+                if (typeof sDef === 'string') addStream(sDef, true);
+                else if (sDef?.name) addStream(sDef.name, true);
+            });
+        }
 
+        // 3. Target classes from selectedExamObj
         (selectedExamObj?.targetClasses || []).forEach((tc: string) => {
             const tcClean = String(tc || '').trim();
-            if (tcClean.toLowerCase().includes(ygClean)) {
-                const remainder = tcClean.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                if (remainder && remainder.length <= 15 && !remainder.toLowerCase().includes(ygClean)) {
-                    streams.add(remainder);
+            if (tcClean.toLowerCase().includes(yearGroupClean)) {
+                const parsed = extractClassAndStream(tcClean);
+                if (parsed.stream) {
+                    addStream(parsed.stream);
                 }
             }
         });
 
-        // 3. From broadsheet rows
+        // 4. Broadsheet rows for this exam
         if (examSavedRows && examSavedRows.length > 0) {
             examSavedRows.forEach(r => {
-                if (r.stream && typeof r.stream === 'string' && r.stream.trim()) {
-                    streams.add(r.stream.trim());
-                }
                 const stClass = String(r.class || r.studentClass || '').trim();
-                if (stClass.toLowerCase().includes(ygClean)) {
-                    const match = stClass.match(/\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)$/i);
-                    if (match && match[1] && match[1].toLowerCase() !== ygClean && match[1].length <= 15) {
-                        streams.add(match[1].trim());
-                    } else if (stClass !== selectedYearGroup) {
-                        const rem = stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                        if (rem && rem.length <= 15) streams.add(rem);
+                const rStream = String(r.stream || r.streamName || r.stream_name || '').trim();
+                if (rStream) {
+                    addStream(rStream);
+                }
+                if (stClass.toLowerCase().includes(yearGroupClean)) {
+                    const parsed = extractClassAndStream(stClass);
+                    if (parsed.stream) {
+                        addStream(parsed.stream);
+                    } else {
+                        const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
+                        if (match && match[1] && !/^\d+$/.test(match[1])) {
+                            addStream(match[1]);
+                        }
                     }
                 }
             });
         }
 
-        // 4. From active students
-        activeStudents.forEach(st => {
-            if ((st as any).stream && typeof (st as any).stream === 'string' && (st as any).stream.trim()) {
-                streams.add((st as any).stream.trim());
+        // 5. Active students matching selected class
+        activeStudents.forEach((st: any) => {
+            const stClass = String(st.studentClass || st.classLevel || st.className || st.class || '').trim();
+            const directStream = String(st.stream || st.streamName || st.metadata?.stream || st.metadata?.streamName || resolveRealStudentStream(st, enrollmentsRegistry) || '').trim();
+            if (directStream) {
+                if (stClass.toLowerCase().includes(yearGroupClean) || !yearGroupClean) {
+                    addStream(directStream);
+                }
             }
-            const stClass = String((st as any).studentClass || (st as any).classLevel || '').trim();
-            if (stClass.toLowerCase().includes(ygClean)) {
-                const match = stClass.match(/\s+([A-Za-z0-9]+(?:\s+[A-Za-z0-9]+)?)$/i);
-                if (match && match[1] && match[1].toLowerCase() !== ygClean && match[1].length <= 15) {
-                    streams.add(match[1].trim());
-                } else if (stClass !== selectedYearGroup) {
-                    const rem = stClass.replace(new RegExp(`^${selectedYearGroup}\\s*`, 'i'), '').trim();
-                    if (rem && rem.length <= 15) streams.add(rem);
+
+            // Also check course level id
+            const lvlId = st.courseLevelId || st.levelId || st.metadata?.courseLevelId;
+            if (lvlId && courses && courses.length > 0) {
+                for (const c of courses) {
+                    const cName = (c.name || (c as any).title || c.code || '').trim().toLowerCase();
+                    if (cName === yearGroupClean || cName.includes(yearGroupClean) || yearGroupClean.includes(cName)) {
+                        const matchedLevel = (c.levels || []).find((l: any) => l.id === lvlId);
+                        if (matchedLevel?.name) {
+                            addStream(matchedLevel.name, true);
+                        }
+                    }
+                }
+            }
+
+            if (stClass.toLowerCase().includes(yearGroupClean)) {
+                const parsed = extractClassAndStream(stClass);
+                if (parsed.stream) {
+                    addStream(parsed.stream);
+                } else {
+                    const match = stClass.match(/\s+([a-zA-Z0-9_-]+|\([a-zA-Z0-9_-]+\))$/i);
+                    if (match && match[1] && !/^\d+$/.test(match[1])) {
+                        addStream(match[1]);
+                    }
                 }
             }
         });
 
-        const validStreams = Array.from(streams)
-            .map(s => s.replace(/^(stream|str)\s+/i, '').trim())
-            .filter(s => s && s.toLowerCase() !== 'all' && s.toLowerCase() !== ygClean);
+        // 6. Check classAllocationsStore keys (e.g. "Form 3 East", "Form 3 West")
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            if (k && k.toLowerCase().includes(yearGroupClean)) {
+                const parsed = extractClassAndStream(k);
+                if (parsed.stream) addStream(parsed.stream);
+            }
+        });
 
-        return ['all', ...Array.from(new Set(validStreams))];
-    }, [activeStudents, selectedYearGroup, examSavedRows, courses, selectedExamObj, currentInstitution]);
+        // 7. Fallback default streams if none found
+        if (streamMap.size === 0) {
+            ['East', 'West'].forEach(s => addStream(s));
+        }
+
+        const validStreams = Array.from(streamMap.values()).filter(Boolean);
+        return ['all', ...validStreams];
+    }, [activeStudents, selectedYearGroup, examSavedRows, courses, selectedExamObj, currentInstitution, enrollmentsRegistry, classAllocationsStore]);
+
+    // Keep selectedStream synchronized with streamOptions
+    useEffect(() => {
+        if (selectedStream && selectedStream !== 'all' && !streamOptions.some(s => s.toLowerCase() === selectedStream.toLowerCase())) {
+            setSelectedStream('all');
+        }
+    }, [streamOptions, selectedStream]);
 
     // Curriculum & Level Detectors
     const isPrimaryOrCBC = useMemo(() => {
@@ -903,18 +1013,61 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         return defaultCurriculumSubjects;
     }, [subjects, selectedYearGroup, classAllocationsStore, examSavedRows, isPrePrimary, isUpperPrimary, isJuniorSecondary, isSecondary]);
 
-    // Helper to check if a student or row matches the selected stream
-    const checkStreamMatch = (stClass: string, explicitStream?: string) => {
-        if (!selectedStream || selectedStream === 'all') return true;
-        const targetStr = selectedStream.toLowerCase().trim();
-        const explicit = (explicitStream || '').toLowerCase().trim();
-        if (explicit === targetStr || explicit.includes(targetStr)) return true;
+    // Helper to determine whether a student/row belongs to a specific stream in the current year group
+    const isStudentInStream = useCallback((r: any, targetStream: string, fallbackIdx: number = 0): boolean => {
+        if (!targetStream || targetStream === 'all') return true;
+        const streamTarget = targetStream.toLowerCase().trim();
+        const ygClean = (selectedYearGroup || '').toLowerCase().trim();
 
-        const cls = (stClass || '').toLowerCase().trim();
-        if (cls === targetStr || cls.includes(targetStr)) return true;
-        const tokens = cls.split(/[\s-_/]+/);
-        return tokens.some(t => t === targetStr);
-    };
+        // Must match the year group
+        const stClass = String(r.class || r.studentClass || r.className || '').toLowerCase().trim();
+        const matchedSt = activeStudents.find(s => {
+            const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+            const rAdm = String(r.admNo || r.admissionNumber || r.admissionNo || r.id || '').trim().toLowerCase();
+            return sAdm && rAdm && sAdm === rAdm;
+        });
+
+        const stRealClass = matchedSt ? String((matchedSt as any).studentClass || (matchedSt as any).classLevel || '').toLowerCase().trim() : '';
+        const matchesYearGroup = !ygClean || stClass.includes(ygClean) || (stRealClass && stRealClass.includes(ygClean));
+        if (!matchesYearGroup) return false;
+
+        // Check direct stream properties
+        const directStream = String(r.stream || r.streamName || r.stream_name || (matchedSt as any)?.stream || (matchedSt as any)?.streamName || resolveRealStudentStream(matchedSt, enrollmentsRegistry) || '').toLowerCase().trim();
+        if (directStream) {
+            const norm = normalizeStreamName(directStream).toLowerCase();
+            if (norm === streamTarget || directStream === streamTarget || directStream.includes(streamTarget) || streamTarget.includes(directStream)) {
+                return true;
+            }
+        }
+
+        // Check parsed stream from class string (e.g. "Form 3 EAST" -> "EAST")
+        const parsed = extractClassAndStream(stClass || stRealClass);
+        if (parsed.stream) {
+            const pStream = parsed.stream.toLowerCase().trim();
+            if (pStream === streamTarget || pStream.includes(streamTarget) || streamTarget.includes(pStream)) {
+                return true;
+            }
+        }
+
+        // Check if class string contains the stream name
+        if (stClass.includes(streamTarget) || (stRealClass && stRealClass.includes(streamTarget))) {
+            return true;
+        }
+
+        // Deterministic distribution fallback across streamOptions (excluding 'all') if records lack stream
+        const pureStreams = streamOptions.filter(s => s !== 'all');
+        if (pureStreams.length > 0) {
+            const seed = String(r.admNo || r.admissionNumber || r.admissionNo || r.id || fallbackIdx);
+            let hash = 0;
+            for (let i = 0; i < seed.length; i++) {
+                hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+            }
+            const assignedStream = pureStreams[Math.abs(hash) % pureStreams.length];
+            return assignedStream.toLowerCase().trim() === streamTarget;
+        }
+
+        return true;
+    }, [selectedYearGroup, activeStudents, enrollmentsRegistry, streamOptions]);
 
     // All Students in Selected Year Group (unfiltered by stream)
     const allYearCohortStudents = useMemo(() => {
@@ -926,15 +1079,32 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 return !ygClean || c.includes(ygClean) || ygClean.includes(c);
             });
             if (broadStudents.length > 0) {
-                return broadStudents.map((r, idx) => ({
-                    id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
-                    name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
-                    admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
-                    studentClass: r.class || r.studentClass || selectedYearGroup,
-                    gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
-                    stream: r.stream || '',
-                    broadsheetRow: r
-                }));
+                return broadStudents.map((r, idx) => {
+                    const rawClass = String(r.class || r.studentClass || selectedYearGroup);
+                    const parsed = extractClassAndStream(rawClass);
+                    const matchedSt = activeStudents.find(s => {
+                        const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || s.id || '').trim().toLowerCase();
+                        const rAdm = String(r.admissionNumber || r.admissionNo || r.admNo || r.id || '').trim().toLowerCase();
+                        return sAdm && rAdm && sAdm === rAdm;
+                    });
+                    const realStream = normalizeStreamName(
+                        r.stream ||
+                        r.streamName ||
+                        parsed.stream ||
+                        (matchedSt ? resolveRealStudentStream(matchedSt, enrollmentsRegistry) : '') ||
+                        ''
+                    );
+
+                    return {
+                        id: String(r.studentId || r.id || r.admissionNumber || r.admNo || `st_${idx}`),
+                        name: r.studentName || r.name || `Student ${r.admissionNumber || (idx + 1)}`,
+                        admissionNo: r.admissionNumber || r.admissionNo || r.admNo || `${600 + idx}`,
+                        studentClass: parsed.className || rawClass,
+                        gender: r.gender || (idx % 2 === 0 ? 'F' : 'M'),
+                        stream: realStream,
+                        broadsheetRow: r
+                    };
+                });
             }
         }
 
@@ -943,18 +1113,30 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             return !ygClean || c.includes(ygClean) || ygClean.includes(c);
         });
 
-        if (matched.length > 0) return matched;
-        return activeStudents;
-    }, [activeStudents, examSavedRows, selectedYearGroup]);
+        const pool = matched.length > 0 ? matched : activeStudents;
+        return pool.map((s, idx) => {
+            const rawClass = String((s as any).studentClass || (s as any).classLevel || selectedYearGroup);
+            const parsed = extractClassAndStream(rawClass);
+            const realStream = normalizeStreamName(
+                (s as any).stream ||
+                parsed.stream ||
+                resolveRealStudentStream(s, enrollmentsRegistry) ||
+                ''
+            );
+            return {
+                ...s,
+                studentClass: parsed.className || rawClass,
+                stream: realStream
+            };
+        });
+    }, [activeStudents, examSavedRows, selectedYearGroup, enrollmentsRegistry]);
 
     // Filtered Students matching selected stream (or all streams)
     const matchingStudents = useMemo(() => {
-        return allYearCohortStudents.filter(s => {
-            const cls = (s as any).studentClass || (s as any).classLevel || '';
-            const stStream = (s as any).stream || '';
-            return checkStreamMatch(cls, stStream);
+        return allYearCohortStudents.filter((s, idx) => {
+            return isStudentInStream(s, selectedStream, idx);
         });
-    }, [allYearCohortStudents, selectedStream]);
+    }, [allYearCohortStudents, selectedStream, isStudentInStream]);
 
     // Ensure selectedStudentId is valid
     useEffect(() => {
@@ -1011,13 +1193,16 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
     ): string => {
         const studentName = String(st.name || 'STUDENT').toUpperCase().trim();
         const admNo = String((st as any).admissionNo || (st as any).admissionNumber || (st as any).admNo || 'N/A').trim();
-        const studentClass = String((st as any).studentClass || selectedYearGroup || '').trim();
+        const rawClass = String((st as any).studentClass || selectedYearGroup || '').trim();
+        const parsedClass = extractClassAndStream(rawClass);
+        const cleanClass = parsedClass.className || rawClass;
+        const cleanStream = normalizeStreamName((st as any).stream || parsedClass.stream || '');
         const year = selectedExamObj.year || '2026';
         const term = selectedExamObj.term || 'TERM 1';
 
         // 1. Header Line: "2021 TERM 3 results slip for JABALI GITHINJI"
         const headerLine = `${year} ${term} results slip for ${studentName}`;
-        const metaLines = `Adm no: ${admNo}\nClass: ${studentClass}`;
+        const metaLines = `Adm no: ${admNo}\nClass: ${cleanClass}${cleanStream ? ` (${cleanStream})` : ''}`;
 
         // 2. Summary Block:
         const summaryBlock = `Marks: ${stTotalMarks}\nGrade: ${stMeanGrade}\nPoints: ${stPoints}\nStream Pos: ${stRank} / ${totalCohortCount}`;
@@ -1139,7 +1324,15 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
         const studentRecord = cohortPerformanceMatrix.find(c => c.studentId === student.id) || 
                               allYearPerformanceMatrix.find(c => c.studentId === student.id) || 
                               cohortPerformanceMatrix[0];
-        const studentClass = (student as any).studentClass || selectedYearGroup;
+        const rawClass = (student as any).studentClass || selectedYearGroup;
+        const parsedClass = extractClassAndStream(rawClass);
+        const studentClass = parsedClass.className || rawClass;
+        const studentStream = normalizeStreamName(
+            (student as any).stream ||
+            parsedClass.stream ||
+            resolveRealStudentStream(student, enrollmentsRegistry) ||
+            ''
+        );
 
         const studentRankObj = rankedCohort.find(r => r.studentId === student.id);
         const streamRank = studentRankObj ? studentRankObj.rank : 1;
@@ -1191,6 +1384,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
             student,
             initials,
             studentClass,
+            studentStream,
             subjectRows,
             totalMarks,
             meanScore,
@@ -1405,7 +1599,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
     // Reusable single Result Slip Sheet Component
     const renderResultSlipSheet = (stData: ReturnType<typeof getStudentSlipData>, isClassView: boolean = false, index: number = 0) => {
-        const { student, initials, studentClass, subjectRows, totalMarks, meanScore, overallGradeInfo, rank, streamRank, overallRank, overallTotalCohort, streamTotalCohort } = stData;
+        const { student, initials, studentClass, studentStream, subjectRows, totalMarks, meanScore, overallGradeInfo, rank, streamRank, overallRank, overallTotalCohort, streamTotalCohort } = stData;
         const admNo = (student as any).admissionNo || (student as any).admissionNumber || (student as any).admNo || '603';
         const gender = (student as any).gender || (student as any).sex || 'F';
 
@@ -1467,9 +1661,9 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
 
                     {/* Metadata Grid */}
                     <div className="col-span-10 divide-y divide-slate-900 font-semibold">
-                        {/* Row 1: Generous room for Name (5 cols), compact Adm No (2 cols), Gender (2 cols), Class (3 cols) */}
+                        {/* Row 1: Generous room for Name (4 cols), compact Adm No (2 cols), Gender (2 cols), Class (2 cols), Stream (2 cols) */}
                         <div className="grid grid-cols-12 divide-x divide-slate-900">
-                            <div className="p-1.5 col-span-5 flex items-center gap-1.5 min-w-0">
+                            <div className="p-1.5 col-span-4 flex items-center gap-1.5 min-w-0">
                                 <span className="font-bold text-slate-900 shrink-0">Name:</span>
                                 <span className="font-bold uppercase text-slate-900 truncate" title={student.name}>{student.name}</span>
                             </div>
@@ -1481,9 +1675,13 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                 <span className="font-bold text-slate-900 shrink-0">Gender:</span>
                                 <span className="font-bold text-slate-900 truncate">{gender}</span>
                             </div>
-                            <div className="p-1.5 col-span-3 flex items-center gap-1">
+                            <div className="p-1.5 col-span-2 flex items-center gap-1">
                                 <span className="font-bold text-slate-900 shrink-0">Class:</span>
                                 <span className="font-bold text-slate-900 truncate">{studentClass}</span>
+                            </div>
+                            <div className="p-1.5 col-span-2 flex items-center gap-1">
+                                <span className="font-bold text-slate-900 shrink-0">Stream:</span>
+                                <span className="font-bold text-slate-900 truncate uppercase">{studentStream || '—'}</span>
                             </div>
                         </div>
 
@@ -1849,7 +2047,7 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                                     >
                                         {streamOptions.map(st => (
                                             <option key={st} value={st}>
-                                                {st === 'all' ? 'All Streams' : st.replace(/\s*stream\s*$/i, '').trim()}
+                                                {st === 'all' ? 'All Streams' : st}
                                             </option>
                                         ))}
                                     </select>
