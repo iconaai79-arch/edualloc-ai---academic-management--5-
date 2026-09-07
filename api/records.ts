@@ -1422,6 +1422,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...item };
                     if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
                     if (copy.isRead !== undefined && copy.is_read === undefined) copy.is_read = copy.isRead;
+                    if (copy.message === undefined || copy.message === null) {
+                        copy.message = copy.title || copy.description || copy.content || copy.text || copy.body || '';
+                    }
+                    if (!copy.type) copy.type = 'info';
                     delete copy.userId;
                     delete copy.isRead;
                     return copy;
@@ -1967,6 +1971,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...currentUpdateData };
                     if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
                     if (copy.isRead !== undefined && copy.is_read === undefined) copy.is_read = copy.isRead;
+                    if (copy.message === null) copy.message = '';
                     delete copy.userId;
                     delete copy.isRead;
                     currentUpdateData = copy;

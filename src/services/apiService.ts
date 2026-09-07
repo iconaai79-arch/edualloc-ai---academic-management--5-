@@ -2669,7 +2669,16 @@ export const apiService = {
         await apiService.saveModuleRecord('app_notifications', notification);
     },
     async markNotificationAsRead(id: string): Promise<void> {
-        await apiService.saveModuleRecord('app_notifications', { id, isRead: true, is_read: true } as any);
+        const existing = ls.get('app_notifications').find((n: any) => n && n.id === id);
+        await apiService.saveModuleRecord('app_notifications', {
+            id,
+            message: existing?.message || '',
+            type: existing?.type || 'info',
+            userId: existing?.userId || existing?.user_id,
+            user_id: existing?.userId || existing?.user_id,
+            isRead: true,
+            is_read: true
+        } as any);
     },
     async notifySuperAdmins(message: string, type: string = 'info'): Promise<void> {
         const admins = await apiService.fetchModuleRecords<User>('users', undefined, undefined, { 

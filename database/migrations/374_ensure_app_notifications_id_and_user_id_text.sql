@@ -17,13 +17,28 @@ BEGIN
         EXCEPTION WHEN OTHERS THEN
             NULL;
         END;
+
+        -- Safely drop NOT NULL and set defaults for message and type to prevent upsert failures
+        BEGIN
+            ALTER TABLE public.app_notifications ALTER COLUMN message DROP NOT NULL;
+            ALTER TABLE public.app_notifications ALTER COLUMN message SET DEFAULT '';
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+
+        BEGIN
+            ALTER TABLE public.app_notifications ALTER COLUMN type DROP NOT NULL;
+            ALTER TABLE public.app_notifications ALTER COLUMN type SET DEFAULT 'info';
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
     ELSE
         CREATE TABLE public.app_notifications (
             id TEXT PRIMARY KEY DEFAULT ('notif_' || replace(gen_random_uuid()::text, '-', '')),
             user_id TEXT,
             institution_id TEXT,
-            message TEXT NOT NULL,
-            type TEXT NOT NULL,
+            message TEXT DEFAULT '',
+            type TEXT DEFAULT 'info',
             link TEXT,
             is_read BOOLEAN DEFAULT false,
             timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
