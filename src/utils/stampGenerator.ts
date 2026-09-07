@@ -145,30 +145,41 @@ const generateCircleStampSvg = (
 
             <!-- Inner Contact / Tel Line -->
             ${resolved.contactPhone && !resolved.contactPhone.includes('000000') ? `
-                <text x="140" y="94" font-size="9" font-weight="800" letter-spacing="0.6" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="140" y="88" font-size="8.5" font-weight="800" letter-spacing="0.5" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.contactPhone}
+                </text>
+            ` : ''}
+
+            <!-- Department Tag (Prominently placed inside the stamp) -->
+            ${resolved.department ? `
+                <text x="140" y="${resolved.contactPhone && !resolved.contactPhone.includes('000000') ? '112' : '108'}" font-size="11.5" font-weight="900" letter-spacing="1.2" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                    ★ ${resolved.department} ★
                 </text>
             ` : ''}
 
             <!-- Center Dynamic Transaction Dater (Red Stamp Ink) -->
             ${resolved.showDate ? `
                 <g fill="${resolved.daterColor}" stroke="none">
-                    <text x="140" y="${resolved.showSignatureLine ? '138' : '142'}" font-size="19" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
+                    <text x="140" y="${resolved.department ? '142' : (resolved.showSignatureLine ? '138' : '142')}" font-size="18" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
                         ${dateText}
                     </text>
                 </g>
             ` : ''}
 
-            <!-- Signature Line or Department Tag -->
+            <!-- Signature Line or Verification Tag -->
             ${resolved.showSignatureLine ? `
-                <text x="140" y="168" font-size="11" font-weight="800" letter-spacing="0.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="140" y="168" font-size="10.5" font-weight="800" letter-spacing="0.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.signatureLabel}
+                </text>
+            ` : (resolved.department ? `
+                <text x="140" y="168" font-size="9" font-weight="900" letter-spacing="1" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                    OFFICIAL STAMP
                 </text>
             ` : `
                 <text x="140" y="172" font-size="10" font-weight="900" letter-spacing="1.2" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
-                    * ${resolved.department} *
+                    * OFFICIAL STAMP *
                 </text>
-            `}
+            `)}
         </g>
     </svg>
     `;
@@ -241,30 +252,41 @@ const generateOvalStampSvg = (
 
             <!-- Inner Contact / Tel Line -->
             ${resolved.contactPhone && !resolved.contactPhone.includes('000000') ? `
-                <text x="160" y="78" font-size="8.5" font-weight="800" letter-spacing="0.5" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="160" y="74" font-size="8" font-weight="800" letter-spacing="0.5" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.contactPhone}
+                </text>
+            ` : ''}
+
+            <!-- Department Tag (Prominently placed inside the stamp) -->
+            ${resolved.department ? `
+                <text x="160" y="${resolved.contactPhone && !resolved.contactPhone.includes('000000') ? '94' : '90'}" font-size="10.5" font-weight="900" letter-spacing="1.0" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                    ★ ${resolved.department} ★
                 </text>
             ` : ''}
 
             <!-- Center Dynamic Transaction Dater (Red Stamp Ink) -->
             ${resolved.showDate ? `
                 <g fill="${resolved.daterColor}" stroke="none">
-                    <text x="160" y="${resolved.showSignatureLine ? '108' : '112'}" font-size="18" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
+                    <text x="160" y="${resolved.department ? '118' : (resolved.showSignatureLine ? '108' : '112')}" font-size="17" font-weight="900" letter-spacing="0.8" text-anchor="middle" style="font-family: 'Arial Black', 'Arial', sans-serif;">
                         ${dateText}
                     </text>
                 </g>
             ` : ''}
 
-            <!-- Signature Line or Department Tag -->
+            <!-- Signature Line or Verification Tag -->
             ${resolved.showSignatureLine ? `
-                <text x="160" y="136" font-size="10" font-weight="800" letter-spacing="0.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                <text x="160" y="140" font-size="9.5" font-weight="800" letter-spacing="0.4" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
                     ${resolved.signatureLabel}
+                </text>
+            ` : (resolved.department ? `
+                <text x="160" y="140" font-size="8.5" font-weight="900" letter-spacing="0.8" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
+                    OFFICIAL STAMP
                 </text>
             ` : `
                 <text x="160" y="138" font-size="9.5" font-weight="900" letter-spacing="1.0" text-anchor="middle" fill="${resolved.inkColor}" stroke="none">
-                    * ${resolved.department} *
+                    * OFFICIAL STAMP *
                 </text>
-            `}
+            `)}
         </g>
     </svg>
     `;

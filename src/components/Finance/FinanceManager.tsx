@@ -46,6 +46,7 @@ import { ParentLedgerPortal } from './ParentLedgerPortal';
 import { AiFinancialIntelligence } from './AiFinancialIntelligence';
 import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
+import { generateKenyanStampSvgString } from '../../utils/stampGenerator';
 import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -3003,11 +3004,32 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             `;
         }).join('');
 
+        const stampSvg = generateKenyanStampSvgString(
+            {
+                ...(institution?.letterheadConfig?.stampConfig || {}),
+                department: 'FINANCE DEPARTMENT',
+                showSignatureLine: true,
+                signatureLabel: 'Sign:...................',
+                showDate: true,
+                dateFormat: 'DD MMM YYYY',
+                shape: institution?.letterheadConfig?.stampConfig?.shape || 'circle',
+                inkColor: institution?.letterheadConfig?.stampConfig?.inkColor || '#0047AB',
+                daterColor: institution?.letterheadConfig?.stampConfig?.daterColor || '#DC2626',
+                rotationAngle: institution?.letterheadConfig?.stampConfig?.rotationAngle ?? -4
+            },
+            new Date(),
+            institution
+        );
+
+        const uploadedStamp = (institution?.letterheadConfig?.stampConfig?.mode === 'uploaded' && institution?.letterheadConfig?.stampImageUrl)
+            ? institution.letterheadConfig.stampImageUrl
+            : (institution as any)?.stampImageUrl || (institution as any)?.stamp_image_url || (institution as any)?.stampUrl || (institution as any)?.stamp_url;
+
         const html = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Statement_${(student.name || 'Student').replace(/\\s+/g, '_')}_${admNo}</title>
+    <title>Statement_${(student.name || 'Student').replace(/\s+/g, '_')}_${admNo}</title>
     <style>
         @page {
             size: A4 portrait;
@@ -3034,7 +3056,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         th.text-right { text-align: right; }
         .totals-row { background: #f1f5f9 !important; font-weight: 800; border-top: 2px solid #cbd5e1; }
         .footer-box { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 14px; border-top: 1px solid #e2e8f0; margin-top: 20px; page-break-inside: avoid; }
-        .stamp-box { border: 2px dashed #4338ca; background: #f5f3ff; border-radius: 10px; padding: 8px 12px; text-align: center; width: 140px; }
     </style>
 </head>
 <body>
@@ -3070,23 +3091,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 10px;">
             <div>
                 <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">STUDENT FULL NAME</div>
-                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 2px;">${student.name}</div>
+                <div style="font-size: 13px; font-weight: 900; color: #0f172a; margin-top: 2px;">${student.name}</div>
             </div>
             <div>
                 <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">ADMISSION NUMBER</div>
-                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 2px;">${admNo}</div>
+                <div style="font-size: 13px; font-weight: 900; color: #0f172a; margin-top: 2px;">${admNo}</div>
             </div>
             <div>
                 <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">CLASS / STREAM</div>
-                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a; margin-top: 2px;">${studentClass}</div>
+                <div style="font-size: 13px; font-weight: 900; color: #0f172a; margin-top: 2px;">${studentClass}</div>
             </div>
             <div style="text-align: right;">
                 <div style="font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em;">ACCOUNT STATUS</div>
                 <div style="font-size: 12px; margin-top: 2px;">${statusBadge}</div>
             </div>
         </div>
-        <div style="display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 6px; font-size: 9.5px; color: #64748b;">
-            <span>Reference: <strong>${refNumber}</strong></span>
+        <div style="margin-top: 8px; pt-2; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; font-size: 9px; color: #64748b;">
+            <span>Reference: <strong>STMT-${new Date().getFullYear()}/${admNo}</strong></span>
             <span>Generated from: <strong>${institution?.name || 'School'} ERP</strong></span>
         </div>
     </div>
@@ -3138,11 +3159,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             <div style="font-size: 8.5px; color: #64748b;">Signature & Date</div>
             <div style="font-size: 8px; color: #94a3b8; font-style: italic; margin-top: 8px;">Official computer-generated record from ${institution?.name || 'School'} Finance ERP.</div>
         </div>
-        <div class="stamp-box">
-            <div style="font-size: 14px; color: #4338ca;">✓</div>
-            <div style="font-size: 9px; font-weight: 900; color: #312e81; text-transform: uppercase; letter-spacing: 0.05em;">OFFICIAL STAMP</div>
-            <div style="font-size: 7.5px; font-weight: 700; color: #4338ca; text-transform: uppercase; margin-top: 2px;">Finance Department</div>
-            <div style="font-size: 7px; color: #64748b; margin-top: 4px;">VERIFIED DOCUMENT</div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 165px; height: 165px; margin-right: 6px;">
+            ${uploadedStamp ? `
+                <div style="position: relative; width: 145px; height: 145px; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: rotate(-4deg);">
+                    <img src="${uploadedStamp}" alt="Official Stamp" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                    <div style="position: absolute; bottom: 8px; background: rgba(255,255,255,0.92); border: 1.5px solid #0047ab; padding: 1.5px 8px; border-radius: 4px; font-size: 8px; font-weight: 900; color: #0047ab; text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                        FINANCE DEPARTMENT
+                    </div>
+                </div>
+            ` : `
+                <div style="width: 160px; height: 160px; display: flex; align-items: center; justify-content: center;">
+                    ${stampSvg}
+                </div>
+            `}
         </div>
     </div>
 </body>
@@ -23548,10 +23577,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     <p className="text-[8px] text-slate-400 font-medium italic">Official computer-generated record from {props.institution.name} Finance ERP.</p>
                                                                 </div>
 
-                                                                <div className="text-center p-3 rounded-xl border-2 border-indigo-200 bg-indigo-50/50 w-36">
-                                                                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black mx-auto mb-1 text-[10px]">✓</div>
-                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-900">OFFICIAL STAMP</p>
-                                                                    <p className="text-[7px] font-bold text-indigo-600 uppercase tracking-wider mt-0.5">Finance Department</p>
+                                                                <div className="flex items-center justify-center p-1">
+                                                                    <KenyanOfficialStamp 
+                                                                        institution={props.institution} 
+                                                                        departmentOverride="FINANCE DEPARTMENT" 
+                                                                        size={145} 
+                                                                        showDate={true}
+                                                                    />
                                                                 </div>
                                                             </div>
                                                         </div>

@@ -11558,31 +11558,17 @@ export const generateStudentStatementPdfDataUri = async (
     doc.text('Signature & Date', margin, finalY + 21);
     doc.text(`Official computer-generated record from ${institution.name} Finance ERP.`, margin, finalY + 28);
 
-    // Stamp box on right side
+    // Stamp section on right side
     const stampX = pageWidth - margin - 50;
-    doc.setFillColor(240, 243, 255);
-    doc.setDrawColor(199, 210, 254);
-    doc.roundedRect(stampX, finalY, 50, 28, 3, 3, 'FD');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(79, 70, 229);
-    doc.text('OFFICIAL STAMP', stampX + 25, finalY + 10, { align: 'center' });
-    doc.setFontSize(7);
-    doc.text('Finance Department', stampX + 25, finalY + 16, { align: 'center' });
-    doc.setFontSize(6.5);
-    doc.setTextColor(148, 163, 184);
-    doc.text('VERIFIED DOCUMENT', stampX + 25, finalY + 22, { align: 'center' });
-
-    // Overlay authentic institutional stamp image if available
     if (stampImg) {
         try {
-            const stampSize = 34; // 34mm circular/oval stamp overlay
+            const stampSize = 36; // 36mm circular/oval stamp overlay
             const stampAspect = stampImg.height > 0 ? stampImg.width / stampImg.height : 1;
             const stampW = stampAspect >= 1 ? stampSize : stampSize * stampAspect;
             const stampH = stampAspect >= 1 ? stampSize / stampAspect : stampSize;
             const stampDrawX = stampX + (50 - stampW) / 2;
-            const stampDrawY = finalY + (28 - stampH) / 2;
+            const stampDrawY = finalY - 3;
 
             let format = 'PNG';
             if (stampImg.src?.startsWith('data:image/jpeg')) format = 'JPEG';
@@ -11591,6 +11577,20 @@ export const generateStudentStatementPdfDataUri = async (
         } catch (imgErr) {
             console.warn('[pdfService] Could not add stamp image to statement PDF:', imgErr);
         }
+    } else {
+        doc.setFillColor(240, 243, 255);
+        doc.setDrawColor(199, 210, 254);
+        doc.roundedRect(stampX, finalY, 50, 28, 3, 3, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(79, 70, 229);
+        doc.text('OFFICIAL STAMP', stampX + 25, finalY + 10, { align: 'center' });
+        doc.setFontSize(7);
+        doc.text('Finance Department', stampX + 25, finalY + 16, { align: 'center' });
+        doc.setFontSize(6.5);
+        doc.setTextColor(148, 163, 184);
+        doc.text('VERIFIED DOCUMENT', stampX + 25, finalY + 22, { align: 'center' });
     }
 
     setupPdfFooter(doc, footerImg, `${institution.name} · Student Account Statement`);
