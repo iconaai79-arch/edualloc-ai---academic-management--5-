@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentStream, resolveRealStudentClass, resolveRealStudentAdmNo, extractClassAndStream, normalizeStreamName } from '../../utils/academicUtils';
