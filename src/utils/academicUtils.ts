@@ -144,6 +144,7 @@ interface CachedRegistry {
     parsed: any[];
     byId: Map<string, any>;
     byName: Map<string, any>;
+    timestamp: number;
 }
 
 let _cachedRegistryData: CachedRegistry | null = null;
@@ -256,34 +257,42 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
             const instKey = student.institutionId || student.institution_id || '';
             const keyToRead = (instKey ? `eduai_student_enrollments_${instKey}` : null) ||
                               'eduai_student_enrollments_default';
-            const rawEnr = localStorage.getItem(keyToRead);
-            if (rawEnr) {
-                if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && _cachedRegistryData.raw === rawEnr) {
-                    effectiveRegistry = _cachedRegistryData.parsed;
-                    effectiveById = _cachedRegistryData.byId;
-                    effectiveByName = _cachedRegistryData.byName;
-                } else {
-                    const parsed = JSON.parse(rawEnr);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        const byId = new Map<string, any>();
-                        const byName = new Map<string, any>();
-                        for (let i = 0; i < parsed.length; i++) {
-                            const item = parsed[i];
-                            if (!item) continue;
-                            const sId = String(item.id || '').trim();
-                            const sUserId = String(item.userId || item.user_id || '').trim();
-                            const sStudentId = String(item.studentId || item.student_id || '').trim();
-                            if (sId) byId.set(sId, item);
-                            if (sUserId) byId.set(sUserId, item);
-                            if (sStudentId) byId.set(sStudentId, item);
+            const now = Date.now();
+            if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && (now - _cachedRegistryData.timestamp < 30000)) {
+                effectiveRegistry = _cachedRegistryData.parsed;
+                effectiveById = _cachedRegistryData.byId;
+                effectiveByName = _cachedRegistryData.byName;
+            } else {
+                const rawEnr = localStorage.getItem(keyToRead);
+                if (rawEnr) {
+                    if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && _cachedRegistryData.raw === rawEnr) {
+                        _cachedRegistryData.timestamp = now;
+                        effectiveRegistry = _cachedRegistryData.parsed;
+                        effectiveById = _cachedRegistryData.byId;
+                        effectiveByName = _cachedRegistryData.byName;
+                    } else {
+                        const parsed = JSON.parse(rawEnr);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            const byId = new Map<string, any>();
+                            const byName = new Map<string, any>();
+                            for (let i = 0; i < parsed.length; i++) {
+                                const item = parsed[i];
+                                if (!item) continue;
+                                const sId = String(item.id || '').trim();
+                                const sUserId = String(item.userId || item.user_id || '').trim();
+                                const sStudentId = String(item.studentId || item.student_id || '').trim();
+                                if (sId) byId.set(sId, item);
+                                if (sUserId) byId.set(sUserId, item);
+                                if (sStudentId) byId.set(sStudentId, item);
 
-                            const sName = String(item.name || item.fullName || item.studentName || item.student_name || '').trim().toLowerCase();
-                            if (sName) byName.set(sName, item);
+                                const sName = String(item.name || item.fullName || item.studentName || item.student_name || '').trim().toLowerCase();
+                                if (sName) byName.set(sName, item);
+                            }
+                            _cachedRegistryData = { key: keyToRead, raw: rawEnr, parsed, byId, byName, timestamp: now };
+                            effectiveRegistry = parsed;
+                            effectiveById = byId;
+                            effectiveByName = byName;
                         }
-                        _cachedRegistryData = { key: keyToRead, raw: rawEnr, parsed, byId, byName };
-                        effectiveRegistry = parsed;
-                        effectiveById = byId;
-                        effectiveByName = byName;
                     }
                 }
             }

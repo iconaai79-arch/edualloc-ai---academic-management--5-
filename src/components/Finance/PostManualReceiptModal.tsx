@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { User, Institution, Invoice, Receipt } from '../../types';
 import { XIcon } from '../icons';
 import { apiService } from '../../services/apiService';
-import { resolveRealStudentAdmNo, isPlaceholderEmail } from '../../utils/academicUtils';
+import { resolveRealStudentAdmNo, isPlaceholderEmail, isSyntheticAdmNo } from '../../utils/academicUtils';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -58,8 +58,9 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
     const [sendEmailNotification, setSendEmailNotification] = useState(true);
     const [isSavingManualPay, setIsSavingManualPay] = useState(false);
     const [fetchedBankAccounts, setFetchedBankAccounts] = useState<any[]>([]);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
-    // Reset fields on modal open/close
+    // Reset fields on modal open/close & autofocus search input immediately
     useEffect(() => {
         if (!isOpen) {
             setManualPayStudentSearch('');
@@ -71,6 +72,11 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
             setUseCustomReceiptNumber(false);
             setCustomReceiptNumber('');
             setManualPayDate(new Date().toISOString().split('T')[0]);
+        } else {
+            const timer = setTimeout(() => {
+                searchInputRef.current?.focus();
+            }, 30);
+            return () => clearTimeout(timer);
         }
     }, [isOpen]);
 
@@ -173,6 +179,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
 
     // Pre-compute lightweight indexed searchable students list once to avoid repeated metadata parsing
     const searchableStudents = useMemo(() => {
+        if (!isOpen) return [];
         const studentList = studentFinanceData && studentFinanceData.length > 0 ? studentFinanceData : students;
         if (!studentList || studentList.length === 0) return [];
 
@@ -193,19 +200,17 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
             if (!adm && s.user) {
                 adm = s.user.admissionNumber || s.user.admission_number || s.user.admNo || '';
             }
-            if (!adm) {
-                adm = resolveRealStudentAdmNo(s);
-            }
             const cleanName = String(s.name || '').trim();
-            const cleanAdm = String(adm || '').trim() || 'No Adm';
+            const cleanAdm = String(adm || '').trim();
             return {
                 id: s.id,
                 name: cleanName,
                 adm: cleanAdm,
+                rawStudent: s,
                 searchKey: `${cleanName} ${cleanAdm}`.toLowerCase()
             };
         });
-    }, [studentFinanceData, students]);
+    }, [isOpen, studentFinanceData, students]);
 
     // Deferred student search query to guarantee 0ms input typing / clicking latency
     const deferredStudentSearch = React.useDeferredValue(manualPayStudentSearch);
@@ -218,11 +223,18 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
         const results: Array<{ id: string; name: string; adm: string }> = [];
         for (let i = 0; i < searchableStudents.length; i++) {
             const item = searchableStudents[i];
-            if (item.searchKey.includes(query)) {
+            if (item.searchKey.includes(query) || (!item.adm && item.name.toLowerCase().includes(query))) {
+                let displayAdm = item.adm;
+                if (!displayAdm || isSyntheticAdmNo(displayAdm)) {
+                    const resolved = resolveRealStudentAdmNo(item.rawStudent);
+                    if (resolved && resolved !== 'N/A') {
+                        displayAdm = resolved;
+                    }
+                }
                 results.push({
                     id: item.id,
                     name: item.name,
-                    adm: item.adm
+                    adm: displayAdm || 'No Adm'
                 });
                 if (results.length >= 30) break;
             }
@@ -575,6 +587,8 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block ml-1">Search Student *</label>
                         <div className="relative">
                             <input 
+                                ref={searchInputRef}
+                                autoFocus
                                 type="text"
                                 placeholder="Type student name or admission number..."
                                 value={manualPayStudentSearch}
