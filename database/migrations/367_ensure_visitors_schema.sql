@@ -39,6 +39,8 @@ ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS visit_date TEXT;
 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS time_in TEXT;
 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS time_out TEXT;
 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS check_in TEXT;
+ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS entry_time TEXT;
+ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS exit_time TEXT;
 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS host_id TEXT;
 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS host_name TEXT;
 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS vehicle_plate TEXT;

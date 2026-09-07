@@ -1388,6 +1388,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
+            } else if (moduleName === 'visitors') {
+                const cleanVisitorRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    const entryVal = copy.entry_time || copy.entryTime;
+                    if (entryVal) {
+                        meta.entryTime = entryVal;
+                        if (!copy.time_in && !copy.timeIn) copy.time_in = entryVal;
+                        if (!copy.check_in && !copy.checkIn) copy.check_in = entryVal;
+                    }
+                    const exitVal = copy.exit_time || copy.exitTime;
+                    if (exitVal) {
+                        meta.exitTime = exitVal;
+                        if (!copy.time_out && !copy.timeOut) copy.time_out = exitVal;
+                    }
+
+                    copy.metadata = meta;
+
+                    delete copy.entry_time;
+                    delete copy.entryTime;
+                    delete copy.exit_time;
+                    delete copy.exitTime;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVisitorRecord) : cleanVisitorRecord(currentPayload);
             }
 
             let data: any = null;
@@ -1871,6 +1899,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.nemis_number;
                     delete copy.nemisNumber;
                     delete copy.subjects;
+
+                    currentUpdateData = copy;
+                } else if (moduleName === 'visitors') {
+                    const copy = { ...currentUpdateData };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                    const entryVal = copy.entry_time || copy.entryTime;
+                    if (entryVal) {
+                        meta.entryTime = entryVal;
+                        if (!copy.time_in && !copy.timeIn) copy.time_in = entryVal;
+                        if (!copy.check_in && !copy.checkIn) copy.check_in = entryVal;
+                    }
+                    const exitVal = copy.exit_time || copy.exitTime;
+                    if (exitVal) {
+                        meta.exitTime = exitVal;
+                        if (!copy.time_out && !copy.timeOut) copy.time_out = exitVal;
+                    }
+                    copy.metadata = meta;
+
+                    delete copy.entry_time;
+                    delete copy.entryTime;
+                    delete copy.exit_time;
+                    delete copy.exitTime;
 
                     currentUpdateData = copy;
                 }

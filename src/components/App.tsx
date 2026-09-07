@@ -2446,13 +2446,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }, [currentUser, activeInstitution, loadData]);
 
     const handleAddVisitor = useCallback(async (v: Omit<Visitor, 'id'>) => {
+        const nowIso = new Date().toISOString();
         const newVisitor: any = {
             ...v,
             id: `vis_${Date.now()}`,
             status: (v as any).status || 'pending',
             timeIn: (v as any).timeIn || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            entryTime: new Date().toISOString(),
-            institutionId: currentUser?.institutionId || v.institutionId || ''
+            checkIn: (v as any).checkIn || nowIso,
+            institutionId: currentUser?.institutionId || v.institutionId || '',
+            metadata: {
+                ...((v as any).metadata || {}),
+                entryTime: nowIso
+            }
         };
         // Optimistic update – show immediately without waiting for DB
         setVisitors(prev => [newVisitor, ...prev]);
