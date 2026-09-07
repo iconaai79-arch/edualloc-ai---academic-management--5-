@@ -77,6 +77,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
     // Dynamically load institution bank accounts if not already supplied
     useEffect(() => {
         if (!isOpen) return;
+        if (bankAccounts && bankAccounts.length > 0) return;
         const targetInstId = (selectedBranchId && selectedBranchId !== 'ALL') ? selectedBranchId : (institution?.id || '');
         if (!targetInstId) return;
 
@@ -170,22 +171,27 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
         }
     }, [isOpen, selectedBranchId, institution?.id]);
 
-// Pre-compute lightweight indexed searchable students list once to avoid repeated metadata parsing
+    // Pre-compute lightweight indexed searchable students list once to avoid repeated metadata parsing
     const searchableStudents = useMemo(() => {
         const studentList = studentFinanceData && studentFinanceData.length > 0 ? studentFinanceData : students;
         if (!studentList || studentList.length === 0) return [];
 
         return studentList.map((s: any) => {
-            let adm = s.admissionNumber || s.admission_number || s.admNo || s.adm_no || '';
+            let adm = s.admissionNumber || s.admission_number || s.admNo || s.adm_no || 
+                      s.registrationNumber || s.registration_number || s.regNo || s.reg_no || 
+                      s.studentId || s.student_id || '';
             if (!adm && s.metadata) {
                 if (typeof s.metadata === 'object') {
-                    adm = s.metadata.admissionNumber || s.metadata.admission_number || s.metadata.admNo || '';
-                } else if (typeof s.metadata === 'string' && s.metadata.includes('adm')) {
-                    try {
-                        const parsed = JSON.parse(s.metadata);
-                        adm = parsed.admissionNumber || parsed.admission_number || parsed.admNo || '';
-                    } catch (e) {}
+                    adm = s.metadata.admissionNumber || s.metadata.admission_number || s.metadata.admNo || s.metadata.registrationNumber || '';
+                } else if (typeof s.metadata === 'string') {
+                    const match = s.metadata.match(/"(?:admissionNumber|admission_number|admNo|registrationNumber)"\s*:\s*"([^"]+)"/);
+                    if (match && match[1]) {
+                        adm = match[1];
+                    }
                 }
+            }
+            if (!adm && s.user) {
+                adm = s.user.admissionNumber || s.user.admission_number || s.user.admNo || '';
             }
             if (!adm) {
                 adm = resolveRealStudentAdmNo(s);
@@ -343,18 +349,22 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
         return regularInvoices;
     }, [manualPayStudentId, invoices, selectedStudentReceipts, invoicePaidAmountMap, studentFinanceData, students]);
 
-    // Automatically select the first pending invoice if none selected, but keep amount empty
+    // Automatically select the first pending invoice if none selected or when student changes
     useEffect(() => {
+        if (!manualPayStudentId) {
+            setManualPayInvoiceId('');
+            return;
+        }
         if (studentPendingInvoices && studentPendingInvoices.length > 0) {
             const currentSelected = studentPendingInvoices.find(inv => inv.id === manualPayInvoiceId);
-            if (!currentSelected && !manualPayInvoiceId) {
+            if (!currentSelected) {
                 const firstPending = studentPendingInvoices.find(inv => !inv.isCleared && inv.balance > 0) || studentPendingInvoices[0];
-                setManualPayInvoiceId(firstPending.id);
+                setManualPayInvoiceId(firstPending ? firstPending.id : '__prepayment__');
             }
-        } else if (!manualPayInvoiceId) {
+        } else {
             setManualPayInvoiceId('__prepayment__');
         }
-    }, [studentPendingInvoices]);
+    }, [manualPayStudentId, studentPendingInvoices, manualPayInvoiceId]);
 
     // Use deferred value for typing responsiveness so keystrokes don't lag
     const deferredPayAmount = React.useDeferredValue(manualPayAmount);
@@ -611,6 +621,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                                                 type="button"
                                                 onClick={() => {
                                                     setManualPayStudentId(student.id);
+                                                    setManualPayInvoiceId('');
                                                     setManualPayStudentSearch(`${student.name} (${student.adm})`);
                                                     setManualPayAmount('');
                                                 }}

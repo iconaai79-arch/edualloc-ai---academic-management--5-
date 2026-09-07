@@ -138,6 +138,16 @@ export const isSyntheticAdmNo = (val: any): boolean => {
     return false;
 };
 
+interface CachedRegistry {
+    key: string;
+    raw: string;
+    parsed: any[];
+    byId: Map<string, any>;
+    byName: Map<string, any>;
+}
+
+let _cachedRegistryData: CachedRegistry | null = null;
+
 /**
  * Resolves the genuine admission number for a student, scanning all canonical candidate keys
  * and filtering out placeholder/synthetic fallbacks (such as ADM-1000, ADM-2026-89CG).
@@ -236,50 +246,85 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
         }
     }
 
-    // If registry not supplied, attempt to check cached enrollments in localStorage
+    // If registry not supplied, attempt to check cached enrollments in localStorage with persistent memory cache
     let effectiveRegistry = registry;
+    let effectiveById: Map<string, any> | null = null;
+    let effectiveByName: Map<string, any> | null = null;
+
     if (!effectiveRegistry || !Array.isArray(effectiveRegistry) || effectiveRegistry.length === 0) {
         try {
             const instKey = student.institutionId || student.institution_id || '';
-            const rawEnr = (instKey ? localStorage.getItem(`eduai_student_enrollments_${instKey}`) : null) ||
-                           localStorage.getItem('eduai_student_enrollments_default') ||
-                           (instKey ? localStorage.getItem(`eduai_students_${instKey}`) : null) ||
-                           localStorage.getItem('eduai_students_default') ||
-                           (instKey ? localStorage.getItem(`eduai_enrollments_${instKey}`) : null);
+            const keyToRead = (instKey ? `eduai_student_enrollments_${instKey}` : null) ||
+                              'eduai_student_enrollments_default';
+            const rawEnr = localStorage.getItem(keyToRead);
             if (rawEnr) {
-                const parsed = JSON.parse(rawEnr);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    effectiveRegistry = parsed;
+                if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && _cachedRegistryData.raw === rawEnr) {
+                    effectiveRegistry = _cachedRegistryData.parsed;
+                    effectiveById = _cachedRegistryData.byId;
+                    effectiveByName = _cachedRegistryData.byName;
+                } else {
+                    const parsed = JSON.parse(rawEnr);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const byId = new Map<string, any>();
+                        const byName = new Map<string, any>();
+                        for (let i = 0; i < parsed.length; i++) {
+                            const item = parsed[i];
+                            if (!item) continue;
+                            const sId = String(item.id || '').trim();
+                            const sUserId = String(item.userId || item.user_id || '').trim();
+                            const sStudentId = String(item.studentId || item.student_id || '').trim();
+                            if (sId) byId.set(sId, item);
+                            if (sUserId) byId.set(sUserId, item);
+                            if (sStudentId) byId.set(sStudentId, item);
+
+                            const sName = String(item.name || item.fullName || item.studentName || item.student_name || '').trim().toLowerCase();
+                            if (sName) byName.set(sName, item);
+                        }
+                        _cachedRegistryData = { key: keyToRead, raw: rawEnr, parsed, byId, byName };
+                        effectiveRegistry = parsed;
+                        effectiveById = byId;
+                        effectiveByName = byName;
+                    }
                 }
             }
         } catch (e) {}
     }
 
-    // Match by ID or exact name in registry / enrollments
+    // Fast indexed match by ID or exact name in registry / enrollments
     if (effectiveRegistry && Array.isArray(effectiveRegistry) && effectiveRegistry.length > 0) {
         const studentId = String(student.id || student.userId || student.user_id || '').trim();
         const cleanName = student.name ? String(student.name).trim().toLowerCase() : '';
-        const nameTokens = cleanName.split(/\s+/).filter(Boolean);
 
-        const matched = effectiveRegistry.find((s: any) => {
-            if (!s) return false;
-            const sId = String(s.id || '').trim();
-            const sUserId = String(s.userId || s.user_id || '').trim();
-            const sStudentId = String(s.studentId || s.student_id || '').trim();
+        let matched: any = null;
+        if (effectiveById && studentId) {
+            matched = effectiveById.get(studentId);
+        }
+        if (!matched && effectiveByName && cleanName) {
+            matched = effectiveByName.get(cleanName);
+        }
 
-            if (studentId && (sUserId === studentId || sStudentId === studentId || sId === studentId)) {
-                return true;
-            }
+        // Fallback search only if not matched by indexed lookup
+        if (!matched) {
+            const nameTokens = cleanName.split(/\s+/).filter(Boolean);
+            matched = effectiveRegistry.find((s: any) => {
+                if (!s) return false;
+                const sId = String(s.id || '').trim();
+                const sUserId = String(s.userId || s.user_id || '').trim();
+                const sStudentId = String(s.studentId || s.student_id || '').trim();
 
-            // Match by name
-            if (cleanName) {
-                const sName = String(s.name || s.fullName || s.studentName || s.student_name || '').trim().toLowerCase();
-                if (sName && (sName === cleanName || (nameTokens.length >= 2 && (sName.includes(cleanName) || cleanName.includes(sName))))) {
+                if (studentId && (sUserId === studentId || sStudentId === studentId || sId === studentId)) {
                     return true;
                 }
-            }
-            return false;
-        });
+
+                if (cleanName) {
+                    const sName = String(s.name || s.fullName || s.studentName || s.student_name || '').trim().toLowerCase();
+                    if (sName && (sName === cleanName || (nameTokens.length >= 2 && (sName.includes(cleanName) || cleanName.includes(sName))))) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
 
         if (matched) {
             let mMeta = matched.metadata;
