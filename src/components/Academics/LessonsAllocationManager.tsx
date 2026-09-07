@@ -14,6 +14,8 @@ import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../../utils/academicSubjectUtils';
+import { extractClassAndStream } from '../../utils/academicUtils';
+import { extractStreamOnly } from './BroadsheetReportView';
 
 export interface SubjectAllocationRecord {
     id: string;
@@ -69,7 +71,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         if (courses && courses.length > 0) {
             courses.forEach(c => {
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
-                if (name) set.add(name);
+                if (name) {
+                    const parsed = extractClassAndStream(name);
+                    const base = (parsed.className || name).trim();
+                    if (base) set.add(base);
+                }
             });
         }
 
@@ -78,7 +84,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             users.forEach(u => {
                 const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
                 if (cl && typeof cl === 'string' && cl.trim()) {
-                    set.add(cl.trim());
+                    const parsed = extractClassAndStream(cl.trim());
+                    const base = (parsed.className || cl.trim()).trim();
+                    if (base) set.add(base);
                 }
             });
         }
@@ -88,13 +96,21 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             if ((currentInstitution as any).classes && Array.isArray((currentInstitution as any).classes)) {
                 (currentInstitution as any).classes.forEach((c: any) => {
                     const name = typeof c === 'string' ? c : c.name;
-                    if (name) set.add(name);
+                    if (name) {
+                        const parsed = extractClassAndStream(name);
+                        const base = (parsed.className || name).trim();
+                        if (base) set.add(base);
+                    }
                 });
             }
             if ((currentInstitution as any).courses && Array.isArray((currentInstitution as any).courses)) {
                 (currentInstitution as any).courses.forEach((c: any) => {
                     const name = typeof c === 'string' ? c : (c.name || c.title);
-                    if (name) set.add(name);
+                    if (name) {
+                        const parsed = extractClassAndStream(name);
+                        const base = (parsed.className || name).trim();
+                        if (base) set.add(base);
+                    }
                 });
             }
         }
@@ -105,7 +121,13 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             const savedClasses = localStorage.getItem(`eduai_registered_classes_${instId}`);
             if (savedClasses) {
                 const parsed = JSON.parse(savedClasses);
-                if (Array.isArray(parsed)) parsed.forEach(c => set.add(c));
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(c => {
+                        const p = extractClassAndStream(c);
+                        const base = (p.className || c).trim();
+                        if (base) set.add(base);
+                    });
+                }
             }
         } catch(e) {}
 
@@ -113,9 +135,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         if (set.size === 0) {
             const isPrimary = (currentInstitution?.institutionType || '').toLowerCase().includes('primary') || (currentInstitution?.name || '').toLowerCase().includes('primary');
             if (isPrimary) {
-                ['Grade 1 Central', 'Grade 2 Central', 'Grade 3 Central', 'Grade 4 Central', 'Grade 5 Central', 'Grade 6 Central', 'Grade 7 Central'].forEach(c => set.add(c));
+                ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7'].forEach(c => set.add(c));
             } else {
-                ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => set.add(c));
+                ['Form 1', 'Form 2', 'Form 3', 'Form 4'].forEach(c => set.add(c));
             }
         }
 
@@ -124,6 +146,21 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     }, [courses, users, currentInstitution]);
 
     const [selectedClass, setSelectedClass] = useState<string>('');
+    const [selectedStream, setSelectedStream] = useState<string>('all');
+    const [isAddingCustomStream, setIsAddingCustomStream] = useState<boolean>(false);
+    const [newStreamInput, setNewStreamInput] = useState<string>('');
+    const [customStreamsStore, setCustomStreamsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const instIdKey = currentInstitution?.id || 'default_inst';
+            const saved = localStorage.getItem(`eduai_custom_streams_${instIdKey}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return {};
+    });
+
     const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [saveToast, setSaveToast] = useState<string | null>(null);
@@ -131,6 +168,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
     // Form modal state
     const [modalClassName, setModalClassName] = useState('');
+    const [modalStream, setModalStream] = useState('all');
     const [modalSubjectName, setModalSubjectName] = useState('Mathematics');
     const [modalTeacherId, setModalTeacherId] = useState('');
     const [modalLessons, setModalLessons] = useState(6);
@@ -663,10 +701,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     const handleCreateAllocation = async (e: React.FormEvent) => {
         e.preventDefault();
         const teacherObj = teacherUsers.find(t => t.id === modalTeacherId);
+        const targetClassStream = modalStream && modalStream !== 'all' ? `${modalClassName} ${modalStream}`.trim() : modalClassName;
+
         const newRecord: SubjectAllocationRecord = {
             id: `alloc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             institutionId: currentInstitution?.id || 'inst_1',
-            className: modalClassName,
+            className: targetClassStream,
             subjectName: modalSubjectName,
             subjectCode: `${modalSubjectName.substring(0, 4).toUpperCase()} 101`,
             teacherId: modalTeacherId,
@@ -676,13 +716,13 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         };
 
         setAllocations(prev => {
-            const filtered = prev.filter(a => !(a.className.toLowerCase().trim() === modalClassName.toLowerCase().trim() && a.subjectName.toLowerCase().trim() === modalSubjectName.toLowerCase().trim()));
+            const filtered = prev.filter(a => !(a.className.toLowerCase().trim() === targetClassStream.toLowerCase().trim() && a.subjectName.toLowerCase().trim() === modalSubjectName.toLowerCase().trim()));
             return [newRecord, ...filtered];
         });
 
         updateRemovedKeys(prev => {
             const next = new Set(prev);
-            next.delete(`${modalClassName}_${modalSubjectName}`);
+            next.delete(`${targetClassStream}_${modalSubjectName}`);
             return next;
         });
 
@@ -691,9 +731,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         }
 
         setSelectedClass(modalClassName);
+        if (modalStream && modalStream !== 'all') {
+            setSelectedStream(modalStream);
+        }
 
         setIsAddAllocationModalOpen(false);
-        setSaveToast(`Added allocation for ${modalSubjectName} in ${modalClassName}`);
+        setSaveToast(`Added allocation for ${modalSubjectName} in ${targetClassStream}`);
         setTimeout(() => setSaveToast(null), 3000);
     };
 
@@ -740,32 +783,222 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Selected Class Allocations (dynamically populated based on subjects assigned to selectedClass, deduplicated strictly by subject name)
+    // Helper to get available streams for any given class (Strictly stream names, e.g. ['EAST', 'WEST'])
+    const getStreamsForClass = useCallback((targetClass: string): string[] => {
+        const streamSet = new Set<string>();
+        if (!targetClass) return [];
+        const targetClean = targetClass.toLowerCase().trim();
+
+        // 1. From institution configured streams
+        if ((currentInstitution as any)?.streams && Array.isArray((currentInstitution as any).streams)) {
+            (currentInstitution as any).streams.forEach((s: any) => {
+                const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
+                const clean = extractStreamOnly(sName, targetClass);
+                if (clean && clean.toLowerCase() !== targetClean && !/^\d+$/.test(clean)) {
+                    streamSet.add(clean.toUpperCase());
+                }
+            });
+        }
+
+        // 2. From courses matching targetClass
+        (courses || []).forEach((c: any) => {
+            const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
+            const parsed = extractClassAndStream(cName);
+            const baseName = (parsed.className || cName).trim().toLowerCase();
+
+            if (baseName === targetClean || cName.toLowerCase().startsWith(targetClean)) {
+                if (Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => {
+                        const lName = String(l.name || '').trim();
+                        const clean = extractStreamOnly(lName, targetClass);
+                        if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
+                    });
+                }
+                const streamClean = extractStreamOnly(cName, targetClass);
+                if (streamClean && !/^\d+$/.test(streamClean)) streamSet.add(streamClean.toUpperCase());
+            }
+        });
+
+        // 3. From users & registered students in targetClass
+        [...allRegisteredStudents, ...users].forEach((u: any) => {
+            if (!u) return;
+            const uClass = String(u.studentClass || u.classLevel || u.class_name || u.class || '').trim();
+            const parsed = extractClassAndStream(uClass);
+            const baseName = (parsed.className || uClass).trim().toLowerCase();
+
+            if (baseName === targetClean || uClass.toLowerCase().startsWith(targetClean)) {
+                const directStream = u.stream || u.streamName || u.metadata?.stream || u.metadata?.streamName || '';
+                if (directStream) {
+                    const clean = extractStreamOnly(String(directStream), targetClass);
+                    if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
+                }
+                const fromClass = extractStreamOnly(uClass, targetClass);
+                if (fromClass && !/^\d+$/.test(fromClass)) streamSet.add(fromClass.toUpperCase());
+            }
+        });
+
+        // 4. From saved DB allocations matching targetClass
+        (allocations || []).forEach(a => {
+            const aClass = (a.className || '').trim();
+            if (aClass.toLowerCase().startsWith(targetClean) && aClass.toLowerCase() !== targetClean) {
+                const clean = extractStreamOnly(aClass, targetClass);
+                if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
+            }
+        });
+
+        // 5. From classAllocationsStore keys matching targetClass
+        Object.keys(classAllocationsStore || {}).forEach(k => {
+            if (k.toLowerCase().startsWith(targetClean) && k.toLowerCase() !== targetClean) {
+                const clean = extractStreamOnly(k, targetClass);
+                if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
+            }
+        });
+
+        // 6. From customStreamsStore
+        const customForClass = customStreamsStore[targetClass] || [];
+        customForClass.forEach(cs => {
+            const clean = extractStreamOnly(cs, targetClass);
+            if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
+        });
+
+        // 7. Check localStorage cached broadsheets
+        try {
+            const cachedBroadsheets = localStorage.getItem('eduai_saved_broadsheets');
+            if (cachedBroadsheets) {
+                const parsed = JSON.parse(cachedBroadsheets);
+                Object.keys(parsed).forEach(k => {
+                    if (k.toLowerCase().includes(targetClean)) {
+                        const clean = extractStreamOnly(k, targetClass);
+                        if (clean && !/^\d+$/.test(clean)) streamSet.add(clean.toUpperCase());
+                    }
+                });
+            }
+        } catch(e) {}
+
+        // Fallback default streams for any school class if none detected
+        if (streamSet.size === 0) {
+            streamSet.add('EAST');
+            streamSet.add('WEST');
+        }
+
+        return Array.from(streamSet).sort();
+    }, [currentInstitution, courses, allRegisteredStudents, users, allocations, classAllocationsStore, customStreamsStore]);
+
+    // Available Streams for currently selected class and modal class
+    const availableStreamsForClass = useMemo(() => getStreamsForClass(selectedClass), [getStreamsForClass, selectedClass]);
+    const availableStreamsForModalClass = useMemo(() => getStreamsForClass(modalClassName), [getStreamsForClass, modalClassName]);
+
+    // Add Custom Stream Handler
+    const handleAddCustomStream = (streamName: string) => {
+        const clean = streamName.trim().toUpperCase();
+        if (!clean || !selectedClass) return;
+        setCustomStreamsStore(prev => {
+            const current = prev[selectedClass] || [];
+            if (current.includes(clean)) return prev;
+            const updated = { ...prev, [selectedClass]: [...current, clean] };
+            try {
+                const instIdKey = currentInstitution?.id || 'default_inst';
+                localStorage.setItem(`eduai_custom_streams_${instIdKey}`, JSON.stringify(updated));
+            } catch(e) {}
+            return updated;
+        });
+        setSelectedStream(clean);
+        setIsAddingCustomStream(false);
+        setNewStreamInput('');
+        setSaveToast(`Added stream "${clean}" to ${selectedClass}`);
+        setTimeout(() => setSaveToast(null), 3000);
+    };
+
+    const isStreamSpecific = selectedStream !== 'all' && Boolean(selectedStream);
+    const activeTargetClassName = useMemo(() => {
+        if (!isStreamSpecific) return selectedClass;
+        return `${selectedClass} ${selectedStream}`.trim();
+    }, [isStreamSpecific, selectedClass, selectedStream]);
+
+    // Copy subject allocations from Base Class to active stream
+    const handleCopyFromBaseClass = async () => {
+        if (!isStreamSpecific || !selectedClass) return;
+        const baseAllocations = allocations.filter(a => a.className.toLowerCase().trim() === selectedClass.toLowerCase().trim());
+        if (baseAllocations.length === 0) {
+            const applicable = getApplicableSubjectsForClass(selectedClass);
+            const createdAllocs: SubjectAllocationRecord[] = applicable.map((subj, idx) => {
+                const defaultTeacher = teacherUsers[idx % teacherUsers.length];
+                return {
+                    id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${subj.id || idx}_${Date.now()}`,
+                    institutionId: currentInstitution?.id || 'inst_1',
+                    className: activeTargetClassName,
+                    subjectName: subj.name,
+                    subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                    teacherId: defaultTeacher ? defaultTeacher.id : '',
+                    teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
+                    lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
+                    status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
+                };
+            });
+            setAllocations(prev => [...createdAllocs, ...prev.filter(a => a.className.toLowerCase().trim() !== activeTargetClassName.toLowerCase().trim())]);
+            if (currentInstitution?.id) {
+                for (const a of createdAllocs) {
+                    await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
+                }
+            }
+        } else {
+            const copiedAllocs: SubjectAllocationRecord[] = baseAllocations.map(ba => ({
+                ...ba,
+                id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${ba.subjectName.replace(/\s+/g, '_')}_${Date.now()}`,
+                className: activeTargetClassName
+            }));
+            setAllocations(prev => [...copiedAllocs, ...prev.filter(a => a.className.toLowerCase().trim() !== activeTargetClassName.toLowerCase().trim())]);
+            if (currentInstitution?.id) {
+                for (const a of copiedAllocs) {
+                    await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
+                }
+            }
+        }
+        setSaveToast(`Copied allocations from ${selectedClass} into stream ${selectedStream}`);
+        setTimeout(() => setSaveToast(null), 3000);
+    };
+
+    // Selected Class Stream Allocations (dynamically populated based on subjects assigned to activeTargetClassName, deduplicated strictly by subject name)
     const classAllocations = useMemo(() => {
         if (!selectedClass) return [];
 
         const q = searchQuery.toLowerCase().trim();
         const map = new Map<string, SubjectAllocationRecord>();
 
-        // 1. First add saved DB allocation records for selectedClass
-        const savedForClass = (allocations || []).filter(a => a.className === selectedClass);
-        savedForClass.forEach(a => {
+        // 1. First add saved DB allocation records for activeTargetClassName
+        const savedForTarget = (allocations || []).filter(a => a.className.toLowerCase().trim() === activeTargetClassName.toLowerCase().trim());
+        savedForTarget.forEach(a => {
             const key = (a.subjectName || '').toLowerCase().trim();
             if (key && !map.has(key)) {
                 map.set(key, a);
             }
         });
 
-        // 2. Add applicable subjects for selectedClass if not already present
+        // 2. If stream-specific, check if base class has saved allocations to use as inherit baseline
+        if (isStreamSpecific) {
+            const savedForBase = (allocations || []).filter(a => a.className.toLowerCase().trim() === selectedClass.toLowerCase().trim());
+            savedForBase.forEach(ba => {
+                const key = (ba.subjectName || '').toLowerCase().trim();
+                if (key && !map.has(key)) {
+                    map.set(key, {
+                        ...ba,
+                        id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${ba.subjectName.replace(/\s+/g, '_')}`,
+                        className: activeTargetClassName
+                    });
+                }
+            });
+        }
+
+        // 3. Add applicable subjects for selectedClass if not already present
         const applicableSubjects = getApplicableSubjectsForClass(selectedClass);
         applicableSubjects.forEach((subj, idx) => {
             const key = (subj.name || '').toLowerCase().trim();
             if (key && !map.has(key)) {
                 const defaultTeacher = teacherUsers[idx % teacherUsers.length];
                 map.set(key, {
-                    id: `alloc_${selectedClass.replace(/\s+/g, '_')}_${subj.id || idx}`,
+                    id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${subj.id || idx}`,
                     institutionId: currentInstitution?.id || 'inst_1',
-                    className: selectedClass,
+                    className: activeTargetClassName,
                     subjectName: subj.name,
                     subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
                     teacherId: defaultTeacher ? defaultTeacher.id : '',
@@ -776,15 +1009,15 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             }
         });
 
-        // 3. Convert to array and filter out deleted/removed keys and search query
+        // 4. Convert to array and filter out deleted/removed keys and search query
         return Array.from(map.values()).filter(a => {
-            if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`)) return false;
+            if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`) || (!isStreamSpecific && removedFromClassKeys.has(`${selectedClass}_${a.subjectName}`))) return false;
             if (!q) return true;
             return a.className.toLowerCase().includes(q) ||
                    a.subjectName.toLowerCase().includes(q) ||
                    (a.teacherName && a.teacherName.toLowerCase().includes(q));
         });
-    }, [selectedClass, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
+    }, [selectedClass, activeTargetClassName, isStreamSpecific, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
     // All allocations dynamically gathered across classOptions + saved DB allocations (deduplicated by className + subjectName)
     const allAllocations = useMemo(() => {
@@ -906,7 +1139,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 <div className="flex items-center gap-3 flex-wrap">
                     <button
                         type="button"
-                        onClick={() => setIsAddAllocationModalOpen(true)}
+                        onClick={() => {
+                            if (selectedClass) setModalClassName(selectedClass);
+                            if (selectedStream) setModalStream(selectedStream);
+                            setIsAddAllocationModalOpen(true);
+                        }}
                         className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xl shadow-indigo-900/40 active:scale-95 flex items-center gap-2 cursor-pointer"
                     >
                         <PlusIcon className="w-4 h-4 stroke-[3]" /> Add Lesson Allocation
@@ -1032,14 +1269,130 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         })}
                     </div>
 
+                    {/* Stream Allocation Selector Bar */}
+                    <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mr-1">
+                                <UserGroupIcon className="w-4 h-4 text-indigo-500" />
+                                Stream Allocation:
+                            </span>
+
+                            {/* All Streams Pill */}
+                            <button
+                                type="button"
+                                onClick={() => setSelectedStream('all')}
+                                className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    selectedStream === 'all'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none scale-105'
+                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                                }`}
+                            >
+                                All Streams ({selectedClass})
+                            </button>
+
+                            {/* Individual Stream Pills */}
+                            {availableStreamsForClass.map(st => {
+                                const isSelected = selectedStream.toLowerCase() === st.toLowerCase();
+                                const streamClassKey = `${selectedClass} ${st}`.toLowerCase().trim();
+                                const streamAllocsCount = allocations.filter(a => a.className.toLowerCase().trim() === streamClassKey).length;
+
+                                return (
+                                    <button
+                                        key={st}
+                                        type="button"
+                                        onClick={() => setSelectedStream(st)}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            isSelected
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none scale-105'
+                                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                                        }`}
+                                    >
+                                        <span>{st}</span>
+                                        {streamAllocsCount > 0 && (
+                                            <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                                                isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                            }`}>
+                                                {streamAllocsCount} alloc
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Add Custom Stream or Stream Action */}
+                        <div className="flex items-center gap-2">
+                            {isAddingCustomStream ? (
+                                <div className="flex items-center gap-1.5 animate-fade-in">
+                                    <input
+                                        type="text"
+                                        value={newStreamInput}
+                                        onChange={e => setNewStreamInput(e.target.value)}
+                                        placeholder="e.g. NORTH, BLUE"
+                                        className="py-1 px-2.5 text-xs font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-indigo-400 rounded-lg outline-none w-32 uppercase"
+                                        autoFocus
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') handleAddCustomStream(newStreamInput);
+                                            if (e.key === 'Escape') setIsAddingCustomStream(false);
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAddCustomStream(newStreamInput)}
+                                        className="px-2.5 py-1 bg-indigo-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-indigo-700 cursor-pointer"
+                                    >
+                                        Add
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddingCustomStream(false)}
+                                        className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold cursor-pointer"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddingCustomStream(true)}
+                                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl border border-dashed border-indigo-300 dark:border-indigo-800 transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                    <PlusIcon className="w-3.5 h-3.5" /> Add Stream
+                                </button>
+                            )}
+
+                            {isStreamSpecific && (
+                                <button
+                                    type="button"
+                                    onClick={handleCopyFromBaseClass}
+                                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 rounded-xl border border-emerald-300 dark:border-emerald-800 transition-colors flex items-center gap-1 cursor-pointer"
+                                    title={`Copy all subject allocations from ${selectedClass} into ${activeTargetClassName}`}
+                                >
+                                    📋 Copy from Base {selectedClass}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Class Allocations Table */}
                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/40">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50 dark:bg-slate-950/40">
                             <div>
-                                <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                    Class Stream: {selectedClass}
-                                </h3>
-                                <p className="text-xs text-slate-500">Subject teacher assignments and weekly lesson count for {selectedClass}.</p>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        Class Stream: {activeTargetClassName}
+                                    </h3>
+                                    {isStreamSpecific ? (
+                                        <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                            Stream: {selectedStream}
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                            Base Class (All Streams)
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-0.5">Subject teacher assignments and weekly lesson count for {activeTargetClassName}.</p>
                             </div>
                             <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-3 py-1 rounded-full border border-indigo-100 dark:border-indigo-800">
                                 {classAllocations.reduce((sum, a) => sum + (a.lessonsPerWeek || 0), 0)} Weekly Lessons
@@ -1066,7 +1419,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                             <td className="px-6 py-4">
                                                 <select
                                                     value={alloc.teacherId || ''}
-                                                    onChange={(e) => handleAssignTeacher(alloc.id, e.target.value, alloc.className, alloc.subjectName, alloc.subjectCode, alloc.lessonsPerWeek)}
+                                                    onChange={(e) => handleAssignTeacher(alloc.id, e.target.value, activeTargetClassName, alloc.subjectName, alloc.subjectCode, alloc.lessonsPerWeek)}
                                                     className="w-full max-w-xs py-2 px-3 bg-slate-50 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-xs cursor-pointer"
                                                 >
                                                     <option value="">-- Select Teacher --</option>
@@ -1081,7 +1434,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                                     min={1}
                                                     max={15}
                                                     value={alloc.lessonsPerWeek}
-                                                    onChange={(e) => handleUpdateLessonsCount(alloc.id, parseInt(e.target.value) || 1, alloc.className, alloc.subjectName)}
+                                                    onChange={(e) => handleUpdateLessonsCount(alloc.id, parseInt(e.target.value) || 1, activeTargetClassName, alloc.subjectName)}
                                                     className="w-16 py-1.5 text-center font-mono font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
                                                 />
                                             </td>
@@ -1245,56 +1598,90 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                                {classOptions.map(cls => (
-                                    <tr key={cls} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                        <td className="px-4 py-3 font-bold text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-950/50">{cls}</td>
-                                        {matrixSubjectColumns.map(subCol => {
-                                            const subName = subCol.name;
-                                            const subObj = (subjects || []).find(s => s.name.toLowerCase().trim() === subName.toLowerCase().trim());
-                                            
-                                            // Check if subject is assigned or applicable to this class stream
-                                            const isApplicable = subObj 
-                                                ? isSubjectAssignedToClassStream(subObj, cls, courses)
-                                                : true;
+                                {classOptions.map(cls => {
+                                    // Collect streams for this class
+                                    const classStreams = new Set<string>();
+                                    (allocations || []).forEach(a => {
+                                        if (a.className.toLowerCase().startsWith(cls.toLowerCase()) && a.className.toLowerCase() !== cls.toLowerCase()) {
+                                            const strOnly = extractStreamOnly(a.className, cls);
+                                            if (strOnly && !/^\d+$/.test(strOnly)) classStreams.add(strOnly.toUpperCase());
+                                        }
+                                    });
+                                    if (cls.toLowerCase() === selectedClass.toLowerCase()) {
+                                        availableStreamsForClass.forEach(st => classStreams.add(st));
+                                    }
 
-                                            if (!isApplicable) {
-                                                return (
-                                                    <td key={subName} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-700 text-[10px] font-mono">
-                                                        —
-                                                    </td>
-                                                );
-                                            }
+                                    const rowsForThisClass: { key: string; label: string; isStream: boolean; streamName?: string }[] = [
+                                        { key: cls, label: cls, isStream: false },
+                                        ...Array.from(classStreams).sort().map(st => ({
+                                            key: `${cls} ${st}`,
+                                            label: `${cls} — Stream ${st}`,
+                                            isStream: true,
+                                            streamName: st
+                                        }))
+                                    ];
 
-                                            const alloc = allAllocations.find(a => 
-                                                a.className === cls && 
-                                                (a.subjectName.toLowerCase().trim() === subName.toLowerCase().trim() || (subCol.code && a.subjectCode === subCol.code))
-                                            );
-
-                                            return (
-                                                <td key={subName} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800">
-                                                    {alloc && alloc.teacherName && alloc.teacherName !== 'Unassigned' ? (
-                                                        <div className="space-y-0.5">
-                                                            <div className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[120px] mx-auto" title={alloc.teacherName}>{alloc.teacherName}</div>
-                                                            <div className="text-[10px] font-mono text-slate-400">{alloc.lessonsPerWeek} les/wk</div>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setModalClassName(cls);
-                                                                setModalSubjectName(subName);
-                                                                setIsAddAllocationModalOpen(true);
-                                                            }}
-                                                            className="text-[10px] font-bold text-amber-600 hover:text-amber-800 bg-amber-50 dark:bg-amber-950 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-900 transition-all cursor-pointer"
-                                                        >
-                                                            + Assign
-                                                        </button>
-                                                    )}
+                                    return rowsForThisClass.map(rowItem => {
+                                        const targetCls = rowItem.key;
+                                        return (
+                                            <tr key={targetCls} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className={`px-4 py-3 font-bold ${rowItem.isStream ? 'pl-8 text-indigo-600 dark:text-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/20 text-[11px]' : 'text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-950/50'}`}>
+                                                    {rowItem.label}
                                                 </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
+                                                {matrixSubjectColumns.map(subCol => {
+                                                    const subName = subCol.name;
+                                                    const subObj = (subjects || []).find(s => s.name.toLowerCase().trim() === subName.toLowerCase().trim());
+                                                    
+                                                    // Check if subject is assigned or applicable to this class stream
+                                                    const isApplicable = subObj 
+                                                        ? isSubjectAssignedToClassStream(subObj, targetCls, courses)
+                                                        : true;
+
+                                                    if (!isApplicable) {
+                                                        return (
+                                                            <td key={subName} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800 text-slate-300 dark:text-slate-700 text-[10px] font-mono">
+                                                                —
+                                                            </td>
+                                                        );
+                                                    }
+
+                                                    const alloc = allAllocations.find(a => 
+                                                        a.className.toLowerCase().trim() === targetCls.toLowerCase().trim() && 
+                                                        (a.subjectName.toLowerCase().trim() === subName.toLowerCase().trim() || (subCol.code && a.subjectCode === subCol.code))
+                                                    );
+
+                                                    return (
+                                                        <td key={subName} className="px-3 py-3 text-center border-x border-slate-100 dark:border-slate-800">
+                                                            {alloc && alloc.teacherName && alloc.teacherName !== 'Unassigned' ? (
+                                                                <div className="space-y-0.5">
+                                                                    <div className="font-bold text-indigo-600 dark:text-indigo-400 truncate max-w-[120px] mx-auto" title={alloc.teacherName}>{alloc.teacherName}</div>
+                                                                    <div className="text-[10px] font-mono text-slate-400">{alloc.lessonsPerWeek} les/wk</div>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setModalClassName(cls);
+                                                                        if (rowItem.isStream && rowItem.streamName) {
+                                                                            setModalStream(rowItem.streamName);
+                                                                        } else {
+                                                                            setModalStream('all');
+                                                                        }
+                                                                        setModalSubjectName(subName);
+                                                                        setIsAddAllocationModalOpen(true);
+                                                                    }}
+                                                                    className="text-[10px] font-bold text-amber-600 hover:text-amber-800 bg-amber-50 dark:bg-amber-950 px-2.5 py-1 rounded-lg border border-amber-200 dark:border-amber-900 transition-all cursor-pointer"
+                                                                >
+                                                                    + Assign
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    });
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -1303,7 +1690,15 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
             {/* TAB MODE 4: STUDENT SUBJECT ENROLLMENT */}
             {viewMode === 'student_enrollment' && (() => {
-                const classStudents = getStudentsForClass(selectedClass);
+                const rawClassStudents = getStudentsForClass(selectedClass);
+                const classStudents = isStreamSpecific
+                    ? rawClassStudents.filter(st => {
+                        const targetStr = selectedStream.toLowerCase().trim();
+                        const sClass = (st.studentClass || '').toLowerCase().trim();
+                        const sStream = extractStreamOnly(sClass, selectedClass).toLowerCase().trim() || ((st as any).stream ? String((st as any).stream).toLowerCase().trim() : '');
+                        return sStream === targetStr || sClass.includes(targetStr);
+                    })
+                    : rawClassStudents;
                 const classApplicableSubjects = getApplicableSubjectsForClass(selectedClass);
 
                 // Filter displayed subjects based on selection
@@ -1392,6 +1787,48 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                         <div className="text-[9px] font-mono opacity-80 mt-0.5">
                                             👥 {cStudents.length} Students
                                         </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Stream Selector Bar in Student Enrollment */}
+                        <div className="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1 mr-1">
+                                <UserGroupIcon className="w-3.5 h-3.5 text-indigo-500" /> Stream:
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedStream('all')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                    selectedStream === 'all'
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                                }`}
+                            >
+                                All Streams ({rawClassStudents.length})
+                            </button>
+                            {availableStreamsForClass.map(st => {
+                                const isSel = selectedStream.toLowerCase() === st.toLowerCase();
+                                const countInStream = rawClassStudents.filter(s => {
+                                    const strClean = extractStreamOnly(s.studentClass || '', selectedClass).toLowerCase().trim() || ((s as any).stream ? String((s as any).stream).toLowerCase().trim() : '');
+                                    return strClean === st.toLowerCase().trim() || (s.studentClass || '').toLowerCase().includes(st.toLowerCase().trim());
+                                }).length;
+                                return (
+                                    <button
+                                        key={st}
+                                        type="button"
+                                        onClick={() => setSelectedStream(st)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            isSel
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                                        }`}
+                                    >
+                                        <span>{st}</span>
+                                        <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isSel ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                                            {countInStream}
+                                        </span>
                                     </button>
                                 );
                             })}
@@ -1599,17 +2036,36 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         </div>
 
                         <form onSubmit={handleCreateAllocation} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Class Stream</label>
-                                <select
-                                    value={modalClassName}
-                                    onChange={e => setModalClassName(e.target.value)}
-                                    className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                                >
-                                    {classOptions.map(c => (
-                                        <option key={c} value={c}>{c}</option>
-                                    ))}
-                                </select>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Class</label>
+                                    <select
+                                        value={modalClassName}
+                                        onChange={e => {
+                                            setModalClassName(e.target.value);
+                                            setModalStream('all');
+                                        }}
+                                        className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                                    >
+                                        {classOptions.map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Stream Allocation</label>
+                                    <select
+                                        value={modalStream}
+                                        onChange={e => setModalStream(e.target.value)}
+                                        className="w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                                    >
+                                        <option value="all">Entire Class (All Streams)</option>
+                                        {availableStreamsForModalClass.map(st => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
                             <div>
