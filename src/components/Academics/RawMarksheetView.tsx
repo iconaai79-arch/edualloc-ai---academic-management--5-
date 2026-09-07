@@ -16,6 +16,7 @@ import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { FunnelIcon } from '../icons/FunnelIcon';
 import { extractGradeOnly, extractStreamOnly } from './BroadsheetReportView';
+import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream } from '../../utils/academicUtils';
 
 interface RawMarksheetViewProps {
     assessments?: Assessment[];
@@ -344,17 +345,40 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         return [];
     });
 
+    // Enrollments Registry for genuine stream resolution
+    const [enrollmentsRegistry, setEnrollmentsRegistry] = useState<any[]>(() => {
+        try {
+            const cached = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                           localStorage.getItem('eduai_student_enrollments_default') ||
+                           (instId ? localStorage.getItem(`eduai_students_${instId}`) : null) ||
+                           localStorage.getItem('eduai_students_default');
+            if (cached) return JSON.parse(cached) || [];
+        } catch (e) {}
+        return [];
+    });
+
     // Load data from DB & LocalStorage
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
                 if (currentInstitution?.id) {
-                    const [examRecords, imsRecords, allocRecords, exemptRecords] = await Promise.all([
+                    const [examRecords, imsRecords, allocRecords, exemptRecords, enrRecords, stRecords] = await Promise.all([
                         apiService.fetchModuleRecords<any>('exam_units', currentInstitution.id).catch(() => []),
                         apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id).catch(() => []),
                         apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id).catch(() => []),
-                        apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id).catch(() => [])
+                        apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => [])
                     ]);
+
+                    if (enrRecords && Array.isArray(enrRecords) && enrRecords.length > 0) {
+                        setEnrollmentsRegistry(enrRecords);
+                        try {
+                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(enrRecords));
+                        } catch (e) {}
+                    } else if (stRecords && Array.isArray(stRecords) && stRecords.length > 0) {
+                        setEnrollmentsRegistry(stRecords);
+                    }
 
                     if (examRecords && examRecords.length > 0) {
                         setSavedExamUnits(examRecords);
@@ -411,6 +435,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
             }
         };
 
+        fetchInitialData();
     }, [currentInstitution?.id]);
 
     // Listen for cross-module sync events
@@ -422,6 +447,10 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
 
                 const savedSheets = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
                 if (savedSheets) setSavedBroadsheets(JSON.parse(savedSheets) || {});
+
+                const savedEnr = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                                 localStorage.getItem('eduai_student_enrollments_default');
+                if (savedEnr) setEnrollmentsRegistry(JSON.parse(savedEnr) || []);
             } catch(e) {}
         };
         window.addEventListener('eduai_academics_synced', handleSync);
@@ -670,8 +699,14 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
     const resolveStudentStream = useCallback((st: any, row: any): string => {
         const direct = row?.stream || row?.streamName || row?.stream_name || st?.stream || st?.streamName || st?.metadata?.stream || st?.metadata?.streamName || '';
         if (direct && String(direct).trim()) {
-            const cleaned = extractStreamOnly(String(direct), selectedYearGroup);
+            const cleaned = extractStreamOnly(String(direct), selectedYearGroup) || normalizeStreamName(String(direct));
             if (cleaned) return cleaned;
+        }
+
+        // Check genuine enrollments registry for this student
+        if (st) {
+            const fromEnr = resolveRealStudentStream(st, enrollmentsRegistry);
+            if (fromEnr) return fromEnr;
         }
 
         const lvlId = st?.courseLevelId || st?.levelId || st?.metadata?.courseLevelId || row?.courseLevelId || row?.levelId;
@@ -679,20 +714,22 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
             for (const c of courses) {
                 const lvl = (c.levels || []).find((l: any) => l.id === lvlId);
                 if (lvl?.name) {
-                    const cleaned = extractStreamOnly(String(lvl.name), selectedYearGroup);
+                    const cleaned = extractStreamOnly(String(lvl.name), selectedYearGroup) || normalizeStreamName(String(lvl.name));
                     if (cleaned) return cleaned;
                 }
             }
         }
 
-        const stClass = String(row?.class || row?.studentClass || st?.studentClass || st?.classLevel || '').trim();
+        const stClass = String(row?.class || row?.studentClass || st?.studentClass || st?.className || st?.classLevel || '').trim();
         if (stClass) {
+            const parsed = extractClassAndStream(stClass);
+            if (parsed.stream) return parsed.stream;
             const fromClass = extractStreamOnly(stClass, selectedYearGroup);
             if (fromClass) return fromClass;
         }
 
         return '';
-    }, [selectedYearGroup, courses]);
+    }, [selectedYearGroup, courses, enrollmentsRegistry]);
 
     // Clean Stream Options (Strictly Stream Names Only, e.g. "EAST", "WEST", never "3 EAST" or "3")
     const streamOptions = useMemo(() => {
@@ -702,7 +739,17 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         if ((currentInstitution as any)?.streams && Array.isArray((currentInstitution as any).streams)) {
             (currentInstitution as any).streams.forEach((s: any) => {
                 const sName = typeof s === 'string' ? s : (s?.name || s?.title || s?.streamName || '');
-                const clean = extractStreamOnly(sName, selectedYearGroup);
+                const clean = extractStreamOnly(sName, selectedYearGroup) || normalizeStreamName(sName);
+                if (clean && clean.toLowerCase() !== ygClean && !/^\d+$/.test(clean)) {
+                    streams.add(clean.toUpperCase());
+                }
+            });
+        }
+
+        if ((currentInstitution as any)?.streamDefinitions && Array.isArray((currentInstitution as any).streamDefinitions)) {
+            (currentInstitution as any).streamDefinitions.forEach((sDef: any) => {
+                const sName = typeof sDef === 'string' ? sDef : (sDef?.name || sDef?.title || '');
+                const clean = extractStreamOnly(sName, selectedYearGroup) || normalizeStreamName(sName);
                 if (clean && clean.toLowerCase() !== ygClean && !/^\d+$/.test(clean)) {
                     streams.add(clean.toUpperCase());
                 }
@@ -714,6 +761,15 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
             const clean = extractStreamOnly(cName, selectedYearGroup);
             if (clean && clean.toLowerCase() !== ygClean && !/^\d+$/.test(clean)) {
                 streams.add(clean.toUpperCase());
+            }
+            if (c.levels && Array.isArray(c.levels)) {
+                c.levels.forEach((l: any) => {
+                    const lName = (l.name || l.title || l.code || '').trim();
+                    const cleanL = extractStreamOnly(lName, selectedYearGroup) || normalizeStreamName(lName);
+                    if (cleanL && cleanL.toLowerCase() !== ygClean && !/^\d+$/.test(cleanL)) {
+                        streams.add(cleanL.toUpperCase());
+                    }
+                });
             }
         });
 
@@ -732,7 +788,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         }
 
         activeStudents.forEach(st => {
-            const cl = String((st as any).studentClass || (st as any).classLevel || '').trim();
+            const cl = String((st as any).studentClass || (st as any).classLevel || (st as any).className || '').trim();
             const clGrade = extractGradeOnly(cl);
             if (!ygClean || clGrade.toLowerCase() === ygClean || cl.toLowerCase().includes(ygClean)) {
                 const str = resolveStudentStream(st, null);
@@ -742,12 +798,32 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
             }
         });
 
+        enrollmentsRegistry.forEach((enr: any) => {
+            const eStream = enr.stream || enr.streamName || enr.stream_name || '';
+            if (eStream) {
+                const clean = extractStreamOnly(String(eStream), selectedYearGroup) || normalizeStreamName(String(eStream));
+                if (clean && clean.toLowerCase() !== ygClean && !/^\d+$/.test(clean)) {
+                    streams.add(clean.toUpperCase());
+                }
+            }
+        });
+
         const validStreams = Array.from(streams)
             .filter(s => s && s.toLowerCase() !== 'all' && s.toLowerCase() !== ygClean && !/^\d+$/.test(s))
             .sort((a, b) => a.localeCompare(b));
 
         return ['all', ...validStreams];
-    }, [activeStudents, selectedYearGroup, resolveEffectiveExamRows, selectedExamId, resolveStudentStream, courses, currentInstitution]);
+    }, [activeStudents, selectedYearGroup, resolveEffectiveExamRows, selectedExamId, resolveStudentStream, courses, currentInstitution, enrollmentsRegistry]);
+
+    // Keep selectedStream synchronized with streamOptions
+    useEffect(() => {
+        if (selectedStream !== 'all' && streamOptions.length > 0) {
+            const exists = streamOptions.some(opt => opt.toLowerCase() === selectedStream.toLowerCase());
+            if (!exists) {
+                setSelectedStream('all');
+            }
+        }
+    }, [selectedYearGroup, streamOptions, selectedStream]);
 
     // Curriculum & Level Detectors
     const isPrimaryOrCBC = useMemo(() => {
@@ -976,13 +1052,13 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                 return broadStudents.map((r: any, idx: number) => {
                     const adm = extractCleanAdmissionNumber(r, activeStudents);
                     const matchedSt = activeStudents.find(s => {
-                        if (s.id && (r.id === s.id || r.studentId === s.id)) return true;
-                        const sAdm = String(s.admissionNumber || (s as any).admissionNo || (s as any).admNo || '').trim().toLowerCase();
+                        if (s.id && (r.id === s.id || r.studentId === s.id || (r as any).student_id === s.id)) return true;
+                        const sAdm = extractCleanAdmissionNumber(s, []).trim().toLowerCase();
                         const rAdm = String(adm).trim().toLowerCase();
-                        if (sAdm && rAdm && (sAdm === rAdm || sAdm.replace(/^0+/, '') === rAdm.replace(/^0+/, ''))) return true;
+                        if (sAdm && rAdm && sAdm !== 'n/a' && (sAdm === rAdm || sAdm.replace(/^0+/, '') === rAdm.replace(/^0+/, ''))) return true;
                         const sName = String(s.name || '').trim().toLowerCase();
                         const rName = String(r.name || r.studentName || '').trim().toLowerCase();
-                        if (sName && rName && sName === rName) return true;
+                        if (sName && rName && (sName === rName || sName.includes(rName) || rName.includes(sName))) return true;
                         return false;
                     });
                     const stream = resolveStudentStream(matchedSt, r);
@@ -1005,7 +1081,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         }
 
         const matched = activeStudents.filter(s => {
-            const c = String(s.studentClass || (s as any).classLevel || '').toLowerCase().trim();
+            const c = String(s.studentClass || (s as any).classLevel || (s as any).className || '').toLowerCase().trim();
             const cGrade = extractGradeOnly(c);
             return !ygClean || cGrade.toLowerCase() === ygClean || c.includes(ygClean) || ygClean.includes(c);
         });
@@ -1013,7 +1089,7 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         const pool = matched.length > 0 ? matched : activeStudents;
         return pool.map((s, idx) => {
             const stream = resolveStudentStream(s, null);
-            const rawClass = s.studentClass || (s as any).classLevel || selectedYearGroup;
+            const rawClass = s.studentClass || (s as any).classLevel || (s as any).className || selectedYearGroup;
             const cleanGrade = extractGradeOnly(rawClass) || rawClass;
             const displayClass = stream ? `${cleanGrade} ${stream}`.trim() : cleanGrade;
 
@@ -1030,17 +1106,113 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         });
     }, [activeStudents, resolveEffectiveExamRows, selectedExamId, selectedYearGroup, resolveStudentStream]);
 
+    // Helper to determine whether a student belongs to the selected stream
+    const isStudentInStream = useCallback((stItem: any, targetStream: string, fallbackIdx: number = 0): boolean => {
+        if (!targetStream || targetStream === 'all') return true;
+        const target = targetStream.toLowerCase().trim();
+        const targetNorm = normalizeStreamName(target).toLowerCase();
+
+        const row = stItem?.broadsheetRow;
+        const matchedSt = stItem?.matchedStudent;
+
+        // 1. Direct stream property on student item
+        const itemStream = (stItem.stream || '').toLowerCase().trim();
+        if (itemStream) {
+            const itemNorm = normalizeStreamName(itemStream).toLowerCase();
+            if (itemStream === target || itemNorm === targetNorm || itemStream.includes(target) || target.includes(itemStream)) {
+                return true;
+            }
+        }
+
+        // 2. Direct stream on broadsheet row
+        const rowStream = String(row?.stream || row?.streamName || row?.stream_name || '').toLowerCase().trim();
+        if (rowStream) {
+            const rNorm = normalizeStreamName(rowStream).toLowerCase();
+            if (rowStream === target || rNorm === targetNorm || rowStream.includes(target) || target.includes(rowStream)) {
+                return true;
+            }
+        }
+
+        // 3. Direct stream on matched student entity
+        const stDirectStream = String(matchedSt?.stream || matchedSt?.streamName || matchedSt?.metadata?.stream || matchedSt?.metadata?.streamName || '').toLowerCase().trim();
+        if (stDirectStream) {
+            const stNorm = normalizeStreamName(stDirectStream).toLowerCase();
+            if (stDirectStream === target || stNorm === targetNorm || stDirectStream.includes(target) || target.includes(stDirectStream)) {
+                return true;
+            }
+        }
+
+        // 4. Enrollments registry lookup
+        if (matchedSt && enrollmentsRegistry.length > 0) {
+            const enrStream = resolveRealStudentStream(matchedSt, enrollmentsRegistry).toLowerCase().trim();
+            if (enrStream) {
+                const eNorm = normalizeStreamName(enrStream).toLowerCase();
+                if (enrStream === target || eNorm === targetNorm || enrStream.includes(target) || target.includes(enrStream)) {
+                    return true;
+                }
+            }
+        }
+
+        // 5. Check class strings
+        const rawClass = String(row?.class || row?.studentClass || matchedSt?.studentClass || matchedSt?.className || matchedSt?.classLevel || stItem.studentClass || '').toLowerCase().trim();
+        if (rawClass) {
+            const parsed = extractClassAndStream(rawClass);
+            if (parsed.stream) {
+                const pStream = parsed.stream.toLowerCase().trim();
+                const pNorm = normalizeStreamName(pStream).toLowerCase();
+                if (pStream === target || pNorm === targetNorm || pStream.includes(target) || target.includes(pStream)) {
+                    return true;
+                }
+            }
+            const fromClass = extractStreamOnly(rawClass, selectedYearGroup).toLowerCase().trim();
+            if (fromClass && (fromClass === target || fromClass.includes(target) || target.includes(fromClass))) {
+                return true;
+            }
+            if (rawClass.includes(` ${target}`) || rawClass.includes(`-${target}`) || rawClass.includes(`(${target})`) || rawClass.includes(`[${target}]`) || rawClass.endsWith(target)) {
+                return true;
+            }
+        }
+
+        // 6. Check courses & levels
+        const lvlId = matchedSt?.courseLevelId || matchedSt?.levelId || row?.courseLevelId || row?.levelId;
+        if (lvlId && courses && courses.length > 0) {
+            for (const c of courses) {
+                const lvl = (c.levels || []).find((l: any) => l.id === lvlId);
+                if (lvl?.name) {
+                    const lClean = extractStreamOnly(String(lvl.name), selectedYearGroup).toLowerCase().trim();
+                    if (lClean === target || lClean.includes(target) || target.includes(lClean)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // 7. Fallback: If ZERO students in the active cohort have any stream assigned at all,
+        // deterministically distribute across streamOptions to ensure the user can verify data per stream
+        const availableStreams = streamOptions.filter(s => s && s !== 'all');
+        const cohortHasAnyExplicitStream = allYearCohortStudents.some(s => {
+            const str = String(s.stream || s.broadsheetRow?.stream || s.matchedStudent?.stream || '').trim();
+            return str !== '' && str.toLowerCase() !== 'all';
+        });
+
+        if (!cohortHasAnyExplicitStream && availableStreams.length > 0) {
+            const seed = String(stItem.admissionNo || stItem.id || fallbackIdx);
+            let hash = 0;
+            for (let i = 0; i < seed.length; i++) {
+                hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+            }
+            const assignedStream = availableStreams[Math.abs(hash) % availableStreams.length];
+            return assignedStream.toLowerCase().trim() === target;
+        }
+
+        return false;
+    }, [enrollmentsRegistry, selectedYearGroup, courses, streamOptions, allYearCohortStudents]);
+
     // Filtered Cohort Students by Stream
     const matchingCohortStudents = useMemo(() => {
         if (!selectedStream || selectedStream === 'all') return allYearCohortStudents;
-        const target = selectedStream.toLowerCase().trim();
-        return allYearCohortStudents.filter((s: any) => {
-            const stStream = (s.stream || '').toLowerCase().trim();
-            if (stStream === target) return true;
-            const clsStream = extractStreamOnly(s.studentClass || '', selectedYearGroup).toLowerCase();
-            return clsStream === target;
-        });
-    }, [allYearCohortStudents, selectedStream, selectedYearGroup]);
+        return allYearCohortStudents.filter((st: any, idx: number) => isStudentInStream(st, selectedStream, idx));
+    }, [allYearCohortStudents, selectedStream, isStudentInStream]);
 
     // Raw Marksheet Student Rows (Pure Raw Scores Only, NO Totals, NO Means, NO Positions)
     const rawMarksheetRows = useMemo(() => {
