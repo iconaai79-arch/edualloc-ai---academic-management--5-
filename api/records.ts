@@ -315,7 +315,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 } else if (orderParam) {
                     q = q.order(orderParam, { ascending: true });
-                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)) {
+                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
                 }
 
@@ -325,7 +325,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
                     ? 100000
-                    : 10000
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : 10000)
             );
             if (isNaN(finalLimit)) finalLimit = 100000;
             if (finalLimit > 100000) {
@@ -339,7 +339,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = 6000): Promise<any> => {
+            const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = 12000): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
                     timer = setTimeout(() => reject(new Error('statement timeout')), timeoutMs);
@@ -435,6 +435,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             retryQ = retryQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
                         } else if (user?.institutionId && !isTableWithoutInstitutionId(moduleName)) {
                             retryQ = retryQ.eq('institution_id', user.institutionId);
+                        }
+                        if (['visitors', 'security_alerts', 'activity_log', 'integration_logs'].includes(moduleName)) {
+                            retryQ = retryQ.order('created_at', { ascending: false });
                         }
                         retryQ = retryQ.range(0, 499);
                         const { data: retryData, error: retryErr } = await retryQ;
