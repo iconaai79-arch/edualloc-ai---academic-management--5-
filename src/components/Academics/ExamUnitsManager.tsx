@@ -19,6 +19,7 @@ import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { DownloadIcon } from '../icons/DownloadIcon';
 import { UploadIcon } from '../icons/UploadIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
+import { LockClosedIcon } from '../icons/LockClosedIcon';
 
 export interface ExamUnitRecord {
     id: string;
@@ -1663,6 +1664,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder]);
 
     const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
+        if (activeExam?.status === 'published') {
+            return;
+        }
         setBroadsheetStudentRows(prevRows => {
             const normName = studentName ? studentName.toLowerCase().trim() : '';
             const existingIndex = prevRows.findIndex(r =>
@@ -2207,6 +2211,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // CSV Bulk Marks Upload Handler
     const handleImportMarksCSV = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        if (activeExam?.status === 'published') {
+            alert(`🔒 "${activeExam.name}" is currently published.\n\nPublished exams cannot be edited unless unpublished first. Please click "Unpublish Exam" on the dashboard before importing marks.`);
+            if (e.target) e.target.value = '';
+            return;
+        }
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -2588,6 +2597,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const inProgressExams = useMemo(() => exams.filter(e => e.status === 'in_progress'), [exams]);
 
     const handleSaveSubjectMarks = async (subjectName: string) => {
+        if (activeExam?.status === 'published') {
+            alert(`🔒 "${activeExam.name}" is currently published.\n\nPublished exams cannot be edited unless unpublished first. Please click "Unpublish Exam" before saving new marks.`);
+            return;
+        }
         setIsSavingMarks(true);
         const updatedStore = { ...examMarksStore, [selectedExamId]: broadsheetStudentRows };
         setExamMarksStore(updatedStore);
@@ -2679,6 +2692,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // EDIT EXISTING EXAM CASE
         if (isEditingExam && activeExam) {
+            if (activeExam.status === 'published') {
+                alert(`🔒 "${activeExam.name}" is currently published.\n\nPublished exams cannot be edited unless unpublished first. Please unpublish this exam before saving changes.`);
+                return;
+            }
             // ── CLASS-CHANGE GUARD: Warn if class list changed and marks exist ──
             const oldClasses = activeExam.classes || [];
             const newClasses = targetClasses;
@@ -3238,15 +3255,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             {/* Header Controls & Exam Title */}
                             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-sm">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
-                                    <h2 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">
-                                        {activeExam.name}
-                                    </h2>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2.5 flex-wrap">
+                                            <h2 className="font-black text-lg text-slate-900 dark:text-white uppercase tracking-tight">
+                                                {activeExam.name}
+                                            </h2>
+                                            {activeExam.status === 'published' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                                    <LockClosedIcon className="w-3 h-3 stroke-[2.5]" /> Published (Locked)
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                                    In Progress • Editable
+                                                </span>
+                                            )}
+                                        </div>
+                                        {activeExam.status === 'published' && (
+                                            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                🔒 Published exams cannot be edited. Click <strong>Unpublish Exam</strong> to modify parameters, classes, or student marks.
+                                            </p>
+                                        )}
+                                    </div>
 
                                     <div className="flex items-center gap-3 relative">
                                         <button
                                             type="button"
                                             onClick={handleTogglePublish}
-                                            className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-all"
+                                            className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-all cursor-pointer"
                                         >
                                             {activeExam?.status === 'published' ? 'Unpublish Exam' : 'Publish Exam'}
                                         </button>
@@ -3255,49 +3290,68 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => setIsActionsOpen(!isActionsOpen)}
-                                                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                                                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                                             >
                                                 Exam Actions <ChevronDownIcon className="w-4 h-4 stroke-[2.5]" />
                                             </button>
                                             {isActionsOpen && (
-                                                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 animate-scale-in">
+                                                <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 animate-scale-in">
                                                     <div className="py-1">
-                                                        <button onClick={() => {
-                                                            setIsActionsOpen(false);
-                                                            setIsEditingExam(true);
-                                                            setNewExamName(activeExam.name);
-                                                            setNewTerm(activeExam.term);
-                                                            setNewAcademicYear(activeExam.year.toString());
-                                                            setSelectedClasses(activeExam.classes || registeredClasses);
-                                                            if (activeExam.testedPaperConfigs && Array.isArray(activeExam.testedPaperConfigs) && activeExam.testedPaperConfigs.length > 0) {
-                                                                setTestedPaperConfigs(activeExam.testedPaperConfigs);
-                                                            } else {
-                                                                try {
-                                                                    const savedByExam = localStorage.getItem(`eduai_tested_papers_${instId}_${activeExam.id}`);
-                                                                    if (savedByExam) {
-                                                                        const parsed = JSON.parse(savedByExam);
-                                                                        if (Array.isArray(parsed) && parsed.length > 0) setTestedPaperConfigs(parsed);
-                                                                    }
-                                                                } catch (e) { }
-                                                            }
-                                                            if (activeExam.rankingCriteria) {
-                                                                setUseCustomRanking(true);
-                                                                setCustomRankingCriteria(activeExam.rankingCriteria);
-                                                                if (activeExam.rankingScope) setRankingScope(activeExam.rankingScope);
-                                                                if (activeExam.customRankingSubjectsCount) setCustomRankingSubjectsCount(activeExam.customRankingSubjectsCount);
-                                                                if (activeExam.perClassRankingSettings) setPerClassRankingSettings(activeExam.perClassRankingSettings);
-                                                            } else {
-                                                                setUseCustomRanking(false);
-                                                            }
-                                                            setWizardStep(1);
-                                                            setIsAddExamModalOpen(true);
-                                                        }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
-                                                            <PencilIcon className="w-4 h-4 text-slate-400" /> Edit Exam
+                                                        <button
+                                                            onClick={() => {
+                                                                setIsActionsOpen(false);
+                                                                if (activeExam.status === 'published') {
+                                                                    alert(`🔒 "${activeExam.name}" is currently published.\n\nPublished exams cannot be edited unless unpublished first. Please click "Unpublish Exam" to unlock editing.`);
+                                                                    return;
+                                                                }
+                                                                setIsEditingExam(true);
+                                                                setNewExamName(activeExam.name);
+                                                                setNewTerm(activeExam.term);
+                                                                setNewAcademicYear(activeExam.year.toString());
+                                                                setSelectedClasses(activeExam.classes || registeredClasses);
+                                                                if (activeExam.testedPaperConfigs && Array.isArray(activeExam.testedPaperConfigs) && activeExam.testedPaperConfigs.length > 0) {
+                                                                    setTestedPaperConfigs(activeExam.testedPaperConfigs);
+                                                                } else {
+                                                                    try {
+                                                                        const savedByExam = localStorage.getItem(`eduai_tested_papers_${instId}_${activeExam.id}`);
+                                                                        if (savedByExam) {
+                                                                            const parsed = JSON.parse(savedByExam);
+                                                                            if (Array.isArray(parsed) && parsed.length > 0) setTestedPaperConfigs(parsed);
+                                                                        }
+                                                                    } catch (e) { }
+                                                                }
+                                                                if (activeExam.rankingCriteria) {
+                                                                    setUseCustomRanking(true);
+                                                                    setCustomRankingCriteria(activeExam.rankingCriteria);
+                                                                    if (activeExam.rankingScope) setRankingScope(activeExam.rankingScope);
+                                                                    if (activeExam.customRankingSubjectsCount) setCustomRankingSubjectsCount(activeExam.customRankingSubjectsCount);
+                                                                    if (activeExam.perClassRankingSettings) setPerClassRankingSettings(activeExam.perClassRankingSettings);
+                                                                } else {
+                                                                    setUseCustomRanking(false);
+                                                                }
+                                                                setWizardStep(1);
+                                                                setIsAddExamModalOpen(true);
+                                                            }}
+                                                            className={`w-full text-left px-4 py-2 flex items-center justify-between transition-colors ${
+                                                                activeExam.status === 'published'
+                                                                    ? 'opacity-60 text-slate-400 bg-slate-50/50 dark:bg-slate-800/40 cursor-not-allowed'
+                                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer'
+                                                            }`}
+                                                            title={activeExam.status === 'published' ? 'Published exams cannot be edited unless unpublished first' : 'Edit Exam'}
+                                                        >
+                                                            <span className="flex items-center gap-2">
+                                                                <PencilIcon className="w-4 h-4 text-slate-400" /> Edit Exam
+                                                            </span>
+                                                            {activeExam.status === 'published' && (
+                                                                <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                                                                    <LockClosedIcon className="w-2.5 h-2.5" /> Locked
+                                                                </span>
+                                                            )}
                                                         </button>
-                                                        <button onClick={() => { setIsActionsOpen(false); setIsBroadsheetModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                                                        <button onClick={() => { setIsActionsOpen(false); setIsBroadsheetModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer">
                                                             <DocumentTextIcon className="w-4 h-4 text-slate-400" /> View Broadsheet
                                                         </button>
-                                                        <button onClick={() => { setIsActionsOpen(false); setIsSendResultsModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                                                        <button onClick={() => { setIsActionsOpen(false); setIsSendResultsModalOpen(true); }} className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer">
                                                             <PaperAirplaneIcon className="w-4 h-4 text-slate-400" /> Send Results
                                                         </button>
                                                     </div>
@@ -4480,12 +4534,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         <span>Template</span>
                                     </button>
 
-                                    <label className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95">
-                                        <UploadIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                    <label className={`px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                                        activeExam?.status === 'published' ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+                                    }`}>
+                                        <UploadIcon className="w-4 h-4" />
                                         <span>Import CSV</span>
                                         <input
                                             type="file"
                                             accept=".csv,.txt"
+                                            disabled={activeExam?.status === 'published'}
                                             onChange={handleImportMarksCSV}
                                             className="hidden"
                                         />
@@ -4495,9 +4552,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 {selectedSubjectFilter !== 'all' && (
                                     <button
                                         type="button"
-                                        disabled={isSavingMarks}
+                                        disabled={isSavingMarks || activeExam?.status === 'published'}
                                         onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
-                                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {isSavingMarks ? '⏳ Saving...' : `💾 Save ${selectedSubjectFilter} Marks`}
                                     </button>
@@ -4505,7 +4562,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                                 <button
                                     onClick={() => setIsBroadsheetModalOpen(false)}
-                                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-all"
+                                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-all cursor-pointer"
                                 >
                                     <XIcon className="w-6 h-6" />
                                 </button>
@@ -4514,6 +4571,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                         {/* Modal Body */}
                         <div className="p-6 space-y-4">
+                            {/* Read-Only Published Banner */}
+                            {activeExam?.status === 'published' && (
+                                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold text-amber-900 dark:text-amber-200 shadow-sm">
+                                    <span className="flex items-center gap-2">
+                                        <LockClosedIcon className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                                        <span><strong>Exam is Published (Read-Only):</strong> Marks and parameters are locked to preserve official results integrity. Click &quot;Unpublish Exam&quot; to make modifications.</span>
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsBroadsheetModalOpen(false);
+                                            handleTogglePublish();
+                                        }}
+                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer flex-shrink-0"
+                                    >
+                                        Unpublish Exam
+                                    </button>
+                                </div>
+                            )}
+
                             {/* SINGLE SUBJECT EDITABLE MODE */}
                             {selectedSubjectFilter !== 'all' ? (
                                 <div className="space-y-4">
@@ -4597,6 +4674,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                                 max={paper.maxScore}
                                                                                 value={displayVal}
                                                                                 placeholder="0"
+                                                                                disabled={activeExam?.status === 'published'}
                                                                                 onFocus={(e) => e.target.select()}
                                                                                 onKeyDown={(e) => {
                                                                                     if (e.key === 'Enter' || e.key === 'ArrowDown') {
@@ -4637,11 +4715,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                                     }
                                                                                 }}
                                                                                 onChange={(e) => {
+                                                                                    if (activeExam?.status === 'published') return;
                                                                                     const raw = e.target.value;
                                                                                     const val = raw === '' ? 0 : Math.max(0, Math.min(paper.maxScore, parseFloat(raw) || 0));
                                                                                     handleUpdateStudentMark(st.admNo, paper.key, val, st.name, st.class);
                                                                                 }}
-                                                                                className="w-20 px-2 py-1.5 text-center font-mono font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-2 border-indigo-300 dark:border-indigo-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs transition-all placeholder-slate-400"
+                                                                                className={`w-20 px-2 py-1.5 text-center font-mono font-black border-2 rounded-lg shadow-sm text-xs transition-all ${
+                                                                                    activeExam?.status === 'published'
+                                                                                        ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed'
+                                                                                        : 'text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-indigo-300 dark:border-indigo-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400'
+                                                                                }`}
                                                                             />
                                                                             <span className="text-[10px] font-bold text-slate-400">/ {paper.maxScore}</span>
                                                                         </div>
