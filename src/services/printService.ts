@@ -30,15 +30,19 @@ function formatPrintDate(dateStr?: string): string {
 
 const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
-        if (!url) return resolve(null);
+        let safeUrl = (url || '').trim();
+        if (!safeUrl) return resolve(null);
+        if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+            safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+        }
         const img = new Image();
-        if (!url.startsWith('data:')) {
+        if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
             img.crossOrigin = "Anonymous";
         }
-        img.src = url;
+        img.src = safeUrl;
         img.onload = () => resolve(img);
         img.onerror = (e) => {
-            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url, e);
+            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", safeUrl.slice(0, 100), e);
             resolve(null);
         };
     });

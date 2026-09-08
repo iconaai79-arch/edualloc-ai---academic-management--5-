@@ -127,13 +127,19 @@ function getJsPdf() {
 
 // ─── Load image helper ───────────────────────────────────────────────────────
 function loadImg(url: string | null): Promise<HTMLImageElement | null> {
-    if (!url) return Promise.resolve(null);
+    let safeUrl = (url || '').trim();
+    if (!safeUrl) return Promise.resolve(null);
+    if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+        safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+    }
     return new Promise((resolve) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
+            img.crossOrigin = 'anonymous';
+        }
         img.onload = () => resolve(img);
         img.onerror = () => resolve(null);
-        img.src = url;
+        img.src = safeUrl;
     });
 }
 

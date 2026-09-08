@@ -171,10 +171,16 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
 
             const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
                 return new Promise((resolve) => {
-                    if (!url) return resolve(null);
+                    let safeUrl = (url || '').trim();
+                    if (!safeUrl) return resolve(null);
+                    if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+                        safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+                    }
                     const img = new Image();
-                    img.crossOrigin = "Anonymous";
-                    img.src = url;
+                    if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
+                        img.crossOrigin = "Anonymous";
+                    }
+                    img.src = safeUrl;
                     img.onload = () => resolve(img);
                     img.onerror = () => { console.error("Failed to load image for PDF."); resolve(null); };
                 });
@@ -288,10 +294,16 @@ export const AttendanceReports: React.FC<AttendanceReportsProps> = ({
 
             const loadImage = (url: string | null): Promise<HTMLImageElement | null> => {
                 return new Promise((resolve) => {
-                    if (!url) return resolve(null);
+                    let safeUrl = (url || '').trim();
+                    if (!safeUrl) return resolve(null);
+                    if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+                        safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+                    }
                     const img = new Image();
-                    img.crossOrigin = "Anonymous";
-                    img.src = url;
+                    if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
+                        img.crossOrigin = "Anonymous";
+                    }
+                    img.src = safeUrl;
                     img.onload = () => resolve(img);
                     img.onerror = () => { console.error("Failed to load image for PDF."); resolve(null); };
                 });

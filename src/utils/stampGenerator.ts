@@ -101,7 +101,7 @@ const generateCircleStampSvg = (
     const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.8 : 1.2);
 
     return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="100%" height="100%" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: block; transform: rotate(${resolved.rotationAngle}deg); transform-origin: center center; font-family: 'Arial Black', 'Arial', sans-serif;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: block; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path (Clockwise Arc: Left to Right across top) -->
             <path id="${topPathId}" d="M 38 140 A 102 102 0 0 1 242 140" fill="none" />
@@ -115,7 +115,7 @@ const generateCircleStampSvg = (
             </filter>
         </defs>
 
-        <g filter="url(#distress_${uniqueId})" stroke="${resolved.inkColor}" fill="${resolved.inkColor}">
+        <g transform="rotate(${resolved.rotationAngle || 0} 140 140)" filter="url(#distress_${uniqueId})" stroke="${resolved.inkColor}" fill="${resolved.inkColor}">
             <!-- Outer Double Concentric Border Rings -->
             <circle cx="140" cy="140" r="133" fill="none" stroke="${resolved.inkColor}" stroke-width="4" />
             <circle cx="140" cy="140" r="125" fill="none" stroke="${resolved.inkColor}" stroke-width="1.8" />
@@ -208,7 +208,7 @@ const generateOvalStampSvg = (
     const addressLetterSpacing = addressLen > 40 ? 0.5 : (addressLen > 32 ? 0.7 : 1.0);
 
     return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="100%" height="100%" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: block; transform: rotate(${resolved.rotationAngle}deg); transform-origin: center center; font-family: 'Arial Black', 'Arial', sans-serif;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 220" width="320" height="220" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: block; font-family: 'Arial Black', 'Arial', sans-serif;">
         <defs>
             <!-- Top Arched Path on Ellipse (Clockwise) -->
             <path id="${topPathId}" d="M 42 110 A 118 68 0 0 1 278 110" fill="none" />
@@ -222,7 +222,7 @@ const generateOvalStampSvg = (
             </filter>
         </defs>
 
-        <g filter="url(#distress_${uniqueId})" stroke="${resolved.inkColor}" fill="${resolved.inkColor}">
+        <g transform="rotate(${resolved.rotationAngle || 0} 160 110)" filter="url(#distress_${uniqueId})" stroke="${resolved.inkColor}" fill="${resolved.inkColor}">
             <!-- Outer Double Concentric Ellipse Borders -->
             <ellipse cx="160" cy="110" rx="152" ry="102" fill="none" stroke="${resolved.inkColor}" stroke-width="4.2" />
             <ellipse cx="160" cy="110" rx="143" ry="93" fill="none" stroke="${resolved.inkColor}" stroke-width="1.6" />
@@ -312,6 +312,17 @@ export const generateKenyanStampSvgString = (
 };
 
 /**
+ * Encodes SVG string to valid base64 data URI
+ */
+const toBase64SvgUri = (svg: string): string => {
+    try {
+        return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+    } catch {
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    }
+};
+
+/**
  * Converts SVG stamp into high-resolution PNG DataURI for embedding in jsPDF or downloading
  */
 export const generateStampDataUri = async (
@@ -325,40 +336,105 @@ export const generateStampDataUri = async (
     }
 
     const resolved = getResolvedStampConfig(config, institution);
+    if (resolved.mode === 'none') {
+        return '';
+    }
+
     const svgStr = generateKenyanStampSvgString(config, dateInput, institution);
     const isOval = resolved.shape === 'oval';
 
     const width = isOval ? 640 : 560;
     const height = isOval ? 440 : 560;
+    const base64Uri = toBase64SvgUri(svgStr);
 
     return new Promise((resolve) => {
+        let objectUrl: string | null = null;
+        let timer: any = null;
+        let settled = false;
+
+        const cleanup = () => {
+            if (timer) clearTimeout(timer);
+            if (objectUrl) {
+                try {
+                    URL.revokeObjectURL(objectUrl);
+                } catch (_) {}
+            }
+        };
+
+        const tryRasterize = (imgSource: HTMLImageElement): string | null => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(imgSource, 0, 0, width, height);
+                    const pngData = canvas.toDataURL('image/png');
+                    if (pngData && pngData.startsWith('data:image/png')) {
+                        return pngData;
+                    }
+                }
+            } catch (err) {
+                console.warn('[stampGenerator] Canvas rasterization failed:', err);
+            }
+            return null;
+        };
+
+        // Safety timeout in case image loading stalls
+        timer = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                resolve(base64Uri);
+            }
+        }, 3000);
+
         const img = new Image();
-        const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(svgBlob);
 
         img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, 0, 0, width, height);
-                const pngData = canvas.toDataURL('image/png');
-                URL.revokeObjectURL(url);
-                resolve(pngData);
-            } else {
-                URL.revokeObjectURL(url);
-                resolve(url);
+            if (!settled) {
+                settled = true;
+                const png = tryRasterize(img);
+                cleanup();
+                resolve(png || base64Uri);
             }
         };
 
         img.onerror = () => {
-            URL.revokeObjectURL(url);
-            resolve(`data:image/svg+xml;utf8,${encodeURIComponent(svgStr)}`);
+            // If base64 URI load fails in browser Image, fallback to Blob URL
+            if (!settled) {
+                try {
+                    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+                    objectUrl = URL.createObjectURL(svgBlob);
+                    const blobImg = new Image();
+                    blobImg.onload = () => {
+                        if (!settled) {
+                            settled = true;
+                            const png = tryRasterize(blobImg);
+                            cleanup();
+                            resolve(png || base64Uri);
+                        }
+                    };
+                    blobImg.onerror = () => {
+                        if (!settled) {
+                            settled = true;
+                            cleanup();
+                            resolve(base64Uri);
+                        }
+                    };
+                    blobImg.src = objectUrl;
+                } catch (_) {
+                    if (!settled) {
+                        settled = true;
+                        cleanup();
+                        resolve(base64Uri);
+                    }
+                }
+            }
         };
 
-        img.src = url;
+        img.src = base64Uri;
     });
 };

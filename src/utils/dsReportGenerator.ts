@@ -5,13 +5,19 @@ import { apiService } from '../services/apiService';
 
 const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
-        if (!url) return resolve(null);
+        let safeUrl = (url || '').trim();
+        if (!safeUrl) return resolve(null);
+        if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+            safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+        }
         const img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.src = url;
+        if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
+            img.crossOrigin = "Anonymous";
+        }
+        img.src = safeUrl;
         img.onload = () => resolve(img);
         img.onerror = () => {
-            console.warn("Report Generator: Failed to load letterhead image.", url);
+            console.warn("Report Generator: Failed to load letterhead image.", safeUrl.slice(0, 100));
             resolve(null);
         };
     });

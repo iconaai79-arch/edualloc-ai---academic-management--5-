@@ -6,13 +6,19 @@ import { apiService } from '../services/apiService';
 // Internal utility to load images safely for PDF insertion
 const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
-        if (!url) return resolve(null);
+        let safeUrl = (url || '').trim();
+        if (!safeUrl) return resolve(null);
+        if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+            safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+        }
         const img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.src = url;
+        if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
+            img.crossOrigin = "Anonymous";
+        }
+        img.src = safeUrl;
         img.onload = () => resolve(img);
         img.onerror = () => {
-            console.warn("PDF Generator: Failed to load asset image. Proceeding without it.", url);
+            console.warn("PDF Generator: Failed to load asset image. Proceeding without it.", safeUrl.slice(0, 100));
             resolve(null);
         };
     });

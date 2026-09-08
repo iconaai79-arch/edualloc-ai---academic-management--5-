@@ -25,18 +25,30 @@ const pdfImageCache = new Map<string, HTMLImageElement>();
 // Internal utility to load images safely with caching & generous timeout for reliable PDF generation
 const loadImage = (url: string | null | undefined, timeoutMs: number = 7000): Promise<HTMLImageElement | null> => {
     return new Promise((resolve) => {
-        if (!url) return resolve(null);
-        if (pdfImageCache.has(url)) {
-            return resolve(pdfImageCache.get(url)!);
+        let safeUrl = (url || '').trim();
+        if (!safeUrl) return resolve(null);
+
+        // Normalize malformed SVG data URIs (e.g. data:image/svg+xml;utf8,... -> charset=utf-8)
+        if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+            safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+        }
+
+        if (pdfImageCache.has(safeUrl)) {
+            return resolve(pdfImageCache.get(safeUrl)!);
         }
         let settled = false;
         const img = new Image();
-        img.crossOrigin = "Anonymous";
+
+        // Never set crossOrigin on data: or blob: URIs as browser treats them as invalid cross-origin requests
+        const isDataOrBlob = safeUrl.startsWith('data:') || safeUrl.startsWith('blob:');
+        if (!isDataOrBlob) {
+            img.crossOrigin = "Anonymous";
+        }
 
         const timer = setTimeout(() => {
             if (!settled) {
                 settled = true;
-                console.warn("PDF Service: Image load timed out after", timeoutMs, "ms:", url);
+                console.warn("PDF Service: Image load timed out after", timeoutMs, "ms:", safeUrl.slice(0, 100));
                 resolve(null);
             }
         }, timeoutMs);
@@ -46,7 +58,7 @@ const loadImage = (url: string | null | undefined, timeoutMs: number = 7000): Pr
                 settled = true;
                 clearTimeout(timer);
                 try {
-                    pdfImageCache.set(url, img);
+                    pdfImageCache.set(safeUrl, img);
                 } catch (e) {}
                 resolve(img);
             }
@@ -54,29 +66,63 @@ const loadImage = (url: string | null | undefined, timeoutMs: number = 7000): Pr
         img.onerror = () => {
             // Attempt fallback without anonymous CORS if CORS failed on remote server
             if (!settled) {
-                const fallbackImg = new Image();
-                fallbackImg.onload = () => {
-                    if (!settled) {
-                        settled = true;
-                        clearTimeout(timer);
-                        try {
-                            pdfImageCache.set(url, fallbackImg);
-                        } catch (e) {}
-                        resolve(fallbackImg);
-                    }
-                };
-                fallbackImg.onerror = () => {
-                    if (!settled) {
-                        settled = true;
-                        clearTimeout(timer);
-                        console.warn("PDF Service: Failed to load asset image. Proceeding without it.", url);
-                        resolve(null);
-                    }
-                };
-                fallbackImg.src = url;
+                // If it was an SVG data URI with percent-encoding, attempt base64 conversion fallback
+                if (safeUrl.startsWith('data:image/svg+xml') && !safeUrl.includes(';base64,')) {
+                    try {
+                        const rawSvg = decodeURIComponent(safeUrl.split(',')[1] || '');
+                        const base64Fallback = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(rawSvg)))}`;
+                        const svgImg = new Image();
+                        svgImg.onload = () => {
+                            if (!settled) {
+                                settled = true;
+                                clearTimeout(timer);
+                                try { pdfImageCache.set(safeUrl, svgImg); } catch (e) {}
+                                resolve(svgImg);
+                            }
+                        };
+                        svgImg.onerror = () => {
+                            if (!settled) {
+                                settled = true;
+                                clearTimeout(timer);
+                                console.warn("PDF Service: Failed to load asset image. Proceeding without it.", safeUrl.slice(0, 100));
+                                resolve(null);
+                            }
+                        };
+                        svgImg.src = base64Fallback;
+                        return;
+                    } catch (_) {}
+                }
+
+                if (!isDataOrBlob) {
+                    const fallbackImg = new Image();
+                    fallbackImg.onload = () => {
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timer);
+                            try {
+                                pdfImageCache.set(safeUrl, fallbackImg);
+                            } catch (e) {}
+                            resolve(fallbackImg);
+                        }
+                    };
+                    fallbackImg.onerror = () => {
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timer);
+                            console.warn("PDF Service: Failed to load asset image. Proceeding without it.", safeUrl.slice(0, 100));
+                            resolve(null);
+                        }
+                    };
+                    fallbackImg.src = safeUrl;
+                } else {
+                    settled = true;
+                    clearTimeout(timer);
+                    console.warn("PDF Service: Failed to load asset image. Proceeding without it.", safeUrl.slice(0, 100));
+                    resolve(null);
+                }
             }
         };
-        img.src = url;
+        img.src = safeUrl;
     });
 };
 
