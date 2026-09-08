@@ -353,7 +353,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 if (finalLimit <= CHUNK_SIZE) {
-                    const res = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1));
+                    const res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1));
                     data = res.data || [];
                     error = res.error;
                 } else {
@@ -362,7 +362,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     while (remaining > 0) {
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        const res = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
+                        const res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
                         if (res.error) {
                             if (data.length === 0) {
                                 error = res.error;
