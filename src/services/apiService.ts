@@ -865,6 +865,10 @@ export const apiService = {
             return { success: true, cached: true };
         }
 
+        if (isDdl) {
+            _executedMigrations.add(trimmedSql);
+        }
+
         // Serialize migration execution to avoid concurrent lock deadlocks in Postgres
         const task = _migrationQueue.then(async () => {
             try {
@@ -885,10 +889,6 @@ export const apiService = {
                         success: response.ok, 
                         message: text.substring(0, 200) || (response.ok ? "Operation completed successfully" : `Server Error (${response.status}) - The execution engine returned an invalid response.`)
                     };
-                }
-
-                if (result?.success && isDdl) {
-                    _executedMigrations.add(trimmedSql);
                 }
 
                 return result;

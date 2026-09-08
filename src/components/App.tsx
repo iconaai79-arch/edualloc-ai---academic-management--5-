@@ -1350,8 +1350,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     (isAcademic || isSuper) ? apiService.fetchModuleRecords<Building>('buildings', instId).catch(() => []) : Promise.resolve([]),
                     (isAcademic || isSuper) ? apiService.fetchAcademicLevels(instId).catch(() => []) : Promise.resolve([]),
                     apiService.fetchModuleRecords<UserTask>('tasks', instId).catch(() => []),
-                    apiService.fetchTransactions(instId, { limit: 100000 }).catch(() => []),
-                    apiService.fetchModuleRecords<Receipt>('receipts', instId, undefined, { limit: 100000 }).catch(() => []),
+                    Promise.resolve([]), // Deferred to Phase 3 to eliminate duplicate network load
+                    Promise.resolve([]), // Deferred to Phase 3 to eliminate duplicate network load
                     apiService.fetchModuleRecords<ActivityLog>('activity_log', instId, undefined, { limit: activityLogLimit }).catch(() => []),
                     apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).catch(() => []),
                 ]);
@@ -1399,7 +1399,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             if (currentUser) {
                 const refreshedSelf = finalUsers.find((u: User) => u.id === currentUser.id);
                 if (refreshedSelf) {
-                    const hasChanges = JSON.stringify(refreshedSelf) !== JSON.stringify(currentUser);
+                    const hasChanges = (
+                        refreshedSelf.name !== currentUser.name ||
+                        refreshedSelf.email !== currentUser.email ||
+                        refreshedSelf.role !== currentUser.role ||
+                        refreshedSelf.institutionId !== currentUser.institutionId ||
+                        (refreshedSelf as any).countyId !== (currentUser as any).countyId ||
+                        (refreshedSelf as any).status !== (currentUser as any).status ||
+                        (refreshedSelf as any).phone !== (currentUser as any).phone ||
+                        JSON.stringify(refreshedSelf.permissions || []) !== JSON.stringify(currentUser.permissions || [])
+                    );
                     if (hasChanges) {
                         setCurrentUser(prev => ({ ...prev, ...refreshedSelf } as User));
                         apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
@@ -7893,9 +7902,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     <CivilWorksDashboard />
                                 ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
                                     <LogisticsDashboard />
-                                ) : (isAdminCatchAll || (activeRole === 'admin' && activeInstitution?.institutionType === 'Driving School')) ? (
+                                ) : (activeRole === 'admin' && (activeInstitution?.institutionType === 'Driving School' || activeInstitution?.category?.toLowerCase().includes('driving school'))) ? (
                                     <DrivingSchoolProvider institutionId={activeInstitution?.id}>
-                                        {(() => { console.log("[App] Rendering DS Manager for institutionId:", activeInstitution?.id); return null; })()}
                                         <AdminView
                                              {...superAdminProps as any}
                                               teacherCheckIns={teacherCheckIns}
@@ -7910,6 +7918,20 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                              retailExpenses={retailExpenses}
                                          />
                                     </DrivingSchoolProvider>
+                                ) : isAdminCatchAll ? (
+                                    <AdminView
+                                         {...superAdminProps as any}
+                                          teacherCheckIns={teacherCheckIns}
+                                         currentUser={currentUser}
+                                         currentInstitution={activeInstitution}
+                                         activeRole={(activeRole as any) || undefined}
+                                         onLogAction={handleLogAction}
+                                         onRefreshData={loadData}
+                                         onSaveTimetableSettings={(c: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
+                                         retailStores={retailStores}
+                                         inventory={retailInventory}
+                                         retailExpenses={retailExpenses}
+                                     />
                                 ) : null}
                         </Suspense>
                     </main>

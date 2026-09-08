@@ -81,6 +81,7 @@ const LogisticsManager = React.lazy(() => import('../LogisticsManager').then(m =
 import { SiblingPaymentSplitterModal } from './SiblingPaymentSplitterModal';
 import { BoardingHouseholdBalanceManager } from './BoardingHouseholdBalanceManager';
 import { FeePromissoryTracker } from './FeePromissoryTracker';
+import { RevenueWarRoom } from './RevenueWarRoom';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -189,6 +190,113 @@ interface FinanceManagerProps {
     activityLog?: any[];
     userName?: string;
 }
+
+interface OpeningBalanceRowProps {
+    student: any;
+    currentBalance: number;
+    admNumber: string;
+    studentClass: string;
+    canEdit: boolean;
+    onBalanceChange: (studentId: string, amount: number) => void;
+}
+
+const OpeningBalanceRow: React.FC<OpeningBalanceRowProps> = React.memo(({
+    student,
+    currentBalance,
+    admNumber,
+    studentClass,
+    canEdit,
+    onBalanceChange
+}) => {
+    const [localVal, setLocalVal] = useState<string>(
+        currentBalance !== undefined && currentBalance !== 0 ? String(currentBalance) : ''
+    );
+    const debounceTimerRef = React.useRef<any>(null);
+
+    useEffect(() => {
+        setLocalVal(currentBalance !== undefined && currentBalance !== 0 ? String(currentBalance) : '');
+    }, [currentBalance]);
+
+    useEffect(() => {
+        return () => {
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        };
+    }, []);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setLocalVal(val);
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+            const num = Number(val) || 0;
+            if (num !== currentBalance) {
+                onBalanceChange(student.id, num);
+            }
+        }, 350);
+    };
+
+    const handleBlur = () => {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        const parsed = Number(localVal) || 0;
+        if (parsed !== currentBalance) {
+            onBalanceChange(student.id, parsed);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+            const parsed = Number(localVal) || 0;
+            onBalanceChange(student.id, parsed);
+            (e.target as HTMLInputElement).blur();
+        }
+    };
+
+    return (
+        <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group">
+            <td className="px-6 py-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-center text-xs font-black text-indigo-600 dark:text-indigo-400 shrink-0">
+                        {(student.name || 'S').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                        <div className="text-sm font-black text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            {student.name}
+                        </div>
+                    </div>
+                </div>
+            </td>
+            <td className="px-6 py-4">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
+                    {admNumber}
+                </span>
+            </td>
+            <td className="px-6 py-4">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {studentClass}
+                </span>
+            </td>
+            <td className="px-6 py-4 text-right">
+                <div className="flex items-center justify-end gap-2">
+                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider">KSh</span>
+                    <input
+                        type="number"
+                        value={localVal}
+                        disabled={!canEdit}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
+                        placeholder="0.00"
+                        className={`w-44 text-right px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-black text-slate-900 dark:text-white text-sm transition-all shadow-inner ${
+                            !canEdit ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : 'hover:border-indigo-300'
+                        }`}
+                    />
+                </div>
+            </td>
+        </tr>
+    );
+});
+OpeningBalanceRow.displayName = 'OpeningBalanceRow';
 
 export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const isDrivingSchool = props.institution.institutionType === 'Driving School';
@@ -432,6 +540,104 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return false;
     }, []);
 
+    // Pre-indexed admission number map from enrollments (O(1) lookups)
+    const enrAdmMap = useMemo(() => {
+        const map = new Map<string, string>();
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
+        for (const enr of allEnrs) {
+            if (!enr) continue;
+            let enrMeta = enr.metadata;
+            if (typeof enrMeta === 'string' && enrMeta.trim().startsWith('{')) {
+                try { enrMeta = JSON.parse(enrMeta); } catch (_) {}
+            }
+            const cands = [
+                enr.admissionNumber,
+                enr.admission_number,
+                enr.admissionNo,
+                enr.admNo,
+                enr.adm_no,
+                enr.studentAdmissionNumber,
+                enrMeta?.admissionNumber,
+                enrMeta?.admission_number,
+                enrMeta?.admissionNo,
+                enrMeta?.admNo,
+                enrMeta?.studentAdmissionNumber,
+                enr.staffId,
+                enrMeta?.staffId
+            ];
+            let adm = '';
+            for (const val of cands) {
+                if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
+                    adm = String(val).trim();
+                    break;
+                }
+            }
+            if (adm) {
+                const eUserId = String(enr.userId || enr.user_id || enr.studentId || enr.student_id || enr.id || '').trim().toLowerCase();
+                if (eUserId && !map.has(eUserId)) map.set(eUserId, adm);
+                const cId = cleanId(eUserId).toLowerCase();
+                if (cId && !map.has(cId)) map.set(cId, adm);
+                const eStripped = String(eUserId).replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+                if (eStripped && !map.has(eStripped)) map.set(eStripped, adm);
+                const eName = String(enr.student_name || enr.studentName || enr.name || '').trim().toLowerCase();
+                if (eName && !map.has(eName)) map.set(eName, adm);
+            }
+        }
+        return map;
+    }, [enrollments, allBranchEnrollments, cleanId, isSyntheticAdm]);
+
+    // Pre-indexed admission number map from historical transactions (O(1) lookups)
+    const txnsAdmMap = useMemo(() => {
+        const map = new Map<string, string>();
+        const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])];
+        for (const inv of allInvs) {
+            if (!inv) continue;
+            let adm = inv.admissionNumber || (inv as any).studentAdmissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).adm_no;
+            if (!adm || isSyntheticAdm(adm)) {
+                let invMeta = inv.metadata;
+                if (typeof invMeta === 'string' && invMeta.trim().startsWith('{')) {
+                    try { invMeta = JSON.parse(invMeta); } catch (_) {}
+                }
+                if (invMeta && typeof invMeta === 'object') {
+                    adm = invMeta.admissionNumber || invMeta.studentAdmissionNumber || invMeta.admission_number || invMeta.admNo;
+                }
+            }
+            if (adm && !isSyntheticAdm(adm)) {
+                const sAdm = String(adm).trim();
+                const invStId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
+                if (invStId && !map.has(invStId)) map.set(invStId, sAdm);
+                const cId = cleanId(invStId).toLowerCase();
+                if (cId && !map.has(cId)) map.set(cId, sAdm);
+                const invName = String(inv.studentName || inv.student_name || '').trim().toLowerCase();
+                if (invName && !map.has(invName)) map.set(invName, sAdm);
+            }
+        }
+        const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])];
+        for (const rec of allRecs) {
+            if (!rec) continue;
+            let adm = (rec as any).admissionNumber || (rec as any).studentAdmissionNumber || (rec as any).admission_number || (rec as any).admNo || (rec as any).adm_no;
+            if (!adm || isSyntheticAdm(adm)) {
+                let recMeta = (rec as any).metadata;
+                if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
+                    try { recMeta = JSON.parse(recMeta); } catch (_) {}
+                }
+                if (recMeta && typeof recMeta === 'object') {
+                    adm = recMeta.admissionNumber || recMeta.studentAdmissionNumber || recMeta.admission_number || recMeta.admNo;
+                }
+            }
+            if (adm && !isSyntheticAdm(adm)) {
+                const sAdm = String(adm).trim();
+                const recStId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
+                if (recStId && !map.has(recStId)) map.set(recStId, sAdm);
+                const cId = cleanId(recStId).toLowerCase();
+                if (cId && !map.has(cId)) map.set(cId, sAdm);
+                const recName = String(rec.studentName || rec.student_name || '').trim().toLowerCase();
+                if (recName && !map.has(recName)) map.set(recName, sAdm);
+            }
+        }
+        return map;
+    }, [props.invoices, allBranchInvoices, props.receipts, allBranchReceipts, cleanId, isSyntheticAdm]);
+
     const getStudentAdmNumber = useCallback((s: any): string => {
         if (!s) return '';
         // 1. Direct properties on student object
@@ -512,142 +718,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         }
 
-        // 4. Match from student_enrollments state (by ID, cleanId, stripped prefix, and student name)
-        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
-        const sId = String(s.id || s.userId || s.user_id || '').trim();
+        const sId = String(s.id || s.userId || s.user_id || '').trim().toLowerCase();
         const cleanSId = cleanId(sId).toLowerCase();
-        const stripPrefix = (str: string) => String(str || '').replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
-        const sIdStripped = stripPrefix(sId);
-        const sName = String(s.name || s.fullName || '').trim().toLowerCase();
-        const sNameClean = sName.replace(/\s+/g, ' ').trim();
-        const sTokens = sNameClean.split(' ').filter(t => t.length > 1);
+        const sIdStripped = sId.replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+        const sNameClean = String(s.name || s.fullName || '').trim().toLowerCase();
 
-        if (allEnrs.length > 0) {
-            const enr = allEnrs.find((e: any) => {
-                if (!e) return false;
-                const eUserId = String(e.userId || e.user_id || e.studentId || e.student_id || e.id || '').trim().toLowerCase();
-                if (sId && eUserId === sId.toLowerCase()) return true;
-                if (cleanSId && cleanId(eUserId).toLowerCase() === cleanSId) return true;
-                const eStripped = stripPrefix(eUserId);
-                if (sIdStripped && eStripped && sIdStripped === eStripped) return true;
-                const eName = String(e.student_name || e.studentName || e.name || '').trim().toLowerCase();
-                if (sName && eName === sName) return true;
-                if (sTokens.length >= 2 && eName) {
-                    const eTokens = eName.replace(/\s+/g, ' ').trim().split(' ').filter(t => t.length > 1);
-                    if (eTokens.length >= 2 && sTokens.every(t => eTokens.includes(t))) return true;
-                }
-                return false;
-            });
-            if (enr) {
-                let enrMeta = enr.metadata;
-                if (typeof enrMeta === 'string' && enrMeta.trim().startsWith('{')) {
-                    try { enrMeta = JSON.parse(enrMeta); } catch (e) {}
-                }
-                const enrCandidates = [
-                    enr.admissionNumber,
-                    enr.admission_number,
-                    enr.admissionNo,
-                    enr.admNo,
-                    enr.adm_no,
-                    enr.studentAdmissionNumber,
-                    enrMeta?.admissionNumber,
-                    enrMeta?.admission_number,
-                    enrMeta?.admissionNo,
-                    enrMeta?.admNo,
-                    enrMeta?.studentAdmissionNumber,
-                    enr.staffId,
-                    enrMeta?.staffId
-                ];
-                for (const val of enrCandidates) {
-                    if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
-                        return String(val).trim();
-                    }
-                }
-            }
-        }
+        // 4. Match from pre-indexed student_enrollments map (O(1))
+        const fromEnr = (sId ? enrAdmMap.get(sId) : '') ||
+                        (cleanSId ? enrAdmMap.get(cleanSId) : '') ||
+                        (sIdStripped ? enrAdmMap.get(sIdStripped) : '') ||
+                        (sNameClean ? enrAdmMap.get(sNameClean) : '');
+        if (fromEnr) return fromEnr;
 
-        // 5. Match from historical Invoices (scan all matching invoices for a valid admission number)
-        const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])];
-        for (const inv of allInvs) {
-            if (!inv) continue;
-            const invStId = String(inv.studentId || inv.student_id || inv.userId || inv.user_id || '').trim().toLowerCase();
-            const invCleanId = cleanId(invStId).toLowerCase();
-            const invStripped = stripPrefix(invStId);
-            const invName = String(inv.studentName || inv.student_name || '').trim().toLowerCase();
-
-            const isMatch = (sId && invStId === sId.toLowerCase()) ||
-                (cleanSId && invCleanId === cleanSId) ||
-                (sIdStripped && invStripped && sIdStripped === invStripped) ||
-                (sName && invName === sName);
-
-            if (isMatch) {
-                let invMeta = inv.metadata;
-                if (typeof invMeta === 'string' && invMeta.trim().startsWith('{')) {
-                    try { invMeta = JSON.parse(invMeta); } catch (e) {}
-                }
-                const invCandidates = [
-                    inv.admissionNumber,
-                    inv.studentAdmissionNumber,
-                    inv.admission_number,
-                    inv.admNo,
-                    inv.adm_no,
-                    invMeta?.admissionNumber,
-                    invMeta?.studentAdmissionNumber,
-                    invMeta?.admNo
-                ];
-                for (const val of invCandidates) {
-                    if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
-                        return String(val).trim();
-                    }
-                }
-            }
-        }
-
-        // 6. Match from historical Receipts (scan all matching receipts for a valid admission number)
-        const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])];
-        for (const rec of allRecs) {
-            if (!rec) continue;
-            const recStId = String(rec.studentId || rec.student_id || rec.userId || rec.user_id || '').trim().toLowerCase();
-            const recCleanId = cleanId(recStId).toLowerCase();
-            const recStripped = stripPrefix(recStId);
-            const recName = String(rec.studentName || rec.student_name || '').trim().toLowerCase();
-
-            const isMatch = (sId && recStId === sId.toLowerCase()) ||
-                (cleanSId && recCleanId === cleanSId) ||
-                (sIdStripped && recStripped && sIdStripped === recStripped) ||
-                (sName && recName === sName);
-
-            if (isMatch) {
-                let recMeta = (rec as any).metadata;
-                if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
-                    try { recMeta = JSON.parse(recMeta); } catch (e) {}
-                }
-                const recCandidates = [
-                    (rec as any).admissionNumber,
-                    (rec as any).studentAdmissionNumber,
-                    (rec as any).admission_number,
-                    (rec as any).admNo,
-                    (rec as any).adm_no,
-                    recMeta?.admissionNumber,
-                    recMeta?.studentAdmissionNumber,
-                    recMeta?.admNo
-                ];
-                for (const val of recCandidates) {
-                    if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
-                        return String(val).trim();
-                    }
-                }
-            }
-        }
+        // 5 & 6. Match from pre-indexed historical invoices & receipts map (O(1))
+        const fromTxns = (sId ? txnsAdmMap.get(sId) : '') ||
+                         (cleanSId ? txnsAdmMap.get(cleanSId) : '') ||
+                         (sIdStripped ? txnsAdmMap.get(sIdStripped) : '') ||
+                         (sNameClean ? txnsAdmMap.get(sNameClean) : '');
+        if (fromTxns) return fromTxns;
 
         // 7. Canonical academic resolver utility
+        const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
         const utilAdm = resolveRealStudentAdmNo(s, undefined, allEnrs);
         if (utilAdm && !isSyntheticAdm(utilAdm)) {
             return utilAdm;
         }
 
         return '';
-    }, [enrollments, allBranchEnrollments, props.invoices, allBranchInvoices, props.receipts, allBranchReceipts, cleanId, isSyntheticAdm]);
+    }, [enrAdmMap, txnsAdmMap, enrollments, allBranchEnrollments, cleanId, isSyntheticAdm]);
 
     const getStudentClassName = useCallback((s: any): string => {
         if (!s) return 'Unclassified';
@@ -1690,8 +1788,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Driving School Settings Fee Structure States
     const [showDsFeeForm, setShowDsFeeForm] = useState(false);
     const [editingDsFee, setEditingDsFee] = useState<any>(null);
+    const [openingBalanceSearchInput, setOpeningBalanceSearchInput] = useState('');
     const [openingBalanceSearch, setOpeningBalanceSearch] = useState('');
     const [openingBalanceClassFilter, setOpeningBalanceClassFilter] = useState('All');
+    const [openingBalanceStatusFilter, setOpeningBalanceStatusFilter] = useState<'all' | 'has_balance' | 'zero_balance' | 'prepayment'>('all');
+    const [openingBalancePage, setOpeningBalancePage] = useState(1);
+    const [openingBalancePerPage, setOpeningBalancePerPage] = useState<number | 'All'>(25);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setOpeningBalanceSearch(openingBalanceSearchInput);
+        }, 150);
+        return () => clearTimeout(handler);
+    }, [openingBalanceSearchInput]);
+
+    useEffect(() => {
+        setOpeningBalancePage(1);
+    }, [openingBalanceSearch, openingBalanceClassFilter, openingBalanceStatusFilter]);
+
+    const handleOpeningBalanceChange = useCallback((studentId: string, amount: number) => {
+        setOpeningBalancesMap(prev => {
+            if (prev[studentId] === amount) return prev;
+            return {
+                ...prev,
+                [studentId]: amount
+            };
+        });
+    }, []);
+
     const extractStudentOpeningBalance = useCallback((s: any): number => {
         if (!s) return 0;
         const val = s.metadata?.openingBalance ??
@@ -1709,7 +1833,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const [openingBalancesMap, setOpeningBalancesMap] = useState<Record<string, number>>(() => {
         const initialMap: Record<string, number> = {};
-        props.students.forEach((s: any) => {
+        (props.students || []).forEach((s: any) => {
             initialMap[s.id] = extractStudentOpeningBalance(s);
         });
         return initialMap;
@@ -3489,30 +3613,115 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const studentFinanceData = useMemo(() => {
         const filteredStudents = mergedStudents.filter(s => matchesSelectedBranch(s));
+        if (filteredStudents.length === 0) return [];
+
+        const stripPrefix = (str: string) => String(str || '').replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+
+        // ── 1. PRE-INDEX ENROLLMENTS FOR O(1) LOOKUPS ──
+        const enrByUserId = new Map<string, any>();
+        const enrByName = new Map<string, any>();
+        for (const e of mergedEnrollments) {
+            if (!e) continue;
+            const eUserId = String(e.userId || e.user_id || e.studentId || e.student_id || e.id || '').trim().toLowerCase();
+            if (eUserId) {
+                if (!enrByUserId.has(eUserId)) enrByUserId.set(eUserId, e);
+                const cId = cleanId(eUserId).toLowerCase();
+                if (cId && !enrByUserId.has(cId)) enrByUserId.set(cId, e);
+                const eStripped = stripPrefix(eUserId);
+                if (eStripped && !enrByUserId.has(eStripped)) enrByUserId.set(eStripped, e);
+            }
+            const eName = String(e.student_name || e.studentName || e.name || '').trim().toLowerCase();
+            if (eName && !enrByName.has(eName)) enrByName.set(eName, e);
+        }
+
+        // ── 2. PRE-INDEX INVOICES FOR O(1) LOOKUPS ──
+        const invoicesByKey = new Map<string, any[]>();
+        const invoiceAdmMap = new Map<string, string>(); // inv.id -> cleanInvAdm
+
+        for (const inv of mappedInvoices) {
+            if (!inv || inv.status === 'cancelled' || inv.status === 'quote') continue;
+            const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim().toLowerCase();
+            const cleanInvAdm = invAdm.replace(/^0+/, '');
+            if (cleanInvAdm) invoiceAdmMap.set(String(inv.id), cleanInvAdm);
+
+            const invStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
+            if (invStudentId) {
+                const list = invoicesByKey.get(invStudentId) || [];
+                list.push(inv);
+                invoicesByKey.set(invStudentId, list);
+                const cId = cleanId(invStudentId).toLowerCase();
+                if (cId && cId !== invStudentId) {
+                    const cList = invoicesByKey.get(cId) || [];
+                    cList.push(inv);
+                    invoicesByKey.set(cId, cList);
+                }
+            }
+            if (invAdm && invAdm !== '—') {
+                const aList = invoicesByKey.get(invAdm) || [];
+                aList.push(inv);
+                invoicesByKey.set(invAdm, aList);
+                if (cleanInvAdm && cleanInvAdm !== invAdm) {
+                    const caList = invoicesByKey.get(cleanInvAdm) || [];
+                    caList.push(inv);
+                    invoicesByKey.set(cleanInvAdm, caList);
+                }
+            }
+        }
+
+        // ── 3. PRE-INDEX RECEIPTS FOR O(1) LOOKUPS ──
+        const receiptsByKey = new Map<string, any[]>();
+        const receiptsByInvId = new Map<string, any[]>();
+        const receiptAdmMap = new Map<string, string>(); // rec.id -> cleanRecAdm
+
+        for (const rec of mappedReceipts) {
+            if (!rec) continue;
+            const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
+            const cleanRecAdm = recAdm.replace(/^0+/, '');
+            if (cleanRecAdm) receiptAdmMap.set(String(rec.id), cleanRecAdm);
+
+            const recStudentId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
+            if (recStudentId) {
+                const rList = receiptsByKey.get(recStudentId) || [];
+                rList.push(rec);
+                receiptsByKey.set(recStudentId, rList);
+                const cId = cleanId(recStudentId).toLowerCase();
+                if (cId && cId !== recStudentId) {
+                    const cList = receiptsByKey.get(cId) || [];
+                    cList.push(rec);
+                    receiptsByKey.set(cId, cList);
+                }
+            }
+            if (recAdm && recAdm !== '—') {
+                const aList = receiptsByKey.get(recAdm) || [];
+                aList.push(rec);
+                receiptsByKey.set(recAdm, aList);
+                if (cleanRecAdm && cleanRecAdm !== recAdm) {
+                    const caList = receiptsByKey.get(cleanRecAdm) || [];
+                    caList.push(rec);
+                    receiptsByKey.set(cleanRecAdm, caList);
+                }
+            }
+            const recInvId = rec.invoiceId || (rec as any).invoice_id;
+            if (recInvId) {
+                const sInvId = String(recInvId).trim();
+                const invList = receiptsByInvId.get(sInvId) || [];
+                invList.push(rec);
+                receiptsByInvId.set(sInvId, invList);
+            }
+        }
+
         return filteredStudents.map(s => {
             const sId = String(s.id || s.userId || s.user_id || '').trim();
             const cleanSId = cleanId(sId).toLowerCase();
-            const stripPrefix = (str: string) => String(str || '').replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
             const sIdStripped = stripPrefix(sId);
             const sNameLower = s.name ? String(s.name).trim().toLowerCase() : '';
             const sNameClean = sNameLower.replace(/\s+/g, ' ').trim();
-            const sTokens = sNameClean.split(' ').filter(t => t.length > 1);
 
-            const enrollment = mergedEnrollments.find(e => {
-                if (!e) return false;
-                const eUserId = String(e.userId || e.user_id || e.studentId || e.student_id || e.id || '').trim().toLowerCase();
-                if (sId && eUserId === sId.toLowerCase()) return true;
-                if (cleanSId && cleanId(eUserId).toLowerCase() === cleanSId) return true;
-                const eStripped = stripPrefix(eUserId);
-                if (sIdStripped && eStripped && sIdStripped === eStripped) return true;
-                const eName = String(e.student_name || e.studentName || e.name || '').trim().toLowerCase();
-                if (sNameLower && eName === sNameLower) return true;
-                if (sTokens.length >= 2 && eName) {
-                    const eTokens = eName.replace(/\s+/g, ' ').trim().split(' ').filter(t => t.length > 1);
-                    if (eTokens.length >= 2 && sTokens.every(t => eTokens.includes(t))) return true;
-                }
-                return false;
-            });
+            const enrollment = (sId ? enrByUserId.get(sId.toLowerCase()) : null) ||
+                               (cleanSId ? enrByUserId.get(cleanSId) : null) ||
+                               (sIdStripped ? enrByUserId.get(sIdStripped) : null) ||
+                               (sNameClean ? enrByName.get(sNameClean) : null);
+
             let adm = getStudentAdmNumber(s) || studentAdmissionNumber(s) || '—';
             if (!adm || adm === '—' || isSyntheticAdm(adm)) {
                 if (enrollment) {
@@ -3613,28 +3822,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             });
 
-            const studentNameLower = s.name ? String(s.name).trim().toLowerCase() : '';
-            const studentNameWords = studentNameLower.split(/\s+/).filter(Boolean);
-            const isMultiWordName = studentNameWords.length >= 2;
+            const rawOpeningBal = parseMoneyAmount(extractStudentOpeningBalance(s));
 
-            const rawOpeningBal = parseMoneyAmount(openingBalancesMap[s.id] ?? extractStudentOpeningBalance(s));
-
-            const studentInvoicesRaw = mappedInvoices.filter(inv => {
-                if (inv.status === 'cancelled' || inv.status === 'quote') return false;
-                const invAdm = String(inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '').trim().toLowerCase();
-                const cleanInvAdm = invAdm.replace(/^0+/, '');
-                
-                // If invoice explicitly specifies an admission number that does not match this student, reject
-                if (invAdm && invAdm !== '—' && !studentIds.has(invAdm) && !studentIds.has(cleanInvAdm)) {
-                    return false;
+            // Fast O(1) invoice lookups from pre-indexed map
+            const studentInvoicesMap = new Map<string, any>();
+            for (const id of studentIds) {
+                const candidateInvs = invoicesByKey.get(id);
+                if (candidateInvs) {
+                    for (const inv of candidateInvs) {
+                        const invKey = String(inv.id);
+                        if (!studentInvoicesMap.has(invKey)) {
+                            const cleanInvAdm = invoiceAdmMap.get(invKey);
+                            if (cleanInvAdm && cleanInvAdm !== '—' && !studentIds.has(cleanInvAdm) && !studentIds.has(cleanInvAdm.replace(/^0+/, ''))) {
+                                continue;
+                            }
+                            studentInvoicesMap.set(invKey, inv);
+                        }
+                    }
                 }
-
-                const invStudentId = String(inv.studentId || (inv as any).student_id || (inv as any).userId || (inv as any).user_id || '').trim().toLowerCase();
-                if (invStudentId && studentIds.has(invStudentId)) return true;
-                if (invAdm && (studentIds.has(invAdm) || (cleanInvAdm && studentIds.has(cleanInvAdm)))) return true;
-                return false;
-            });
-            const studentInvoices = Array.from(new Map(studentInvoicesRaw.map(i => [String(i.id), i])).values());
+            }
+            const studentInvoices = Array.from(studentInvoicesMap.values());
             const invoicedWithoutOpening = studentInvoices.reduce((sum, inv) => {
                 const amt = inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0;
                 return sum + parseMoneyAmount(amt);
@@ -3646,23 +3853,39 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return Array.isArray(allocs) && allocs.length > 0 && allocs.every((a: any) => a.invoiceNumber === 'Prepayment' || a.invoiceNumber === 'Prepayment / Credit');
             };
 
-            const allStudentReceiptsRaw = mappedReceipts.filter(rec => {
-                const recAdm = String(rec.admissionNumber || (rec as any).admission_number || (rec as any).studentAdmissionNumber || (rec as any).admNo || (rec as any).adm_no || (rec as any).metadata?.admissionNumber || (rec as any).metadata?.admNo || '').trim().toLowerCase();
-                const cleanRecAdm = recAdm.replace(/^0+/, '');
-
-                // Strict Admission Number Check: If receipt explicitly specifies an admission number that doesn't match this student, reject
-                if (recAdm && recAdm !== '—' && !studentIds.has(recAdm) && !studentIds.has(cleanRecAdm)) {
-                    return false;
+            // Fast O(1) receipt lookups from pre-indexed map
+            const studentReceiptsMap = new Map<string, any>();
+            for (const id of studentIds) {
+                const candidateRecs = receiptsByKey.get(id);
+                if (candidateRecs) {
+                    for (const rec of candidateRecs) {
+                        const recKey = String(rec.id);
+                        if (!studentReceiptsMap.has(recKey)) {
+                            const cleanRecAdm = receiptAdmMap.get(recKey);
+                            if (cleanRecAdm && cleanRecAdm !== '—' && !studentIds.has(cleanRecAdm) && !studentIds.has(cleanRecAdm.replace(/^0+/, ''))) {
+                                continue;
+                            }
+                            studentReceiptsMap.set(recKey, rec);
+                        }
+                    }
                 }
-
-                const recStudentId = String(rec.studentId || (rec as any).student_id || (rec as any).userId || (rec as any).user_id || '').trim().toLowerCase();
-                if (recStudentId && studentIds.has(recStudentId)) return true;
-                if (recAdm && (studentIds.has(recAdm) || (cleanRecAdm && studentIds.has(cleanRecAdm)))) return true;
-                const recInvId = rec.invoiceId || (rec as any).invoice_id;
-                if (recInvId && studentInvoices.some(i => i.id === recInvId || String(i.id) === String(recInvId))) return true;
-                return false;
-            });
-            const allStudentReceipts = Array.from(new Map(allStudentReceiptsRaw.map(r => [String(r.id), r])).values());
+            }
+            for (const inv of studentInvoices) {
+                const invRecs = receiptsByInvId.get(String(inv.id));
+                if (invRecs) {
+                    for (const rec of invRecs) {
+                        const recKey = String(rec.id);
+                        if (!studentReceiptsMap.has(recKey)) {
+                            const cleanRecAdm = receiptAdmMap.get(recKey);
+                            if (cleanRecAdm && cleanRecAdm !== '—' && !studentIds.has(cleanRecAdm) && !studentIds.has(cleanRecAdm.replace(/^0+/, ''))) {
+                                continue;
+                            }
+                            studentReceiptsMap.set(recKey, rec);
+                        }
+                    }
+                }
+            }
+            const allStudentReceipts = Array.from(studentReceiptsMap.values());
 
             // Single-entry prepayment deduplication:
             // If the student has a negative opening balance (prepayment credit) AND that exact amount is already
@@ -3789,9 +4012,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm]);
-
-
+    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm]);
 
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
@@ -3817,17 +4038,64 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     }, [studentFinanceData, getStudentStream]);
 
+    const studentListForOpeningBalances = useMemo(() => {
+        return mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+    }, [mergedStudents, props.students]);
+
+    const availableOpeningBalanceClasses = useMemo(() => {
+        const set = new Set<string>();
+        studentListForOpeningBalances.forEach((s: any) => {
+            const cls = s.className || studentClassGroup(s);
+            if (cls && cls !== 'Unclassified' && cls !== '—') set.add(cls);
+        });
+        return naturalClassSort(Array.from(set));
+    }, [studentListForOpeningBalances, studentClassGroup]);
+
     const filteredOpeningBalanceStudents = useMemo(() => {
-        return studentFinanceData.filter(student => {
-            const matchesSearch = student.name?.toLowerCase().includes(openingBalanceSearch.toLowerCase()) ||
-                (student.admissionNumber && student.admissionNumber.toLowerCase().includes(openingBalanceSearch.toLowerCase()));
-            
+        const q = (openingBalanceSearch || '').trim().toLowerCase();
+        return studentListForOpeningBalances.filter((student: any) => {
+            const sName = (student.name || '').toLowerCase();
+            const sAdm = (student.admissionNumber || student.admission_number || getStudentAdmNumber(student) || '').toLowerCase();
+            const matchesSearch = !q || sName.includes(q) || sAdm.includes(q);
+            if (!matchesSearch) return false;
+
             const cls = student.className || studentClassGroup(student);
             const matchesClass = openingBalanceClassFilter === 'All' || (cls && cls.toLowerCase() === openingBalanceClassFilter.toLowerCase());
-            
-            return matchesSearch && matchesClass;
+            if (!matchesClass) return false;
+
+            const currentOb = openingBalancesMap[student.id] !== undefined ? openingBalancesMap[student.id] : extractStudentOpeningBalance(student);
+            if (openingBalanceStatusFilter === 'has_balance') {
+                return currentOb > 0;
+            } else if (openingBalanceStatusFilter === 'zero_balance') {
+                return currentOb === 0;
+            } else if (openingBalanceStatusFilter === 'prepayment') {
+                return currentOb < 0;
+            }
+
+            return true;
         });
-    }, [studentFinanceData, openingBalanceSearch, openingBalanceClassFilter]);
+    }, [studentListForOpeningBalances, openingBalanceSearch, openingBalanceClassFilter, openingBalanceStatusFilter, openingBalancesMap, extractStudentOpeningBalance, getStudentAdmNumber, studentClassGroup]);
+
+    const paginatedOpeningBalanceStudents = useMemo(() => {
+        if (openingBalancePerPage === 'All') return filteredOpeningBalanceStudents;
+        const start = (openingBalancePage - 1) * openingBalancePerPage;
+        return filteredOpeningBalanceStudents.slice(start, start + openingBalancePerPage);
+    }, [filteredOpeningBalanceStudents, openingBalancePage, openingBalancePerPage]);
+
+    const openingBalanceStats = useMemo(() => {
+        let totalSum = 0;
+        let withBal = 0;
+        let zeroBal = 0;
+        let prepayment = 0;
+        studentListForOpeningBalances.forEach((s: any) => {
+            const bal = openingBalancesMap[s.id] !== undefined ? openingBalancesMap[s.id] : extractStudentOpeningBalance(s);
+            totalSum += bal;
+            if (bal > 0) withBal++;
+            else if (bal === 0) zeroBal++;
+            else prepayment++;
+        });
+        return { totalSum, withBal, zeroBal, prepayment };
+    }, [studentListForOpeningBalances, openingBalancesMap, extractStudentOpeningBalance]);
 
     const filteredFinanceStudents = useMemo(() => {
         const query = (searchBalances || '').trim().toLowerCase();
@@ -15680,7 +15948,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* Subtab content: Opening Balance */}
                         {settingsSubTab === 'opening_balance' && (
-                            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
+                            <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm space-y-6 text-left">
                                 {!canEditOpeningBalances && (
                                     <div className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-2">
                                         <ShieldCheckIcon className="w-5 h-5 text-amber-600 shrink-0" />
@@ -15688,51 +15956,60 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </div>
                                 )}
 
-                                <div className="flex flex-col md:flex-row justify-between gap-4">
-                                    <div className="relative flex-1">
-                                        <SearchIcon className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Search student by name or admission number..."
-                                            value={openingBalanceSearch}
-                                            onChange={(e) => setOpeningBalanceSearch(e.target.value)}
-                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white"
-                                        />
+                                {/* Top Header & Statistics Cards */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-100 dark:border-slate-800">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Students</p>
+                                        <p className="text-xl font-black text-slate-900 dark:text-white mt-1">{studentListForOpeningBalances.length.toLocaleString()}</p>
+                                        <p className="text-[10px] text-slate-500 font-semibold">{filteredOpeningBalanceStudents.length} matching filter</p>
                                     </div>
-                                    <select
-                                        value={openingBalanceClassFilter}
-                                        onChange={(e) => setOpeningBalanceClassFilter(e.target.value)}
-                                        className="px-5 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none font-bold text-slate-750 text-sm"
-                                    >
-                                        <option value="All">All Classes</option>
-                                        {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).map(cls => (
-                                            <option key={cls} value={cls}>{cls}</option>
-                                        ))}
-                                    </select>
-                                    <div className="flex gap-2 flex-wrap">
+                                    <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30">
+                                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Net Opening Total</p>
+                                        <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">KSh {openingBalanceStats.totalSum.toLocaleString()}</p>
+                                        <p className="text-[10px] text-indigo-500/80 font-semibold">Ledger Starting Sum</p>
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
+                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">With Arrears (&gt;0)</p>
+                                        <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1">{openingBalanceStats.withBal.toLocaleString()}</p>
+                                        <p className="text-[10px] text-rose-500/80 font-semibold">Students owing fees</p>
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Prepayments (&lt;0)</p>
+                                        <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{openingBalanceStats.prepayment.toLocaleString()}</p>
+                                        <p className="text-[10px] text-emerald-500/80 font-semibold">In Advance / Credit</p>
+                                    </div>
+                                </div>
+
+                                {/* Action Buttons & Save Header */}
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                                    <div>
+                                        <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Opening Balances</h3>
+                                        <p className="text-xs text-slate-500 font-medium">Type values directly or upload an Excel sheet. Edits are buffered instantly without freezing the browser.</p>
+                                    </div>
+                                    <div className="flex gap-2 flex-wrap items-center">
                                         {canEditOpeningBalances && (
                                             <>
                                                 <button 
                                                     type="button"
                                                     onClick={handleAutoReconcilePrepayments}
-                                                    className="px-4 py-3 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2 border border-amber-200 dark:border-amber-900/50 cursor-pointer shadow-xs active:scale-95"
+                                                    className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2 border border-amber-200 dark:border-amber-900/50 cursor-pointer shadow-xs active:scale-95"
                                                     title="Scan and auto-clear duplicate prepayment opening balances that match existing receipts"
                                                 >
                                                     <SparklesIcon className="w-4 h-4" />
-                                                    Auto-Reconcile Prepayments
+                                                    Reconcile
                                                 </button>
                                                 <button 
                                                     type="button"
                                                     onClick={handleAuditAndReallocateReceipts}
-                                                    className="px-4 py-3 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-indigo-200 dark:border-indigo-900/50 cursor-pointer shadow-xs active:scale-95"
+                                                    className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 border border-indigo-200 dark:border-indigo-900/50 cursor-pointer shadow-xs active:scale-95"
                                                     title="Audit and re-allocate misattributed receipts to their rightful student ledgers"
                                                 >
                                                     <ShieldCheckIcon className="w-4 h-4" />
-                                                    Fix Misallocated Receipts
+                                                    Fix Misallocated
                                                 </button>
                                                 <button 
                                                     onClick={() => setShowImporter(true)}
-                                                    className="px-5 py-3 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-650 hover:text-white transition-all flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/50 cursor-pointer"
+                                                    className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-450 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-650 hover:text-white transition-all flex items-center gap-2 border border-emerald-100 dark:border-emerald-900/50 cursor-pointer"
                                                 >
                                                     <ArrowUpTrayIcon className="w-4 h-4" />
                                                     Import Excel
@@ -15742,61 +16019,200 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <button 
                                             onClick={handleSaveOpeningBalances}
                                             disabled={isSavingBalances || !canEditOpeningBalances}
-                                            className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer"
+                                            className="px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
                                         >
+                                            <CheckIcon className="w-4 h-4" />
                                             {isSavingBalances ? 'Saving...' : 'Save Changes'}
                                         </button>
                                     </div>
                                 </div>
 
+                                {/* Spacious, Dedicated Search & Filter Area */}
+                                <div className="space-y-3 p-4 rounded-3xl bg-slate-50/80 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+                                    <div className="flex flex-col md:flex-row gap-3">
+                                        <div className="relative flex-1">
+                                            <SearchIcon className="absolute left-4 top-3.5 w-5 h-5 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search student by name, admission number, or registration code..."
+                                                value={openingBalanceSearchInput}
+                                                onChange={(e) => setOpeningBalanceSearchInput(e.target.value)}
+                                                className="w-full pl-12 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900 dark:text-white shadow-xs placeholder:text-slate-400"
+                                            />
+                                            {openingBalanceSearchInput && (
+                                                <button
+                                                    onClick={() => setOpeningBalanceSearchInput('')}
+                                                    className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+                                                >
+                                                    <XIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <select
+                                            value={openingBalanceClassFilter}
+                                            onChange={(e) => setOpeningBalanceClassFilter(e.target.value)}
+                                            className="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-200 text-sm shadow-xs cursor-pointer"
+                                        >
+                                            <option value="All">All Classes &amp; Grades</option>
+                                            {availableOpeningBalanceClasses.map(cls => (
+                                                <option key={cls} value={cls}>{cls}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Quick Filter Status Badges */}
+                                    <div className="flex gap-2 flex-wrap items-center pt-1">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Status Filter:</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpeningBalanceStatusFilter('all')}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                openingBalanceStatusFilter === 'all'
+                                                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            All ({studentListForOpeningBalances.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpeningBalanceStatusFilter('has_balance')}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                openingBalanceStatusFilter === 'has_balance'
+                                                    ? 'bg-rose-600 text-white shadow-xs'
+                                                    : 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 hover:bg-rose-50'
+                                            }`}
+                                        >
+                                            Has Balance &gt; 0 ({openingBalanceStats.withBal})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpeningBalanceStatusFilter('zero_balance')}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                openingBalanceStatusFilter === 'zero_balance'
+                                                    ? 'bg-slate-600 text-white shadow-xs'
+                                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+                                            }`}
+                                        >
+                                            Zero Balance ({openingBalanceStats.zeroBal})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpeningBalanceStatusFilter('prepayment')}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                openingBalanceStatusFilter === 'prepayment'
+                                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                                    : 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 hover:bg-emerald-50'
+                                            }`}
+                                        >
+                                            Prepayments &lt; 0 ({openingBalanceStats.prepayment})
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Table with Paginated & Lightweight Opening Balance Rows */}
                                 <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/60 rounded-3xl">
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-850">
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Student</th>
                                                 <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Adm Number</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Class</th>
-                                                <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest w-48">Opening Balance (KSh)</th>
+                                                <th className="px-6 py-4 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Class / Course</th>
+                                                <th className="px-6 py-4 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest w-64">Opening Balance (KSh)</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-850">
-                                            {filteredOpeningBalanceStudents.map(student => (
-                                                <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-black text-slate-900 dark:text-white">{student.name}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-xs font-semibold text-slate-500">{student.admissionNumber || student.admission_number || '—'}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{studentClassGroup(student)}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <input
-                                                            type="number"
-                                                            value={openingBalancesMap[student.id] || ''}
-                                                            disabled={!canEditOpeningBalances}
-                                                            onChange={(e) => {
-                                                                if (!canEditOpeningBalances) return;
-                                                                setOpeningBalancesMap(prev => ({
-                                                                    ...prev,
-                                                                    [student.id]: Number(e.target.value)
-                                                                }));
-                                                            }}
-                                                            placeholder="0.00"
-                                                            className={`w-full max-w-[150px] text-right px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-white ${!canEditOpeningBalances ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-900' : ''}`}
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {paginatedOpeningBalanceStudents.map(student => {
+                                                const currentBal = openingBalancesMap[student.id] !== undefined ? openingBalancesMap[student.id] : extractStudentOpeningBalance(student);
+                                                const adm = student.admissionNumber || student.admission_number || getStudentAdmNumber(student) || '—';
+                                                const cls = student.className || studentClassGroup(student) || '—';
+                                                return (
+                                                    <OpeningBalanceRow
+                                                        key={student.id}
+                                                        student={student}
+                                                        currentBalance={currentBal}
+                                                        admNumber={adm}
+                                                        studentClass={cls}
+                                                        canEdit={canEditOpeningBalances}
+                                                        onBalanceChange={handleOpeningBalanceChange}
+                                                    />
+                                                );
+                                            })}
                                             {filteredOpeningBalanceStudents.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={4} className="py-8 text-center text-xs text-slate-400">No students matched the filters.</td>
+                                                    <td colSpan={4} className="py-12 text-center text-xs text-slate-400">
+                                                        <p className="font-bold text-slate-500">No students match your search filter.</p>
+                                                        <p className="text-[11px] text-slate-400 mt-1">Try resetting the class filter or clearing the search box.</p>
+                                                    </td>
                                                 </tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {filteredOpeningBalanceStudents.length > 0 && (
+                                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
+                                        <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+                                            <span>
+                                                Showing {openingBalancePerPage === 'All' ? 1 : Math.min((openingBalancePage - 1) * openingBalancePerPage + 1, filteredOpeningBalanceStudents.length)} to {openingBalancePerPage === 'All' ? filteredOpeningBalanceStudents.length : Math.min(openingBalancePage * openingBalancePerPage, filteredOpeningBalanceStudents.length)} of {filteredOpeningBalanceStudents.length} students
+                                            </span>
+                                            <div className="flex items-center gap-1.5 ml-2">
+                                                <span className="text-[11px] text-slate-400">Rows:</span>
+                                                <select
+                                                    value={openingBalancePerPage}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value === 'All' ? 'All' : Number(e.target.value);
+                                                        setOpeningBalancePerPage(val);
+                                                        setOpeningBalancePage(1);
+                                                    }}
+                                                    className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold outline-none cursor-pointer"
+                                                >
+                                                    <option value={25}>25</option>
+                                                    <option value={50}>50</option>
+                                                    <option value={100}>100</option>
+                                                    <option value="All">All</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {openingBalancePerPage !== 'All' && (
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => setOpeningBalancePage(1)}
+                                                    disabled={openingBalancePage === 1}
+                                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-200 transition-all"
+                                                >
+                                                    First
+                                                </button>
+                                                <button
+                                                    onClick={() => setOpeningBalancePage(p => Math.max(1, p - 1))}
+                                                    disabled={openingBalancePage === 1}
+                                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-200 transition-all"
+                                                >
+                                                    Prev
+                                                </button>
+                                                <span className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-black">
+                                                    Page {openingBalancePage} of {Math.max(1, Math.ceil(filteredOpeningBalanceStudents.length / openingBalancePerPage))}
+                                                </span>
+                                                <button
+                                                    onClick={() => setOpeningBalancePage(p => Math.min(Math.ceil(filteredOpeningBalanceStudents.length / (openingBalancePerPage as number)), p + 1))}
+                                                    disabled={openingBalancePage >= Math.ceil(filteredOpeningBalanceStudents.length / openingBalancePerPage)}
+                                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-200 transition-all"
+                                                >
+                                                    Next
+                                                </button>
+                                                <button
+                                                    onClick={() => setOpeningBalancePage(Math.max(1, Math.ceil(filteredOpeningBalanceStudents.length / (openingBalancePerPage as number))))}
+                                                    disabled={openingBalancePage >= Math.ceil(filteredOpeningBalanceStudents.length / openingBalancePerPage)}
+                                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-200 transition-all"
+                                                >
+                                                    Last
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -18897,7 +19313,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     return (
                         <div className="space-y-6 animate-in fade-in duration-300">
                             {/* Horizontal menu — switches to sub-menus when on ledger tab */}
-                            {reportsSubTab === 'outstanding' ? null : reportsSubTab === 'ledger' ? (
+                            {reportsSubTab === 'ledger' ? (
                                 /* Receipts Ledger sub-menu */
                                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-emerald-100 dark:border-emerald-900/40 shadow-sm p-2 flex items-center gap-1 overflow-x-auto custom-scrollbar-horizontal pb-2">
                                     <button
@@ -18950,6 +19366,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                             {/* Fee Collection Report — with 3D Per-Class Graphical Analytics, Class Filtering & Pagination */}
                             {reportsSubTab === 'collection' && (() => {
+                                const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
                                 // 1. Compute comprehensive per-class financial metrics for 3D visualizations
                                 const classMap: Record<string, {
                                     className: string;
@@ -18963,7 +19380,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 }> = {};
 
                                 mappedInvoices.forEach((inv: any) => {
-                                    const student = props.students.find((s: any) => s.id === inv.studentId);
+                                    const student = allStudentsList.find((s: any) => s.id === inv.studentId);
                                     const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || 'General');
                                     if (!classMap[cls]) {
                                         classMap[cls] = {
@@ -19001,7 +19418,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 // 2. Filter individual invoices based on active filters
                                 const filteredInvoices = mappedInvoices.filter((inv: any) => {
-                                    const student = props.students.find((s: any) => s.id === inv.studentId);
+                                    const student = allStudentsList.find((s: any) => s.id === inv.studentId);
                                     const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.className || inv.gradeLevel || 'General');
                                     const sName = student?.name || inv.studentName || '';
                                     const sAdm = (student?.admissionNumber || (student as any)?.admission_number || studentAdmissionNumber(student) || '');
@@ -19795,9 +20212,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 )).sort();
 
                                 // Slip student
-                                const slipStudent = props.students.find((s: any) => s.id === slipStudentId);
+                                const allStudentsList = mergedStudents.length > 0 ? mergedStudents : (props.students || []);
+                                const slipStudent = allStudentsList.find((s: any) => s.id === slipStudentId);
                                 const slipData = slipStudent ? studentFinanceData.find((s: any) => s.id === slipStudentId) : null;
-                                const slipStudents = props.students.filter((s: any) => {
+                                const slipStudents = allStudentsList.filter((s: any) => {
                                     const sFin = studentFinanceData.find((st: any) => st.id === s.id);
                                     const sAdm = (sFin?.admissionNumber && sFin.admissionNumber !== '—') ? sFin.admissionNumber : (getStudentAdmNumber(s) || s.admissionNumber || '');
                                     return s.name?.toLowerCase().includes(slipSearch.toLowerCase()) ||
@@ -20768,6 +21186,69 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 );
                             })()}
 
+                            {/* Household Fee Balances */}
+                            {reportsSubTab === 'household_balances' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <BoardingHouseholdBalanceManager
+                                        currentUser={props.currentUser}
+                                        currentInstitution={props.institution}
+                                        onLogAction={props.onLogAction}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Promissory Commitments */}
+                            {reportsSubTab === 'promissory_commitments' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <FeePromissoryTracker />
+                                </div>
+                            )}
+
+                            {/* Revenue Realization / War Room */}
+                            {reportsSubTab === 'revenue_warroom' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <RevenueWarRoom
+                                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                        expenses={props.expenses || []}
+                                        goals={props.goals || []}
+                                        students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                                        institution={props.institution}
+                                        transactions={props.transactions || []}
+                                        receiptLimit={props.receiptLimit || 100}
+                                        setReceiptLimit={props.setReceiptLimit || (() => {})}
+                                        transactionLimit={props.transactionLimit || 100}
+                                        setTransactionLimit={props.setTransactionLimit || (() => {})}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Digital Exam Permits */}
+                            {reportsSubTab === 'exam_permits' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <DigitalExamPermitManager
+                                        institution={props.institution}
+                                        students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                        courses={props.courses || []}
+                                        userName={props.currentUser?.name}
+                                    />
+                                </div>
+                            )}
+
+                            {/* FY2025-26 Annual Template / Annual Report Wizard */}
+                            {reportsSubTab === 'annual_wizard' && (
+                                <div className="animate-in fade-in duration-300">
+                                    <AnnualReportWizard
+                                        invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                        receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                        expenses={props.expenses || []}
+                                        institution={props.institution}
+                                        companyDetails={props.companyDetails}
+                                    />
+                                </div>
+                            )}
 
                             {/* Receipts Ledger — 3 Sub-Tabs */}
                             {reportsSubTab === 'ledger' && (() => {
@@ -23226,8 +23707,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-4">Key Metrics</h4>
                                             <div className="space-y-3">
                                                 <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Collection Rate</span><span className={`text-xs font-black ${collectionRate>=80?'text-emerald-600':'text-rose-600'}`}>{collectionRate.toFixed(1)}%</span></div>
-                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Students</span><span className="text-xs font-black text-indigo-600">{props.students.length}</span></div>
-                                                <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Avg Fee / Student</span><span className="text-xs font-black text-slate-700">KSh {props.students.length>0?Math.round(totalCollected/props.students.length).toLocaleString():0}</span></div>
+                                                {(() => {
+                                                    const totalStudentsCount = mergedStudents.length > 0 ? mergedStudents.length : (props.students?.length || 0);
+                                                    return (
+                                                        <>
+                                                            <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Students</span><span className="text-xs font-black text-indigo-600">{totalStudentsCount}</span></div>
+                                                            <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Avg Fee / Student</span><span className="text-xs font-black text-slate-700">KSh {totalStudentsCount > 0 ? Math.round(totalCollected / totalStudentsCount).toLocaleString() : 0}</span></div>
+                                                        </>
+                                                    );
+                                                })()}
                                                 <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Invoices</span><span className="text-xs font-black text-slate-700">{mappedInvoices.length}</span></div>
                                                 <div className="flex justify-between"><span className="text-xs font-bold text-slate-600">Total Receipts</span><span className="text-xs font-black text-slate-700">{mappedReceipts.length}</span></div>
                                             </div>
@@ -24051,7 +24539,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white text-xs outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
                                     >
                                         <option value="All">All Classes / Entire School</option>
-                                        {Array.from(new Set(props.students.map(s => studentClassGroup(s)))).filter(Boolean).sort().map(c => (
+                                        {Array.from(new Set((mergedStudents.length > 0 ? mergedStudents : (props.students || [])).map(s => studentClassGroup(s)))).filter(Boolean).sort().map(c => (
                                             <option key={c} value={c}>{c}</option>
                                         ))}
                                     </select>
@@ -24082,7 +24570,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <p>• Total Matching Receipts: <span className="font-black">
                                     {mappedReceipts.filter(rec => {
                                         if (!rec.studentId) return false;
-                                        const s = props.students.find(st => st.id === rec.studentId);
+                                        const s = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find(st => st.id === rec.studentId);
                                         if (!s) return false;
                                         const matchClass = reprintSelectedClass === 'All' || studentClassGroup(s) === reprintSelectedClass;
                                         const matchStream = reprintSelectedStream === 'All' || getStudentStream(s).toLowerCase() === reprintSelectedStream.toLowerCase();

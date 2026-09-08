@@ -18,6 +18,7 @@ import { EditSubjectModal } from './EditSubjectModal';
 import { PathwayUpdateModal } from './PathwayUpdateModal';
 import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
+import { ClassSubjectAllocationModal } from './ClassSubjectAllocationModal';
 import { isSchoolInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
 import { isSubjectApplicableToClass } from '../utils/academicSubjectUtils';
@@ -45,8 +46,6 @@ const highlightMatch = (text: string, query: string) => {
         );
     } catch (e) { return <>{text}</>; }
 };
-
-import { ClassSubjectAllocationModal } from './ClassSubjectAllocationModal';
 
 interface SubjectManagerProps {
     subjects: Subject[];

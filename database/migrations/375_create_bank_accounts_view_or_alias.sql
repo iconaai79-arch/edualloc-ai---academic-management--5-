@@ -4,8 +4,8 @@
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_bank_accounts') THEN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'bank_accounts') THEN
-            CREATE OR REPLACE VIEW public.bank_accounts AS 
+            CREATE OR REPLACE VIEW public.bank_accounts 
+            WITH (security_invoker = true) AS 
             SELECT 
                 id,
                 institution_id,
@@ -19,6 +19,5 @@ BEGIN
             FROM public.school_bank_accounts;
 
             GRANT ALL ON public.bank_accounts TO anon, authenticated, service_role;
-        END IF;
     END IF;
 END $$;

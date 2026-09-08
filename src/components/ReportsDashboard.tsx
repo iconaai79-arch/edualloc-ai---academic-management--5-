@@ -475,6 +475,34 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
         }
     }, [activeScope, currentInstitution?.id]);
 
+    const [financeInvoices, setFinanceInvoices] = useState<any[]>([]);
+    const [financeReceipts, setFinanceReceipts] = useState<any[]>([]);
+    const [financeExpenses, setFinanceExpenses] = useState<any[]>([]);
+    const [financeGoals, setFinanceGoals] = useState<any[]>([]);
+
+    useEffect(() => {
+        const isFinancialSubTab = ['annual_report_wizard', 'revenue_warroom', 'exam_permits', 'household_balances', 'promissory_commitments'].includes(subTab);
+        if (isFinancialSubTab && currentInstitution?.id) {
+            const fetchFinancialData = async () => {
+                try {
+                    const [inv, rec, exp, gls] = await Promise.all([
+                        apiService.fetchModuleRecords('invoices', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords('receipts', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords('expenses', currentInstitution.id).catch(() => []),
+                        apiService.fetchModuleRecords('financial_goals', currentInstitution.id).catch(() => [])
+                    ]);
+                    setFinanceInvoices(inv || []);
+                    setFinanceReceipts(rec || []);
+                    setFinanceExpenses(exp || []);
+                    setFinanceGoals(gls || []);
+                } catch (e) {
+                    console.error('[ReportsDashboard] Failed to fetch financial records:', e);
+                }
+            };
+            fetchFinancialData();
+        }
+    }, [subTab, currentInstitution?.id]);
+
     const totalStudentsCount = useMemo(() => {
         return (lecturers || []).filter(u => u && u.role === 'student').length;
     }, [lecturers]);
@@ -1824,21 +1852,22 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                     {subTab === 'annual_report_wizard' && (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
                             <AnnualReportWizard
-                                invoices={[]}
-                                receipts={[]}
-                                expenses={[]}
+                                invoices={financeInvoices}
+                                receipts={financeReceipts}
+                                expenses={financeExpenses}
                                 institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
+                                companyDetails={props.companyDetails}
                             />
                         </div>
                     )}
                     {subTab === 'revenue_warroom' && (
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
                             <RevenueWarRoom
-                                invoices={[]}
-                                receipts={[]}
-                                expenses={[]}
-                                goals={[]}
-                                students={[]}
+                                invoices={financeInvoices}
+                                receipts={financeReceipts}
+                                expenses={financeExpenses}
+                                goals={financeGoals}
+                                students={(lecturers || []).filter(u => u && u.role === 'student')}
                                 institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
                                 transactions={[]}
                                 receiptLimit={50}
@@ -1852,9 +1881,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm text-left">
                             <DigitalExamPermitManager
                                 institution={currentInstitution || ({ id: 'inst-1', name: 'Institution' } as any)}
-                                students={[]}
-                                invoices={[]}
-                                receipts={[]}
+                                students={(lecturers || []).filter(u => u && u.role === 'student')}
+                                invoices={financeInvoices}
+                                receipts={financeReceipts}
+                                courses={courses || []}
                                 userName={currentUser.name}
                             />
                         </div>
