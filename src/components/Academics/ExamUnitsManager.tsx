@@ -80,17 +80,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const saved = localStorage.getItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`);
             if (saved !== null) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) return parsed;
+                if (Array.isArray(parsed)) {
+                    // Filter out legacy dummy sample exams that may have been seeded during development
+                    const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
+                    return parsed.filter(e => e && e.id && !dummyIds.has(e.id));
+                }
             }
         } catch (e) { }
-        return [
-            { id: 'exam_1', name: 'Endterm 2 Exam 2026', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 27.6, studentsEnrolled: 361, missingMarks: 4354 },
-            { id: 'exam_2', name: 'Kapseret Mock', term: 'TERM 2', type: 'END TERM', year: 2026, status: 'in_progress', submittedPercent: 19.2, studentsEnrolled: 340, missingMarks: 5120 },
-            { id: 'exam_3', name: 'Mid Term Exam', term: 'TERM 1', type: 'CAT', year: 2026, status: 'in_progress', submittedPercent: 47.4, studentsEnrolled: 380, missingMarks: 2100 },
-            { id: 'exam_pub_1', name: 'Mid Term 2 Exam', term: 'TERM 2', type: 'CAT', year: 2026, status: 'published', submittedPercent: 100, studentsEnrolled: 610, missingMarks: 0 },
-            { id: 'exam_pub_2', name: 'End Term Exam', term: 'TERM 1', type: 'END TERM', year: 2026, status: 'published', submittedPercent: 100, studentsEnrolled: 594, missingMarks: 0 },
-            { id: 'exam_pub_3', name: 'Mock Exam 2025', term: 'TERM 3', type: 'MOCK', year: 2025, status: 'published', submittedPercent: 100, studentsEnrolled: 580, missingMarks: 0 }
-        ];
+        return [];
     });
 
     // DB fetch with safe catch fallback for exam_units
@@ -98,12 +95,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (currentInstitution?.id) {
             apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
                 .then(records => {
-                    if (records && Array.isArray(records) && records.length > 0) {
+                    if (records && Array.isArray(records)) {
+                        const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
+                        const cleanRecords = records.filter(r => r && r.id && !dummyIds.has(r.id));
                         setExams(prev => {
                             const map = new Map<string, ExamUnitRecord>();
-                            prev.forEach(e => map.set(e.id, e));
-                            records.forEach(r => map.set(r.id, { ...map.get(r.id), ...r }));
-                            return Array.from(map.values());
+                            prev.filter(e => !dummyIds.has(e.id)).forEach(e => map.set(e.id, e));
+                            cleanRecords.forEach(r => map.set(r.id, { ...map.get(r.id), ...r }));
+                            const merged = Array.from(map.values());
+                            try {
+                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch (e) { }
+                            return merged;
                         });
                     }
                 })
@@ -111,10 +114,22 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     }, [currentInstitution]);
 
-    const [selectedExamId, setSelectedExamId] = useState<string>('exam_1');
+    const [selectedExamId, setSelectedExamId] = useState<string>('');
+
+    // Keep selectedExamId in sync with available exams
+    useEffect(() => {
+        if (exams.length > 0) {
+            if (!selectedExamId || !exams.some(e => e.id === selectedExamId)) {
+                setSelectedExamId(exams[0].id);
+            }
+        } else if (selectedExamId !== '') {
+            setSelectedExamId('');
+        }
+    }, [exams, selectedExamId]);
 
     const activeExam = useMemo(() => {
-        return exams.find(e => e.id === selectedExamId) || exams[0];
+        if (exams.length === 0) return null;
+        return exams.find(e => e.id === selectedExamId) || exams[0] || null;
     }, [exams, selectedExamId]);
 
     const [activeSubTab, setActiveSubTab] = useState<'progress' | 'irregularities' | 'history'>('progress');
@@ -3038,21 +3053,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Dynamic missing marks count for active exam unit
     const activeExamMissingMarks = useMemo(() => {
         if (!activeExam) return 0;
-        const totalPapers = classPaperRows.reduce((acc, c) => acc + c.papers.length, 0);
-        const totalStudents = activeExamTotalEnrollment;
-        const totalPossibleMarksEntries = totalStudents * (totalPapers || 1);
+        // If an exam is published or 100% submitted, missing marks is 0
+        if (activeExam.status === 'published' || getExamSubmittedPercent(activeExam) >= 100) {
+            return 0;
+        }
+
+        // Ground truth: each class c has c.enrollment students and c.papers.length papers assigned
+        const totalPossibleMarksEntries = classPaperRows.reduce((acc, c) => acc + ((c.enrollment || 0) * (c.papers?.length || 0)), 0);
+        if (totalPossibleMarksEntries === 0) return 0;
 
         let enteredCount = 0;
         classPaperRows.forEach(c => {
-            c.papers.forEach(p => {
+            (c.papers || []).forEach(p => {
                 const progPct = p.progress || 0;
-                enteredCount += Math.round((progPct / 100) * c.enrollment);
+                enteredCount += Math.round((progPct / 100) * (c.enrollment || 0));
             });
         });
 
         const missing = totalPossibleMarksEntries - enteredCount;
         return Math.max(0, missing);
-    }, [activeExam, classPaperRows, activeExamTotalEnrollment]);
+    }, [activeExam, classPaperRows, getExamSubmittedPercent]);
 
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl">
@@ -3102,24 +3122,30 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             EXAMS IN PROGRESS
                         </div>
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {inProgressExams.map(exam => {
-                                const isSelected = selectedExamId === exam.id;
-                                return (
-                                    <div
-                                        key={exam.id}
-                                        onClick={() => setSelectedExamId(exam.id)}
-                                        className={`p-4 cursor-pointer transition-all ${isSelected
-                                                ? 'bg-blue-600 text-white font-bold'
-                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-900 dark:text-white'
-                                            }`}
-                                    >
-                                        <h4 className="text-xs font-bold uppercase tracking-tight mb-1">{exam.name}</h4>
-                                        <p className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
-                                            {exam.term} • {exam.type} • {getExamSubmittedPercent(exam)}% submitted
-                                        </p>
-                                    </div>
-                                );
-                            })}
+                            {inProgressExams.length === 0 ? (
+                                <div className="p-4 text-center text-xs font-bold text-slate-400 dark:text-slate-500">
+                                    No exams in progress
+                                </div>
+                            ) : (
+                                inProgressExams.map(exam => {
+                                    const isSelected = selectedExamId === exam.id;
+                                    return (
+                                        <div
+                                            key={exam.id}
+                                            onClick={() => setSelectedExamId(exam.id)}
+                                            className={`p-4 cursor-pointer transition-all ${isSelected
+                                                    ? 'bg-blue-600 text-white font-bold'
+                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-900 dark:text-white'
+                                                }`}
+                                        >
+                                            <h4 className="text-xs font-bold uppercase tracking-tight mb-1">{exam.name}</h4>
+                                            <p className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                                                {exam.term} • {exam.type} • {getExamSubmittedPercent(exam)}% submitted
+                                            </p>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 
@@ -3143,10 +3169,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         return (
                                             <div key={yearNum} className="space-y-0.5">
                                                 <div
-                                                    onClick={() => setExpandedYears(prev => ({ ...prev, [yearNum]: !prev[yearNum] }))}
-                                                    className="px-4 py-3 cursor-pointer text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between"
+                                                    onClick={() => setExpandedYears(prev => ({ ...prev, [yearNum]: !isExp }))}
+                                                    className="px-4 py-3 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between"
                                                 >
-                                                    {isExp ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                                                    <span className="font-bold text-slate-700 dark:text-slate-300">{yearStr} Academic Year ({list.length})</span>
+                                                    {isExp ? <ChevronDownIcon className="w-4 h-4 text-slate-400" /> : <ChevronRightIcon className="w-4 h-4 text-slate-400" />}
                                                 </div>
 
                                                 {isExp && list.length > 0 && (
@@ -3182,14 +3209,29 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 {/* Right Main Panel: Active Selected Exam Dashboard */}
                 <div className="lg:col-span-3 space-y-6">
                     {!activeExam ? (
-                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center shadow-sm space-y-4">
-                            <SparklesIcon className="w-12 h-12 text-blue-500 mx-auto opacity-50" />
-                            <h3 className="text-base font-bold text-slate-800 dark:text-white uppercase tracking-tight">No Exam Selected</h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                                {exams.length === 0
-                                    ? "No exams created yet for this institution. Click '+ Add Exam' to set up your first exam unit."
-                                    : "Select an exam from the list on the left to view its performance dashboard."}
-                            </p>
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center shadow-sm space-y-5">
+                            <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/50 rounded-2xl flex items-center justify-center mx-auto text-blue-600">
+                                <SparklesIcon className="w-8 h-8 opacity-70" />
+                            </div>
+                            <div className="space-y-1 max-w-md mx-auto">
+                                <h3 className="text-base font-bold text-slate-800 dark:text-white uppercase tracking-tight">No Exams Created</h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    No academic exams have been created for this institution yet. Click the button below to set up your first exam unit, classes, and tested papers.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsEditingExam(false);
+                                    setNewExamName('');
+                                    setSelectedClasses((selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
+                                    setWizardStep(1);
+                                    setIsAddExamModalOpen(true);
+                                }}
+                                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all cursor-pointer"
+                            >
+                                <PlusIcon className="w-4 h-4 stroke-[3]" /> Add Your First Exam
+                            </button>
                         </div>
                     ) : (
                         <div className="space-y-6">
