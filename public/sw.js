@@ -1,6 +1,6 @@
 // EduAI OS Service Worker — Network First with Stale Chunk Protection
 
-const CACHE_NAME = 'eduai-cache-v4';
+const CACHE_NAME = 'eduai-cache-v5';
 
 // Install Event
 self.addEventListener('install', (event) => {
@@ -14,7 +14,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Activate Event
+// Activate Event - wipe out all previous caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -34,8 +34,26 @@ self.addEventListener('fetch', (event) => {
   // Ignore non-http(s) schemes (e.g. chrome-extension://, moz-extension://)
   if (!url.startsWith('http://') && !url.startsWith('https://')) return;
 
-  // Let browser natively handle JS/CSS bundle chunks & API calls to prevent MIME type & stale chunk errors
-  if (url.includes('/api/') || url.includes('.js') || url.includes('.css')) return;
+  // Let browser natively handle JS/CSS bundle chunks, assets & API calls to prevent MIME type & stale chunk errors
+  if (url.includes('/api/') || url.includes('.js') || url.includes('.css') || url.includes('/assets/')) return;
+
+  // For HTML navigation requests, ALWAYS fetch fresh from network to guarantee latest script bundle hashes
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-cache' }).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            try { cache.put(event.request, responseToCache); } catch (_) {}
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        return caches.match(event.request).then((cached) => cached || caches.match('/index.html'));
+      })
+    );
+    return;
+  }
 
   event.respondWith(
     fetch(event.request).then((networkResponse) => {

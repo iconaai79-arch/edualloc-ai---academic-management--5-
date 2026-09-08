@@ -139,47 +139,62 @@
 
   <script>
     // Automatic deployment sync recovery for stale JS bundle hashes / MIME / initialization errors
-    window.addEventListener('vite:preloadError', function (event) {
-      if (event && event.preventDefault) event.preventDefault();
-      console.warn('[Deployment Sync] Vite preload error. Syncing assets...');
+    function triggerDeploymentSync(reason) {
+      console.warn('[Deployment Sync] ' + reason + '. Purging caches & syncing assets...');
       if ('caches' in window) {
         caches.keys().then(function(keys) { keys.forEach(function(k) { caches.delete(k); }); }).catch(function(){});
       }
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) { regs.forEach(function(r) { r.unregister(); }); }).catch(function(){});
       }
-      window.location.reload();
+      try {
+        var key = 'eduai_last_chunk_reload';
+        var lastReload = window.sessionStorage ? sessionStorage.getItem(key) : null;
+        var now = Date.now();
+        if (!lastReload || (now - parseInt(lastReload, 10)) > 6000) {
+          if (window.sessionStorage) sessionStorage.setItem(key, String(now));
+          window.location.href = window.location.origin + window.location.pathname + '?sync=' + now;
+        }
+      } catch (storageErr) {
+        window.location.reload();
+      }
+    }
+
+    window.addEventListener('vite:preloadError', function (event) {
+      if (event && event.preventDefault) event.preventDefault();
+      triggerDeploymentSync('Vite preload error');
+    });
+
+    window.addEventListener('unhandledrejection', function (event) {
+      var reason = event && event.reason;
+      var msg = reason ? (reason.message || String(reason)) : '';
+      if (msg && (
+        msg.includes('Failed to load module script') ||
+        msg.includes('MIME type') ||
+        msg.includes('Loading chunk') ||
+        msg.includes('dynamically imported module') ||
+        msg.includes('before initialization')
+      )) {
+        if (event.preventDefault) event.preventDefault();
+        triggerDeploymentSync('Dynamic module import rejected: ' + msg);
+      }
     });
 
     window.addEventListener('error', function (event) {
-      var isChunkError = event && (
-        (event.message && (
-          event.message.includes('Failed to load module script') || 
-          event.message.includes('Loading chunk') || 
-          event.message.includes('MIME type') || 
-          event.message.includes('before initialization') || 
-          event.message.includes('ReferenceError') ||
-          event.message.includes('dynamically imported module')
-        )) ||
-        (event.target && event.target.tagName === 'SCRIPT' && event.target.src && event.target.src.includes('.js'))
+      var msg = (event && event.message) ? event.message : '';
+      var target = event && event.target;
+      var isScriptTarget = target && target.tagName === 'SCRIPT';
+      var isChunkError = (
+        msg.includes('Failed to load module script') || 
+        msg.includes('Loading chunk') || 
+        msg.includes('MIME type') || 
+        msg.includes('before initialization') || 
+        msg.includes('ReferenceError') ||
+        msg.includes('dynamically imported module') ||
+        isScriptTarget
       );
       if (isChunkError) {
-        if ('caches' in window) {
-          caches.keys().then(function(keys) { keys.forEach(function(k) { caches.delete(k); }); }).catch(function(){});
-        }
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) { regs.forEach(function(r) { r.unregister(); }); }).catch(function(){});
-        }
-        try {
-          var key = 'eduai_last_chunk_reload';
-          var lastReload = window.sessionStorage ? sessionStorage.getItem(key) : null;
-          var now = Date.now();
-          if (!lastReload || (now - parseInt(lastReload, 10)) > 5000) {
-            if (window.sessionStorage) sessionStorage.setItem(key, String(now));
-            console.warn('[Deployment Sync] Stale script chunk detected. Auto-reloading page...');
-            window.location.href = window.location.origin + window.location.pathname + '?sync=' + now;
-          }
-        } catch (storageErr) {}
+        triggerDeploymentSync('Stale script error: ' + (msg || (target && target.src) || 'script error'));
       }
     }, true);
 
