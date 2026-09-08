@@ -39,7 +39,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     onDeleteSubject
 }) => {
     // Normalize and deduplicate class options so they represent pure classes / grades (not individual streams)
-    const effectiveClassOptions = useMemo(() => {
+    const effectiveClassOptions = useMemo<string[]>(() => {
         const set = new Set<string>();
         (classOptions || []).forEach(c => {
             if (!c) return;
@@ -57,7 +57,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         });
         const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
         const cleaned = Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
-        return naturalClassSort(cleaned);
+        return (naturalClassSort(cleaned) || []) as string[];
     }, [classOptions, courses]);
 
     const [selectedClass, setSelectedClass] = useState<string>(() => {
@@ -141,7 +141,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     };
 
     // Available streams for the currently selected class
-    const availableStreamsForClass = useMemo(() => {
+    const availableStreamsForClass = useMemo<string[]>(() => {
         const set = new Set<string>();
         const targetClean = selectedClass.trim().toLowerCase();
 
@@ -166,7 +166,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             }
         });
 
-        (classOptions || []).forEach(co => {
+        (classOptions || []).forEach((co: string) => {
             const parsed = extractClassAndStream(co);
             if ((parsed.className || '').toLowerCase().trim() === targetClean && co.toLowerCase().trim() !== targetClean) {
                 set.add(co);
@@ -180,7 +180,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             }
         });
 
-        return naturalClassSort(Array.from(set));
+        return (naturalClassSort(Array.from(set)) || []) as string[];
     }, [selectedClass, courses, classOptions, classAllocationsStore]);
 
     // Reset stream selection whenever active base class changes
@@ -204,7 +204,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         const initial: Record<string, Set<string>> = {};
         subjects.forEach(s => {
             const set = new Set<string>();
-            effectiveClassOptions.forEach(c => {
+            effectiveClassOptions.forEach((c: string) => {
                 if (isSubjectAssignedToClassStream(s, c, courses)) {
                     set.add(c);
                 }
@@ -289,13 +289,13 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         return nextStore;
     };
 
-    const allEvaluationKeys = useMemo(() => {
+    const allEvaluationKeys = useMemo<string[]>(() => {
         const keys = new Set<string>(effectiveClassOptions);
-        effectiveClassOptions.forEach(c => {
+        effectiveClassOptions.forEach((c: string) => {
             const streams = getRelatedStreamKeys(c);
-            streams.forEach(s => keys.add(s));
+            streams.forEach((s: string) => keys.add(s));
         });
-        availableStreamsForClass.forEach(s => keys.add(s));
+        availableStreamsForClass.forEach((s: string) => keys.add(s));
         if (activeAllocationTarget) keys.add(activeAllocationTarget);
         return Array.from(keys);
     }, [effectiveClassOptions, availableStreamsForClass, activeAllocationTarget]);
@@ -665,22 +665,22 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         const classesList: string[] = [];
         const streamsList: string[] = [];
 
-        effectiveClassOptions.forEach(c => {
+        effectiveClassOptions.forEach((c: string) => {
             if (c !== activeAllocationTarget) {
                 classesList.push(c);
             }
         });
 
         const seenStreams = new Set<string>();
-        availableStreamsForClass.forEach(st => {
+        availableStreamsForClass.forEach((st: string) => {
             if (st !== activeAllocationTarget) {
                 seenStreams.add(st);
                 streamsList.push(st);
             }
         });
 
-        effectiveClassOptions.forEach(c => {
-            getRelatedStreamKeys(c).forEach(st => {
+        effectiveClassOptions.forEach((c: string) => {
+            getRelatedStreamKeys(c).forEach((st: string) => {
                 if (st !== activeAllocationTarget && !seenStreams.has(st)) {
                     seenStreams.add(st);
                     streamsList.push(st);
@@ -884,7 +884,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                             }}
                             className="form-select font-bold text-indigo-600 dark:text-indigo-400"
                         >
-                            {effectiveClassOptions.map(c => (
+                            {effectiveClassOptions.map((c: string) => (
                                 <option key={c} value={c}>{c}</option>
                             ))}
                         </select>
@@ -912,7 +912,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                             <option value="all">Entire Class (All Streams)</option>
                             {availableStreamsForClass.length > 0 && (
                                 <optgroup label={`${selectedClass} Streams`}>
-                                    {availableStreamsForClass.map(stream => (
+                                    {availableStreamsForClass.map((stream: string) => (
                                         <option key={stream} value={stream}>
                                             {stream}
                                         </option>
