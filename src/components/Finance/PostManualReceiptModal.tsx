@@ -18,6 +18,7 @@ export interface PostManualReceiptModalProps {
     institution: Institution;
     selectedBranchId?: string;
     students: User[];
+    enrollments?: any[];
     studentFinanceData?: any[];
     invoices: Invoice[];
     receipts: Receipt[];
@@ -34,6 +35,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
     institution,
     selectedBranchId,
     students = [],
+    enrollments = [],
     studentFinanceData = [],
     invoices = [],
     receipts = [],
@@ -177,29 +179,113 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
         }
     }, [isOpen, selectedBranchId, institution?.id]);
 
+    // Pre-index enrollments for instant O(1) admission number lookup
+    const enrAdmMap = useMemo(() => {
+        const map = new Map<string, string>();
+        const isInvalid = (v: any) => !v || v === '—' || v === '-' || v === 'N/A' || v === 'undefined' || v === 'null';
+        for (const enr of (enrollments || [])) {
+            if (!enr) continue;
+            let enrMeta = enr.metadata;
+            if (typeof enrMeta === 'string' && enrMeta.trim().startsWith('{')) {
+                try { enrMeta = JSON.parse(enrMeta); } catch (_) {}
+            }
+            const cands = [
+                enr.admissionNumber,
+                enr.admission_number,
+                enr.admissionNo,
+                enr.admNo,
+                enr.adm_no,
+                enr.studentAdmissionNumber,
+                enr.student_admission_number,
+                enr.registrationNumber,
+                enr.registration_number,
+                enr.regNo,
+                enr.reg_no,
+                enr.customStudentId,
+                enr.custom_student_id,
+                enr.upi,
+                enr.nemis,
+                enrMeta?.admissionNumber,
+                enrMeta?.admission_number,
+                enrMeta?.admNo,
+                enrMeta?.studentAdmissionNumber
+            ];
+            const adm = cands.find(v => !isInvalid(v) && !isSyntheticAdmNo(v));
+            if (adm) {
+                const cleanAdm = String(adm).trim();
+                const eUserId = String(enr.userId || enr.user_id || enr.studentId || enr.student_id || enr.id || '').trim().toLowerCase();
+                if (eUserId && !map.has(eUserId)) map.set(eUserId, cleanAdm);
+                const eStripped = eUserId.replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+                if (eStripped && !map.has(eStripped)) map.set(eStripped, cleanAdm);
+                const eName = String(enr.student_name || enr.studentName || enr.name || '').trim().toLowerCase();
+                if (eName && !map.has(eName)) map.set(eName, cleanAdm);
+            }
+        }
+        return map;
+    }, [enrollments]);
+
     // Pre-compute lightweight indexed searchable students list once to avoid repeated metadata parsing
     const searchableStudents = useMemo(() => {
         if (!isOpen) return [];
         const studentList = studentFinanceData && studentFinanceData.length > 0 ? studentFinanceData : students;
         if (!studentList || studentList.length === 0) return [];
+        const isInvalid = (v: any) => !v || v === '—' || v === '-' || v === 'N/A' || v === 'undefined' || v === 'null';
 
         return studentList.map((s: any) => {
-            let adm = s.admissionNumber || s.admission_number || s.admNo || s.adm_no || 
-                      s.registrationNumber || s.registration_number || s.regNo || s.reg_no || 
-                      s.studentId || s.student_id || '';
-            if (!adm && s.metadata) {
-                if (typeof s.metadata === 'object') {
-                    adm = s.metadata.admissionNumber || s.metadata.admission_number || s.metadata.admNo || s.metadata.registrationNumber || '';
-                } else if (typeof s.metadata === 'string') {
-                    const match = s.metadata.match(/"(?:admissionNumber|admission_number|admNo|registrationNumber)"\s*:\s*"([^"]+)"/);
-                    if (match && match[1]) {
-                        adm = match[1];
-                    }
+            const sId = String(s.id || s.userId || s.user_id || '').trim().toLowerCase();
+            const sIdStripped = sId.replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+            const sName = String(s.name || '').trim().toLowerCase();
+
+            let meta = s.metadata;
+            if (typeof meta === 'string' && meta.trim().startsWith('{')) {
+                try { meta = JSON.parse(meta); } catch (_) {}
+            }
+
+            let userMeta = s.user?.metadata;
+            if (typeof userMeta === 'string' && userMeta.trim().startsWith('{')) {
+                try { userMeta = JSON.parse(userMeta); } catch (_) {}
+            }
+
+            const candidates = [
+                s.admissionNumber,
+                s.admission_number,
+                s.admissionNo,
+                s.admNo,
+                s.adm_no,
+                s.studentAdmissionNumber,
+                s.student_admission_number,
+                s.registrationNumber,
+                s.registration_number,
+                s.regNo,
+                s.reg_no,
+                s.customStudentId,
+                s.custom_student_id,
+                s.upi,
+                s.nemis,
+                meta?.admissionNumber,
+                meta?.admission_number,
+                meta?.admNo,
+                meta?.registrationNumber,
+                s.user?.admissionNumber,
+                s.user?.admission_number,
+                s.user?.admNo,
+                userMeta?.admissionNumber,
+                userMeta?.admission_number,
+                userMeta?.admNo,
+                // Match from pre-indexed enrollments
+                sId ? enrAdmMap.get(sId) : '',
+                sIdStripped ? enrAdmMap.get(sIdStripped) : '',
+                sName ? enrAdmMap.get(sName) : ''
+            ];
+
+            let adm = candidates.find(v => !isInvalid(v) && !isSyntheticAdmNo(v)) || '';
+            if (!adm) {
+                const resolved = resolveRealStudentAdmNo(s, undefined, enrollments);
+                if (resolved && !isInvalid(resolved) && !isSyntheticAdmNo(resolved)) {
+                    adm = resolved;
                 }
             }
-            if (!adm && s.user) {
-                adm = s.user.admissionNumber || s.user.admission_number || s.user.admNo || '';
-            }
+
             const cleanName = String(s.name || '').trim();
             const cleanAdm = String(adm || '').trim();
             return {
@@ -210,7 +296,7 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                 searchKey: `${cleanName} ${cleanAdm}`.toLowerCase()
             };
         });
-    }, [isOpen, studentFinanceData, students]);
+    }, [isOpen, studentFinanceData, students, enrAdmMap, enrollments]);
 
     // Deferred student search query to guarantee 0ms input typing / clicking latency
     const deferredStudentSearch = React.useDeferredValue(manualPayStudentSearch);
@@ -225,22 +311,23 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
             const item = searchableStudents[i];
             if (item.searchKey.includes(query) || (!item.adm && item.name.toLowerCase().includes(query))) {
                 let displayAdm = item.adm;
-                if (!displayAdm || isSyntheticAdmNo(displayAdm)) {
-                    const resolved = resolveRealStudentAdmNo(item.rawStudent);
-                    if (resolved && resolved !== 'N/A') {
+                if (!displayAdm || displayAdm === '—' || isSyntheticAdmNo(displayAdm)) {
+                    const resolved = resolveRealStudentAdmNo(item.rawStudent, undefined, enrollments);
+                    if (resolved && resolved !== 'N/A' && !isSyntheticAdmNo(resolved)) {
                         displayAdm = resolved;
                     }
                 }
+                const finalDisplayAdm = (!displayAdm || displayAdm === '—' || isSyntheticAdmNo(displayAdm)) ? 'No Adm' : displayAdm;
                 results.push({
                     id: item.id,
                     name: item.name,
-                    adm: displayAdm || 'No Adm'
+                    adm: finalDisplayAdm
                 });
                 if (results.length >= 30) break;
             }
         }
         return results;
-    }, [deferredStudentSearch, manualPayStudentId, searchableStudents]);
+    }, [deferredStudentSearch, manualPayStudentId, searchableStudents, enrollments]);
 
     // Memoize receipts belonging to the selected student once for fast lookup
     const selectedStudentReceipts = useMemo(() => {
@@ -636,13 +723,19 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                                                 onClick={() => {
                                                     setManualPayStudentId(student.id);
                                                     setManualPayInvoiceId('');
-                                                    setManualPayStudentSearch(`${student.name} (${student.adm})`);
+                                                    setManualPayStudentSearch(student.adm && student.adm !== 'No Adm' ? `${student.name} (${student.adm})` : student.name);
                                                     setManualPayAmount('');
                                                 }}
                                                 className="w-full p-4 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs font-bold text-slate-700 dark:text-slate-200 flex flex-col cursor-pointer transition-colors"
                                             >
                                                 <span>{student.name}</span>
-                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">Adm: {student.adm}</span>
+                                                <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider mt-0.5">
+                                                    {student.adm === 'No Adm' ? (
+                                                        <span className="text-amber-500/80 font-bold">No Adm Assigned</span>
+                                                    ) : (
+                                                        `Adm: ${student.adm}`
+                                                    )}
+                                                </span>
                                             </button>
                                         );
                                     })

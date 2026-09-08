@@ -18614,6 +18614,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     institution={props.institution}
                     selectedBranchId={selectedBranchId}
                     students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
+                    enrollments={mergedEnrollments}
                     studentFinanceData={studentFinanceData}
                     invoices={mappedInvoices}
                     receipts={mappedReceipts}
