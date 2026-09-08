@@ -89,6 +89,57 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setLocalSubjects(subjects);
     }, [subjects]);
 
+    const instId = currentInstitution?.id || 'default_inst';
+    const classAllocKey = `eduai_class_subject_allocations_${instId}`;
+
+    // Allocations store: Record<className, string[] (array of active subjectIds or subjectNames)>
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${currentInstitution?.id || 'default_inst'}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch(e) {}
+        return (currentInstitution as any)?.classSubjectAllocations || {};
+    });
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
+                    if (match && match.allocations) {
+                        setClassAllocationsStore(prev => {
+                            const merged = { ...match.allocations, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch(e) {}
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution]);
+
+    const saveClassAllocationsStore = async (updatedStore: Record<string, string[]>) => {
+        setClassAllocationsStore(updatedStore);
+        try {
+            localStorage.setItem(classAllocKey, JSON.stringify(updatedStore));
+        } catch(e) {}
+        if (currentInstitution?.id) {
+            await apiService.saveModuleRecord('class_subject_allocations', {
+                id: `alloc_${currentInstitution.id}`,
+                institutionId: currentInstitution.id,
+                allocations: updatedStore
+            }).catch(() => {});
+        }
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId } }));
+        } catch(e) {}
+    };
+
     // Available streams for the currently selected class
     const availableStreamsForClass = useMemo(() => {
         const set = new Set<string>();
@@ -180,57 +231,6 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 .catch(() => {});
         }
     }, [currentInstitution]);
-
-    const instId = currentInstitution?.id || 'default_inst';
-    const classAllocKey = `eduai_class_subject_allocations_${instId}`;
-
-    // Allocations store: Record<className, string[] (array of active subjectIds or subjectNames)>
-    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
-        try {
-            const saved = localStorage.getItem(`eduai_class_subject_allocations_${currentInstitution?.id || 'default_inst'}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed && typeof parsed === 'object') return parsed;
-            }
-        } catch(e) {}
-        return (currentInstitution as any)?.classSubjectAllocations || {};
-    });
-
-    useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
-                .then(records => {
-                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
-                    if (match && match.allocations) {
-                        setClassAllocationsStore(prev => {
-                            const merged = { ...match.allocations, ...prev };
-                            try {
-                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch(e) {}
-                            return merged;
-                        });
-                    }
-                })
-                .catch(() => {});
-        }
-    }, [currentInstitution]);
-
-    const saveClassAllocationsStore = async (updatedStore: Record<string, string[]>) => {
-        setClassAllocationsStore(updatedStore);
-        try {
-            localStorage.setItem(classAllocKey, JSON.stringify(updatedStore));
-        } catch(e) {}
-        if (currentInstitution?.id) {
-            await apiService.saveModuleRecord('class_subject_allocations', {
-                id: `alloc_${currentInstitution.id}`,
-                institutionId: currentInstitution.id,
-                allocations: updatedStore
-            }).catch(() => {});
-        }
-        try {
-            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId } }));
-        } catch(e) {}
-    };
 
     // Helper to find all stream / course level names associated with a class
     const getRelatedStreamKeys = (className: string): string[] => {
