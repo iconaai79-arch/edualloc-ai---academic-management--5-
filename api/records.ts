@@ -339,13 +339,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            const executeWithTimeout = async <T>(promise: Promise<T>, timeoutMs: number = 6000): Promise<T> => {
+            const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = 6000): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
                     timer = setTimeout(() => reject(new Error('statement timeout')), timeoutMs);
                 });
                 try {
-                    return await Promise.race([promise, timeoutPromise]);
+                    return await Promise.race([Promise.resolve(queryBuilder), timeoutPromise]);
                 } finally {
                     clearTimeout(timer);
                 }
