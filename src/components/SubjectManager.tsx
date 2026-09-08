@@ -18,11 +18,12 @@ import { EditSubjectModal } from './EditSubjectModal';
 import { PathwayUpdateModal } from './PathwayUpdateModal';
 import { SubjectConstraintsModal } from './SubjectConstraintsModal';
 import { BulkSubjectStructureModal } from './BulkSubjectStructureModal';
-import { ClassSubjectAllocationModal } from './ClassSubjectAllocationModal';
 import { isSchoolInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
 import { isSubjectApplicableToClass } from '../utils/academicSubjectUtils';
 import { extractClassAndStream, naturalClassSort } from '../utils/academicUtils';
+
+const ClassSubjectAllocationModal = React.lazy(() => import('./ClassSubjectAllocationModal').then(m => ({ default: m?.ClassSubjectAllocationModal || m?.default || m })));
 
 import * as XLSX from 'xlsx';
 
@@ -662,20 +663,25 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             )}
 
             {isClassAllocationOpen && createPortal(
-                <ClassSubjectAllocationModal
-                    onClose={() => setIsClassAllocationOpen(false)}
-                    subjects={subjects}
-                    courses={courses}
-                    classOptions={classOptions}
-                    departments={visibleDepartments}
-                    currentInstitution={currentInstitution}
-                    onUpdateSubject={onUpdateSubject}
-                    onUpdateCourse={onUpdateCourse}
-                    onAddSubject={onAddSubject}
-                    onDeleteSubject={onDeleteSubject}
-                />,
+                <React.Suspense fallback={null}>
+                    <ClassSubjectAllocationModal
+                        onClose={() => setIsClassAllocationOpen(false)}
+                        subjects={subjects}
+                        courses={courses}
+                        classOptions={classOptions}
+                        departments={visibleDepartments}
+                        currentInstitution={currentInstitution}
+                        onUpdateSubject={onUpdateSubject}
+                        onUpdateCourse={onUpdateCourse}
+                        onAddSubject={onAddSubject}
+                        onDeleteSubject={onDeleteSubject}
+                    />
+                </React.Suspense>,
                 document.body
             )}
         </div>
     );
 };
+
+export default SubjectManager;
+

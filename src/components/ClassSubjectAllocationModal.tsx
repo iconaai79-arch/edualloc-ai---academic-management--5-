@@ -10,6 +10,8 @@ import { PlusIcon } from './icons/PlusIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { apiService } from '../services/apiService';
+import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+import { extractClassAndStream, naturalClassSort } from '../utils/academicUtils';
 
 interface ClassSubjectAllocationModalProps {
     onClose: () => void;
@@ -23,10 +25,6 @@ interface ClassSubjectAllocationModalProps {
     onAddSubject?: (newSubject: Omit<Subject, 'id' | 'institutionId'>, initialCourseLevelIds?: string[]) => void;
     onDeleteSubject?: (subjectId: string) => void;
 }
-
-import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
-import { extractClassAndStream, naturalClassSort } from '../utils/academicUtils';
-export { isSubjectApplicableToClass, isSubjectAssignedToClassStream };
 
 export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalProps> = ({
     onClose,
@@ -1234,3 +1232,5 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         </div>
     );
 };
+
+export default ClassSubjectAllocationModal;
