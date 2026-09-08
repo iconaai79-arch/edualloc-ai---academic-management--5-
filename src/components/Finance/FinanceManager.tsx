@@ -208,7 +208,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [themeMode, setThemeMode] = useState<'futuristic' | 'classic'>('classic');
     const [pdfPreviewModal, setPdfPreviewModal] = useState<{ title: string; subtitle: string; studentName: string; admNo: string; className: string; invoiced: number; paid: number; balance: number; items?: any[] } | null>(null);
-    const [enrollments, setEnrollments] = useState<any[]>([]);
+    const [enrollments, setEnrollments] = useState<any[]>(() => {
+        try {
+            const instId = props.institution?.id;
+            const candidateKeys = [
+                instId ? `eduai_student_enrollments_${instId}` : null,
+                instId ? `eduai_students_${instId}` : null,
+                `eduai_student_enrollments`,
+                `eduai_students`,
+                'student_enrollments',
+                'students'
+            ].filter(Boolean) as string[];
+
+            for (const key of candidateKeys) {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                }
+            }
+        } catch (_) {}
+        return [];
+    });
 
     const printElementViaIframe = useCallback((elementId: string) => {
         const el = document.getElementById(elementId);
@@ -323,16 +346,42 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, []);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchEnrollments = async () => {
+            if (!props.institution?.id) return;
             try {
-                const res = await apiService.fetchModuleRecords('student_enrollments', props.institution.id);
-                setEnrollments(res || []);
+                const [enrRes, stuRes] = await Promise.allSettled([
+                    apiService.fetchModuleRecords('student_enrollments', props.institution.id),
+                    apiService.fetchModuleRecords('students', props.institution.id)
+                ]);
+                const loadedEnrs = enrRes.status === 'fulfilled' && Array.isArray(enrRes.value) ? enrRes.value : [];
+                const loadedStus = stuRes.status === 'fulfilled' && Array.isArray(stuRes.value) ? stuRes.value : [];
+                const combined = [...loadedEnrs, ...loadedStus];
+                if (isMounted && combined.length > 0) {
+                    setEnrollments(prev => {
+                        const map = new Map<string, any>();
+                        (prev || []).forEach((e: any) => {
+                            const k = String(e.id || e.userId || e.studentId || '');
+                            if (k) map.set(k, e);
+                        });
+                        combined.forEach((e: any) => {
+                            const k = String(e.id || e.userId || e.studentId || '');
+                            if (k) map.set(k, e);
+                        });
+                        const mergedList = Array.from(map.values());
+                        try {
+                            localStorage.setItem(`eduai_student_enrollments_${props.institution.id}`, JSON.stringify(mergedList));
+                        } catch (_) {}
+                        return mergedList;
+                    });
+                }
             } catch (e) {
                 console.error("Failed to load student enrollments for FinanceManager:", e);
             }
         };
         fetchEnrollments();
-    }, [props.institution.id]);
+        return () => { isMounted = false; };
+    }, [props.institution?.id]);
 
     const canEditOpeningBalances = useMemo(() => {
         const uRole = String(props.currentUser?.role || (props.currentUser as any)?.userType || (props.currentUser as any)?.user_type || '').toLowerCase().trim();
@@ -463,11 +512,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         }
 
-        // 4. Match from student_enrollments state (by ID, cleanId, and student name)
+        // 4. Match from student_enrollments state (by ID, cleanId, stripped prefix, and student name)
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
         const sId = String(s.id || s.userId || s.user_id || '').trim();
         const cleanSId = cleanId(sId).toLowerCase();
+        const stripPrefix = (str: string) => String(str || '').replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+        const sIdStripped = stripPrefix(sId);
         const sName = String(s.name || s.fullName || '').trim().toLowerCase();
+        const sNameClean = sName.replace(/\s+/g, ' ').trim();
+        const sTokens = sNameClean.split(' ').filter(t => t.length > 1);
 
         if (allEnrs.length > 0) {
             const enr = allEnrs.find((e: any) => {
@@ -475,7 +528,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const eUserId = String(e.userId || e.user_id || e.studentId || e.student_id || e.id || '').trim().toLowerCase();
                 if (sId && eUserId === sId.toLowerCase()) return true;
                 if (cleanSId && cleanId(eUserId).toLowerCase() === cleanSId) return true;
-                if (sName && String(e.student_name || e.studentName || e.name || '').trim().toLowerCase() === sName) return true;
+                const eStripped = stripPrefix(eUserId);
+                if (sIdStripped && eStripped && sIdStripped === eStripped) return true;
+                const eName = String(e.student_name || e.studentName || e.name || '').trim().toLowerCase();
+                if (sName && eName === sName) return true;
+                if (sTokens.length >= 2 && eName) {
+                    const eTokens = eName.replace(/\s+/g, ' ').trim().split(' ').filter(t => t.length > 1);
+                    if (eTokens.length >= 2 && sTokens.every(t => eTokens.includes(t))) return true;
+                }
                 return false;
             });
             if (enr) {
@@ -506,66 +566,76 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         }
 
-        // 5. Match from historical Invoices (by studentId, cleanId, or exact student name)
+        // 5. Match from historical Invoices (scan all matching invoices for a valid admission number)
         const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])];
-        const matchedInv = allInvs.find((inv: any) => {
-            if (!inv) return false;
+        for (const inv of allInvs) {
+            if (!inv) continue;
             const invStId = String(inv.studentId || inv.student_id || inv.userId || inv.user_id || '').trim().toLowerCase();
-            if (sId && invStId === sId.toLowerCase()) return true;
-            if (cleanSId && cleanId(invStId).toLowerCase() === cleanSId) return true;
-            if (sName && String(inv.studentName || inv.student_name || '').trim().toLowerCase() === sName) return true;
-            return false;
-        });
-        if (matchedInv) {
-            let invMeta = matchedInv.metadata;
-            if (typeof invMeta === 'string' && invMeta.trim().startsWith('{')) {
-                try { invMeta = JSON.parse(invMeta); } catch (e) {}
-            }
-            const invCandidates = [
-                matchedInv.admissionNumber,
-                matchedInv.studentAdmissionNumber,
-                matchedInv.admission_number,
-                matchedInv.admNo,
-                matchedInv.adm_no,
-                invMeta?.admissionNumber,
-                invMeta?.studentAdmissionNumber,
-                invMeta?.admNo
-            ];
-            for (const val of invCandidates) {
-                if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
-                    return String(val).trim();
+            const invCleanId = cleanId(invStId).toLowerCase();
+            const invStripped = stripPrefix(invStId);
+            const invName = String(inv.studentName || inv.student_name || '').trim().toLowerCase();
+
+            const isMatch = (sId && invStId === sId.toLowerCase()) ||
+                (cleanSId && invCleanId === cleanSId) ||
+                (sIdStripped && invStripped && sIdStripped === invStripped) ||
+                (sName && invName === sName);
+
+            if (isMatch) {
+                let invMeta = inv.metadata;
+                if (typeof invMeta === 'string' && invMeta.trim().startsWith('{')) {
+                    try { invMeta = JSON.parse(invMeta); } catch (e) {}
+                }
+                const invCandidates = [
+                    inv.admissionNumber,
+                    inv.studentAdmissionNumber,
+                    inv.admission_number,
+                    inv.admNo,
+                    inv.adm_no,
+                    invMeta?.admissionNumber,
+                    invMeta?.studentAdmissionNumber,
+                    invMeta?.admNo
+                ];
+                for (const val of invCandidates) {
+                    if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
+                        return String(val).trim();
+                    }
                 }
             }
         }
 
-        // 6. Match from historical Receipts (by studentId, cleanId, or exact student name)
+        // 6. Match from historical Receipts (scan all matching receipts for a valid admission number)
         const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])];
-        const matchedRec = allRecs.find((rec: any) => {
-            if (!rec) return false;
+        for (const rec of allRecs) {
+            if (!rec) continue;
             const recStId = String(rec.studentId || rec.student_id || rec.userId || rec.user_id || '').trim().toLowerCase();
-            if (sId && recStId === sId.toLowerCase()) return true;
-            if (cleanSId && cleanId(recStId).toLowerCase() === cleanSId) return true;
-            if (sName && String(rec.studentName || rec.student_name || '').trim().toLowerCase() === sName) return true;
-            return false;
-        });
-        if (matchedRec) {
-            let recMeta = (matchedRec as any).metadata;
-            if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
-                try { recMeta = JSON.parse(recMeta); } catch (e) {}
-            }
-            const recCandidates = [
-                (matchedRec as any).admissionNumber,
-                (matchedRec as any).studentAdmissionNumber,
-                (matchedRec as any).admission_number,
-                (matchedRec as any).admNo,
-                (matchedRec as any).adm_no,
-                recMeta?.admissionNumber,
-                recMeta?.studentAdmissionNumber,
-                recMeta?.admNo
-            ];
-            for (const val of recCandidates) {
-                if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
-                    return String(val).trim();
+            const recCleanId = cleanId(recStId).toLowerCase();
+            const recStripped = stripPrefix(recStId);
+            const recName = String(rec.studentName || rec.student_name || '').trim().toLowerCase();
+
+            const isMatch = (sId && recStId === sId.toLowerCase()) ||
+                (cleanSId && recCleanId === cleanSId) ||
+                (sIdStripped && recStripped && sIdStripped === recStripped) ||
+                (sName && recName === sName);
+
+            if (isMatch) {
+                let recMeta = (rec as any).metadata;
+                if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
+                    try { recMeta = JSON.parse(recMeta); } catch (e) {}
+                }
+                const recCandidates = [
+                    (rec as any).admissionNumber,
+                    (rec as any).studentAdmissionNumber,
+                    (rec as any).admission_number,
+                    (rec as any).admNo,
+                    (rec as any).adm_no,
+                    recMeta?.admissionNumber,
+                    recMeta?.studentAdmissionNumber,
+                    recMeta?.admNo
+                ];
+                for (const val of recCandidates) {
+                    if (val !== undefined && val !== null && !isSyntheticAdm(val)) {
+                        return String(val).trim();
+                    }
                 }
             }
         }
@@ -3420,8 +3490,62 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const studentFinanceData = useMemo(() => {
         const filteredStudents = mergedStudents.filter(s => matchesSelectedBranch(s));
         return filteredStudents.map(s => {
-            const enrollment = mergedEnrollments.find(e => e.userId === s.id || (e as any).user_id === s.id || (e as any).studentId === s.id);
-            const adm = getStudentAdmNumber(s) || studentAdmissionNumber(s) || '—';
+            const sId = String(s.id || s.userId || s.user_id || '').trim();
+            const cleanSId = cleanId(sId).toLowerCase();
+            const stripPrefix = (str: string) => String(str || '').replace(/^(u_|usr_|stu_|st_|user_)/i, '').trim().toLowerCase();
+            const sIdStripped = stripPrefix(sId);
+            const sNameLower = s.name ? String(s.name).trim().toLowerCase() : '';
+            const sNameClean = sNameLower.replace(/\s+/g, ' ').trim();
+            const sTokens = sNameClean.split(' ').filter(t => t.length > 1);
+
+            const enrollment = mergedEnrollments.find(e => {
+                if (!e) return false;
+                const eUserId = String(e.userId || e.user_id || e.studentId || e.student_id || e.id || '').trim().toLowerCase();
+                if (sId && eUserId === sId.toLowerCase()) return true;
+                if (cleanSId && cleanId(eUserId).toLowerCase() === cleanSId) return true;
+                const eStripped = stripPrefix(eUserId);
+                if (sIdStripped && eStripped && sIdStripped === eStripped) return true;
+                const eName = String(e.student_name || e.studentName || e.name || '').trim().toLowerCase();
+                if (sNameLower && eName === sNameLower) return true;
+                if (sTokens.length >= 2 && eName) {
+                    const eTokens = eName.replace(/\s+/g, ' ').trim().split(' ').filter(t => t.length > 1);
+                    if (eTokens.length >= 2 && sTokens.every(t => eTokens.includes(t))) return true;
+                }
+                return false;
+            });
+            let adm = getStudentAdmNumber(s) || studentAdmissionNumber(s) || '—';
+            if (!adm || adm === '—' || isSyntheticAdm(adm)) {
+                if (enrollment) {
+                    let enrMeta = enrollment.metadata;
+                    if (typeof enrMeta === 'string' && enrMeta.trim().startsWith('{')) {
+                        try { enrMeta = JSON.parse(enrMeta); } catch (_) {}
+                    }
+                    const cands = [
+                        enrollment.admissionNumber,
+                        enrollment.admission_number,
+                        enrollment.admissionNo,
+                        enrollment.admNo,
+                        enrollment.adm_no,
+                        enrollment.studentAdmissionNumber,
+                        enrMeta?.admissionNumber,
+                        enrMeta?.admission_number,
+                        enrMeta?.admNo,
+                        enrMeta?.studentAdmissionNumber
+                    ];
+                    for (const c of cands) {
+                        if (c && !isSyntheticAdm(c)) {
+                            adm = String(c).trim();
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!adm || adm === '—' || isSyntheticAdm(adm)) {
+                const utilAdm = resolveRealStudentAdmNo(s, undefined, mergedEnrollments);
+                if (utilAdm && !isSyntheticAdm(utilAdm)) {
+                    adm = utilAdm;
+                }
+            }
             let cls = resolveRealStudentClass(s, mergedEnrollments, props.courses, '');
             if (!cls || cls === 'Unclassified' || cls === '—') {
                 cls = getStudentClassName(s);
@@ -3442,7 +3566,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 studentIds.add(String((s as any).user_id).trim().toLowerCase());
                 studentIds.add(cleanId(String((s as any).user_id)).toLowerCase());
             }
-            if (adm && adm !== '—') {
+            if (sIdStripped) {
+                studentIds.add(sIdStripped);
+            }
+            if (enrollment) {
+                const eUserId = String(enrollment.userId || enrollment.user_id || enrollment.studentId || enrollment.student_id || enrollment.id || '').trim().toLowerCase();
+                if (eUserId) {
+                    studentIds.add(eUserId);
+                    studentIds.add(cleanId(eUserId).toLowerCase());
+                    const eStripped = stripPrefix(eUserId);
+                    if (eStripped) studentIds.add(eStripped);
+                }
+            }
+            if (adm && adm !== '—' && !isSyntheticAdm(adm)) {
                 const admClean = String(adm).trim().toLowerCase();
                 studentIds.add(admClean);
                 const noZeros = admClean.replace(/^0+/, '');
@@ -3580,9 +3716,62 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 String(cls || '').toLowerCase().includes('graduated') ||
                 String(cls || '').toLowerCase().includes('alumni');
 
+            // Backfill admission number from matched student invoices or receipts if still missing
+            if (!adm || adm === '—' || isSyntheticAdm(adm)) {
+                for (const inv of studentInvoices) {
+                    let invMeta = inv.metadata;
+                    if (typeof invMeta === 'string' && invMeta.trim().startsWith('{')) {
+                        try { invMeta = JSON.parse(invMeta); } catch (_) {}
+                    }
+                    const cands = [
+                        inv.admissionNumber,
+                        (inv as any).studentAdmissionNumber,
+                        (inv as any).admission_number,
+                        (inv as any).admNo,
+                        (inv as any).adm_no,
+                        invMeta?.admissionNumber,
+                        invMeta?.studentAdmissionNumber,
+                        invMeta?.admNo
+                    ];
+                    for (const c of cands) {
+                        if (c && !isSyntheticAdm(c)) {
+                            adm = String(c).trim();
+                            break;
+                        }
+                    }
+                    if (adm && adm !== '—' && !isSyntheticAdm(adm)) break;
+                }
+            }
+            if (!adm || adm === '—' || isSyntheticAdm(adm)) {
+                for (const rec of allStudentReceipts) {
+                    let recMeta = (rec as any).metadata;
+                    if (typeof recMeta === 'string' && recMeta.trim().startsWith('{')) {
+                        try { recMeta = JSON.parse(recMeta); } catch (_) {}
+                    }
+                    const cands = [
+                        (rec as any).admissionNumber,
+                        (rec as any).studentAdmissionNumber,
+                        (rec as any).admission_number,
+                        (rec as any).admNo,
+                        (rec as any).adm_no,
+                        recMeta?.admissionNumber,
+                        recMeta?.studentAdmissionNumber,
+                        recMeta?.admNo
+                    ];
+                    for (const c of cands) {
+                        if (c && !isSyntheticAdm(c)) {
+                            adm = String(c).trim();
+                            break;
+                        }
+                    }
+                    if (adm && adm !== '—' && !isSyntheticAdm(adm)) break;
+                }
+            }
+            const finalAdm = (adm && adm !== '—' && !isSyntheticAdm(adm)) ? adm : '—';
+
             return {
                 ...s,
-                admissionNumber: adm,
+                admissionNumber: finalAdm,
                 className: cls,
                 gradeLevel: cls,
                 stream: stream,
@@ -3600,7 +3789,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch, getStudentAdmNumber, cleanId]);
+    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, openingBalancesMap, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm]);
 
 
 
@@ -19608,10 +19797,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 // Slip student
                                 const slipStudent = props.students.find((s: any) => s.id === slipStudentId);
                                 const slipData = slipStudent ? studentFinanceData.find((s: any) => s.id === slipStudentId) : null;
-                                const slipStudents = props.students.filter((s: any) =>
-                                    s.name?.toLowerCase().includes(slipSearch.toLowerCase()) ||
-                                    (s.admissionNumber || '').toLowerCase().includes(slipSearch.toLowerCase())
-                                ).slice(0, 30);
+                                const slipStudents = props.students.filter((s: any) => {
+                                    const sFin = studentFinanceData.find((st: any) => st.id === s.id);
+                                    const sAdm = (sFin?.admissionNumber && sFin.admissionNumber !== '—') ? sFin.admissionNumber : (getStudentAdmNumber(s) || s.admissionNumber || '');
+                                    return s.name?.toLowerCase().includes(slipSearch.toLowerCase()) ||
+                                        sAdm.toLowerCase().includes(slipSearch.toLowerCase());
+                                }).slice(0, 30);
 
                                 const TH = (label: string) => <th className="py-3 px-3 font-black text-slate-400 uppercase tracking-widest text-[10px] border-b border-slate-100 dark:border-slate-800 whitespace-nowrap">{label}</th>;
                                 const TD = ({ children, cls = '' }: any) => <td className={`py-2.5 px-3 text-xs ${cls}`}>{children}</td>;
@@ -19700,20 +19891,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <input type="text" placeholder="Search student name or admission number..." value={slipSearch} onChange={e => setSlipSearch(e.target.value)} className="flex-1 pl-4 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-500" />
                                                         <select value={slipStudentId} onChange={e => setSlipStudentId(e.target.value)} className="flex-1 py-3 px-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-xs font-bold text-slate-900 dark:text-white">
                                                             <option value="">— Select Student —</option>
-                                                            {slipStudents.map((s: any) => (<option key={s.id} value={s.id}>{s.name}{s.admissionNumber ? ` (${s.admissionNumber})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>))}
+                                                            {slipStudents.map((s: any) => {
+                                                                const sFin = studentFinanceData.find((st: any) => st.id === s.id);
+                                                                const sAdm = (sFin?.admissionNumber && sFin.admissionNumber !== '—') ? sFin.admissionNumber : (getStudentAdmNumber(s) || s.admissionNumber);
+                                                                return (<option key={s.id} value={s.id}>{s.name}{sAdm && sAdm !== '—' ? ` (${sAdm})` : ''}{` · ${s.className || studentClassGroup(s)}`}</option>);
+                                                            })}
                                                         </select>
                                                         {slipStudentId && (
                                                             <button 
-                                                                onClick={() => setPdfPreviewModal({
-                                                                    title: `OFFICIAL FEE BALANCE STATEMENT`,
-                                                                    subtitle: props.institution.name,
-                                                                    studentName: slipStudent?.name || 'Student',
-                                                                    admNo: (slipStudent as any)?.admissionNumber || '—',
-                                                                    className: (slipStudent as any)?.className || (slipStudent ? studentClassGroup(slipStudent) : '—'),
-                                                                    invoiced: (slipData as any)?.totals?.invoiced || 0,
-                                                                    paid: (slipData as any)?.totals?.paid || 0,
-                                                                    balance: (slipData as any)?.totals?.balance || 0
-                                                                })} 
+                                                                onClick={() => {
+                                                                    const sAdm = (slipData as any)?.admissionNumber || getStudentAdmNumber(slipStudent) || (slipStudent as any)?.admissionNumber || '—';
+                                                                    setPdfPreviewModal({
+                                                                        title: `OFFICIAL FEE BALANCE STATEMENT`,
+                                                                        subtitle: props.institution.name,
+                                                                        studentName: slipStudent?.name || 'Student',
+                                                                        admNo: sAdm,
+                                                                        className: (slipStudent as any)?.className || (slipStudent ? studentClassGroup(slipStudent) : '—'),
+                                                                        invoiced: (slipData as any)?.totals?.invoiced || 0,
+                                                                        paid: (slipData as any)?.totals?.paid || 0,
+                                                                        balance: (slipData as any)?.totals?.balance || 0
+                                                                    });
+                                                                }} 
                                                                 className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-rose-600/30 active:scale-95 flex items-center justify-center gap-2"
                                                             >
                                                                 👥 On-Screen PDF Preview
@@ -19738,7 +19936,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <div className="p-6 border-b border-dashed border-slate-800 relative z-10 bg-slate-900/60">
                                                             <div className="grid grid-cols-2 gap-4 text-xs">
                                                                 <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Student Name</p><p className="font-black text-white text-sm mt-0.5">{slipStudent.name}</p></div>
-                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-mono font-bold text-cyan-400 text-sm mt-0.5">{(slipStudent as any).admissionNumber || '—'}</p></div>
+                                                                <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Adm Number</p><p className="font-mono font-bold text-cyan-400 text-sm mt-0.5">{(slipData as any)?.admissionNumber || getStudentAdmNumber(slipStudent) || (slipStudent as any)?.admissionNumber || '—'}</p></div>
                                                                 <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Class & Stream</p><p className="font-black text-white text-sm mt-0.5">{(slipStudent as any).className || studentClassGroup(slipStudent)} {((slipStudent as any).stream) ? `(${ (slipStudent as any).stream })` : ''}</p></div>
                                                                 <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800"><p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Status</p><p className="font-black text-amber-400 text-sm mt-0.5">{(slipData as any).totals.balance > 0 ? '⚠️ Outstanding Due' : '✓ Cleared'}</p></div>
                                                             </div>
@@ -19857,7 +20055,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <option value={100000}>All ({totalItems})</option>
                                                             </select>
                                                             <button
-                                                                onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Arrears / Prepayment', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, s.admissionNumber, s.className || studentClassGroup(s), s.totals.openingBalance || 0, s.totals.invoiced, s.totals.paid, s.totals.balance]))}
+                                                                onClick={() => exportCSV('all_outstanding_balances', ['#', 'Student Name', 'Admission No', 'Class', 'Arrears / Prepayment', 'Total Invoiced', 'Total Paid', 'Balance Owed'], filteredList.map((s, i) => [i + 1, s.name, (s.admissionNumber && s.admissionNumber !== '—') ? s.admissionNumber : (resolveRealStudentAdmNo(s, undefined, mergedEnrollments) || '—'), s.className || studentClassGroup(s), s.totals.openingBalance || 0, s.totals.invoiced, s.totals.paid, s.totals.balance]))}
                                                                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                                                             >
                                                                 📥 CSV Export
@@ -19874,7 +20072,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
                                                                     items: filteredList.map((s: any) => ({
                                                                         name: s.name,
-                                                                        adm: s.admissionNumber || '—',
+                                                                        adm: (s.admissionNumber && s.admissionNumber !== '—') ? s.admissionNumber : (resolveRealStudentAdmNo(s, undefined, mergedEnrollments) || '—'),
                                                                         cls: s.className || studentClassGroup(s),
                                                                         arrears: s.totals?.openingBalance || 0,
                                                                         inv: s.totals.invoiced,
@@ -19899,7 +20097,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         balance: filteredList.reduce((acc: number, s: any) => acc + (s.totals?.balance || 0), 0),
                                                                         items: filteredList.map((s: any) => ({
                                                                             name: s.name,
-                                                                            adm: s.admissionNumber || '—',
+                                                                            adm: (s.admissionNumber && s.admissionNumber !== '—') ? s.admissionNumber : (resolveRealStudentAdmNo(s, undefined, mergedEnrollments) || '—'),
                                                                             cls: s.className || studentClassGroup(s),
                                                                             arrears: s.totals?.openingBalance || 0,
                                                                             inv: s.totals.invoiced,
@@ -19936,13 +20134,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                                 </div>
                                                                             </TD>
                                                                             <TD cls="font-mono font-bold text-slate-700 dark:text-slate-300">
-                                                                                {s.admissionNumber && s.admissionNumber !== '—' ? (
-                                                                                    <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                                                                                        {s.admissionNumber}
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span className="text-slate-400 font-normal">—</span>
-                                                                                )}
+                                                                                {(() => {
+                                                                                    const displayAdm = (s.admissionNumber && s.admissionNumber !== '—')
+                                                                                        ? s.admissionNumber
+                                                                                        : (resolveRealStudentAdmNo(s, undefined, mergedEnrollments) || '—');
+                                                                                    return displayAdm && displayAdm !== '—' ? (
+                                                                                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                                                            {displayAdm}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="text-slate-400 font-normal">—</span>
+                                                                                    );
+                                                                                })()}
                                                                             </TD>
                                                                             <TD cls="font-bold text-slate-600 dark:text-slate-300">{s.className || studentClassGroup(s)}</TD>
                                                                             <TD cls="font-bold text-right text-slate-700 dark:text-slate-300">

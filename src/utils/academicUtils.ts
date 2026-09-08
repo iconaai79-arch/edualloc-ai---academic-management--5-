@@ -254,23 +254,31 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
 
     if (!effectiveRegistry || !Array.isArray(effectiveRegistry) || effectiveRegistry.length === 0) {
         try {
-            const instKey = student.institutionId || student.institution_id || '';
-            const keyToRead = (instKey ? `eduai_student_enrollments_${instKey}` : null) ||
-                              'eduai_student_enrollments_default';
+            const instKey = String(student.institutionId || student.institution_id || '').trim();
+            const cleanInstKey = instKey.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '');
+            const candidates = [
+                instKey ? `eduai_student_enrollments_${instKey}` : null,
+                cleanInstKey ? `eduai_student_enrollments_${cleanInstKey}` : null,
+                'eduai_student_enrollments_default',
+                instKey ? `eduai_students_${instKey}` : null,
+                cleanInstKey ? `eduai_students_${cleanInstKey}` : null,
+                'eduai_students_default',
+                'eduai_student_enrollments',
+                'student_enrollments',
+                'students'
+            ].filter(Boolean) as string[];
+
             const now = Date.now();
-            if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && (now - _cachedRegistryData.timestamp < 30000)) {
-                effectiveRegistry = _cachedRegistryData.parsed;
-                effectiveById = _cachedRegistryData.byId;
-                effectiveByName = _cachedRegistryData.byName;
-            } else {
+            for (const keyToRead of candidates) {
+                if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && (now - _cachedRegistryData.timestamp < 30000)) {
+                    effectiveRegistry = _cachedRegistryData.parsed;
+                    effectiveById = _cachedRegistryData.byId;
+                    effectiveByName = _cachedRegistryData.byName;
+                    break;
+                }
                 const rawEnr = localStorage.getItem(keyToRead);
                 if (rawEnr) {
-                    if (_cachedRegistryData && _cachedRegistryData.key === keyToRead && _cachedRegistryData.raw === rawEnr) {
-                        _cachedRegistryData.timestamp = now;
-                        effectiveRegistry = _cachedRegistryData.parsed;
-                        effectiveById = _cachedRegistryData.byId;
-                        effectiveByName = _cachedRegistryData.byName;
-                    } else {
+                    try {
                         const parsed = JSON.parse(rawEnr);
                         if (Array.isArray(parsed) && parsed.length > 0) {
                             const byId = new Map<string, any>();
@@ -281,19 +289,41 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
                                 const sId = String(item.id || '').trim();
                                 const sUserId = String(item.userId || item.user_id || '').trim();
                                 const sStudentId = String(item.studentId || item.student_id || '').trim();
-                                if (sId) byId.set(sId, item);
-                                if (sUserId) byId.set(sUserId, item);
-                                if (sStudentId) byId.set(sStudentId, item);
+                                if (sId) {
+                                    byId.set(sId, item);
+                                    byId.set(sId.toLowerCase(), item);
+                                    const rawId = sId.replace(/^(u_|usr_|stu_|st_)/i, '');
+                                    if (rawId) byId.set(rawId.toLowerCase(), item);
+                                }
+                                if (sUserId) {
+                                    byId.set(sUserId, item);
+                                    byId.set(sUserId.toLowerCase(), item);
+                                    const rawUserId = sUserId.replace(/^(u_|usr_|stu_|st_)/i, '');
+                                    if (rawUserId) byId.set(rawUserId.toLowerCase(), item);
+                                }
+                                if (sStudentId) {
+                                    byId.set(sStudentId, item);
+                                    byId.set(sStudentId.toLowerCase(), item);
+                                    const rawStudentId = sStudentId.replace(/^(u_|usr_|stu_|st_)/i, '');
+                                    if (rawStudentId) byId.set(rawStudentId.toLowerCase(), item);
+                                }
 
                                 const sName = String(item.name || item.fullName || item.studentName || item.student_name || '').trim().toLowerCase();
-                                if (sName) byName.set(sName, item);
+                                if (sName) {
+                                    byName.set(sName, item);
+                                    const tokens = sName.split(/\s+/).filter(Boolean);
+                                    if (tokens.length >= 2) {
+                                        byName.set(tokens.slice().reverse().join(' '), item);
+                                    }
+                                }
                             }
                             _cachedRegistryData = { key: keyToRead, raw: rawEnr, parsed, byId, byName, timestamp: now };
                             effectiveRegistry = parsed;
                             effectiveById = byId;
                             effectiveByName = byName;
+                            break;
                         }
-                    }
+                    } catch (_) {}
                 }
             }
         } catch (e) {}
@@ -302,11 +332,14 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
     // Fast indexed match by ID or exact name in registry / enrollments
     if (effectiveRegistry && Array.isArray(effectiveRegistry) && effectiveRegistry.length > 0) {
         const studentId = String(student.id || student.userId || student.user_id || '').trim();
+        const rawStudentId = studentId.replace(/^(u_|usr_|stu_|st_)/i, '').toLowerCase();
         const cleanName = student.name ? String(student.name).trim().toLowerCase() : '';
 
         let matched: any = null;
-        if (effectiveById && studentId) {
-            matched = effectiveById.get(studentId);
+        if (effectiveById) {
+            if (studentId) {
+                matched = effectiveById.get(studentId) || effectiveById.get(studentId.toLowerCase()) || (rawStudentId ? effectiveById.get(rawStudentId) : null);
+            }
         }
         if (!matched && effectiveByName && cleanName) {
             matched = effectiveByName.get(cleanName);
@@ -320,14 +353,21 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
                 const sId = String(s.id || '').trim();
                 const sUserId = String(s.userId || s.user_id || '').trim();
                 const sStudentId = String(s.studentId || s.student_id || '').trim();
+                const rawSId = sId.replace(/^(u_|usr_|stu_|st_)/i, '').toLowerCase();
+                const rawSUserId = sUserId.replace(/^(u_|usr_|stu_|st_)/i, '').toLowerCase();
+                const rawSStudentId = sStudentId.replace(/^(u_|usr_|stu_|st_)/i, '').toLowerCase();
 
-                if (studentId && (sUserId === studentId || sStudentId === studentId || sId === studentId)) {
+                if (studentId && (sUserId === studentId || sStudentId === studentId || sId === studentId ||
+                    sUserId.toLowerCase() === studentId.toLowerCase() || sStudentId.toLowerCase() === studentId.toLowerCase() || sId.toLowerCase() === studentId.toLowerCase())) {
+                    return true;
+                }
+                if (rawStudentId && (rawSUserId === rawStudentId || rawSStudentId === rawStudentId || rawSId === rawStudentId)) {
                     return true;
                 }
 
                 if (cleanName) {
                     const sName = String(s.name || s.fullName || s.studentName || s.student_name || '').trim().toLowerCase();
-                    if (sName && (sName === cleanName || (nameTokens.length >= 2 && (sName.includes(cleanName) || cleanName.includes(sName))))) {
+                    if (sName && (sName === cleanName || (nameTokens.length >= 2 && (sName.includes(cleanName) || cleanName.includes(sName) || nameTokens.every(t => sName.includes(t)))))) {
                         return true;
                     }
                 }
@@ -342,9 +382,12 @@ export const resolveRealStudentAdmNo = (student: any, idx?: number, registry?: a
             }
 
             const realAdm = matched.admissionNumber || matched.admission_number || matched.admissionNo || matched.admission_no ||
-                            matched.admNo || matched.adm_no || matched.registrationNo || matched.registration_number ||
-                            matched.studentId || matched.student_id || matched.customId ||
-                            mMeta?.admissionNumber || mMeta?.admission_number || mMeta?.admissionNo || mMeta?.admNo;
+                            matched.admNo || matched.adm_no || matched.studentAdmissionNumber || matched.student_admission_number ||
+                            matched.studentAdmNo || matched.student_adm_no || matched.student_adm ||
+                            matched.registrationNo || matched.registration_number || matched.regNo || matched.reg_no ||
+                            matched.studentId || matched.student_id || matched.customId || matched.custom_id ||
+                            mMeta?.admissionNumber || mMeta?.admission_number || mMeta?.admissionNo || mMeta?.admission_no ||
+                            mMeta?.admNo || mMeta?.adm_no || mMeta?.studentAdmissionNumber || mMeta?.student_admission_number;
             const strAdm = String(realAdm || '').trim();
             if (!isSyntheticAdmNo(strAdm)) {
                 return strAdm;
