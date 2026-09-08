@@ -121,7 +121,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
     }, [departments, currentUser]);
 
     // Dynamic list of registered classes (strictly class / grade level, not individual streams)
-    const classOptions = useMemo(() => {
+    const classOptions = useMemo<string[]>(() => {
         const set = new Set<string>();
 
         if (courses && courses.length > 0) {
@@ -271,7 +271,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
 
         // Map targetClasses dynamically based on classOptions & grade level suitability
         const primarySubjects = baseCbeSubjects.map(subj => {
-            const applicableClasses = classOptions.filter(cls => isSubjectApplicableToClass(subj, cls));
+            const applicableClasses = classOptions.filter((cls: string) => isSubjectApplicableToClass(subj, cls));
             return {
                 ...subj,
                 targetClasses: applicableClasses,
@@ -417,7 +417,7 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Class Filter</label>
                     <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="form-select text-indigo-600 dark:text-indigo-400 font-bold">
                         <option value="all">All Classes (Full Registry)</option>
-                        {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                        {classOptions.map((c: string) => <option key={c} value={c}>{c}</option>)}
                     </select>
                 </div>
 
