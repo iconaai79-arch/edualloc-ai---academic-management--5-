@@ -28,6 +28,7 @@ import { CourseManager } from './CourseManager';
 import { DepartmentManager } from './DepartmentManager';
 import { BuildingManager } from './BuildingManager';
 import { SettingsManager } from './SettingsManager';
+import { SuperAdminWhatsAppSettings } from './common/SuperAdminWhatsAppSettings';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
 import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
 import { KcbIcon } from './icons/KcbIcon';
@@ -669,7 +670,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (params.get('sub') === 'financials' || params.get('tab') === 'sales') return 'financials';
         return 'dashboard';
     });
-    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
+    const [settingsSubTab, setSettingsSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'whatsapp' | 'billing' | 'sms_pricing' | 'marketplace' | 'showcase' | 'system_build' | 'storage'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
     const [showDocumentPreview, setShowDocumentPreview] = useState(false);
     const [showScanToPayModal, setShowScanToPayModal] = useState(false);
@@ -1691,6 +1692,7 @@ Please change it after login.`;
         { key: 'external_module', label: 'External', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
         { key: 'all_users', label: 'Global Users', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
         { key: 'communications', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+        { key: 'integrations', label: 'WhatsApp Gateway', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2 text-emerald-400" /> },
         { key: 'user_activity', label: 'Audit Trail', icon: <ClipboardListIcon className="w-5 h-5 mr-2" /> },
         { key: 'demo_requests', label: 'Demo Leads', icon: <CalendarIcon className="w-5 h-5 mr-2" /> },
         { key: 'lead_scout', label: 'Gemini 1.5 Scout', icon: <SparklesIcon className="w-5 h-5 mr-2 text-indigo-500" /> },
@@ -3755,6 +3757,17 @@ Please change it after login.`;
                     </div>
                 )}
 
+                {activeTab === 'integrations' && (
+                    <div className="animate-fade-in-up">
+                        <SuperAdminWhatsAppSettings
+                            companyDetails={companyDetails}
+                            onUpdateCompanyDetails={props.onUpdateCompanyDetails}
+                            institutions={institutions}
+                            currentUser={currentUser}
+                        />
+                    </div>
+                )}
+
 
 
                 {activeTab === 'academics' && (
@@ -4559,6 +4572,12 @@ Please change it after login.`;
                                     <EnvelopeIcon className="w-4 h-4" /> Email Relay
                                 </button>
                                 <button
+                                    onClick={() => setSettingsSubTab('whatsapp')}
+                                    className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'whatsapp' ? 'border-emerald-500 text-emerald-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    <ChatBubbleBottomCenterTextIcon className="w-4 h-4" /> WhatsApp Gateway
+                                </button>
+                                <button
                                     onClick={() => setSettingsSubTab('billing')}
                                     className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${settingsSubTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                                 >
@@ -5178,6 +5197,17 @@ Please change it after login.`;
                                         </div>
                                         <button onClick={handleSaveGlobalConfigs} className="btn-primary px-10 h-12 shadow-indigo-100 uppercase tracking-widest text-xs w-full sm:w-auto">Authorize SMTP</button>
                                     </div>
+                                </div>
+                            )}
+
+                            {settingsSubTab === 'whatsapp' && (
+                                <div className="space-y-6 animate-fade-in-up">
+                                    <SuperAdminWhatsAppSettings
+                                        companyDetails={companyDetails}
+                                        onUpdateCompanyDetails={props.onUpdateCompanyDetails}
+                                        institutions={institutions}
+                                        currentUser={currentUser}
+                                    />
                                 </div>
                             )}
 

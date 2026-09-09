@@ -130,6 +130,31 @@ export const whatsappService = {
     },
 
     /**
+     * Fetch recent WhatsApp communication logs
+     */
+    async getLogs(institutionId?: string, limit = 50): Promise<{ success: boolean; logs: WhatsAppLog[]; message?: string }> {
+        try {
+            const res = await apiService.post('/api/integrations', {
+                action: 'getWhatsAppLogs',
+                institutionId: institutionId || 'global',
+                limit
+            });
+            return {
+                success: res?.success ?? true,
+                logs: res?.logs || []
+            };
+        } catch (error: any) {
+            console.error('[WhatsAppService] getLogs error:', error);
+            return {
+                success: false,
+                logs: [],
+                message: error?.message || 'Failed to fetch WhatsApp logs'
+            };
+        }
+    },
+
+
+    /**
      * Send instant payment receipt over WhatsApp
      */
     async sendPaymentReceipt(params: {

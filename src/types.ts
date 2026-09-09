@@ -1166,6 +1166,8 @@ export interface WhatsAppConfig {
     auto_send_receipts?: boolean;
     auto_send_fee_reminders?: boolean;
     auto_send_academic_results?: boolean;
+    allow_institution_failover?: boolean;
+    global_dispatch_enabled?: boolean;
     created_at?: string;
     updated_at?: string;
 }
