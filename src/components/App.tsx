@@ -3482,7 +3482,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 const updated = {
                     ...b,
                     status: 'checked_out' as const,
-                    exitTime: b.exitTime || timeOutStr,
+                    timeOut: b.timeOut || timeOutStr,
                     metadata: {
                         ...((b as any).metadata || {}),
                         autoFinalizedBySchedule: true,

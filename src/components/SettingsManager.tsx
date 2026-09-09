@@ -511,7 +511,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             customSubdomain: props.currentInstitution?.customSubdomain || '',
             useSubdomain: props.currentInstitution?.useSubdomain ?? false,
             kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
-            kioskStatus: props.currentInstitution?.kioskStatus || 'active'
+            kioskStatus: props.currentInstitution?.kioskStatus || 'active',
+            visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? false,
+            visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00'
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
