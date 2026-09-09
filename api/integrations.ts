@@ -844,19 +844,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (institutionId) {
-                await supabase.from('whatsapp_logs').insert({
-                    id: `walog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                    institution_id: institutionId,
-                    recipient: cleanPhone,
-                    recipient_name: recipientName || null,
-                    message_type: messageType,
-                    content: message,
-                    media_url: mediaUrl || null,
-                    file_name: fileName || null,
-                    status: sendSuccess ? 'sent' : 'failed',
-                    response_payload: responsePayload,
-                    error_message: errorMessage || null
-                }).catch(() => {});
+                try {
+                    await supabase.from('whatsapp_logs').insert({
+                        id: `walog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                        institution_id: institutionId,
+                        recipient: cleanPhone,
+                        recipient_name: recipientName || null,
+                        message_type: messageType,
+                        content: message,
+                        media_url: mediaUrl || null,
+                        file_name: fileName || null,
+                        status: sendSuccess ? 'sent' : 'failed',
+                        response_payload: responsePayload,
+                        error_message: errorMessage || null
+                    });
+                } catch {
+                    // Ignore background log insert failure
+                }
             }
 
             return res.status(200).json({
