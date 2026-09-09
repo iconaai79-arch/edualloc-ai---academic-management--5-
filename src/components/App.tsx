@@ -119,75 +119,75 @@ const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
 const SpeechBuddyPortal = safeLazy(() => import('./SpeechBuddyPortal').then(m => ({ default: m?.SpeechBuddyPortal || m?.default || m })));
 const KidsCodingRoboticsStudio = safeLazy(() => import('./STEM/KidsCodingRoboticsStudio').then(m => ({ default: m?.KidsCodingRoboticsStudio || m?.default || m })));
 const IELTSPrepSuite = safeLazy(() => import('./IELTS/IELTSPrepSuite').then(m => ({ default: m?.IELTSPrepSuite || m?.default || m })));
-const SpeechTherapyReportGenerator = safeLazy(() => import('./SpeechTherapyReportGenerator').then(m => ({ default: m?.SpeechTherapyReportGenerator || m?.default || m })));
-const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then(m => ({ default: m?.AIExamGenerator || m?.default || m })));
-const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then(m => ({ default: m?.NTSADrivingSimulator || m?.default || m })));
-const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').then(m => ({ default: m?.BeautyCollegeLogbook || m?.default || m })));
-const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then(m => ({ default: m?.SchoolBusTracker || m?.default || m })));
-const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then(m => ({ default: m?.FeePromissoryTracker || m?.default || m })));
-const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then(m => ({ default: m?.CampaignPromiseTracker || m?.default || m })));
-const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then(m => ({ default: m?.CommunicationsManager || m?.default || m })));
-const DoctorAttendanceManager = safeLazy(() => import('./his/DoctorAttendanceManager').then(m => ({ default: m?.DoctorAttendanceManager || m?.default || m })));
-const OpdTriagePrescriptionManager = safeLazy(() => import('./his/OpdTriagePrescriptionManager').then(m => ({ default: m?.OpdTriagePrescriptionManager || m?.default || m })));
-const StudentSmartGatePassManager = safeLazy(() => import('./Academics/StudentSmartGatePassManager').then(m => ({ default: m?.StudentSmartGatePassManager || m?.default || m })));
-const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQualityCreditEngine').then(m => ({ default: m?.FarmerMilkQualityCreditEngine || m?.default || m })));
-const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then(m => ({ default: m?.FleetMaintenanceTracker || m?.default || m })));
-const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then(m => ({ default: m?.CitizenGrievancePetitionDesk || m?.default || m })));
+const SpeechTherapyReportGenerator = safeLazy(() => import('./SpeechTherapyReportGenerator').then((m: any) => ({ default: m?.SpeechTherapyReportGenerator || m?.default || m })));
+const AIExamGenerator = safeLazy(() => import('./AIExamGenerator').then((m: any) => ({ default: m?.AIExamGenerator || m?.default || m })));
+const NTSADrivingSimulator = safeLazy(() => import('./NTSADrivingSimulator').then((m: any) => ({ default: m?.NTSADrivingSimulator || m?.default || m })));
+const BeautyCollegeLogbook = safeLazy(() => import('./BeautyCollegeLogbook').then((m: any) => ({ default: m?.BeautyCollegeLogbook || m?.default || m })));
+const SchoolBusTracker = safeLazy(() => import('./SchoolBusTracker').then((m: any) => ({ default: m?.SchoolBusTracker || m?.default || m })));
+const FeePromissoryTracker = safeLazy(() => import('./Finance/FeePromissoryTracker').then((m: any) => ({ default: m?.FeePromissoryTracker || m?.default || m })));
+const CampaignPromiseTracker = safeLazy(() => import('./Political/CampaignPromiseTracker').then((m: any) => ({ default: m?.CampaignPromiseTracker || m?.default || m })));
+const CommunicationsManager = safeLazy(() => import('./CommunicationsManager').then((m: any) => ({ default: m?.CommunicationsManager || m?.default || m })));
+const DoctorAttendanceManager = safeLazy(() => import('./his/DoctorAttendanceManager').then((m: any) => ({ default: m?.DoctorAttendanceManager || m?.default || m })));
+const OpdTriagePrescriptionManager = safeLazy(() => import('./his/OpdTriagePrescriptionManager').then((m: any) => ({ default: m?.OpdTriagePrescriptionManager || m?.default || m })));
+const StudentSmartGatePassManager = safeLazy(() => import('./Academics/StudentSmartGatePassManager').then((m: any) => ({ default: m?.StudentSmartGatePassManager || m?.default || m })));
+const FarmerMilkQualityCreditEngine = safeLazy(() => import('./coop/FarmerMilkQualityCreditEngine').then((m: any) => ({ default: m?.FarmerMilkQualityCreditEngine || m?.default || m })));
+const FleetMaintenanceTracker = safeLazy(() => import('./Transport/FleetMaintenanceTracker').then((m: any) => ({ default: m?.FleetMaintenanceTracker || m?.default || m })));
+const CitizenGrievancePetitionDesk = safeLazy(() => import('./Political/CitizenGrievancePetitionDesk').then((m: any) => ({ default: m?.CitizenGrievancePetitionDesk || m?.default || m })));
 const BoardingHouseholdBalanceManager = safeLazy(() => import('./Finance/BoardingHouseholdBalanceManager').then(m => ({ default: m?.BoardingHouseholdBalanceManager || m?.default || m })));
 const PrivateSecurityCompanyView = safeLazy(() => import('./security/PrivateSecurityCompanyView').then(m => ({ default: m?.PrivateSecurityCompanyView || m?.default || m })));
 
 // Lazy-loaded major portals
-const AdminView = safeLazy(() => import('./AdminView').then(m => ({ default: m?.AdminView || m?.default || m })));
-const SuperAdminView = safeLazy(() => import('./SuperAdminView').then(m => ({ default: m?.SuperAdminView || m?.default || m })));
-const LecturerView = safeLazy(() => import('./LecturerView').then(m => ({ default: m?.LecturerView || m?.default || m })));
-const StudentView = safeLazy(() => import('./StudentView').then(m => ({ default: m?.StudentView || m?.default || m })));
-const TenantPortalView = safeLazy(() => import('./TenantPortalView').then(m => ({ default: m?.TenantPortalView || m?.default || m })));
-const LandlordPortalView = safeLazy(() => import('./LandlordPortalView').then(m => ({ default: m?.LandlordPortalView || m?.default || m })));
-const PropertyManagementView = safeLazy(() => import('./PropertyManagementView').then(m => ({ default: m?.PropertyManagementView || m?.default || m })));
-const LibraryMasterView = safeLazy(() => import('./LibraryMasterView').then(m => ({ default: m?.LibraryMasterView || m?.default || m })));
-const AcademicsOfficerView = safeLazy(() => import('./AcademicsOfficerView').then(m => ({ default: m?.AcademicsOfficerView || m?.default || m })));
-const FinanceOfficerView = safeLazy(() => import('./Finance/FinanceOfficerView').then(m => ({ default: m?.FinanceOfficerView || m?.default || m })));
-const HROfficerView = safeLazy(() => import('./HR/HROfficerView').then(m => ({ default: m?.HROfficerView || m?.default || m })));
-const LibraryWarRoom = safeLazy(() => import('./Library/LibraryWarRoom').then(m => ({ default: m?.LibraryWarRoom || m?.default || m })));
-const CountyAdminView = safeLazy(() => import('./CountyAdminView').then(m => ({ default: m?.CountyAdminView || m?.default || m })));
-const ConstituencyAdminView = safeLazy(() => import('./ConstituencyAdminView').then(m => ({ default: m?.ConstituencyAdminView || m?.default || m })));
-const ParentView = safeLazy(() => import('./ParentView').then(m => ({ default: m?.ParentView || m?.default || m })));
-const PracticeTeacherView = safeLazy(() => import('./PracticeTeacherView').then(m => ({ default: m?.PracticeTeacherView || m?.default || m })));
-const CarWashView = safeLazy(() => import('./CarWashView').then(m => ({ default: m?.CarWashView || m?.default || m })));
-const CarWashCustomerPortal = safeLazy(() => import('./CarWashCustomerPortal').then(m => ({ default: m?.CarWashCustomerPortal || m?.default || m })));
-const AgrovetView = safeLazy(() => import('./AgrovetView').then(m => ({ default: m?.AgrovetView || m?.default || m })));
-const PropertyMarketplaceView = safeLazy(() => import('./PropertyMarketplaceView').then(m => ({ default: m?.PropertyMarketplaceView || m?.default || m })));
-const ChurchDashboard = safeLazy(() => import('./church/ChurchDashboard').then(m => ({ default: m?.ChurchDashboard || m?.default || m })));
-const FarmerPortal = safeLazy(() => import('./coop/FarmerPortal').then(m => ({ default: m?.FarmerPortal || m?.default || m })));
-const RiderPortal = safeLazy(() => import('./coop/RiderPortal').then(m => ({ default: m?.RiderPortal || m?.default || m })));
+const AdminView = safeLazy(() => import('./AdminView').then((m: any) => ({ default: m?.AdminView || m?.default || m })));
+const SuperAdminView = safeLazy(() => import('./SuperAdminView').then((m: any) => ({ default: m?.SuperAdminView || m?.default || m })));
+const LecturerView = safeLazy(() => import('./LecturerView').then((m: any) => ({ default: m?.LecturerView || m?.default || m })));
+const StudentView = safeLazy(() => import('./StudentView').then((m: any) => ({ default: m?.StudentView || m?.default || m })));
+const TenantPortalView = safeLazy(() => import('./TenantPortalView').then((m: any) => ({ default: m?.TenantPortalView || m?.default || m })));
+const LandlordPortalView = safeLazy(() => import('./LandlordPortalView').then((m: any) => ({ default: m?.LandlordPortalView || m?.default || m })));
+const PropertyManagementView = safeLazy(() => import('./PropertyManagementView').then((m: any) => ({ default: m?.PropertyManagementView || m?.default || m })));
+const LibraryMasterView = safeLazy(() => import('./LibraryMasterView').then((m: any) => ({ default: m?.LibraryMasterView || m?.default || m })));
+const AcademicsOfficerView = safeLazy(() => import('./AcademicsOfficerView').then((m: any) => ({ default: m?.AcademicsOfficerView || m?.default || m })));
+const FinanceOfficerView = safeLazy(() => import('./Finance/FinanceOfficerView').then((m: any) => ({ default: m?.FinanceOfficerView || m?.default || m })));
+const HROfficerView = safeLazy(() => import('./HR/HROfficerView').then((m: any) => ({ default: m?.HROfficerView || m?.default || m })));
+const LibraryWarRoom = safeLazy(() => import('./Library/LibraryWarRoom').then((m: any) => ({ default: m?.LibraryWarRoom || m?.default || m })));
+const CountyAdminView = safeLazy(() => import('./CountyAdminView').then((m: any) => ({ default: m?.CountyAdminView || m?.default || m })));
+const ConstituencyAdminView = safeLazy(() => import('./ConstituencyAdminView').then((m: any) => ({ default: m?.ConstituencyAdminView || m?.default || m })));
+const ParentView = safeLazy(() => import('./ParentView').then((m: any) => ({ default: m?.ParentView || m?.default || m })));
+const PracticeTeacherView = safeLazy(() => import('./PracticeTeacherView').then((m: any) => ({ default: m?.PracticeTeacherView || m?.default || m })));
+const CarWashView = safeLazy(() => import('./CarWashView').then((m: any) => ({ default: m?.CarWashView || m?.default || m })));
+const CarWashCustomerPortal = safeLazy(() => import('./CarWashCustomerPortal').then((m: any) => ({ default: m?.CarWashCustomerPortal || m?.default || m })));
+const AgrovetView = safeLazy(() => import('./AgrovetView').then((m: any) => ({ default: m?.AgrovetView || m?.default || m })));
+const PropertyMarketplaceView = safeLazy(() => import('./PropertyMarketplaceView').then((m: any) => ({ default: m?.PropertyMarketplaceView || m?.default || m })));
+const ChurchDashboard = safeLazy(() => import('./church/ChurchDashboard').then((m: any) => ({ default: m?.ChurchDashboard || m?.default || m })));
+const FarmerPortal = safeLazy(() => import('./coop/FarmerPortal').then((m: any) => ({ default: m?.FarmerPortal || m?.default || m })));
+const RiderPortal = safeLazy(() => import('./coop/RiderPortal').then((m: any) => ({ default: m?.RiderPortal || m?.default || m })));
 const BoardingMasterView = safeLazy(() => import('./BoardingMasterView'));
 const ResellerDashboard = safeLazy(() => import('./ResellerDashboard'));
-const EventManagementView = safeLazy(() => import('./events/EventManagementView').then(m => ({ default: m?.EventManagementView || m?.default || m })));
-const TenantStorefrontView = safeLazy(() => import('./retail/TenantStorefrontView').then(m => ({ default: m?.TenantStorefrontView || m?.default || m })));
-const SchoolStorefrontView = safeLazy(() => import('./public/SchoolStorefrontView').then(m => ({ default: m?.SchoolStorefrontView || m?.default || m })));
-const CommunityHubView = safeLazy(() => import('./public/CommunityHubView').then(m => ({ default: m?.CommunityHubView || m?.default || m })));
-const TransportHubView = safeLazy(() => import('./public/TransportHubView').then(m => ({ default: m?.TransportHubView || m?.default || m })));
-const HospitalityStorefront = safeLazy(() => import('./hospitality/HospitalityStorefront').then(m => ({ default: m?.HospitalityStorefront || m?.default || m })));
-const HospitalityMarketplace = safeLazy(() => import('./hospitality/HospitalityMarketplace').then(m => ({ default: m?.HospitalityMarketplace || m?.default || m })));
-const CampaignJoinPage = safeLazy(() => import('./public/CampaignJoinPage').then(m => ({ default: m?.CampaignJoinPage || m?.default || m })));
-const FuelStationDashboard = safeLazy(() => import('./FuelStationDashboard').then(m => ({ default: m?.FuelStationDashboard || m?.default || m })));
+const EventManagementView = safeLazy(() => import('./events/EventManagementView').then((m: any) => ({ default: m?.EventManagementView || m?.default || m })));
+const TenantStorefrontView = safeLazy(() => import('./retail/TenantStorefrontView').then((m: any) => ({ default: m?.TenantStorefrontView || m?.default || m })));
+const SchoolStorefrontView = safeLazy(() => import('./public/SchoolStorefrontView').then((m: any) => ({ default: m?.SchoolStorefrontView || m?.default || m })));
+const CommunityHubView = safeLazy(() => import('./public/CommunityHubView').then((m: any) => ({ default: m?.CommunityHubView || m?.default || m })));
+const TransportHubView = safeLazy(() => import('./public/TransportHubView').then((m: any) => ({ default: m?.TransportHubView || m?.default || m })));
+const HospitalityStorefront = safeLazy(() => import('./hospitality/HospitalityStorefront').then((m: any) => ({ default: m?.HospitalityStorefront || m?.default || m })));
+const HospitalityMarketplace = safeLazy(() => import('./hospitality/HospitalityMarketplace').then((m: any) => ({ default: m?.HospitalityMarketplace || m?.default || m })));
+const CampaignJoinPage = safeLazy(() => import('./public/CampaignJoinPage').then((m: any) => ({ default: m?.CampaignJoinPage || m?.default || m })));
+const FuelStationDashboard = safeLazy(() => import('./FuelStationDashboard').then((m: any) => ({ default: m?.FuelStationDashboard || m?.default || m })));
 const CivilWorksDashboard = safeLazy(() => import('./CivilWorksDashboard'));
 const LogisticsDashboard = safeLazy(() => import('./LogisticsDashboard'));
-const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').then(m => ({ default: m?.CampaignSocialPortal || m?.default || m })));
-const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then(m => ({ default: m?.CampaignLoginView || m?.default || m })));
-const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then(m => ({ default: m?.PublicCarInvoicePayment || m?.default || m })));
+const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').then((m: any) => ({ default: m?.CampaignSocialPortal || m?.default || m })));
+const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then((m: any) => ({ default: m?.CampaignLoginView || m?.default || m })));
+const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then((m: any) => ({ default: m?.PublicCarInvoicePayment || m?.default || m })));
 const PublicScanToPayView = safeLazy(() => import('./public/PublicScanToPayView').then(m => ({ default: m?.PublicScanToPayView || m?.default || m })));
-const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then(m => ({ default: m?.PublicEventRegistration || m?.default || m })));
-const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then(m => ({ default: m?.PublicEventConfirmation || m?.default || m })));
-const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then(m => ({ default: m?.PublicVisitorAuthorization || m?.default || m })));
-const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then(m => ({ default: m?.DrivingSchoolManager || m?.default || m })));
-const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then(m => ({ default: m?.PublicInvoiceView || m?.default || m })));
-const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then(m => ({ default: m?.PublicResultSlipPortal || m?.default || m })));
-const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then(m => ({ default: m?.DSInterestPage || m?.default || m })));
-const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then(m => ({ default: m?.RestaurantPOSManager || m?.default || m })));
+const PublicEventRegistration = safeLazy(() => import('./events/PublicEventRegistration').then((m: any) => ({ default: m?.PublicEventRegistration || m?.default || m })));
+const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfirmation').then((m: any) => ({ default: m?.PublicEventConfirmation || m?.default || m })));
+const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then((m: any) => ({ default: m?.PublicVisitorAuthorization || m?.default || m })));
+const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then((m: any) => ({ default: m?.DrivingSchoolManager || m?.default || m })));
+const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then((m: any) => ({ default: m?.PublicInvoiceView || m?.default || m })));
+const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then((m: any) => ({ default: m?.PublicResultSlipPortal || m?.default || m })));
+const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then((m: any) => ({ default: m?.DSInterestPage || m?.default || m })));
+const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then((m: any) => ({ default: m?.RestaurantPOSManager || m?.default || m }})));
 import HealthCoreView from './his/HealthCoreView';
 import ModernPharmacyManager from './his/ModernPharmacyManager';
-const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then(m => ({ default: m?.CarServiceView || m?.default || m })));
+const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then((m: any) => ({ default: m?.CarServiceView || m?.default || m })));
 
 
 
@@ -775,7 +775,7 @@ export const App: React.FC = () => {
                     id: currentUser.institutionId,
                     name: (currentUser as any).institutionName || (currentUser as any).schoolName || 'Institutional Workspace',
                     institutionType: (currentUser.role === 'pharmacist' || currentUser.role === 'pharmacy_admin') ? 'Pharmacy' : 
-                                     (currentUser.role?.includes('his') || currentUser.role === 'nurse' || currentUser.role === 'doctor') ? 'HIS' : 'Education',
+                                     (currentUser.role?.includes('his') || currentUser.role === 'nurse' || (currentUser as any).role === 'doctor') ? 'HIS' : 'Education',
                     status: 'active'
                 } as any);
             }
@@ -1296,7 +1296,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             } : null;
             const instType = activeInst?.institutionType || 'General';
             const instId = instOverrideId || (currentUser && (currentUser.role === 'super_admin' || (currentUser.role || '').startsWith('county_')) ? undefined : currentUser?.institutionId);
-            const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser.countyId : undefined;
+            const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser?.countyId : undefined;
             const effectiveInstId = instOverrideId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || ''));
             const isSuper = currentUser?.role === 'super_admin';
 
@@ -2605,10 +2605,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 (targetOffice?.tenantName && u.name && u.name.trim().toLowerCase() === targetOffice.tenantName.trim().toLowerCase())
             );
             if (hostUser) {
-                const notifMsg = `You have a visitor: ${v.fullName} has registered at building security for ${targetOffice?.name || 'your office'}.`;
+                const notifMsg = `You have a visitor: ${v.visitorName} has registered at building security for ${targetOffice?.tenantName || 'your office'}.`;
                 const notifMeta = {
-                    visitorName: v.fullName,
-                    purpose: targetOffice?.name ? `Visit to ${targetOffice.name}` : 'Office visit',
+                    visitorName: v.visitorName,
+                    purpose: targetOffice?.tenantName ? `Visit to ${targetOffice.tenantName}` : 'Office visit',
                     hostId: hostUser.id
                 };
                 apiService.createNotification(hostUser.id, notifMsg, 'guest_arrival', notifMeta).catch(console.error);
@@ -2616,7 +2616,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     setNotifications(prev => [{
                         id: `notif_${Date.now()}`,
                         userId: hostUser.id,
-                        visitorName: v.fullName,
+                        visitorName: v.visitorName,
                         metadata: notifMeta,
                         message: notifMsg,
                         type: 'guest_arrival',
@@ -2625,7 +2625,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }, ...prev]);
                 }
                 window.dispatchEvent(new CustomEvent('app_notification_created', {
-                    detail: { userId: hostUser.id, message: notifMsg, type: 'guest_arrival', visitorName: v.fullName, metadata: notifMeta }
+                    detail: { userId: hostUser.id, message: notifMsg, type: 'guest_arrival', visitorName: v.visitorName, metadata: notifMeta }
                 }));
             }
         }
@@ -4863,14 +4863,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             // 2. Check in commercial building visitor logs
             const matchedBuildingLog = (buildingVisitorLogs || []).find(bvl =>
                 (visitorId && bvl.id === visitorId) ||
-                (visitorName && bvl.fullName && bvl.fullName.trim().toLowerCase() === visitorName && bvl.status !== 'checked_out')
+                (visitorName && bvl.visitorName && bvl.visitorName.trim().toLowerCase() === visitorName && bvl.status !== 'checked_out')
             );
 
             if (matchedBuildingLog && matchedBuildingLog.status !== 'checked_out') {
                 const updatedBuildingLog = {
                     ...matchedBuildingLog,
                     status: 'checked_out' as const,
-                    exitTime: matchedBuildingLog.exitTime || timeOutStr,
+                    timeOut: matchedBuildingLog.timeOut || timeOutStr,
                     metadata: {
                         ...((matchedBuildingLog as any).metadata || {}),
                         autoFinalizedByHost: true,
@@ -4880,8 +4880,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                 setBuildingVisitorLogs(prev => prev.map(b => b.id === matchedBuildingLog.id ? updatedBuildingLog : b));
                 await apiService.saveModuleRecord('building_visitor_logs', updatedBuildingLog);
-                await handleLogAction(`Auto-finalized exit for building visitor: ${matchedBuildingLog.fullName} (marked met by host)`);
-                success(`Visitor ${matchedBuildingLog.fullName} marked as met & exit finalized.`);
+                await handleLogAction(`Auto-finalized exit for building visitor: ${matchedBuildingLog.visitorName} (marked met by host)`);
+                success(`Visitor ${matchedBuildingLog.visitorName} marked as met & exit finalized.`);
             }
 
             loadData();
