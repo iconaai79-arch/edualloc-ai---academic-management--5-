@@ -504,11 +504,17 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                             }));
                         }
 
-                        // 2. Dispatch SMS
-                        if (matchedHost.phoneNumber && props.onSendSms) {
+                        // 2. Dispatch SMS (only if onAddVisitor did not already handle it centrally)
+                        const hostPhone = matchedHost.phoneNumber || (matchedHost as any).phone || (matchedHost as any).telephone;
+                        if (!onAddVisitor && hostPhone) {
                             const smsMsg = `Hi ${matchedHost.name}, guest ${visitorPayload.name} is at the gate. Purpose: ${visitorPayload.purpose}. Tap here to authorize: ${link}`;
-                            await props.onSendSms(matchedHost.phoneNumber, smsMsg, props.smsConfig, 1, user?.institutionId || '');
-                            console.info('[Security Notification] Sent SMS authorization request to host:', matchedHost.phoneNumber);
+                            const smsCfg = props.smsConfig || props.currentInstitution?.smsConfig || props.companyDetails?.smsConfig;
+                            if (props.onSendSms) {
+                                await props.onSendSms(hostPhone, smsMsg, smsCfg, 1, user?.institutionId || '');
+                            } else {
+                                await apiService.sendSms(hostPhone, smsMsg, smsCfg, 1, user?.institutionId || '');
+                            }
+                            console.info('[Security Notification] Sent SMS authorization request to host:', hostPhone);
                         }
 
                         // 3. Dispatch Email

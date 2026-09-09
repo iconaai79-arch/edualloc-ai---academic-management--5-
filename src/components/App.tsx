@@ -2524,10 +2524,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             window.dispatchEvent(new CustomEvent('app_notification_created', {
                 detail: { userId: targetHostId, message: notifMsg, type: 'guest_arrival', visitorName, metadata: notifMeta }
             }));
+
+            // 4. Dispatch live SMS notification to host phone
+            const targetHost = (users || []).find(u => u.id === targetHostId);
+            const hostPhone = targetHost?.phoneNumber || (targetHost as any)?.phone || (targetHost as any)?.telephone;
+            if (hostPhone) {
+                const link = `${window.location.origin}/?view=visitor-auth&id=${newVisitor.id}`;
+                const smsMsg = `Hi ${targetHost?.name || 'Host'}, visitor ${visitorName} has arrived at the security gate${newVisitor.purpose ? ` for ${newVisitor.purpose}` : ''}. Tap here to authorize: ${link}`;
+                const smsCfg = activeInstitution?.smsConfig || companyDetails?.smsConfig;
+                const instId = activeInstitution?.id || currentUser?.institutionId || '';
+                apiService.sendSms(hostPhone, smsMsg, smsCfg, 1, instId)
+                    .then(() => console.info('[Security Notification] Sent SMS authorization request to host:', hostPhone))
+                    .catch(err => console.warn('[Security Notification] Failed to send SMS to host:', err));
+            }
         }
 
         return newVisitor;
-    }, [currentUser, setVisitors, users, setNotifications]);
+    }, [currentUser, setVisitors, users, setNotifications, activeInstitution, companyDetails]);
 
     const handleCheckoutVisitor = useCallback(async (id: string) => {
         const v = (visitors || []).find(x => x.id === id);
@@ -7532,6 +7545,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             {...{
                                                 currentUser,
                                                 currentInstitution: activeInstitution!,
+                                                companyDetails,
+                                                smsConfig: activeInstitution?.smsConfig || companyDetails?.smsConfig,
+                                                onSendSms: async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c || activeInstitution?.smsConfig || companyDetails?.smsConfig, u, i || activeInstitution?.id || currentUser?.institutionId),
                                                 securityAlerts,
                                                 visitors,
                                                 vehicles,
