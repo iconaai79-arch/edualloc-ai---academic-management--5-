@@ -58,6 +58,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [weekendStartTime, setWeekendStartTime] = useState<string>('08:00');
     const [weekendEndTime, setWeekendEndTime] = useState<string>('12:00');
     const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
+    const [maxWeekendLessonsPerDay, setMaxWeekendLessonsPerDay] = useState<number>(2);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
 
@@ -131,6 +132,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 setWeekendStartTime(rates[0].weekendStartTime || '08:00');
                 setWeekendEndTime(rates[0].weekendEndTime || '12:00');
                 setMaxLessonsPerDay(rates[0].maxLessonsPerDay ?? 1);
+                setMaxWeekendLessonsPerDay(rates[0].maxWeekendLessonsPerDay ?? rates[0].maxLessonsPerDay ?? 2);
                 setFeePerStudent(rates[0].feePerStudent || 200);
                 setTermFee(rates[0].termFee || 3000);
             }
@@ -400,12 +402,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 weekendStartTime,
                 weekendEndTime,
                 maxLessonsPerDay,
+                maxWeekendLessonsPerDay,
                 feePerStudent,
                 termFee,
                 institutionId
             };
             await apiService.saveRemedialRateSetting(data);
-            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Max Lessons/Day ${maxLessonsPerDay}`);
+            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Weekday Max ${maxLessonsPerDay}/day, Weekend Max ${maxWeekendLessonsPerDay}/day`);
             alert('Remedial rates and rules updated successfully!');
             loadData();
         } catch (err: any) {
@@ -420,15 +423,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return alert('Please fill in all fields');
         }
 
-        // Daily Lesson Limit Check
+        // Daily Lesson Limit Check (weekday vs weekend)
         const manualDateObj = new Date(manualDate);
         const dayStr = manualDateObj.toDateString();
         const existingTeacherSessionsOnDate = sessions.filter(s => {
             return s.teacherId === manualTeacherId && new Date(s.startTime).toDateString() === dayStr;
         });
+        const isWeekendDate = [0, 6].includes(manualDateObj.getDay());
+        const effectiveDailyLimit = isWeekendDate ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+        const limitLabel = isWeekendDate ? 'weekend' : 'weekday';
 
-        if (existingTeacherSessionsOnDate.length >= maxLessonsPerDay) {
-            return alert(`Daily Quota Exceeded: Teacher has already reached the maximum limit of ${maxLessonsPerDay} remedial lesson(s) allowed per day on ${manualDate}.`);
+        if (existingTeacherSessionsOnDate.length >= effectiveDailyLimit) {
+            return alert(`Daily Quota Exceeded: Teacher has already reached the maximum ${limitLabel} limit of ${effectiveDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
         }
 
         try {
@@ -576,7 +582,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     for (let attempt = 0; attempt < teachersList.length; attempt++) {
                         const candidate = teachersList[(teacherIdx + attempt) % teachersList.length];
                         const currentCount = teacherDailyCount[candidate.id]?.[day] || 0;
-                        if (currentCount < maxLessonsPerDay) {
+                        const dayIsWeekend = ['Saturday', 'Sunday'].includes(day);
+                        const dayLimit = dayIsWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+                        if (currentCount < dayLimit) {
                             assignedTeacher = candidate;
                             teacherIdx = (teacherIdx + attempt + 1) % teachersList.length;
                             break;
@@ -1722,23 +1730,44 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             {/* 3. Daily Lessons Quotas & Limits */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
                                 <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                    <Layers className="w-3.5 h-3.5" /> Daily Lesson Quota Limit
+                                    <Layers className="w-3.5 h-3.5" /> Daily Lesson Quota Limits
                                 </p>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Max Remedial Lessons Per Teacher Per Day</label>
-                                    <select 
-                                        value={maxLessonsPerDay}
-                                        onChange={e => setMaxLessonsPerDay(Number(e.target.value))}
-                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                    >
-                                        <option value={1}>1 Lesson per Day (Default Limit)</option>
-                                        <option value={2}>2 Lessons per Day</option>
-                                        <option value={3}>3 Lessons per Day</option>
-                                        <option value={4}>4 Lessons per Day</option>
-                                        <option value={5}>Unlimited / No Restricting Cap</option>
-                                    </select>
-                                    <p className="text-[9px] text-slate-400 mt-1 font-medium">Prevents teachers or admins from exceeding the configured maximum remedial sessions per day.</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">🗓️ Weekday Max Lessons Per Teacher / Day</label>
+                                        <select 
+                                            value={maxLessonsPerDay}
+                                            onChange={e => setMaxLessonsPerDay(Number(e.target.value))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        >
+                                            <option value={1}>1 Lesson per Day</option>
+                                            <option value={2}>2 Lessons per Day</option>
+                                            <option value={3}>3 Lessons per Day</option>
+                                            <option value={4}>4 Lessons per Day</option>
+                                            <option value={5}>5 Lessons per Day</option>
+                                            <option value={99}>Unlimited (No Cap)</option>
+                                        </select>
+                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Mon – Fri.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-amber-500 mb-1.5">📅 Weekend Max Lessons Per Teacher / Day</label>
+                                        <select 
+                                            value={maxWeekendLessonsPerDay}
+                                            onChange={e => setMaxWeekendLessonsPerDay(Number(e.target.value))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                        >
+                                            <option value={1}>1 Lesson per Day</option>
+                                            <option value={2}>2 Lessons per Day</option>
+                                            <option value={3}>3 Lessons per Day</option>
+                                            <option value={4}>4 Lessons per Day</option>
+                                            <option value={5}>5 Lessons per Day</option>
+                                            <option value={6}>6 Lessons per Day</option>
+                                            <option value={99}>Unlimited (No Cap)</option>
+                                        </select>
+                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Sat &amp; Sun — weekends can allow more sessions.</p>
+                                    </div>
                                 </div>
+                                <p className="text-[9px] text-slate-400 font-medium">Prevents teachers or admins from exceeding the configured daily maximum. Weekday and weekend caps are enforced independently.</p>
                             </div>
 
                             {/* 4. Parent Fees */}

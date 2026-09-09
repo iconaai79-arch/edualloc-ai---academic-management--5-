@@ -752,10 +752,15 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                             try {
                                 const ratesList = await apiService.fetchRemedialRateSettings(currentInstitution?.id || user?.institutionId || '');
-                                const maxLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxLessonsPerDay !== undefined) ? ratesList[0].maxLessonsPerDay : 1;
+                                const todayDow = new Date().getDay(); // 0 = Sun, 6 = Sat
+                                const isTodayWeekend = todayDow === 0 || todayDow === 6;
+                                const weekdayLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxLessonsPerDay !== undefined) ? ratesList[0].maxLessonsPerDay : 1;
+                                const weekendLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxWeekendLessonsPerDay !== undefined) ? ratesList[0].maxWeekendLessonsPerDay : weekdayLimit;
+                                const maxLimit = isTodayWeekend ? weekendLimit : weekdayLimit;
+                                const limitLabel = isTodayWeekend ? 'weekend' : 'weekday';
 
                                 if (existingTeacherSessionsToday.length >= maxLimit) {
-                                    return alert(`Daily Remedial Limit Reached: You have already conducted the maximum limit of ${maxLimit} remedial lesson(s) allowed per day.`);
+                                    return alert(`Daily Remedial Limit Reached: You have already conducted the maximum ${limitLabel} limit of ${maxLimit} remedial lesson(s) allowed per day.`);
                                 }
 
                                 const prefect = props.users?.find(u => u.id === selectedPrefectId);
