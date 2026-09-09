@@ -251,7 +251,11 @@ export const Header: React.FC<HeaderProps> = ({
                             <OfflineSyncWidget institutionId={currentInstitution.id} />
                         )}
 
-                        <NotificationBell notifications={notifications || []} onMarkAsRead={onMarkAsRead || (() => {})} />
+                        <NotificationBell 
+                            notifications={notifications || []} 
+                            onMarkAsRead={onMarkAsRead || (() => {})} 
+                            currentUser={currentUser} 
+                        />
 
                         <div className="relative" ref={menuRef}>
                             <button

@@ -2680,7 +2680,7 @@ export const apiService = {
             ...options
         });
     },
-    async createNotification(userId: string, message: string, type: string = 'info'): Promise<void> {
+    async createNotification(userId: string, message: string, type: string = 'info', metadata?: any): Promise<void> {
         const currentUser = apiService.getSession();
         const notification: any = {
             id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2689,6 +2689,9 @@ export const apiService = {
             institution_id: currentUser?.institutionId || '',
             message,
             type,
+            visitorName: metadata?.visitorName || undefined,
+            purpose: metadata?.purpose || undefined,
+            metadata: metadata || {},
             isRead: false,
             is_read: false,
             timestamp: new Date().toISOString()

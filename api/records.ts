@@ -1526,10 +1526,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             delete copy.id;
                         }
-                        ['user_id', 'userId', 'institution_id', 'institutionId', 'student_id', 'studentId'].forEach(k => {
+                        ['institution_id', 'institutionId', 'student_id', 'studentId'].forEach(k => {
                             if (k in copy && copy[k] && !isValidUUID(copy[k])) {
-                                if (moduleName === 'app_notifications' && (k === 'user_id' || k === 'userId')) {
-                                    copy[k] = null;
+                                if (tableSupportsMetadata) {
+                                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                                    meta[k] = copy[k];
+                                    copy.metadata = meta;
                                 }
                             }
                         });

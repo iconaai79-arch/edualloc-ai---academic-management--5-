@@ -1,12 +1,12 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import type { AppNotification } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { AppNotification, User } from '../types';
 import { BellIcon } from './icons/BellIcon';
 import { CheckIcon } from './icons/CheckIcon';
 
 interface NotificationBellProps {
   notifications: AppNotification[];
   onMarkAsRead: (notificationId?: string) => void;
+  currentUser?: User | null;
 }
 
 function formatTimeAgo(timestamp: string): string {
@@ -23,12 +23,85 @@ function formatTimeAgo(timestamp: string): string {
     return `${diffInDays}d ago`;
 }
 
-export const NotificationBell: React.FC<NotificationBellProps> = ({ notifications, onMarkAsRead }) => {
+function extractVisitorDetails(notification: AppNotification): { visitorName: string; purpose: string } {
+    const meta = (notification as any).metadata || {};
+    let visitorName = notification.visitorName || (notification as any).visitor_name || meta.visitorName || meta.name || '';
+    let purpose = notification.purpose || meta.purpose || '';
+
+    // If visitorName isn't explicitly set, try extracting from the message text
+    // E.g.: "You have a visitor: John Doe (Meeting) has arrived at the security gate."
+    // or "You have a visitor: Jane Smith is waiting at the security gate for Registration."
+    if (!visitorName && notification.message) {
+        const match = notification.message.match(/(?:visitor:\s*|guest\s+)([^(\n\r,]+?)(?:\s+is\s+waiting|\s+has\s+arrived|\s+has\s+registered|\s*\(|\s+for|\.|$)/i);
+        if (match && match[1]) {
+            const candidate = match[1].trim();
+            if (candidate && !candidate.toLowerCase().includes('you have')) {
+                visitorName = candidate;
+            }
+        }
+    }
+
+    if (!purpose && notification.message) {
+        const purposeMatch = notification.message.match(/(?:for\s+|\(|\bpurpose:\s*)([^).\n\r]+)/i);
+        if (purposeMatch && purposeMatch[1] && !purposeMatch[1].toLowerCase().includes('security gate')) {
+            purpose = purposeMatch[1].trim();
+        }
+    }
+
+    return {
+        visitorName: visitorName.trim() || 'Visitor',
+        purpose: purpose.trim()
+    };
+}
+
+export const NotificationBell: React.FC<NotificationBellProps> = ({ notifications, onMarkAsRead, currentUser }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const unreadCount = notifications.filter(n => !n.isRead).length;
     const ref = useRef<HTMLDivElement>(null);
 
-    const sortedNotifications = [...notifications].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    // ── STRICT FILTERING: Only show visitor notifications to the assigned host ──
+    const filteredNotifications = useMemo(() => {
+        if (!notifications || !Array.isArray(notifications)) return [];
+        const currentUserId = String(currentUser?.id || '').trim();
+        const currentUserIdNorm = currentUserId.replace(/^u_/, '').toLowerCase();
+
+        return notifications.filter(notification => {
+            if (!notification) return false;
+            const isVisitorNotif = notification.type === 'guest_arrival' || notification.type === 'visitor';
+
+            // Visitor notifications MUST ONLY be visible to the assigned host!
+            if (isVisitorNotif) {
+                if (!currentUser) return false;
+
+                const targetHostId = String(
+                    notification.userId || 
+                    (notification as any).user_id || 
+                    (notification as any).metadata?.hostId || 
+                    (notification as any).metadata?.targetHostId || 
+                    ''
+                ).trim();
+
+                // If no host ID was recorded, do not leak visitor notifications to guards or other staff
+                if (!targetHostId) return false;
+
+                const targetHostIdNorm = targetHostId.replace(/^u_/, '').toLowerCase();
+                return targetHostIdNorm === currentUserIdNorm;
+            }
+
+            // For targeted user notifications, ensure they belong to current user
+            const targetUserId = String(notification.userId || (notification as any).user_id || '').trim();
+            if (targetUserId && currentUser) {
+                const targetUserIdNorm = targetUserId.replace(/^u_/, '').toLowerCase();
+                return targetUserIdNorm === currentUserIdNorm;
+            }
+
+            return true;
+        });
+    }, [notifications, currentUser]);
+
+    const unreadCount = filteredNotifications.filter(n => !n.isRead).length;
+    const sortedNotifications = useMemo(() => {
+        return [...filteredNotifications].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [filteredNotifications]);
 
     const handleToggle = () => {
         setIsOpen(!isOpen);
@@ -90,6 +163,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                             <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                                 {sortedNotifications.map(notification => {
                                     const isVisitorNotif = notification.type === 'guest_arrival' || notification.type === 'visitor';
+                                    const visitorDetails = isVisitorNotif ? extractVisitorDetails(notification) : null;
+
                                     return (
                                         <li 
                                             key={notification.id} 
@@ -101,17 +176,28 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                                         >
                                             <div className="flex justify-between items-start gap-3">
                                                 <div className="flex-grow">
-                                                    {isVisitorNotif && (
-                                                        <div className="flex items-center gap-1.5 mb-1.5">
+                                                    {isVisitorNotif && visitorDetails && (
+                                                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
                                                                 VISITOR AT GATE
                                                             </span>
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-black bg-amber-200/90 text-amber-950 dark:bg-amber-800/70 dark:text-amber-100 border border-amber-300 dark:border-amber-600">
+                                                                👤 {visitorDetails.visitorName}
+                                                            </span>
                                                         </div>
                                                     )}
+
                                                     <p className={`text-sm ${!notification.isRead ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
-                                                        {notification.message}
+                                                        {notification.message || (isVisitorNotif && visitorDetails ? `${visitorDetails.visitorName} has arrived at the security gate to see you.` : 'New notification')}
                                                     </p>
+
+                                                    {isVisitorNotif && visitorDetails?.purpose && !notification.message?.toLowerCase().includes(visitorDetails.purpose.toLowerCase()) && (
+                                                        <p className="mt-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                                                            Purpose: {visitorDetails.purpose}
+                                                        </p>
+                                                    )}
+
                                                     <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{formatTimeAgo(notification.timestamp)}</p>
                                                 </div>
                                                 {!notification.isRead && (
@@ -119,15 +205,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                                                         onClick={() => handleItemAction(notification)}
                                                         className={`flex-shrink-0 p-1.5 rounded-xl transition-all ${
                                                             isVisitorNotif 
-                                                                ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' 
+                                                                ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-sm' 
                                                                 : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                         }`}
                                                         title={isVisitorNotif ? "Acknowledge & Mark Met" : "Mark as Read"}
                                                     >
                                                         {isVisitorNotif ? (
-                                                            <div className="flex items-center gap-1 px-1.5 py-0.5">
-                                                                 <CheckIcon className="w-3.5 h-3.5" />
-                                                                 <span className="text-[11px] font-black uppercase">Met</span>
+                                                            <div className="flex items-center gap-1 px-2 py-0.5">
+                                                                <CheckIcon className="w-3.5 h-3.5" />
+                                                                <span className="text-[11px] font-black uppercase tracking-wider">Met</span>
                                                             </div>
                                                         ) : (
                                                             <span className="block w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
@@ -153,4 +239,3 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
         </div>
     );
 };
-

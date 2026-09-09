@@ -1425,6 +1425,12 @@ export interface AppNotification {
     link?: string;
     isRead: boolean;
     timestamp: string;
+    visitorName?: string;
+    purpose?: string;
+    metadata?: Record<string, any>;
+    user_id?: string;
+    institution_id?: string;
+    is_read?: boolean;
 }
 
 export interface SmsLog {
