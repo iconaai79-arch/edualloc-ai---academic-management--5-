@@ -9,8 +9,9 @@ import type {
     CompanyDetails, MpesaConfig, SubscriptionConfig, ScheduleProfile,
     TimetableConstraint, TimetableConstraintType, Break, TimetablePeriod, AcademicLevel,
     TeacherLogicRule, TeacherRuleType, Invoice, Receipt, NcbaConfig, FtpConfig, GoogleDriveConfig,
-    DSSettings, DSFeeStructure, KcbConfig, CoopB2bConfig
+    DSSettings, DSFeeStructure, KcbConfig, CoopB2bConfig, WhatsAppConfig
 } from '../types';
+import { whatsappService, WhatsAppStatusResponse } from '../services/whatsappService';
 import { RETAIL_SUBTYPES } from '../constants';
 import { generateBCFeeStructure } from '../utils/bcReportGenerator';
 import { AcademicYearManager } from './AcademicYearManager';
@@ -285,7 +286,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     };
 
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
-    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'email' | 'farmer_billing' | 'subject_grouping' | 'kcpe_scores' | 'exam_config'>('profile');
+    const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'whatsapp' | 'email' | 'farmer_billing' | 'subject_grouping' | 'kcpe_scores' | 'exam_config'>('profile');
     const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive' | 'itax'>('mpesa');
@@ -435,6 +436,48 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     const [saveInstGatewaysStatus, setSaveInstGatewaysStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [instSmsTestPhone, setInstSmsTestPhone] = useState('');
     const [isTestingInstSms, setIsTestingInstSms] = useState(false);
+
+    // WhatsApp Gateway Config state
+    const [localInstWhatsAppConfig, setLocalInstWhatsAppConfig] = useState<WhatsAppConfig>(
+        props.currentInstitution?.whatsappConfig || {
+            provider_type: 'gateway',
+            gateway_url: '',
+            api_key: '',
+            instance_name: '',
+            phone_number: '',
+            auto_send_receipts: true,
+            auto_send_fee_reminders: false,
+            auto_send_academic_results: false
+        }
+    );
+    const [waLiveStatus, setWaLiveStatus] = useState<WhatsAppStatusResponse | null>(null);
+    const [isLoadingWaStatus, setIsLoadingWaStatus] = useState(false);
+    const [isSavingWhatsApp, setIsSavingWhatsApp] = useState(false);
+    const [saveWaStatus, setSaveWaStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [testWaRecipient, setTestWaRecipient] = useState('');
+    const [isSendingTestWa, setIsSendingTestWa] = useState(false);
+
+    const loadWhatsAppStatus = async () => {
+        if (!props.currentInstitution?.id) return;
+        setIsLoadingWaStatus(true);
+        try {
+            const res = await whatsappService.getStatus(props.currentInstitution.id);
+            setWaLiveStatus(res);
+            if (res.phoneNumber) {
+                setLocalInstWhatsAppConfig(prev => ({ ...prev, phone_number: res.phoneNumber, is_connected: res.isConnected }));
+            }
+        } catch (e) {
+            console.warn('Failed to load WhatsApp live status:', e);
+        } finally {
+            setIsLoadingWaStatus(false);
+        }
+    };
+
+    useEffect(() => {
+        if (generalSubTab === 'whatsapp' && props.currentInstitution?.id) {
+            loadWhatsAppStatus();
+        }
+    }, [generalSubTab, props.currentInstitution?.id]);
 
     const [isTestingStk, setIsTestingStk] = useState(false);
     const [isTestingNcba, setIsTestingNcba] = useState(false);
@@ -4041,6 +4084,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         filtered.push('billing');
                                         filtered.push('integrations');
                                         filtered.push('sms');
+                                        filtered.push('whatsapp');
                                         if (isCoop) filtered.push('farmer_billing');
                                     }
                                     return filtered;
@@ -4050,6 +4094,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     subs.push('billing'); 
                                     subs.push('integrations');
                                     subs.push('sms'); 
+                                    subs.push('whatsapp');
                                 }
                                 return subs;
                             })().map((sub: string) => (
@@ -4066,8 +4111,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     {sub === 'billing' && <CreditCardIcon className="w-4 h-4 text-blue-500" />}
                                     {sub === 'integrations' && <ArrowsRightLeftIcon className="w-4 h-4 text-slate-500" />}
                                     {sub === 'sms' && <PaperAirplaneIcon className="w-4 h-4 text-sky-500" />}
+                                    {sub === 'whatsapp' && <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-emerald-500" />}
 
-                                    {sub === 'exam_config' ? 'Exam' : sub === 'grading' ? 'Grade Map' : sub === 'subject_grouping' ? 'Subject Grouping' : sub === 'kcpe_scores' ? 'KCPE Scores' : sub === 'integrations' ? 'Billing Map' : sub.replace('_', ' ')}
+                                    {sub === 'exam_config' ? 'Exam' : sub === 'grading' ? 'Grade Map' : sub === 'subject_grouping' ? 'Subject Grouping' : sub === 'kcpe_scores' ? 'KCPE Scores' : sub === 'integrations' ? 'Billing Map' : sub === 'whatsapp' ? 'WhatsApp Gateway' : sub.replace('_', ' ')}
                                 </button>
                             ))}
                         </div>
@@ -5239,6 +5285,337 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                 </div>
                             </div>
                         )}
+
+                        {generalSubTab === 'whatsapp' && props.currentUser.role === 'admin' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6 animate-fade-in">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                                            <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Institution WhatsApp Gateway</h3>
+                                            <p className="text-xs font-medium text-slate-500">Dispatch fee receipts, payment reminders, and report cards straight to parents' phones</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={loadWhatsAppStatus}
+                                            disabled={isLoadingWaStatus}
+                                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 transition-all flex items-center gap-2"
+                                        >
+                                            <span className={isLoadingWaStatus ? 'animate-spin' : ''}>🔄</span>
+                                            {isLoadingWaStatus ? 'Checking...' : 'Refresh Status'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Live Connection Status Badge & QR Pairing */}
+                                <div className={`p-6 rounded-2xl border transition-all ${
+                                    waLiveStatus?.isConnected
+                                        ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50'
+                                        : 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50'
+                                }`}>
+                                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative">
+                                                <div className={`w-4 h-4 rounded-full ${
+                                                    waLiveStatus?.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                                                }`} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                        {waLiveStatus?.isConnected ? 'Session Connected & Online' : 'Session Disconnected / Pairing Required'}
+                                                    </span>
+                                                    {waLiveStatus?.phoneNumber && (
+                                                        <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 rounded-full text-[10px] font-black">
+                                                            +{waLiveStatus.phoneNumber}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                                    {waLiveStatus?.isConnected
+                                                        ? 'Ready to dispatch automated notifications and direct messages to recipients.'
+                                                        : 'Scan the QR code below using your school or accounts office handset to pair your WhatsApp account.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {waLiveStatus?.isConnected ? (
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    if (!props.currentInstitution?.id) return;
+                                                    if (confirm('Disconnect this WhatsApp session? Messages will pause until repaired.')) {
+                                                        await whatsappService.disconnect(props.currentInstitution.id);
+                                                        await loadWhatsAppStatus();
+                                                    }
+                                                }}
+                                                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                                            >
+                                                Disconnect WhatsApp
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={loadWhatsAppStatus}
+                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20"
+                                            >
+                                                Generate Pairing QR
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* QR Code Display if available and not connected */}
+                                    {!waLiveStatus?.isConnected && waLiveStatus?.qrCode && (
+                                        <div className="mt-6 pt-6 border-t border-amber-200 dark:border-amber-800/40 flex flex-col items-center justify-center text-center">
+                                            <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-200">
+                                                {waLiveStatus.qrCode.startsWith('data:image') || waLiveStatus.qrCode.startsWith('http') ? (
+                                                    <img src={waLiveStatus.qrCode} alt="WhatsApp QR Code" className="w-56 h-56 object-contain" />
+                                                ) : (
+                                                    <img src={`data:image/png;base64,${waLiveStatus.qrCode}`} alt="WhatsApp QR Code" className="w-56 h-56 object-contain" />
+                                                )}
+                                            </div>
+                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-3">
+                                                Open WhatsApp &gt; Linked Devices &gt; Link a Device &gt; Scan Code
+                                            </p>
+                                            <p className="text-[11px] text-slate-400">QR codes refresh automatically every 45 seconds for security</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Connection Architecture Settings */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">WhatsApp Provider Type</label>
+                                        <select
+                                            value={localInstWhatsAppConfig.provider_type || 'gateway'}
+                                            onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, provider_type: e.target.value as any })}
+                                            className="form-select h-12 font-bold text-sm"
+                                        >
+                                            <option value="gateway">Gateway (Evolution API / Baileys / QR Code Device Pairing - Zero SMS fee)</option>
+                                            <option value="meta_cloud">Meta Cloud API (Official WhatsApp Business API Platform)</option>
+                                        </select>
+                                    </div>
+
+                                    {localInstWhatsAppConfig.provider_type === 'gateway' ? (
+                                        <>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway Base URL</label>
+                                                <input
+                                                    type="text"
+                                                    value={localInstWhatsAppConfig.gateway_url || ''}
+                                                    placeholder="e.g. https://wa.school.ac.ke or https://api.myserver.com"
+                                                    onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, gateway_url: e.target.value })}
+                                                    className="form-input h-11 text-xs font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Gateway API Key / Token</label>
+                                                <input
+                                                    type="password"
+                                                    value={localInstWhatsAppConfig.api_key || ''}
+                                                    placeholder="Gateway auth token / apikey"
+                                                    onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, api_key: e.target.value })}
+                                                    className="form-input h-11 text-xs"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Instance / Session Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={localInstWhatsAppConfig.instance_name || ''}
+                                                    placeholder={`eduai_${props.currentInstitution?.id?.replace(/[^a-zA-Z0-9]/g, '_') || 'school'}`}
+                                                    onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, instance_name: e.target.value })}
+                                                    className="form-input h-11 text-xs font-mono"
+                                                />
+                                                <span className="text-[11px] text-slate-400 mt-1 block">Leave empty to use automatic institution instance identifier.</span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Meta Phone Number ID</label>
+                                                <input
+                                                    type="text"
+                                                    value={localInstWhatsAppConfig.meta_phone_number_id || ''}
+                                                    placeholder="e.g. 104928374829104"
+                                                    onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, meta_phone_number_id: e.target.value })}
+                                                    className="form-input h-11 text-xs font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">WhatsApp Business Account ID (WABA ID)</label>
+                                                <input
+                                                    type="text"
+                                                    value={localInstWhatsAppConfig.meta_waba_id || ''}
+                                                    placeholder="e.g. 293847582938471"
+                                                    onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, meta_waba_id: e.target.value })}
+                                                    className="form-input h-11 text-xs font-mono"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Meta Permanent Access Token</label>
+                                                <input
+                                                    type="password"
+                                                    value={localInstWhatsAppConfig.meta_access_token || ''}
+                                                    placeholder="EAAG..."
+                                                    onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, meta_access_token: e.target.value })}
+                                                    className="form-input h-11 text-xs font-mono"
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Channel Automation Settings */}
+                                <div className="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700/60 space-y-4">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                        Automated Communication Rules
+                                    </h4>
+                                    <div className="space-y-3">
+                                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(localInstWhatsAppConfig.auto_send_receipts)}
+                                                onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, auto_send_receipts: e.target.checked })}
+                                                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Auto-send Instant WhatsApp Receipt upon Fee Posting</span>
+                                                <p className="text-[11px] text-slate-500">Automatically sends a formatted payment acknowledgment and link to the stamped PDF receipt whenever a payment is registered.</p>
+                                            </div>
+                                        </label>
+
+                                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(localInstWhatsAppConfig.auto_send_fee_reminders)}
+                                                onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, auto_send_fee_reminders: e.target.checked })}
+                                                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Include WhatsApp channel in Fee Balance Reminders</span>
+                                                <p className="text-[11px] text-slate-500">Allows finance department to dispatch balance notices and M-Pesa paybill instructions via WhatsApp.</p>
+                                            </div>
+                                        </label>
+
+                                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={Boolean(localInstWhatsAppConfig.auto_send_academic_results)}
+                                                onChange={(e) => setLocalInstWhatsAppConfig({ ...localInstWhatsAppConfig, auto_send_academic_results: e.target.checked })}
+                                                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100">Enable WhatsApp Academic Progress & Report Cards</span>
+                                                <p className="text-[11px] text-slate-500">Enables one-click academic term result delivery with direct PDF report card downloads.</p>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Test Dispatcher & Save */}
+                                <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-2 w-full md:w-auto">
+                                        <input
+                                            type="text"
+                                            value={testWaRecipient}
+                                            placeholder="Test phone (e.g. 0712345678)"
+                                            onChange={(e) => setTestWaRecipient(e.target.value)}
+                                            className="form-input h-11 text-xs w-48 font-mono"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                if (!testWaRecipient.trim() || !props.currentInstitution?.id) {
+                                                    alert('Please enter a recipient number to test.');
+                                                    return;
+                                                }
+                                                setIsSendingTestWa(true);
+                                                try {
+                                                    const res = await whatsappService.sendMessage({
+                                                        institutionId: props.currentInstitution.id,
+                                                        recipient: testWaRecipient.trim(),
+                                                        message: `🔔 *Test from ${props.currentInstitution.name || 'EduAI Automation'}*\n\nYour school WhatsApp messaging service is connected and ready to send official notices!`
+                                                    });
+                                                    if (res.success) {
+                                                        alert('Test WhatsApp message sent successfully!');
+                                                    } else {
+                                                        alert(`Notice: ${res.message || 'Check gateway connection.'}`);
+                                                    }
+                                                } catch (err: any) {
+                                                    alert('Error sending test message: ' + err.message);
+                                                } finally {
+                                                    setIsSendingTestWa(false);
+                                                }
+                                            }}
+                                            disabled={isSendingTestWa}
+                                            className="px-4 h-11 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+                                        >
+                                            {isSendingTestWa ? 'Sending...' : 'Test WhatsApp'}
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            if (!props.currentInstitution?.id || !supabase) return;
+                                            setIsSavingWhatsApp(true);
+                                            setSaveWaStatus('idle');
+                                            try {
+                                                const instId = props.currentInstitution.id;
+                                                const configId = `wacfg_${instId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                                                const payload = {
+                                                    id: configId,
+                                                    institution_id: instId,
+                                                    provider_type: localInstWhatsAppConfig.provider_type || 'gateway',
+                                                    gateway_url: localInstWhatsAppConfig.gateway_url || null,
+                                                    api_key: localInstWhatsAppConfig.api_key || null,
+                                                    instance_name: localInstWhatsAppConfig.instance_name || `eduai_${instId.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                                                    phone_number: localInstWhatsAppConfig.phone_number || null,
+                                                    meta_phone_number_id: localInstWhatsAppConfig.meta_phone_number_id || null,
+                                                    meta_access_token: localInstWhatsAppConfig.meta_access_token || null,
+                                                    meta_waba_id: localInstWhatsAppConfig.meta_waba_id || null,
+                                                    auto_send_receipts: Boolean(localInstWhatsAppConfig.auto_send_receipts),
+                                                    auto_send_fee_reminders: Boolean(localInstWhatsAppConfig.auto_send_fee_reminders),
+                                                    auto_send_academic_results: Boolean(localInstWhatsAppConfig.auto_send_academic_results),
+                                                    updated_at: new Date().toISOString()
+                                                };
+
+                                                await supabase.from('whatsapp_configs').upsert(payload);
+                                                if (props.onUpdateInstitution) {
+                                                    await props.onUpdateInstitution(instId, {
+                                                        whatsappConfig: { ...localInstWhatsAppConfig, ...payload } as any
+                                                    });
+                                                }
+                                                setSaveWaStatus('success');
+                                                setTimeout(() => setSaveWaStatus('idle'), 3000);
+                                                await loadWhatsAppStatus();
+                                            } catch (err: any) {
+                                                console.error('Failed to save WhatsApp config:', err);
+                                                setSaveWaStatus('error');
+                                                setTimeout(() => setSaveWaStatus('idle'), 4000);
+                                            } finally {
+                                                setIsSavingWhatsApp(false);
+                                            }
+                                        }}
+                                        disabled={isSavingWhatsApp}
+                                        className={`px-8 h-12 rounded-xl text-white text-xs font-black uppercase tracking-wider transition-all shadow-md ${
+                                            saveWaStatus === 'success'
+                                                ? 'bg-green-600 shadow-green-600/20'
+                                                : saveWaStatus === 'error'
+                                                ? 'bg-rose-600 shadow-rose-600/20'
+                                                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                                        }`}
+                                    >
+                                        {isSavingWhatsApp ? 'Saving...' : saveWaStatus === 'success' ? 'Settings Saved' : saveWaStatus === 'error' ? 'Retry Save' : 'Save WhatsApp Gateway'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         {generalSubTab === 'farmer_billing' && isCoop && (
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
                                 <div className="flex items-center gap-4">
@@ -5974,7 +6351,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             <StampCustomizerModal
                 isOpen={isStampModalOpen}
                 onClose={() => setIsStampModalOpen(false)}
-                currentInstitution={props.currentInstitution}
+                currentInstitution={props.currentInstitution ?? null}
                 letterheadConfig={props.letterheadConfig}
                 onSaveConfig={(updatedConfig) => {
                     props.onSaveLetterheadConfig?.(updatedConfig);

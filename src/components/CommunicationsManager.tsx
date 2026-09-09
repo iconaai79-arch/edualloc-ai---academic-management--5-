@@ -2,9 +2,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/PlusIcon';
 
-import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction } from '../types';
+import type { User, Department, Course, Institution, MpesaConfig, SmsConfig, SmsLog, SmsOutbox, MpesaTransaction, WhatsAppLog } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { apiService } from '../services/apiService';
+import { whatsappService, WhatsAppStatusResponse } from '../services/whatsappService';
+import { supabase } from '../lib/supabase';
 
 interface CommunicationsManagerProps {
     users: User[];
@@ -72,6 +74,14 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const [isLoadingLogs, setIsLoadingLogs] = useState(false);
     const [isLoadingOutbox, setIsLoadingOutbox] = useState(false);
     const [importedPhoneContacts, setImportedPhoneContacts] = useState<any[]>([]);
+
+    // Multi-Channel WhatsApp states
+    const [channel, setChannel] = useState<'sms' | 'whatsapp' | 'both'>('sms');
+    const [waMediaUrl, setWaMediaUrl] = useState('');
+    const [waFileName, setWaFileName] = useState('');
+    const [waStatus, setWaStatus] = useState<WhatsAppStatusResponse | null>(null);
+    const [whatsappLogs, setWhatsappLogs] = useState<WhatsAppLog[]>([]);
+    const [historyFilter, setHistoryFilter] = useState<'all' | 'sms' | 'whatsapp'>('all');
 
     const handleImportFromDeviceContacts = async () => {
         if ('contacts' in navigator && 'select' in (navigator as any).contacts) {
@@ -180,9 +190,35 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         }
     };
 
+    const fetchWhatsAppLogs = async () => {
+        if (!currentInstitution || !supabase) return;
+        try {
+            const { data } = await supabase
+                .from('whatsapp_logs')
+                .select('*')
+                .eq('institution_id', currentInstitution.id)
+                .order('created_at', { ascending: false })
+                .limit(100);
+            if (data) {
+                setWhatsappLogs(data as WhatsAppLog[]);
+            }
+        } catch (e) {
+            console.warn('Failed to fetch WhatsApp logs:', e);
+        }
+    };
+
+    useEffect(() => {
+        if (currentInstitution?.id) {
+            whatsappService.getStatus(currentInstitution.id).then(res => {
+                setWaStatus(res);
+            }).catch(() => {});
+        }
+    }, [currentInstitution?.id]);
+
     useEffect(() => {
         if (activeTab === 'history') {
             fetchLogs();
+            fetchWhatsAppLogs();
         } else if (activeTab === 'outbox') {
             fetchOutbox();
         }
@@ -362,16 +398,6 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     }, [recipientList]);
 
     const handleSend = async () => {
-        const totalUnitsRequired = validRecipients.length * smsInfo.count;
-
-        if ((smsBalance || 0) < totalUnitsRequired) {
-            setStatus({
-                type: 'error',
-                message: `Insufficient balance. This send requires ${totalUnitsRequired?.toLocaleString()} units, but you only have ${(smsBalance || 0)?.toLocaleString()}.`
-            });
-            setIsBuySMSModalOpen(true);
-            return;
-        }
         if (validRecipients.length === 0) {
             setStatus({ type: 'error', message: 'No recipients with valid phone numbers found for the selected group.' });
             return;
@@ -380,32 +406,85 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             setStatus({ type: 'error', message: 'Message cannot be empty.' });
             return;
         }
-        const confirmMsg = validRecipients.length === 1
-            ? `You are about to send ${smsInfo.count} page(s) of SMS to 1 recipient. This will deduct ${totalUnitsRequired?.toLocaleString()} units. Are you sure?`
-            : `You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipients. \n\nCalculation: ${validRecipients.length} recipients × ${smsInfo.count} pages = ${totalUnitsRequired?.toLocaleString()} total units.\n\nAre you sure?`;
+
+        const totalUnitsRequired = validRecipients.length * smsInfo.count;
+
+        // If sending via SMS or Multi-Channel, verify SMS balance
+        if (channel === 'sms' || channel === 'both') {
+            if ((smsBalance || 0) < totalUnitsRequired) {
+                setStatus({
+                    type: 'error',
+                    message: `Insufficient SMS balance. This send requires ${totalUnitsRequired?.toLocaleString()} units, but you only have ${(smsBalance || 0)?.toLocaleString()}.`
+                });
+                setIsBuySMSModalOpen(true);
+                return;
+            }
+        }
+
+        const confirmMsg = channel === 'whatsapp'
+            ? `Send WhatsApp message to ${validRecipients.length} recipient(s) via school gateway?`
+            : channel === 'both'
+            ? `Send Multi-Channel message (SMS + WhatsApp) to ${validRecipients.length} recipient(s)? This will use ${totalUnitsRequired} SMS units.`
+            : `You are about to send ${smsInfo.count} page(s) of SMS to ${validRecipients.length} recipient(s) (${totalUnitsRequired} total units). Proceed?`;
 
         if (!window.confirm(confirmMsg)) {
             return;
         }
 
-        setStatus({ type: 'sending', message: `Initializing bulk send to ${validRecipients.length} recipients...` });
-        
+        setStatus({ type: 'sending', message: `Initializing dispatch to ${validRecipients.length} recipients...` });
+
         try {
             const phoneNumbers = validRecipients.map(u => u.phoneNumber).filter(Boolean) as string[];
-            
-            // We pass the entire list to the backend which now handles batching efficiently
-            const result = await onSendSms(phoneNumbers, message, smsConfig, smsInfo.count, currentInstitution?.id);
-            
-            if (result.success) {
-                setStatus({ type: 'success', message: `Successfully dispatched message to ${validRecipients.length} recipients.` });
+            let smsSuccess = true;
+            let waSuccess = true;
+
+            // 1. Send SMS if selected
+            if (channel === 'sms' || channel === 'both') {
+                const result = await onSendSms(phoneNumbers, message, smsConfig, smsInfo.count, currentInstitution?.id);
+                smsSuccess = result.success;
+                if (!result.success) {
+                    setStatus({ type: 'error', message: result.message || 'SMS dispatch failed.' });
+                }
+            }
+
+            // 2. Send WhatsApp if selected
+            if (channel === 'whatsapp' || channel === 'both') {
+                if (currentInstitution?.id) {
+                    let waSuccessCount = 0;
+                    for (const user of validRecipients) {
+                        if (!user.phoneNumber) continue;
+                        try {
+                            const res = await whatsappService.sendMessage({
+                                institutionId: currentInstitution.id,
+                                recipient: user.phoneNumber,
+                                recipientName: user.name,
+                                message: message,
+                                mediaUrl: waMediaUrl || undefined,
+                                fileName: waFileName || undefined,
+                                messageType: waMediaUrl ? 'document' : 'broadcast'
+                            });
+                            if (res.success) waSuccessCount++;
+                        } catch (err) {
+                            console.warn('WhatsApp individual dispatch error:', err);
+                        }
+                    }
+                    waSuccess = waSuccessCount > 0;
+                }
+            }
+
+            if (smsSuccess && waSuccess) {
+                setStatus({
+                    type: 'success',
+                    message: `Successfully dispatched to ${validRecipients.length} recipients via ${channel === 'both' ? 'SMS & WhatsApp' : channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}.`
+                });
                 setMessage('');
+                setWaMediaUrl('');
+                setWaFileName('');
                 if (onRefreshData) onRefreshData();
-            } else {
-                setStatus({ type: 'error', message: result.message || 'Bulk dispatch failed.' });
             }
         } catch (e: any) {
-            console.error('Bulk SMS Error:', e);
-            setStatus({ type: 'error', message: `Critical error during bulk dispatch: ${e.message}` });
+            console.error('Dispatch Error:', e);
+            setStatus({ type: 'error', message: `Critical error during dispatch: ${e.message}` });
         }
 
         setTimeout(() => setStatus({ type: 'idle', message: '' }), 5000);
@@ -698,31 +777,102 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             );
         }
 
-        if (smsLogs.length === 0) {
+        const combinedLogs = [
+            ...(historyFilter === 'whatsapp' ? [] : smsLogs.map(l => ({
+                id: l.id,
+                channel: 'sms' as const,
+                recipient: l.recipient,
+                recipientName: undefined as string | undefined,
+                message: l.message,
+                units: l.units,
+                status: l.status,
+                mediaUrl: undefined as string | undefined,
+                createdAt: l.createdAt
+            }))),
+            ...(historyFilter === 'sms' ? [] : whatsappLogs.map(w => ({
+                id: w.id,
+                channel: 'whatsapp' as const,
+                recipient: w.recipient,
+                recipientName: w.recipient_name,
+                message: w.content || (w.media_url ? `[Document Attachment] ${w.file_name || 'Document'}` : ''),
+                units: 0,
+                status: w.status,
+                mediaUrl: w.media_url,
+                createdAt: w.created_at
+            })))
+        ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        if (combinedLogs.length === 0) {
             return (
                 <div className="text-center py-12 bg-slate-50 dark:bg-slate-900/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                    <p className="text-slate-500 dark:text-slate-400">No sent messages found.</p>
+                    <p className="text-slate-500 dark:text-slate-400">No dispatch history found.</p>
                 </div>
             );
         }
 
         return (
             <div className="space-y-4">
+                {/* Filter Pills */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setHistoryFilter('all')}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                            historyFilter === 'all'
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        All ({smsLogs.length + whatsappLogs.length})
+                    </button>
+                    <button
+                        onClick={() => setHistoryFilter('sms')}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
+                            historyFilter === 'sms'
+                                ? 'bg-sky-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <span>📱</span> SMS ({smsLogs.length})
+                    </button>
+                    <button
+                        onClick={() => setHistoryFilter('whatsapp')}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
+                            historyFilter === 'whatsapp'
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <span>💬</span> WhatsApp ({whatsappLogs.length})
+                    </button>
+                </div>
+
                 {/* Desktop Table View */}
                 <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-sm">
                         <thead>
                             <tr className="border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                <th className="py-3 px-4">Channel</th>
                                 <th className="py-3 px-4">Date</th>
                                 <th className="py-3 px-4">Recipient</th>
                                 <th className="py-3 px-4">Message</th>
-                                <th className="py-3 px-4 text-center">Units</th>
+                                <th className="py-3 px-4 text-center">Cost / Units</th>
                                 <th className="py-3 px-4 text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                            {smsLogs.map(log => (
+                            {combinedLogs.map(log => (
                                 <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                                    <td className="py-3 px-4 whitespace-nowrap">
+                                        {log.channel === 'whatsapp' ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                                💬 WhatsApp
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+                                                📱 SMS
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="py-3 px-4 whitespace-nowrap text-slate-500">
                                         {(() => {
                                             const date = new Date(log.createdAt);
@@ -738,18 +888,43 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         })()}
                                     </td>
                                     <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-200">
-                                        {log.recipient}
+                                        <div>
+                                            <span>{log.recipient}</span>
+                                            {log.recipientName && (
+                                                <span className="block text-[10px] text-slate-400 font-bold">{log.recipientName}</span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="py-3 px-4 min-w-[200px] max-w-xs truncate text-slate-600 dark:text-slate-400" title={log.message}>
-                                        {log.message}
+                                        <span>{log.message}</span>
+                                        {log.mediaUrl && (
+                                            <a
+                                                href={log.mediaUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="block text-[10px] font-bold text-emerald-600 hover:underline mt-0.5"
+                                            >
+                                                📎 View Document Attachment
+                                            </a>
+                                        )}
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold">
-                                            {log.units}
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                            log.channel === 'whatsapp'
+                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                                : 'bg-slate-100 dark:bg-slate-800'
+                                        }`}>
+                                            {log.channel === 'whatsapp' ? 'Free (GW)' : `${log.units} units`}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 text-center">
-                                        <span className="capitalize text-[10px] font-black px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        <span className={`capitalize text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                            log.status === 'sent' || log.status === 'delivered'
+                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                : log.status === 'failed'
+                                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                        }`}>
                                             {log.status}
                                         </span>
                                     </td>
@@ -761,35 +936,52 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
 
                 {/* Mobile Card View */}
                 <div className="md:hidden space-y-3">
-                    {smsLogs.map(log => {
+                    {combinedLogs.map(log => {
                         const date = new Date(log.createdAt);
                         const isValid = !isNaN(date.getTime());
                         return (
                             <div key={log.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="flex flex-col">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                            {log.channel === 'whatsapp' ? (
+                                                <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                                                    💬 WhatsApp
+                                                </span>
+                                            ) : (
+                                                <span className="text-[9px] font-black text-sky-600 bg-sky-100 dark:bg-sky-950/40 px-2 py-0.5 rounded-md">
+                                                    📱 SMS
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
                                             {isValid ? date.toLocaleDateString() : 'Invalid Date'}
-                                        </span>
-                                        <span className="text-[9px] font-bold text-slate-500">
-                                            {isValid ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : log.createdAt}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="bg-white dark:bg-slate-800 px-2 py-1 rounded-lg text-[9px] font-black border border-slate-100 dark:border-slate-700">
-                                            {log.units} Units
+                                            {log.channel === 'whatsapp' ? 'Free' : `${log.units} Units`}
                                         </span>
-                                        <span className="capitalize text-[8px] font-black px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                        <span className={`capitalize text-[8px] font-black px-2 py-1 rounded-full ${
+                                            log.status === 'sent' || log.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-rose-100 text-rose-700'
+                                        }`}>
                                             {log.status}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="mb-2">
                                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-0.5">Recipient</p>
-                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{log.recipient}</p>
+                                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                        {log.recipient} {log.recipientName ? `(${log.recipientName})` : ''}
+                                    </p>
                                 </div>
                                 <div className="p-3 bg-white dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 italic border border-slate-50 dark:border-slate-700/50">
                                     "{log.message}"
+                                    {log.mediaUrl && (
+                                        <a href={log.mediaUrl} target="_blank" rel="noreferrer" className="block text-[10px] font-bold text-emerald-600 hover:underline mt-1 not-italic">
+                                            📎 Attachment: {log.mediaUrl}
+                                        </a>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -935,6 +1127,72 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             {activeTab === 'compose' ? (
                 <div className="flex flex-col lg:flex-row gap-8">
                     <div className="flex-1 space-y-4">
+                        {/* Channel Switcher */}
+                        <div>
+                            <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
+                                Dispatch Channel
+                            </label>
+                            <div className="grid grid-cols-3 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setChannel('sms')}
+                                    className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                        channel === 'sms'
+                                            ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                    }`}
+                                >
+                                    <span>📱</span>
+                                    <span>SMS</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setChannel('whatsapp')}
+                                    className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                        channel === 'whatsapp'
+                                            ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/20'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                    }`}
+                                >
+                                    <span>💬</span>
+                                    <span>WhatsApp</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setChannel('both')}
+                                    className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                        channel === 'both'
+                                            ? 'bg-gradient-to-r from-indigo-600 to-emerald-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                    }`}
+                                >
+                                    <span>⚡</span>
+                                    <span>Multi-Channel</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* WhatsApp Gateway Status Banner */}
+                        {(channel === 'whatsapp' || channel === 'both') && (
+                            <div className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                                waStatus?.isConnected
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-800 dark:text-emerald-300'
+                                    : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 text-amber-800 dark:text-amber-300'
+                            }`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`w-2.5 h-2.5 rounded-full ${waStatus?.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                                    <span className="font-bold">
+                                        {waStatus?.isConnected
+                                            ? `WhatsApp Gateway Online (+${waStatus.phoneNumber || 'School Handset'})`
+                                            : 'WhatsApp Gateway Unpaired / Demo Mode (Messages will queue in audit logs)'}
+                                    </span>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-wider opacity-75">
+                                    Zero SMS credits consumed
+                                </span>
+                            </div>
+                        )}
+
                         <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Recipient Group</label>
                             <select value={recipientTarget} onChange={handleRecipientTargetChange} className="form-select mt-1" aria-label="Select recipient group">
@@ -1015,15 +1273,40 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                 onChange={e => setMessage(e.target.value)}
                                 required
                                 className="form-input mt-1"
-                                placeholder="Type your message here..."
+                                placeholder={channel === 'whatsapp' ? "Type WhatsApp message (supports *bold*, _italics_, bullet points)..." : "Type your message here..."}
                             ></textarea>
                             <div className="mt-2 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
                                 <span>{smsInfo.isUnicode && "Unicode characters detected"}</span>
                                 <span>
-                                    {smsInfo.characters} / {smsInfo.limit * smsInfo.count} ({smsInfo.count} SMS)
+                                    {channel === 'whatsapp' ? `${message.length} characters (WhatsApp text)` : `${smsInfo.characters} / ${smsInfo.limit * smsInfo.count} (${smsInfo.count} SMS)`}
                                 </span>
                             </div>
                         </div>
+
+                        {(channel === 'whatsapp' || channel === 'both') && (
+                            <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 space-y-3">
+                                <label className="block text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                                    Attach Media Document / PDF (Optional)
+                                </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    <input
+                                        type="url"
+                                        value={waMediaUrl}
+                                        onChange={e => setWaMediaUrl(e.target.value)}
+                                        placeholder="https://... (Direct URL to PDF circular or report)"
+                                        className="form-input text-xs font-mono"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={waFileName}
+                                        onChange={e => setWaFileName(e.target.value)}
+                                        placeholder="File name (e.g. Term_Circular_2026.pdf)"
+                                        className="form-input text-xs"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex justify-end items-center gap-4">
                             {status.type !== 'idle' && (
                                 <div className="flex items-center gap-3">
@@ -1032,7 +1315,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                             'text-slate-500'
                                         }`}>{status.message}</p>
                                     
-                                    {status.type === 'error' && status.message.includes('Insufficient balance') && validRecipients.length > 0 && (
+                                    {status.type === 'error' && status.message.includes('Insufficient') && validRecipients.length > 0 && (
                                         <button 
                                             onClick={handleQueueToOutbox}
                                             className="text-xs font-black uppercase text-indigo-600 hover:text-indigo-800 border-b border-indigo-600"
@@ -1042,8 +1325,24 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                     )}
                                 </div>
                             )}
-                            <button onClick={handleSend} disabled={status.type === 'sending' || validRecipients.length === 0} className="btn-primary">
-                                {status.type === 'sending' ? 'Sending...' : 'Send SMS'}
+                            <button
+                                onClick={handleSend}
+                                disabled={status.type === 'sending' || validRecipients.length === 0}
+                                className={`btn-primary ${
+                                    channel === 'whatsapp'
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                                        : channel === 'both'
+                                        ? 'bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700'
+                                        : ''
+                                }`}
+                            >
+                                {status.type === 'sending'
+                                    ? 'Dispatching...'
+                                    : channel === 'whatsapp'
+                                    ? `Send WhatsApp (${validRecipients.length})`
+                                    : channel === 'both'
+                                    ? `Send Multi-Channel (${validRecipients.length})`
+                                    : `Send SMS (${validRecipients.length})`}
                             </button>
                         </div>
                     </div>

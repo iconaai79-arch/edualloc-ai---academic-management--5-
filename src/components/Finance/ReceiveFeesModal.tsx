@@ -20,6 +20,7 @@ import {
     UserIcon
 } from '../icons';
 import { apiService } from '../../services/apiService';
+import { whatsappService } from '../../services/whatsappService';
 import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 
 export interface VoteHeadAllocationItem {
@@ -127,6 +128,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     // Payment Mode & Notification Options
     const [defaultPaymentMethod, setDefaultPaymentMethod] = useState<'M-Pesa' | 'Bank Transfer' | 'Cash' | 'Cheque' | 'Bursary' | 'Direct Deposit'>('Bank Transfer');
     const [sendSmsNotification, setSendSmsNotification] = useState<boolean>(true);
+    const [sendWhatsAppNotification, setSendWhatsAppNotification] = useState<boolean>(true);
     const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(false);
 
     // Excel import state
@@ -195,6 +197,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     const [manualReceiptNo, setManualReceiptNo] = useState('');
     const [manualPaidFor, setManualPaidFor] = useState('Tuition & School Fees');
     const [manualSendSms, setManualSendSms] = useState(true);
+    const [manualSendWhatsApp, setManualSendWhatsApp] = useState(true);
     const [isPostingManual, setIsPostingManual] = useState(false);
     const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
 
@@ -256,31 +259,33 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 } catch {}
 
                 // 4. Institution configured banking integrations
-                if (institution?.coopConfig?.accountNumber) {
+                if ((institution?.coopConfig as any)?.accountNumber) {
                     addAccount({
                         id: 'coop_inst_acc',
                         bankName: 'Co-operative Bank',
-                        accountName: institution.coopConfig.accountName || 'Co-op Collection Account',
-                        accountNumber: institution.coopConfig.accountNumber
+                        accountName: (institution.coopConfig as any).accountName || 'Co-op Collection Account',
+                        accountNumber: (institution.coopConfig as any).accountNumber
                     });
                 }
-                if (institution?.kcbConfig?.accountNumber) {
+                if ((institution?.kcbConfig as any)?.accountNumber) {
                     addAccount({
                         id: 'kcb_inst_acc',
                         bankName: 'KCB Bank',
-                        accountName: institution.kcbConfig.accountName || 'KCB Collection Account',
-                        accountNumber: institution.kcbConfig.accountNumber
+                        accountName: (institution.kcbConfig as any).accountName || 'KCB Collection Account',
+                        accountNumber: (institution.kcbConfig as any).accountNumber
                     });
                 }
-                if (institution?.mpesaConfig?.shortCode || institution?.mpesaConfig?.paybillNumber) {
-                    const paybillNum = institution.mpesaConfig.shortCode || institution.mpesaConfig.paybillNumber;
-                    addAccount({
-                        id: 'mpesa_inst_paybill',
-                        bankName: 'Safaricom M-Pesa',
-                        accountName: `M-Pesa Paybill (${paybillNum})`,
-                        accountNumber: String(paybillNum),
-                        type: 'MPESA'
-                    }, 'MPESA');
+                if (institution?.mpesaConfig) {
+                    const paybillNum = (institution.mpesaConfig as any).shortCode || institution.mpesaConfig.paybillNumber;
+                    if (paybillNum) {
+                        addAccount({
+                            id: 'mpesa_inst_paybill',
+                            bankName: 'Safaricom M-Pesa',
+                            accountName: `M-Pesa Paybill (${paybillNum})`,
+                            accountNumber: String(paybillNum),
+                            type: 'MPESA'
+                        }, 'MPESA');
+                    }
                 }
 
                 // 5. Institution embedded bank accounts
@@ -604,7 +609,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             };
         }
 
-        const studentInvs = (studentInvoicesMap.get(studentId) || []).filter(inv => inv.status !== 'PAID' && inv.status !== 'cancelled');
+        const studentInvs = (studentInvoicesMap.get(studentId) || []).filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled');
         let remaining = amount;
         const allocations: VoteHeadAllocationItem[] = [];
 
@@ -619,7 +624,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             studentInvs.forEach(inv => {
                 (inv.items || []).forEach(item => {
-                    const desc = item.description || item.name || 'Tuition & School Fees';
+                    const desc = item.description || (item as any).name || 'Tuition & School Fees';
                     let bestIndex = 999;
                     let matchedHead = priorities[0] || 'Tuition & Academic Fees';
 
@@ -1352,6 +1357,26 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                             });
                         }
                     }
+
+                    // Asynchronous WhatsApp receipt dispatch if enabled
+                    if (sendWhatsAppNotification && student) {
+                        const parentPhone = student.parentPhone || student.phoneNumber || student.parentPhone2 || (student as any)?.guardianPhone;
+                        if (parentPhone) {
+                            whatsappService.sendPaymentReceipt({
+                                institutionId: instId,
+                                schoolName: institution?.name || 'School',
+                                recipientPhone: String(parentPhone).trim(),
+                                studentName: student.name || 'Student',
+                                admNo: sAdm,
+                                amount: Number(item.rawAmount),
+                                receiptNumber: receiptNumber,
+                                paymentMethod: (item as any).mode || defaultPaymentMethod,
+                                receiptUrl: `${window.location.origin}/?receipt=${receiptNumber}`
+                            }).catch(err => {
+                                console.warn('[ReceiveFeesModal] WhatsApp receipt error:', err);
+                            });
+                        }
+                    }
                 }));
 
                 setBulkProgress({ current: Math.min(i + BATCH_SIZE, readyItems.length), total: readyItems.length });
@@ -1470,6 +1495,26 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                     const smsMsg = `Dear Parent/Guardian, received KES ${Number(manualAmount).toLocaleString()} for ${shortName} (${sAdm}). Receipt: ${receiptNumber}. Date: ${manualDate}. Thank you, ${institution?.name || 'School'}.`;
                     apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId).catch(err => {
                         console.warn('[ReceiveFeesModal] Manual SMS notice:', err);
+                    });
+                }
+            }
+
+            // Dispatch WhatsApp receipt if checked
+            if (manualSendWhatsApp) {
+                const parentPhone = manualSelectedStudent.parentPhone || manualSelectedStudent.phoneNumber || manualSelectedStudent.parentPhone2;
+                if (parentPhone) {
+                    whatsappService.sendPaymentReceipt({
+                        institutionId: instId,
+                        schoolName: institution?.name || 'School',
+                        recipientPhone: String(parentPhone).trim(),
+                        studentName: manualSelectedStudent.name || 'Student',
+                        admNo: sAdm,
+                        amount: Number(manualAmount),
+                        receiptNumber: receiptNumber,
+                        paymentMethod: manualMethod,
+                        receiptUrl: `${window.location.origin}/?receipt=${receiptNumber}`
+                    }).catch(err => {
+                        console.warn('[ReceiveFeesModal] Manual WhatsApp receipt notice:', err);
                     });
                 }
             }
@@ -1824,6 +1869,15 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                                     className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
                                                 />
                                                 <span>📱 Parent SMS</span>
+                                            </label>
+                                            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={sendWhatsAppNotification}
+                                                    onChange={(e) => setSendWhatsAppNotification(e.target.checked)}
+                                                    className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
+                                                />
+                                                <span>💬 WhatsApp Receipt</span>
                                             </label>
                                             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer select-none">
                                                 <input
@@ -2617,8 +2671,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 />
                             </div>
 
-                            {/* Send SMS Notification Toggle */}
-                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center justify-between">
+                            {/* Notification Toggles */}
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl space-y-2">
                                 <label className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-200 cursor-pointer select-none">
                                     <input
                                         type="checkbox"
@@ -2627,6 +2681,15 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                         className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
                                     />
                                     <span>📱 Send Instant SMS Receipt Alert to Parent</span>
+                                </label>
+                                <label className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-200 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={manualSendWhatsApp}
+                                        onChange={(e) => setManualSendWhatsApp(e.target.checked)}
+                                        className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
+                                    />
+                                    <span>💬 Send Official WhatsApp Receipt & PDF Link</span>
                                 </label>
                             </div>
 

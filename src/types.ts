@@ -409,6 +409,8 @@ export interface User {
     permissions?: string[];
     customPermissions?: Record<string, boolean>;
     secondaryPhone?: string;
+    parentPhone?: string;
+    guardianPhone?: string;
     parentPhone2?: string;
     guardianPhone2?: string;
 }
@@ -667,6 +669,7 @@ export interface Institution {
     enableLowSmsReminders?: boolean;
     lowSmsThreshold?: number;
     smsConfig?: SmsConfig;
+    whatsappConfig?: WhatsAppConfig;
     mpesaConfig?: MpesaConfig;
     emailConfig?: EmailConfig;
     customModulePricing?: Record<string, { monthly?: number; yearly?: number }>;
@@ -1143,6 +1146,40 @@ export interface EmailConfig {
     resendApiKey?: string;
     fromName: string;
     fromEmail: string;
+}
+
+export interface WhatsAppConfig {
+    id?: string;
+    institution_id?: string;
+    provider_type?: 'gateway' | 'meta_cloud';
+    gateway_url?: string | null;
+    api_key?: string | null;
+    instance_name?: string | null;
+    phone_number?: string | null;
+    is_connected?: boolean;
+    qr_code_data?: string | null;
+    meta_phone_number_id?: string | null;
+    meta_access_token?: string | null;
+    meta_waba_id?: string | null;
+    auto_send_receipts?: boolean;
+    auto_send_fee_reminders?: boolean;
+    auto_send_academic_results?: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface WhatsAppLog {
+    id: string;
+    institution_id: string;
+    recipient: string;
+    recipient_name?: string;
+    message_type: 'text' | 'document' | 'receipt' | 'fee_reminder' | 'academic_results' | 'broadcast';
+    content?: string;
+    media_url?: string;
+    file_name?: string;
+    status: 'queued' | 'sent' | 'delivered' | 'failed';
+    error_message?: string;
+    created_at: string;
 }
 
 export interface InstitutionModuleState {

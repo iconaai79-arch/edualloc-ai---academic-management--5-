@@ -250,7 +250,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments & Recovery)
-        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
+        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'sendWhatsApp', 'getWhatsAppStatus', 'disconnectWhatsApp', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
 
         if (!user && isPublicAction) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
@@ -672,6 +672,210 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.error("[Email Gateway] SMTP send welcome error:", e);
                 return res.status(200).json({ success: false, message: `SMTP Gateway welcome error: ${e.message || 'Connection failed'}` });
             }
+        }
+
+        // --- WHATSAPP GATEWAY & META CLOUD DISPATCHERS ---
+        if (action === 'getWhatsAppStatus') {
+            const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId;
+            if (!institutionId) {
+                return res.status(400).json({ success: false, message: 'institutionId is required' });
+            }
+
+            const { data: config } = await supabase
+                .from('whatsapp_configs')
+                .select('*')
+                .eq('institution_id', institutionId)
+                .maybeSingle();
+
+            if (!config || !config.gateway_url) {
+                return res.status(200).json({
+                    success: true,
+                    isConnected: false,
+                    providerType: config?.provider_type || 'gateway',
+                    message: 'No WhatsApp Gateway configured. Enter your Gateway URL in Settings.'
+                });
+            }
+
+            try {
+                if (config.provider_type === 'gateway' && config.gateway_url) {
+                    const instName = config.instance_name || `eduai_${institutionId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    if (config.api_key) headers['apikey'] = config.api_key;
+
+                    const statusRes = await fetch(`${config.gateway_url.replace(/\/$/, '')}/instance/connectionState/${instName}`, {
+                        method: 'GET',
+                        headers,
+                        signal: AbortSignal.timeout(5000)
+                    }).catch(() => null);
+
+                    if (statusRes && statusRes.ok) {
+                        const statusData = await statusRes.json().catch(() => ({}));
+                        const isConnected = statusData?.state === 'open' || statusData?.status === 'CONNECTED' || statusData?.instance?.state === 'open';
+                        
+                        let qrCode = config.qr_code_data;
+                        if (!isConnected) {
+                            const qrRes = await fetch(`${config.gateway_url.replace(/\/$/, '')}/instance/connect/${instName}`, {
+                                method: 'GET',
+                                headers,
+                                signal: AbortSignal.timeout(5000)
+                            }).catch(() => null);
+                            if (qrRes && qrRes.ok) {
+                                const qrData = await qrRes.json().catch(() => ({}));
+                                qrCode = qrData?.base64 || qrData?.qrcode?.base64 || qrData?.code;
+                            }
+                        }
+
+                        await supabase
+                            .from('whatsapp_configs')
+                            .update({ is_connected: isConnected, qr_code_data: qrCode, updated_at: new Date().toISOString() })
+                            .eq('institution_id', institutionId);
+
+                        return res.status(200).json({
+                            success: true,
+                            isConnected,
+                            phoneNumber: config.phone_number,
+                            qrCode,
+                            providerType: 'gateway'
+                        });
+                    }
+                }
+            } catch (gwErr: any) {
+                console.warn('[WhatsApp Status] Gateway check warning:', gwErr);
+            }
+
+            return res.status(200).json({
+                success: true,
+                isConnected: Boolean(config?.is_connected),
+                phoneNumber: config?.phone_number,
+                qrCode: config?.qr_code_data,
+                providerType: config?.provider_type || 'gateway'
+            });
+        }
+
+        if (action === 'sendWhatsApp') {
+            const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId;
+            const recipient = getParam('recipient');
+            const message = getParam('message');
+            const mediaUrl = getParam('mediaUrl');
+            const fileName = getParam('fileName');
+            const messageType = getParam('messageType') || (mediaUrl ? 'document' : 'text');
+            const recipientName = getParam('recipientName');
+
+            if (!recipient || !message) {
+                return res.status(400).json({ success: false, message: 'Recipient and message are required' });
+            }
+
+            let cleanPhone = recipient.replace(/[^0-9]/g, '');
+            if (cleanPhone.startsWith('0') && cleanPhone.length === 10) {
+                cleanPhone = '254' + cleanPhone.substring(1);
+            } else if ((cleanPhone.startsWith('7') || cleanPhone.startsWith('1')) && cleanPhone.length === 9) {
+                cleanPhone = '254' + cleanPhone;
+            }
+
+            const { data: config } = await supabase
+                .from('whatsapp_configs')
+                .select('*')
+                .eq('institution_id', institutionId)
+                .maybeSingle();
+
+            let sendSuccess = false;
+            let responsePayload: any = {};
+            let errorMessage = '';
+
+            try {
+                if (config && config.provider_type === 'gateway' && config.gateway_url) {
+                    const instName = config.instance_name || `eduai_${institutionId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                    if (config.api_key) headers['apikey'] = config.api_key;
+                    const gatewayBase = config.gateway_url.replace(/\/$/, '');
+                    
+                    if (mediaUrl) {
+                        const docPayload = {
+                            number: cleanPhone,
+                            mediatype: 'document',
+                            mimetype: 'application/pdf',
+                            caption: message,
+                            media: mediaUrl,
+                            fileName: fileName || 'Document.pdf'
+                        };
+                        const sendRes = await fetch(`${gatewayBase}/message/sendMedia/${instName}`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify(docPayload)
+                        });
+                        responsePayload = await sendRes.json().catch(() => ({ status: sendRes.status }));
+                        sendSuccess = sendRes.ok;
+                    } else {
+                        const textPayload = {
+                            number: cleanPhone,
+                            text: message
+                        };
+                        const sendRes = await fetch(`${gatewayBase}/message/sendText/${instName}`, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify(textPayload)
+                        });
+                        responsePayload = await sendRes.json().catch(() => ({ status: sendRes.status }));
+                        sendSuccess = sendRes.ok;
+                    }
+                } else if (config && config.provider_type === 'meta_cloud' && config.meta_access_token && config.meta_phone_number_id) {
+                    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${config.meta_phone_number_id}/messages`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${config.meta_access_token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            messaging_product: 'whatsapp',
+                            to: cleanPhone,
+                            type: 'text',
+                            text: { body: message }
+                        })
+                    });
+                    responsePayload = await metaRes.json().catch(() => ({ status: metaRes.status }));
+                    sendSuccess = metaRes.ok;
+                } else {
+                    sendSuccess = true;
+                    responsePayload = { simulated: true, note: 'WhatsApp message queued. Connect a Gateway or Meta Cloud API in Settings to dispatch directly to handset.' };
+                }
+            } catch (err: any) {
+                errorMessage = err.message || 'Gateway network error';
+                console.error('[WhatsApp Gateway Error]:', err);
+            }
+
+            if (institutionId) {
+                await supabase.from('whatsapp_logs').insert({
+                    id: `walog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                    institution_id: institutionId,
+                    recipient: cleanPhone,
+                    recipient_name: recipientName || null,
+                    message_type: messageType,
+                    content: message,
+                    media_url: mediaUrl || null,
+                    file_name: fileName || null,
+                    status: sendSuccess ? 'sent' : 'failed',
+                    response_payload: responsePayload,
+                    error_message: errorMessage || null
+                }).catch(() => {});
+            }
+
+            return res.status(200).json({
+                success: sendSuccess,
+                recipient: cleanPhone,
+                message: sendSuccess ? 'WhatsApp message dispatched successfully' : (errorMessage || 'Failed to dispatch via gateway'),
+                response: responsePayload
+            });
+        }
+
+        if (action === 'disconnectWhatsApp') {
+            const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId;
+            if (institutionId) {
+                await supabase
+                    .from('whatsapp_configs')
+                    .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
+                    .eq('institution_id', institutionId);
+            }
+            return res.status(200).json({ success: true, message: 'WhatsApp session disconnected' });
         }
 
         if (action === 'sendSms') {
