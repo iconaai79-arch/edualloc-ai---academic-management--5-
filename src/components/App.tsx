@@ -3391,6 +3391,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         if (!currentUser?.id) return;
 
         const syncNotifications = () => {
+            if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+            if (currentUser.id.startsWith('temp_admin_')) return;
+
             apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).then(notifs => {
                 if (notifs) setNotifications(notifs);
             }).catch(() => {});

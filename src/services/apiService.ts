@@ -1260,6 +1260,11 @@ export const apiService = {
                 return Array.from(map.values());
             }
 
+            // Fast offline short-circuit: serve cached local data immediately when offline
+            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                return queryLocal();
+            }
+
             try {
                 // Determine Auth Token (Try JWT then ID fallback)
                 let token = await apiService.getAuthToken();
@@ -1447,8 +1452,16 @@ export const apiService = {
                 }
                 return queryLocal();
             } catch (e: any) {
+                const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || 
+                    String(e?.message || '').toLowerCase().includes('failed to fetch') ||
+                    String(e?.message || '').toLowerCase().includes('network') ||
+                    String(e?.message || '').toLowerCase().includes('internet_disconnected');
+
                 const isAbort = e?.name === 'AbortError' || String(e?.message || '').includes('aborted');
-                if (isAbort) {
+                if (isOffline) {
+                    // Silently serve local records when offline / disconnected without spamming logs
+                    return queryLocal();
+                } else if (isAbort) {
                     console.info(`[apiService] Fetch request for [${module}] timed out gracefully — serving local records.`);
                 } else {
                     console.warn(`Fetch Notice [${module}]:`, e?.message || e);
@@ -2674,6 +2687,15 @@ export const apiService = {
         }
     },
     async fetchNotifications(userId: string, options: any = {}): Promise<AppNotification[]> {
+        if (!userId || userId.startsWith('temp_admin_') || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+            const localNotifs = (ls.get('app_notifications') || []) as any[];
+            const normalizedUserId = String(userId || '').replace(/^u_/, '').toLowerCase();
+            const filtered = localNotifs.filter(n => {
+                const targetId = String(n.userId || n.user_id || '').replace(/^u_/, '').toLowerCase();
+                return !targetId || targetId === normalizedUserId;
+            });
+            return toCamelCase(filtered);
+        }
         return apiService.fetchModuleRecords('app_notifications', undefined, undefined, {
             filter: { user_id: userId },
             order: 'timestamp.desc',
