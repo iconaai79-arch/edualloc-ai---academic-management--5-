@@ -20,6 +20,20 @@ import {
     Cog8ToothIcon
 } from '../icons';
 
+// ─── Platform-level Evolution API endpoint ─────────────────────────────────
+// Change this once when you deploy your central gateway server.
+// All institutions will inherit this URL automatically when
+// "Use Platform Gateway" is enabled.
+const PLATFORM_GATEWAY_URL = import.meta.env.VITE_PLATFORM_GATEWAY_URL || 'https://wa.eduai.platform';
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Generates a cryptographically-secure 64-char hex token */
+const generateSecureToken = (): string => {
+    const buf = new Uint8Array(32);
+    crypto.getRandomValues(buf);
+    return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
 interface SuperAdminWhatsAppSettingsProps {
     companyDetails?: CompanyDetails;
     onUpdateCompanyDetails?: (details: CompanyDetails) => Promise<void> | void;
@@ -52,6 +66,12 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
 
     const [config, setConfig] = useState<WhatsAppConfig>(initialConfig);
     const [activeSection, setActiveSection] = useState<'gateway' | 'policies' | 'sandbox' | 'institutions' | 'logs'>('gateway');
+
+    // Platform Gateway toggle
+    const [usePlatformGateway, setUsePlatformGateway] = useState(false);
+    const [showToken, setShowToken] = useState(false);
+    const [isProvisioning, setIsProvisioning] = useState(false);
+    const [provisionResult, setProvisionResult] = useState<{ success: boolean; message: string } | null>(null);
 
     // ── 2. Live Status & Pairing State ──
     const [liveStatus, setLiveStatus] = useState<WhatsAppStatusResponse | null>(null);
@@ -142,6 +162,10 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                         ...dbConfig,
                         provider_type: dbConfig.provider_type || 'gateway'
                     }));
+                    // Detect if the saved URL matches the platform gateway
+                    if (dbConfig.gateway_url === PLATFORM_GATEWAY_URL) {
+                        setUsePlatformGateway(true);
+                    }
                 }
             }
             checkLiveStatus();
@@ -149,6 +173,70 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
         };
         init();
     }, [checkLiveStatus, fetchLogs]);
+
+    // When platform gateway toggle changes, auto-fill / clear URL
+    useEffect(() => {
+        if (usePlatformGateway) {
+            setConfig(prev => ({ ...prev, gateway_url: PLATFORM_GATEWAY_URL }));
+        }
+    }, [usePlatformGateway]);
+
+    // Auto-provision instance on Evolution API
+    const handleAutoProvision = useCallback(async () => {
+        const baseUrl = config.gateway_url || PLATFORM_GATEWAY_URL;
+        const apiKey = config.api_key;
+        const instanceName = config.instance_name || 'eduai_master';
+
+        if (!baseUrl || !apiKey) {
+            setProvisionResult({ success: false, message: 'Gateway URL and API Token are required before provisioning.' });
+            return;
+        }
+
+        setIsProvisioning(true);
+        setProvisionResult(null);
+        try {
+            // Check if instance already exists
+            const checkRes = await fetch(`${baseUrl}/instance/connectionState/${instanceName}`, {
+                headers: { apikey: apiKey }
+            });
+
+            if (checkRes.ok) {
+                const state = await checkRes.json();
+                setProvisionResult({
+                    success: true,
+                    message: `Instance "${instanceName}" already exists (state: ${state?.instance?.state || 'unknown'}). Ready to sync QR.`
+                });
+                await checkLiveStatus();
+                return;
+            }
+
+            // Create instance
+            const createRes = await fetch(`${baseUrl}/instance/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', apikey: apiKey },
+                body: JSON.stringify({
+                    instanceName,
+                    qrcode: true,
+                    integration: 'WHATSAPP-BAILEYS'
+                })
+            });
+
+            if (!createRes.ok) {
+                const err = await createRes.json().catch(() => ({}));
+                throw new Error(err?.message || `HTTP ${createRes.status}`);
+            }
+
+            setProvisionResult({
+                success: true,
+                message: `Instance "${instanceName}" provisioned successfully! Syncing QR code...`
+            });
+            setTimeout(() => checkLiveStatus(), 1500);
+        } catch (err: any) {
+            setProvisionResult({ success: false, message: err.message || 'Provisioning failed. Check URL and token.' });
+        } finally {
+            setIsProvisioning(false);
+        }
+    }, [config.gateway_url, config.api_key, config.instance_name, checkLiveStatus]);
 
     // Auto-poll QR code every 15s if waiting for connection
     useEffect(() => {
@@ -547,33 +635,105 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
 
                             {/* Credentials Fields */}
                             {config.provider_type === 'gateway' ? (
-                                <div className="space-y-4 pt-4 border-t border-white/5">
+                                <div className="space-y-5 pt-4 border-t border-white/5">
+
+                                    {/* ── Platform Gateway Toggle ── */}
+                                    <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                                        usePlatformGateway
+                                            ? 'bg-emerald-950/40 border-emerald-500/40'
+                                            : 'bg-white/5 border-white/5'
+                                    }`}>
+                                        <div>
+                                            <div className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
+                                                🏗️ Use Platform-Hosted Gateway
+                                                {usePlatformGateway && (
+                                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] border border-emerald-500/30">Active</span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                Auto-fills URL to the centrally-hosted Evolution API. All schools share one gateway.
+                                            </p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                            <input
+                                                type="checkbox"
+                                                checked={usePlatformGateway}
+                                                onChange={e => setUsePlatformGateway(e.target.checked)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-12 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600" />
+                                        </label>
+                                    </div>
+
+                                    {/* ── Gateway Base URL ── */}
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
                                             Gateway Base URL <span className="text-rose-400">*</span>
+                                            {usePlatformGateway && (
+                                                <span className="ml-2 text-emerald-400 normal-case font-bold">↳ Platform Default</span>
+                                            )}
                                         </label>
-                                        <input
-                                            type="url"
-                                            value={config.gateway_url || ''}
-                                            onChange={e => setConfig({ ...config, gateway_url: e.target.value })}
-                                            placeholder="https://wa.yourdomain.com or http://localhost:8080"
-                                            className="w-full px-4 h-12 bg-slate-950 border border-white/10 rounded-xl text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                                        />
-                                        <span className="text-[10px] text-slate-500 mt-1 block">The HTTP endpoint of your Evolution API or Baileys WhatsApp server</span>
+                                        <div className="relative">
+                                            <input
+                                                type="url"
+                                                value={config.gateway_url || ''}
+                                                onChange={e => setConfig({ ...config, gateway_url: e.target.value })}
+                                                readOnly={usePlatformGateway}
+                                                placeholder="https://wa.yourdomain.com"
+                                                className={`w-full px-4 h-12 border rounded-xl text-xs font-mono text-white placeholder-slate-600 focus:outline-none transition-all ${
+                                                    usePlatformGateway
+                                                        ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300 cursor-not-allowed'
+                                                        : 'bg-slate-950 border-white/10 focus:border-emerald-500'
+                                                }`}
+                                            />
+                                            {usePlatformGateway && (
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase text-emerald-500 bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                                                    🔒 Locked
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className="text-[10px] text-slate-500 mt-1 block">
+                                            {usePlatformGateway
+                                                ? `Centrally managed at: ${PLATFORM_GATEWAY_URL}`
+                                                : 'HTTP endpoint of your self-hosted Evolution API / Baileys server'}
+                                        </span>
                                     </div>
 
+                                    {/* ── API Key / Token ── */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
                                                 API Key / Global Token
                                             </label>
-                                            <input
-                                                type="password"
-                                                value={config.api_key || ''}
-                                                onChange={e => setConfig({ ...config, api_key: e.target.value })}
-                                                placeholder="••••••••••••••••"
-                                                className="w-full px-4 h-12 bg-slate-950 border border-white/10 rounded-xl text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type={showToken ? 'text' : 'password'}
+                                                    value={config.api_key || ''}
+                                                    onChange={e => setConfig({ ...config, api_key: e.target.value })}
+                                                    placeholder="Auto-generate or paste your token"
+                                                    className="w-full px-4 pr-20 h-12 bg-slate-950 border border-white/10 rounded-xl text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowToken(v => !v)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-slate-400 hover:text-white font-bold uppercase tracking-wider"
+                                                >
+                                                    {showToken ? 'Hide' : 'Show'}
+                                                </button>
+                                            </div>
+                                            {/* Generate Token Button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const token = generateSecureToken();
+                                                    setConfig(prev => ({ ...prev, api_key: token }));
+                                                    setShowToken(true);
+                                                }}
+                                                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-[10px] font-black uppercase tracking-wider transition-all w-full justify-center"
+                                            >
+                                                🔑 Generate Secure Token
+                                            </button>
+                                            <p className="text-[9px] text-slate-500 mt-1">64-char cryptographically-secure key. Copy this to your Evolution API .env as AUTHENTICATION_API_KEY.</p>
                                         </div>
 
                                         <div>
@@ -587,6 +747,47 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                                                 placeholder="eduai_master"
                                                 className="w-full px-4 h-12 bg-slate-950 border border-white/10 rounded-xl text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
                                             />
+                                            <p className="text-[9px] text-slate-500 mt-1">Unique identifier for this gateway instance in Evolution API.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* ── Auto-Provision Button ── */}
+                                    <div className={`p-5 rounded-2xl border space-y-3 ${
+                                        provisionResult?.success
+                                            ? 'bg-emerald-950/30 border-emerald-500/30'
+                                            : provisionResult && !provisionResult.success
+                                            ? 'bg-rose-950/30 border-rose-500/30'
+                                            : 'bg-indigo-950/30 border-indigo-500/20'
+                                    }`}>
+                                        <div>
+                                            <div className="text-xs font-black uppercase tracking-widest text-white">🚀 Auto-Provision Gateway Instance</div>
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                Automatically creates the WhatsApp instance on the Evolution API server using the URL and Token above. Skip manual SSH — just click and scan.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleAutoProvision}
+                                            disabled={isProvisioning || !config.gateway_url || !config.api_key}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/20"
+                                        >
+                                            <ArrowPathIcon className={`w-4 h-4 ${isProvisioning ? 'animate-spin' : ''}`} />
+                                            {isProvisioning ? 'Provisioning Instance...' : 'Auto-Provision & Sync'}
+                                        </button>
+                                        {provisionResult && (
+                                            <div className={`flex items-start gap-2 text-xs font-medium p-3 rounded-xl ${
+                                                provisionResult.success
+                                                    ? 'text-emerald-300 bg-emerald-950/40'
+                                                    : 'text-rose-300 bg-rose-950/40'
+                                            }`}>
+                                                {provisionResult.success
+                                                    ? <CheckCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                                    : <XCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+                                                {provisionResult.message}
+                                            </div>
+                                        )}
+                                        <div className="text-[9px] text-slate-500 font-medium">
+                                            ⚡ <strong>3-step setup:</strong> 1) Toggle Platform Gateway ON → 2) Click Generate Token → 3) Click Auto-Provision & Sync → Scan QR
                                         </div>
                                     </div>
                                 </div>
