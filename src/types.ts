@@ -711,6 +711,8 @@ export interface Institution {
     useSubdomain?: boolean;
     kioskSecurityPin?: string;
     kioskStatus?: 'active' | 'locked';
+    visitorAutoFinalizeEnabled?: boolean;
+    visitorAutoFinalizeTime?: string; // HH:MM, e.g. "18:00"
     classExamConfigs?: any[];
     treeGradingNodes?: Record<string, any>;
     classTeacherCommentsConfig?: any[];

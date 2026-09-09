@@ -381,7 +381,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         customSubdomain: props.currentInstitution?.customSubdomain || '',
         useSubdomain: props.currentInstitution?.useSubdomain ?? false,
         kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
-        kioskStatus: props.currentInstitution?.kioskStatus || 'active'
+        kioskStatus: props.currentInstitution?.kioskStatus || 'active',
+        visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? false,
+        visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00'
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -411,7 +413,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 customSubdomain: props.currentInstitution.customSubdomain || '',
                 useSubdomain: props.currentInstitution.useSubdomain ?? false,
                 kioskSecurityPin: props.currentInstitution.kioskSecurityPin || '1234',
-                kioskStatus: props.currentInstitution.kioskStatus || 'active'
+                kioskStatus: props.currentInstitution.kioskStatus || 'active',
+                visitorAutoFinalizeEnabled: props.currentInstitution.visitorAutoFinalizeEnabled ?? false,
+                visitorAutoFinalizeTime: props.currentInstitution.visitorAutoFinalizeTime || '18:00'
             });
         }
     }, [props.currentInstitution]);
@@ -4423,6 +4427,35 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 Copy Kiosk Link
                                             </button>
                                         </div>
+                                    </div>
+
+                                    {/* Visitor Auto-Finalize */}
+                                    <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-4 mt-2 animate-fade-in">
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="checkbox"
+                                                id="visitor-auto-finalize"
+                                                checked={instProfile.visitorAutoFinalizeEnabled}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, visitorAutoFinalizeEnabled: e.target.checked })}
+                                                className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <div>
+                                                <label htmlFor="visitor-auto-finalize" className="text-sm font-bold text-slate-700 dark:text-slate-300">Auto-Finalize Walk-in Visitor Exits</label>
+                                                <p className="text-xs text-slate-400">Automatically mark all active walk-in visitors as checked-out at the configured cutoff time each day. Useful when security forgets to finalize exits.</p>
+                                            </div>
+                                        </div>
+                                        {instProfile.visitorAutoFinalizeEnabled && (
+                                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 animate-fade-in">
+                                                <label className="block text-xs font-bold text-slate-500 mb-1">Daily Cutoff Time</label>
+                                                <input
+                                                    type="time"
+                                                    value={instProfile.visitorAutoFinalizeTime}
+                                                    onChange={(e) => setInstProfile({ ...instProfile, visitorAutoFinalizeTime: e.target.value })}
+                                                    className="w-40 h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                                />
+                                                <p className="text-[10px] text-slate-400 mt-1">All visitors still active after this time will be auto-checked-out by the system.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="mt-8 flex justify-end">

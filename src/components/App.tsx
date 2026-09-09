@@ -3432,6 +3432,82 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         };
     }, [currentUser?.id, notificationLimit]);
 
+    // ── Scheduled Visitor Auto-Finalize ──────────────────────────────────────
+    // Runs every 60 seconds. If enabled + past the configured cutoff time (and
+    // not yet fired today), sweeps all active visitors and marks them checked-out.
+    const autoFinalizeLastFiredDateRef = React.useRef<string>('');
+    useEffect(() => {
+        if (!currentUser?.id || !activeInstitution) return;
+
+        const runAutoFinalize = async () => {
+            if (!activeInstitution?.visitorAutoFinalizeEnabled) return;
+            if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+
+            const cutoffTime = activeInstitution?.visitorAutoFinalizeTime || '18:00';
+            const now = new Date();
+            const todayKey = now.toDateString();
+            const [cutHour, cutMin] = cutoffTime.split(':').map(Number);
+            const cutoffReached = now.getHours() > cutHour || (now.getHours() === cutHour && now.getMinutes() >= cutMin);
+
+            if (!cutoffReached) return;
+            if (autoFinalizeLastFiredDateRef.current === todayKey) return; // already ran today
+
+            autoFinalizeLastFiredDateRef.current = todayKey;
+
+            const timeOutStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            let count = 0;
+
+            // Finalize campus visitors
+            const activeVisitors = (visitors || []).filter(v => v.status !== 'checked_out' && v.institutionId === activeInstitution.id);
+            for (const v of activeVisitors) {
+                const updated = {
+                    ...v,
+                    status: 'checked_out' as const,
+                    timeOut: v.timeOut || timeOutStr,
+                    metadata: {
+                        ...((v as any).metadata || {}),
+                        autoFinalizedBySchedule: true,
+                        autoFinalizedAt: now.toISOString(),
+                        autoFinalizeCutoff: cutoffTime
+                    }
+                };
+                setVisitors(prev => prev.map(x => x.id === v.id ? updated : x));
+                await apiService.saveModuleRecord('visitors', updated).catch(() => {});
+                count++;
+            }
+
+            // Finalize building visitor logs
+            const activeLogs = (buildingVisitorLogs || []).filter(b => b.status !== 'checked_out' && b.institutionId === activeInstitution.id);
+            for (const b of activeLogs) {
+                const updated = {
+                    ...b,
+                    status: 'checked_out' as const,
+                    exitTime: b.exitTime || timeOutStr,
+                    metadata: {
+                        ...((b as any).metadata || {}),
+                        autoFinalizedBySchedule: true,
+                        autoFinalizedAt: now.toISOString(),
+                        autoFinalizeCutoff: cutoffTime
+                    }
+                };
+                setBuildingVisitorLogs(prev => prev.map(x => x.id === b.id ? updated : x));
+                await apiService.saveModuleRecord('building_visitor_logs', updated).catch(() => {});
+                count++;
+            }
+
+            if (count > 0) {
+                await handleLogAction(`Scheduled auto-finalize: ${count} visitor(s) checked out at ${cutoffTime} cutoff.`);
+                info(`🕐 ${count} visitor(s) auto-finalized at ${cutoffTime} cutoff.`);
+            }
+        };
+
+        // Run immediately once, then every 60 seconds
+        runAutoFinalize();
+        const intervalId = setInterval(runAutoFinalize, 60000);
+        return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentUser?.id, activeInstitution?.id, activeInstitution?.visitorAutoFinalizeEnabled, activeInstitution?.visitorAutoFinalizeTime]);
+
     const handleAddRequisition = async (req: Omit<Requisition, 'id' | 'status' | 'requestedDate' | 'institutionId'>) => {
         if (!activeInstitution || !currentUser) return;
         const newReq: Requisition = {
@@ -4753,14 +4829,79 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
 
 
+    const handleAcknowledgeVisitorMet = useCallback(async (notification: AppNotification) => {
+        try {
+            const visitorId = notification.metadata?.visitorId || (notification as any).visitorId;
+            const visitorName = (notification.visitorName || notification.metadata?.visitorName || '').trim().toLowerCase();
+
+            const timeOutStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            // 1. Check in campus visitors list
+            const matchedVisitor = (visitors || []).find(v => 
+                (visitorId && v.id === visitorId) ||
+                (visitorName && v.name && v.name.trim().toLowerCase() === visitorName && v.status !== 'checked_out')
+            );
+
+            if (matchedVisitor && matchedVisitor.status !== 'checked_out') {
+                const updatedVisitor = {
+                    ...matchedVisitor,
+                    status: 'checked_out' as const,
+                    timeOut: matchedVisitor.timeOut || timeOutStr,
+                    metadata: {
+                        ...((matchedVisitor as any).metadata || {}),
+                        autoFinalizedByHost: true,
+                        metConfirmedAt: new Date().toISOString()
+                    }
+                };
+
+                setVisitors(prev => prev.map(v => v.id === matchedVisitor.id ? updatedVisitor : v));
+                await apiService.saveModuleRecord('visitors', updatedVisitor);
+                await handleLogAction(`Auto-finalized exit for visitor: ${matchedVisitor.name} (marked met by host)`);
+                success(`Visitor ${matchedVisitor.name} marked as met & exit finalized.`);
+            }
+
+            // 2. Check in commercial building visitor logs
+            const matchedBuildingLog = (buildingVisitorLogs || []).find(bvl =>
+                (visitorId && bvl.id === visitorId) ||
+                (visitorName && bvl.fullName && bvl.fullName.trim().toLowerCase() === visitorName && bvl.status !== 'checked_out')
+            );
+
+            if (matchedBuildingLog && matchedBuildingLog.status !== 'checked_out') {
+                const updatedBuildingLog = {
+                    ...matchedBuildingLog,
+                    status: 'checked_out' as const,
+                    exitTime: matchedBuildingLog.exitTime || timeOutStr,
+                    metadata: {
+                        ...((matchedBuildingLog as any).metadata || {}),
+                        autoFinalizedByHost: true,
+                        metConfirmedAt: new Date().toISOString()
+                    }
+                };
+
+                setBuildingVisitorLogs(prev => prev.map(b => b.id === matchedBuildingLog.id ? updatedBuildingLog : b));
+                await apiService.saveModuleRecord('building_visitor_logs', updatedBuildingLog);
+                await handleLogAction(`Auto-finalized exit for building visitor: ${matchedBuildingLog.fullName} (marked met by host)`);
+                success(`Visitor ${matchedBuildingLog.fullName} marked as met & exit finalized.`);
+            }
+
+            loadData();
+        } catch (err) {
+            console.error("Failed to auto-finalize visitor exit:", err);
+        }
+    }, [visitors, buildingVisitorLogs, handleLogAction, success, loadData]);
+
     const handleMarkNotificationAsRead = useCallback(async (id: string) => {
         try {
+            const notif = notifications.find(n => n.id === id);
+            if (notif && (notif.type === 'guest_arrival' || notif.type === 'visitor')) {
+                handleAcknowledgeVisitorMet(notif);
+            }
             await apiService.markNotificationAsRead(id);
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
         } catch (error) {
             console.error("Failed to mark notification as read:", error);
         }
-    }, []);
+    }, [notifications, handleAcknowledgeVisitorMet]);
 
     const handleAddCounty = useCallback(async (data: Omit<County, 'id' | 'createdAt'>) => {
         try {
@@ -6878,6 +7019,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             systemLogoUrl={companyDetails.logoUrl}
                             notifications={notifications}
                             onMarkAsRead={(id) => { if (id) handleMarkNotificationAsRead(id); }}
+                            onAcknowledgeVisitorMet={handleAcknowledgeVisitorMet}
                             currentInstitution={activeInstitution}
                             primaryColor={activeBranding.primaryColor}
                             secondaryColor={activeBranding.secondaryColor}
