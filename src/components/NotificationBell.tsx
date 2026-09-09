@@ -7,6 +7,7 @@ interface NotificationBellProps {
   notifications: AppNotification[];
   onMarkAsRead: (notificationId?: string) => void;
   currentUser?: User | null;
+  onAcknowledgeVisitorMet?: (notification: AppNotification) => void;
 }
 
 function formatTimeAgo(timestamp: string): string {
@@ -54,7 +55,7 @@ function extractVisitorDetails(notification: AppNotification): { visitorName: st
     };
 }
 
-export const NotificationBell: React.FC<NotificationBellProps> = ({ notifications, onMarkAsRead, currentUser }) => {
+export const NotificationBell: React.FC<NotificationBellProps> = ({ notifications, onMarkAsRead, currentUser, onAcknowledgeVisitorMet }) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -112,6 +113,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
     };
 
     const handleItemAction = (n: AppNotification) => {
+        const isVisitorNotif = n.type === 'guest_arrival' || n.type === 'visitor';
+        if (isVisitorNotif && onAcknowledgeVisitorMet) {
+            onAcknowledgeVisitorMet(n);
+        }
         if (!n.isRead) {
             onMarkAsRead(n.id);
         }
@@ -208,12 +213,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                                                                 ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-sm' 
                                                                 : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                                                         }`}
-                                                        title={isVisitorNotif ? "Acknowledge & Mark Met" : "Mark as Read"}
+                                                        title={isVisitorNotif ? "Mark Met & Auto-Finalize Exit" : "Mark as Read"}
                                                     >
                                                         {isVisitorNotif ? (
                                                             <div className="flex items-center gap-1 px-2 py-0.5">
                                                                 <CheckIcon className="w-3.5 h-3.5" />
-                                                                <span className="text-[11px] font-black uppercase tracking-wider">Met</span>
+                                                                <span className="text-[11px] font-black uppercase tracking-wider">Met & Exit</span>
                                                             </div>
                                                         ) : (
                                                             <span className="block w-2.5 h-2.5 bg-blue-500 rounded-full"></span>

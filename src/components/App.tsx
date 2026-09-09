@@ -184,7 +184,7 @@ const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then((m: any) => ({ default: m?.PublicInvoiceView || m?.default || m })));
 const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then((m: any) => ({ default: m?.PublicResultSlipPortal || m?.default || m })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then((m: any) => ({ default: m?.DSInterestPage || m?.default || m })));
-const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then((m: any) => ({ default: m?.RestaurantPOSManager || m?.default || m }})));
+const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then((m: any) => ({ default: m?.RestaurantPOSManager || m?.default || m })));
 import HealthCoreView from './his/HealthCoreView';
 import ModernPharmacyManager from './his/ModernPharmacyManager';
 const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then((m: any) => ({ default: m?.CarServiceView || m?.default || m })));

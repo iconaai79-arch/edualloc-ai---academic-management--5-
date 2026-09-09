@@ -47,6 +47,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Approved' | 'Paid'>('all');
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
+    const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
     
     // Rates Form State
     const [hourlyRate, setHourlyRate] = useState<number>(1000);
@@ -63,6 +64,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Manual Allocation Modal State
     const [showAllocModal, setShowAllocModal] = useState(false);
     const [allocCourseId, setAllocCourseId] = useState('');
+    const [allocStream, setAllocStream] = useState('All Streams');
+    const [customAllocStream, setCustomAllocStream] = useState('');
     const [allocSubjectId, setAllocSubjectId] = useState('');
     const [allocTeacherId, setAllocTeacherId] = useState('');
     const [allocDay, setAllocDay] = useState<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'>('Monday');
@@ -77,6 +80,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [manualTeacherId, setManualTeacherId] = useState('');
     const [manualSubjectId, setManualSubjectId] = useState('');
     const [manualCourseId, setManualCourseId] = useState('');
+    const [manualStream, setManualStream] = useState('All Streams');
     const [manualPrefectId, setManualPrefectId] = useState('');
     const [manualHours, setManualHours] = useState<number>(2);
     const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
@@ -145,6 +149,98 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         return subjects.map(s => ({ id: s.id, name: s.name }));
     }, [remedialSubjects, subjects]);
+
+    // Available streams for manual allocation modal
+    const availableStreamsForAlloc = useMemo(() => {
+        if (!allocCourseId) return [];
+        const selectedCourse = courses.find(c => c.id === allocCourseId);
+        const streamSet = new Set<string>();
+
+        // 1. From course.levels
+        if (selectedCourse?.levels && Array.isArray(selectedCourse.levels)) {
+            selectedCourse.levels.forEach(lvl => {
+                const name = String(lvl.name || '').trim();
+                if (name) streamSet.add(name);
+            });
+        }
+
+        // 2. From students enrolled in this course
+        users.forEach(u => {
+            if (u.role === 'student' && u.courseId === allocCourseId) {
+                const sName = (u as any).stream || (u as any).streamName || (u as any).metadata?.stream || '';
+                if (sName && typeof sName === 'string' && sName.trim()) {
+                    streamSet.add(sName.trim());
+                }
+            }
+        });
+
+        // 3. From institution streams / streamDefinitions
+        const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
+        if (Array.isArray(instStreams)) {
+            instStreams.forEach(s => {
+                const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
+                if (sName) streamSet.add(sName);
+            });
+        }
+
+        return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [allocCourseId, courses, users, currentInstitution]);
+
+    // Available streams for manual session log modal
+    const availableStreamsForManualLog = useMemo(() => {
+        if (!manualCourseId) return [];
+        const selectedCourse = courses.find(c => c.id === manualCourseId);
+        const streamSet = new Set<string>();
+
+        if (selectedCourse?.levels && Array.isArray(selectedCourse.levels)) {
+            selectedCourse.levels.forEach(lvl => {
+                const name = String(lvl.name || '').trim();
+                if (name) streamSet.add(name);
+            });
+        }
+
+        users.forEach(u => {
+            if (u.role === 'student' && u.courseId === manualCourseId) {
+                const sName = (u as any).stream || (u as any).streamName || (u as any).metadata?.stream || '';
+                if (sName && typeof sName === 'string' && sName.trim()) {
+                    streamSet.add(sName.trim());
+                }
+            }
+        });
+
+        const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
+        if (Array.isArray(instStreams)) {
+            instStreams.forEach(s => {
+                const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
+                if (sName) streamSet.add(sName);
+            });
+        }
+
+        return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [manualCourseId, courses, users, currentInstitution]);
+
+    // Distinct streams for Timetable Filter Bar
+    const distinctTimetableStreams = useMemo(() => {
+        const streamSet = new Set<string>();
+        allocations.forEach(a => {
+            if (selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass) {
+                if (a.stream && a.stream !== 'All Streams') {
+                    streamSet.add(a.stream);
+                }
+            }
+        });
+
+        if (selectedTimetableClass !== 'All') {
+            const course = courses.find(c => c.id === selectedTimetableClass);
+            if (course?.levels && Array.isArray(course.levels)) {
+                course.levels.forEach(l => {
+                    if (l.name) streamSet.add(l.name.trim());
+                });
+            }
+        }
+
+        return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [allocations, selectedTimetableClass, courses]);
 
     // Save Remedial Subject Handler
     const handleSaveRemedialSubject = async (e: React.FormEvent) => {
@@ -354,6 +450,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 subjectName: subject?.name || 'Unknown',
                 courseId: manualCourseId,
                 className: course?.name || 'Unknown',
+                stream: manualStream || 'All Streams',
                 prefectId: manualPrefectId,
                 prefectName: prefect?.name || 'Unknown',
                 prefectToken: `prefect_remedial_token_class_${manualCourseId}`,
@@ -366,9 +463,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             };
 
             await apiService.saveRemedialSession(newSession);
-            onLogAction?.(`Manually logged approved remedial session for ${teacher?.name} (${manualHours} hrs)`);
+            onLogAction?.(`Manually logged approved remedial session for ${teacher?.name} in ${course?.name} (${manualStream || 'All Streams'}) (${manualHours} hrs)`);
             alert('Remedial session logged and approved successfully!');
             setShowLogModal(false);
+            setManualStream('All Streams');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to log session');
@@ -394,7 +492,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const handleCreateManualAllocation = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!allocCourseId || !allocSubjectId || !allocTeacherId) {
-            return alert('Please select class stream, subject, and teacher.');
+            return alert('Please select class, stream, subject, and teacher.');
         }
 
         try {
@@ -402,11 +500,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const subject = subjects.find(s => s.id === allocSubjectId);
             const teacher = users.find(u => u.id === allocTeacherId);
             const isWeekend = ['Saturday', 'Sunday'].includes(allocDay);
+            const effectiveStream = allocStream === '__custom__'
+                ? (customAllocStream.trim() || 'All Streams')
+                : (allocStream || 'All Streams');
 
             const newAlloc: RemedialAllocation = {
                 id: `rem_alloc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 courseId: allocCourseId,
                 className: course?.name || 'Class',
+                stream: effectiveStream,
                 subjectId: allocSubjectId,
                 subjectName: subject?.name || 'Subject',
                 teacherId: allocTeacherId,
@@ -424,9 +526,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             } else {
                 await apiService.saveModuleRecord('school_remedial_allocations', newAlloc);
             }
-            onLogAction?.(`Allocated remedial ${subject?.name} for ${course?.name} to ${teacher?.name} on ${allocDay}`);
+            onLogAction?.(`Allocated remedial ${subject?.name} for ${course?.name} (${effectiveStream}) to ${teacher?.name} on ${allocDay}`);
             alert('Remedial allocation saved successfully!');
             setShowAllocModal(false);
+            setAllocStream('All Streams');
+            setCustomAllocStream('');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to save allocation');
@@ -489,6 +593,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         id: `rem_alloc_${Date.now()}_${course.id.slice(-4)}_${subject.id.slice(-4)}_${day.slice(0, 3)}_${subIdx}`,
                         courseId: course.id,
                         className: course.name,
+                        stream: 'All Streams',
                         subjectId: subject.id,
                         subjectName: subject.name,
                         teacherId: assignedTeacher.id,
@@ -1112,18 +1217,37 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                     {/* Filter & Print Bar */}
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Filter Stream:</span>
-                            <select
-                                value={selectedTimetableClass}
-                                onChange={e => setSelectedTimetableClass(e.target.value)}
-                                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                            >
-                                <option value="All">All Classes &amp; Streams ({courses.length})</option>
-                                {courses.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
+                        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Class:</span>
+                                <select
+                                    value={selectedTimetableClass}
+                                    onChange={e => {
+                                        setSelectedTimetableClass(e.target.value);
+                                        setSelectedTimetableStream('All');
+                                    }}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                >
+                                    <option value="All">All Classes ({courses.length})</option>
+                                    {courses.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Stream:</span>
+                                <select
+                                    value={selectedTimetableStream}
+                                    onChange={e => setSelectedTimetableStream(e.target.value)}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                >
+                                    <option value="All">All Streams</option>
+                                    {distinctTimetableStreams.map(str => (
+                                        <option key={str} value={str}>{str}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
 
                         <button
@@ -1142,7 +1266,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 const dayAllocations = allocations.filter(a => {
                                     const matchDay = a.dayOfWeek === day;
                                     const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
-                                    return matchDay && matchClass;
+                                    const matchStream = selectedTimetableStream === 'All' 
+                                        || a.stream === selectedTimetableStream 
+                                        || (!a.stream && selectedTimetableStream === 'All Streams')
+                                        || (a.stream === 'All Streams');
+                                    return matchDay && matchClass && matchStream;
                                 });
 
                                 return (
@@ -1182,7 +1310,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 <Trash2 className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
-                                                        <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">{alloc.className}</p>
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">{alloc.className}</p>
+                                                            {alloc.stream && alloc.stream !== 'All Streams' && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 text-[8px] font-black uppercase tracking-wider">
+                                                                    {alloc.stream}
+                                                                </span>
+                                                            )}
+                                                            {alloc.stream === 'All Streams' && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-wider">
+                                                                    All Streams
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                                             <UserCheck className="w-3 h-3 text-slate-400" /> {alloc.teacherName}
                                                         </p>
@@ -1264,7 +1404,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </td>
                                                 <td className="p-6">
                                                     <p className="text-xs font-black text-indigo-650 uppercase">{session.subjectName}</p>
-                                                    <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">{session.className}</p>
+                                                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase">{session.className}</span>
+                                                        {session.stream && (
+                                                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-300 text-[8px] font-black uppercase tracking-wider">
+                                                                {session.stream}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-6">
                                                     <div className="flex items-center gap-2">
@@ -1883,27 +2030,45 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Class Stream</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Class</label>
                                     <select 
                                         value={manualCourseId}
-                                        onChange={e => setManualCourseId(e.target.value)}
+                                        onChange={e => {
+                                            setManualCourseId(e.target.value);
+                                            setManualStream('All Streams');
+                                        }}
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
                                     >
-                                        <option value="">-- Select Stream --</option>
+                                        <option value="">-- Select Class --</option>
                                         {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Class Prefect</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Stream</label>
                                     <select 
-                                        value={manualPrefectId}
-                                        onChange={e => setManualPrefectId(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                        value={manualStream}
+                                        onChange={e => setManualStream(e.target.value)}
+                                        disabled={!manualCourseId}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white disabled:opacity-50"
                                     >
-                                        <option value="">-- Select Prefect --</option>
-                                        {prefectsList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        <option value="All Streams">All Streams</option>
+                                        {availableStreamsForManualLog.map(s => (
+                                            <option key={s} value={s}>{s}</option>
+                                        ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Class Prefect</label>
+                                <select 
+                                    value={manualPrefectId}
+                                    onChange={e => setManualPrefectId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                >
+                                    <option value="">-- Select Prefect --</option>
+                                    {prefectsList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -1961,19 +2126,62 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                     {/* Modal Form */}
                     <form onSubmit={handleCreateManualAllocation} className="p-7 space-y-5">
-                        {/* Class Stream */}
-                        <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Class / Stream</label>
-                            <select
-                                value={allocCourseId}
-                                onChange={e => setAllocCourseId(e.target.value)}
-                                required
-                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                            >
-                                <option value="">-- Select Class Stream --</option>
-                                {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                        {/* Class & Stream Selection */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Class / Grade</label>
+                                <select
+                                    value={allocCourseId}
+                                    onChange={e => {
+                                        setAllocCourseId(e.target.value);
+                                        setAllocStream('All Streams');
+                                        setCustomAllocStream('');
+                                    }}
+                                    required
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                >
+                                    <option value="">-- Select Class --</option>
+                                    {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                                    <span>Stream</span>
+                                    {allocStream && allocStream !== 'All Streams' && allocStream !== '__custom__' && (
+                                        <span className="text-indigo-600 dark:text-indigo-400 font-bold lowercase text-[9px]">(specific)</span>
+                                    )}
+                                </label>
+                                <select
+                                    value={allocStream}
+                                    onChange={e => setAllocStream(e.target.value)}
+                                    disabled={!allocCourseId}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white disabled:opacity-50"
+                                >
+                                    <option value="All Streams">All Streams (Whole Class)</option>
+                                    {availableStreamsForAlloc.map(s => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                    <option value="__custom__">+ Custom / Specific Stream...</option>
+                                </select>
+                            </div>
                         </div>
+
+                        {allocStream === '__custom__' && (
+                            <div className="animate-fade-in-up">
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Custom Stream Name
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. East, West, North, Red, Stream A..."
+                                    value={customAllocStream}
+                                    onChange={e => setCustomAllocStream(e.target.value)}
+                                    required
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                />
+                            </div>
+                        )}
 
                         {/* Subject */}
                         <div>

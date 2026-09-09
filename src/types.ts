@@ -6285,6 +6285,7 @@ export interface RemedialSession {
     subjectName?: string;
     courseId?: string;
     className?: string;
+    stream?: string;
     prefectId: string;
     prefectName?: string;
     prefectToken: string;
@@ -6301,6 +6302,7 @@ export interface RemedialAllocation {
     id: string;
     courseId: string;
     className?: string;
+    stream?: string;
     subjectId: string;
     subjectName?: string;
     teacherId: string;
