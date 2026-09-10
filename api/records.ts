@@ -1509,6 +1509,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanNotificationRecord) : cleanNotificationRecord(currentPayload);
+            } else if (moduleName === 'subjects') {
+                const cleanSubjectRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const classList = copy.target_classes || copy.targetClasses || copy.assigned_classes || copy.assignedClasses || copy.classes;
+                    if (Array.isArray(classList)) {
+                        copy.target_classes = classList;
+                    }
+                    delete copy.assigned_classes;
+                    delete copy.assignedClasses;
+                    delete copy.classes;
+                    delete copy.is_complete;
+                    delete copy.isComplete;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
             }
 
             let data: any = null;
@@ -2069,6 +2085,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.message === null) copy.message = '';
                     delete copy.userId;
                     delete copy.isRead;
+                    currentUpdateData = copy;
+                } else if (moduleName === 'subjects') {
+                    const copy = { ...currentUpdateData };
+                    const classList = copy.target_classes || copy.targetClasses || copy.assigned_classes || copy.assignedClasses || copy.classes;
+                    if (Array.isArray(classList)) {
+                        copy.target_classes = classList;
+                    }
+                    delete copy.assigned_classes;
+                    delete copy.assignedClasses;
+                    delete copy.classes;
+                    delete copy.is_complete;
+                    delete copy.isComplete;
                     currentUpdateData = copy;
                 }
                 let data: any = null;

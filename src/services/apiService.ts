@@ -1947,6 +1947,20 @@ export const apiService = {
                 delete item.subjects;
             }
 
+            // Subjects module normalization
+            if (module === 'subjects') {
+                const classes = item.target_classes || item.targetClasses || item.assigned_classes || item.assignedClasses || item.classes;
+                if (Array.isArray(classes)) {
+                    item.target_classes = classes;
+                }
+                // Strip virtual/alias frontend properties to prevent PGRST204 PostgREST schema cache warnings
+                delete item.assigned_classes;
+                delete item.assignedClasses;
+                delete item.classes;
+                delete item.is_complete;
+                delete item.isComplete;
+            }
+
             // Commission withdrawal requests normalization
             if (module === 'commission_withdrawal_requests') {
                 if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;
@@ -4191,7 +4205,18 @@ export const apiService = {
         }
     },
     async fetchDepartments(instId?: string): Promise<Department[]> { return apiService.fetchModuleRecords('departments', instId); },
-    async fetchSubjects(instId?: string): Promise<Subject[]> { return apiService.fetchModuleRecords('subjects', instId); },
+    async fetchSubjects(instId?: string): Promise<Subject[]> { 
+        const subjects = await apiService.fetchModuleRecords('subjects', instId); 
+        return (subjects || []).map((s: any) => {
+            const cls = Array.isArray(s.targetClasses) ? s.targetClasses : (Array.isArray(s.assignedClasses) ? s.assignedClasses : (Array.isArray(s.classes) ? s.classes : []));
+            return {
+                ...s,
+                targetClasses: cls,
+                assignedClasses: cls,
+                classes: cls
+            };
+        });
+    },
     async saveSubject(data: any) { return apiService.saveModuleRecord('subjects', data); },
     async fetchCourses(instId?: string): Promise<Course[]> { return apiService.fetchModuleRecords('courses', instId); },
     async fetchAcademicYears(instId?: string): Promise<AcademicYear[]> { return apiService.fetchModuleRecords('academic_years', instId); },
