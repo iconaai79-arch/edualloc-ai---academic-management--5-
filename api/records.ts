@@ -1532,18 +1532,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (moduleName === 'subjects') {
                 const cleanSubjectRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
-                    const copy = { ...item };
-                    delete copy.target_classes;
-                    delete copy.targetClasses;
-                    delete copy.assigned_classes;
-                    delete copy.assignedClasses;
-                    delete copy.classes;
-                    delete copy.is_complete;
-                    delete copy.isComplete;
-                    delete copy.metadata;
-                    delete copy.cbe_strands;
-                    delete copy.cbeStrands;
-                    return copy;
+                    const allowed = new Set([
+                        'id', 'code', 'name', 'description', 
+                        'department_id', 'institution_id', 
+                        'lesson_structure', 'has_exam', 'dedicated_room_id',
+                        'created_at', 'updated_at'
+                    ]);
+                    const clean: any = {};
+                    for (const key of Object.keys(item)) {
+                        if (allowed.has(key)) {
+                            clean[key] = item[key];
+                        }
+                    }
+                    if (item.departmentId && !clean.department_id) clean.department_id = item.departmentId;
+                    if (item.institutionId && !clean.institution_id) clean.institution_id = item.institutionId;
+                    if (item.lessonStructure && !clean.lesson_structure) clean.lesson_structure = item.lessonStructure;
+                    if (item.hasExam !== undefined && clean.has_exam === undefined) clean.has_exam = item.hasExam;
+                    if (item.dedicatedRoomId && !clean.dedicated_room_id) clean.dedicated_room_id = item.dedicatedRoomId;
+                    return clean;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
             }
@@ -2108,18 +2114,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.isRead;
                     currentUpdateData = copy;
                 } else if (moduleName === 'subjects') {
-                    const copy = { ...currentUpdateData };
-                    delete copy.target_classes;
-                    delete copy.targetClasses;
-                    delete copy.assigned_classes;
-                    delete copy.assignedClasses;
-                    delete copy.classes;
-                    delete copy.is_complete;
-                    delete copy.isComplete;
-                    delete copy.metadata;
-                    delete copy.cbe_strands;
-                    delete copy.cbeStrands;
-                    currentUpdateData = copy;
+                    const allowed = new Set([
+                        'id', 'code', 'name', 'description', 
+                        'department_id', 'institution_id', 
+                        'lesson_structure', 'has_exam', 'dedicated_room_id',
+                        'created_at', 'updated_at'
+                    ]);
+                    const clean: any = {};
+                    for (const key of Object.keys(currentUpdateData)) {
+                        if (allowed.has(key)) {
+                            clean[key] = currentUpdateData[key];
+                        }
+                    }
+                    if (currentUpdateData.departmentId && !clean.department_id) clean.department_id = currentUpdateData.departmentId;
+                    if (currentUpdateData.institutionId && !clean.institution_id) clean.institution_id = currentUpdateData.institutionId;
+                    if (currentUpdateData.lessonStructure && !clean.lesson_structure) clean.lesson_structure = currentUpdateData.lessonStructure;
+                    if (currentUpdateData.hasExam !== undefined && clean.has_exam === undefined) clean.has_exam = currentUpdateData.hasExam;
+                    if (currentUpdateData.dedicatedRoomId && !clean.dedicated_room_id) clean.dedicated_room_id = currentUpdateData.dedicatedRoomId;
+                    currentUpdateData = clean;
                 }
                 let data: any = null;
                 let error: any = null;

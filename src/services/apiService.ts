@@ -1947,19 +1947,19 @@ export const apiService = {
                 delete item.subjects;
             }
 
-            // Subjects module normalization
+            // Subjects module normalization: strictly allow only core database columns
             if (module === 'subjects') {
-                // Strip virtual/frontend-only attributes to prevent PGRST204 PostgREST schema cache warnings
-                delete item.target_classes;
-                delete item.targetClasses;
-                delete item.assigned_classes;
-                delete item.assignedClasses;
-                delete item.classes;
-                delete item.is_complete;
-                delete item.isComplete;
-                delete item.metadata;
-                delete item.cbe_strands;
-                delete item.cbeStrands;
+                const allowed = new Set([
+                    'id', 'code', 'name', 'description', 
+                    'department_id', 'institution_id', 
+                    'lesson_structure', 'has_exam', 'dedicated_room_id',
+                    'created_at', 'updated_at'
+                ]);
+                Object.keys(item).forEach(key => {
+                    if (!allowed.has(key)) {
+                        delete item[key];
+                    }
+                });
             }
 
             // Commission withdrawal requests normalization
