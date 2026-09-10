@@ -197,8 +197,13 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             }
 
             const q = searchQuery.toLowerCase();
-            const matchesSearch = s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
+            const matchesSearch = s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || (s.abbreviation || '').toLowerCase().includes(q);
             return matchesDept && matchesComp && matchesClass && matchesSearch;
+        }).sort((a, b) => {
+            const aActive = !a.isComplete ? 1 : 0;
+            const bActive = !b.isComplete ? 1 : 0;
+            if (aActive !== bActive) return bActive - aActive; // Active first, inactive at bottom
+            return (a.name || '').localeCompare(b.name || '');
         });
     }, [subjects, locallyAddedSubjects, searchQuery, departmentFilter, completionFilter, classFilter, currentUser.departmentId]);
 

@@ -411,10 +411,32 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     }, [localSubjects]);
 
     const filteredSubjects = useMemo(() => {
-        if (!searchQuery.trim()) return deduplicatedSubjects;
-        const q = searchQuery.toLowerCase();
-        return deduplicatedSubjects.filter(s => (s.name || '').toLowerCase().includes(q) || (s.code || '').toLowerCase().includes(q));
-    }, [deduplicatedSubjects, searchQuery]);
+        let list = deduplicatedSubjects;
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            list = deduplicatedSubjects.filter(s => 
+                (s.name || '').toLowerCase().includes(q) || 
+                (s.code || '').toLowerCase().includes(q) ||
+                (s.abbreviation || '').toLowerCase().includes(q)
+            );
+        }
+        return [...list].sort((a, b) => {
+            const aActive = assignments[a.id]?.has(activeAllocationTarget) ? 1 : 0;
+            const bActive = assignments[b.id]?.has(activeAllocationTarget) ? 1 : 0;
+            if (aActive !== bActive) {
+                return bActive - aActive; // Active first (1 before 0)
+            }
+            return (a.name || '').localeCompare(b.name || '');
+        });
+    }, [deduplicatedSubjects, searchQuery, assignments, activeAllocationTarget]);
+
+    const activeSubjects = useMemo(() => {
+        return filteredSubjects.filter(s => assignments[s.id]?.has(activeAllocationTarget));
+    }, [filteredSubjects, assignments, activeAllocationTarget]);
+
+    const inactiveSubjects = useMemo(() => {
+        return filteredSubjects.filter(s => !assignments[s.id]?.has(activeAllocationTarget));
+    }, [filteredSubjects, assignments, activeAllocationTarget]);
 
     // Count assigned subjects for activeAllocationTarget
     const assignedCountForActiveTarget = useMemo(() => {
@@ -842,6 +864,65 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setTimeout(() => setToastMessage(null), 3500);
     };
 
+    const renderSubjectCard = (subject: Subject, isAssigned: boolean) => (
+        <div
+            key={subject.id}
+            onClick={() => handleToggleSubject(subject.id)}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
+                isAssigned
+                    ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/60 shadow-sm'
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/60 hover:bg-slate-50 opacity-80 hover:opacity-100'
+            }`}
+        >
+            <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono text-xs font-black shrink-0 ${
+                    isAssigned ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                }`}>
+                    {(subject.abbreviation || subject.shortName || subject.code).slice(0, 4)}
+                </div>
+                <div className="min-w-0">
+                    <h4 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">
+                        {subject.name}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        {subject.code}{subject.abbreviation ? ` • ${subject.abbreviation}` : (subject.shortName ? ` • ${subject.shortName}` : '')} • {subject.lessonStructure && subject.lessonStructure.length > 0 ? `${subject.lessonStructure.reduce((a, b) => a + b.count, 0)} p/wk` : 'N/A'}
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                <button
+                    type="button"
+                    onClick={e => handleOpenEdit(subject, e)}
+                    title="Edit subject details"
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                >
+                    <PencilIcon className="w-4 h-4" />
+                </button>
+                <button
+                    type="button"
+                    onClick={e => handleDeleteSubject(subject.id, subject.name, e)}
+                    title="Delete subject"
+                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                >
+                    <TrashIcon className="w-4 h-4" />
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => handleToggleSubject(subject.id)}
+                    className={`w-12 h-7 rounded-full transition-colors relative focus:outline-none ml-1 ${
+                        isAssigned ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                    }`}
+                >
+                    <span className={`block w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                        isAssigned ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                </button>
+            </div>
+        </div>
+    );
+
     return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden relative">
@@ -1064,68 +1145,46 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                             </button>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {filteredSubjects.map(subject => {
-                                const isAssigned = assignments[subject.id]?.has(activeAllocationTarget);
-                                return (
-                                    <div
-                                        key={subject.id}
-                                        onClick={() => handleToggleSubject(subject.id)}
-                                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
-                                            isAssigned
-                                                ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/60 shadow-sm'
-                                                : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/60 hover:bg-slate-50'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono text-xs font-black shrink-0 ${
-                                                isAssigned ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                                            }`}>
-                                                {(subject.abbreviation || subject.shortName || subject.code).slice(0, 4)}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <h4 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">
-                                                    {subject.name}
-                                                </h4>
-                                                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                                    {subject.code}{subject.abbreviation ? ` • ${subject.abbreviation}` : (subject.shortName ? ` • ${subject.shortName}` : '')} • {subject.lessonStructure && subject.lessonStructure.length > 0 ? `${subject.lessonStructure.reduce((a, b) => a + b.count, 0)} p/wk` : 'N/A'}
-                                                </p>
-                                            </div>
+                        <div className="space-y-6">
+                            {/* Active Subjects Section (Listed at Top) */}
+                            {activeSubjects.length > 0 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between pb-2 border-b border-indigo-100 dark:border-indigo-900/50">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm animate-pulse"></span>
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">
+                                                Active Subjects ({activeSubjects.length})
+                                            </h4>
                                         </div>
-
-                                        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
-                                            <button
-                                                type="button"
-                                                onClick={e => handleOpenEdit(subject, e)}
-                                                title="Edit subject details"
-                                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                                            >
-                                                <PencilIcon className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={e => handleDeleteSubject(subject.id, subject.name, e)}
-                                                title="Delete subject"
-                                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => handleToggleSubject(subject.id)}
-                                                className={`w-12 h-7 rounded-full transition-colors relative focus:outline-none ml-1 ${
-                                                    isAssigned ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
-                                                }`}
-                                            >
-                                                <span className={`block w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
-                                                    isAssigned ? 'translate-x-6' : 'translate-x-1'
-                                                }`} />
-                                            </button>
-                                        </div>
+                                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                                            Allocated to {activeAllocationTarget}
+                                        </span>
                                     </div>
-                                );
-                            })}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {activeSubjects.map(subject => renderSubjectCard(subject, true))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Inactive Subjects Section (Placed at Bottom) */}
+                            {inactiveSubjects.length > 0 && (
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                                Inactive Subjects ({inactiveSubjects.length})
+                                            </h4>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Not Allocated
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {inactiveSubjects.map(subject => renderSubjectCard(subject, false))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
