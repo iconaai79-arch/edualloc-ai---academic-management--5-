@@ -1949,17 +1949,17 @@ export const apiService = {
 
             // Subjects module normalization
             if (module === 'subjects') {
-                const classes = item.target_classes || item.targetClasses || item.assigned_classes || item.assignedClasses || item.classes;
-                if (Array.isArray(classes)) {
-                    item.target_classes = classes;
-                }
-                // Strip virtual/alias frontend properties to prevent PGRST204 PostgREST schema cache warnings
+                // Strip virtual/frontend-only attributes to prevent PGRST204 PostgREST schema cache warnings
+                delete item.target_classes;
+                delete item.targetClasses;
                 delete item.assigned_classes;
                 delete item.assignedClasses;
                 delete item.classes;
                 delete item.is_complete;
                 delete item.isComplete;
                 delete item.metadata;
+                delete item.cbe_strands;
+                delete item.cbeStrands;
             }
 
             // Commission withdrawal requests normalization
@@ -4208,8 +4208,23 @@ export const apiService = {
     async fetchDepartments(instId?: string): Promise<Department[]> { return apiService.fetchModuleRecords('departments', instId); },
     async fetchSubjects(instId?: string): Promise<Subject[]> { 
         const subjects = await apiService.fetchModuleRecords('subjects', instId); 
+        let allocMap: Record<string, string[]> = {};
+        if (instId) {
+            try {
+                const raw = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (raw) allocMap = JSON.parse(raw);
+            } catch (_) {}
+        }
         return (subjects || []).map((s: any) => {
-            const cls = Array.isArray(s.targetClasses) ? s.targetClasses : (Array.isArray(s.assignedClasses) ? s.assignedClasses : (Array.isArray(s.classes) ? s.classes : []));
+            let cls = Array.isArray(s.targetClasses) ? s.targetClasses : (Array.isArray(s.assignedClasses) ? s.assignedClasses : (Array.isArray(s.classes) ? s.classes : []));
+            if (cls.length === 0 && instId && allocMap) {
+                const matchedClasses = Object.entries(allocMap)
+                    .filter(([_, subIds]) => Array.isArray(subIds) && subIds.includes(s.id))
+                    .map(([cName]) => cName);
+                if (matchedClasses.length > 0) {
+                    cls = matchedClasses;
+                }
+            }
             return {
                 ...s,
                 targetClasses: cls,

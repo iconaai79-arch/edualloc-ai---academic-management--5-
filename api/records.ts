@@ -1533,16 +1533,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanSubjectRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const copy = { ...item };
-                    const classList = copy.target_classes || copy.targetClasses || copy.assigned_classes || copy.assignedClasses || copy.classes;
-                    if (Array.isArray(classList)) {
-                        copy.target_classes = classList;
-                    }
+                    delete copy.target_classes;
+                    delete copy.targetClasses;
                     delete copy.assigned_classes;
                     delete copy.assignedClasses;
                     delete copy.classes;
                     delete copy.is_complete;
                     delete copy.isComplete;
                     delete copy.metadata;
+                    delete copy.cbe_strands;
+                    delete copy.cbeStrands;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
@@ -2109,16 +2109,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentUpdateData = copy;
                 } else if (moduleName === 'subjects') {
                     const copy = { ...currentUpdateData };
-                    const classList = copy.target_classes || copy.targetClasses || copy.assigned_classes || copy.assignedClasses || copy.classes;
-                    if (Array.isArray(classList)) {
-                        copy.target_classes = classList;
-                    }
+                    delete copy.target_classes;
+                    delete copy.targetClasses;
                     delete copy.assigned_classes;
                     delete copy.assignedClasses;
                     delete copy.classes;
                     delete copy.is_complete;
                     delete copy.isComplete;
                     delete copy.metadata;
+                    delete copy.cbe_strands;
+                    delete copy.cbeStrands;
                     currentUpdateData = copy;
                 }
                 let data: any = null;
