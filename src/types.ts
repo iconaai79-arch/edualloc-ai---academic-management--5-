@@ -6317,6 +6317,15 @@ export interface RemedialAllocation {
     endTime: string;
     isWeekend?: boolean;
     priority?: 'High' | 'Medium' | 'Low';
+    status?: 'Confirmed' | 'Substitute Pending' | 'Cancelled' | 'Completed' | 'Escalated to DOS';
+    substituteTeacherId?: string;
+    substituteTeacherName?: string;
+    originalTeacherId?: string;
+    originalTeacherName?: string;
+    cancellationReason?: string;
+    cancelledAt?: string;
+    confirmationDeadline?: string;
+    declinedTeacherIds?: string[];
     createdAt?: string;
     institutionId: string;
 }
@@ -6357,6 +6366,8 @@ export interface RemedialRateSetting {
     weekendBreakEndTime?: string;
     weekendBreakLabel?: string;
     includeWeekendBreak?: boolean;
+    cancellationCutoffHours?: number;       // default: 3 hours before start
+    confirmationTimeoutMinutes?: number;    // default: 45 minutes for substitute to confirm
     feePerStudent: number;
     termFee: number;
     institutionId: string;

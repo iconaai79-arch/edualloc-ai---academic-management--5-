@@ -4,11 +4,19 @@ import type {
     Subject, User, AllocationRequest, Department, Priority,
     TimetableEntry, AcademicYear, Semester, TimetableSettings,
     Course, LetterheadConfig, AllocationRequestPreferences, UserTask, Institution,
-    CountyInventoryItem, RemedialSession, RemedialPayout
+    CountyInventoryItem, RemedialSession, RemedialPayout, RemedialAllocation, RemedialRateSetting
 } from '../types';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SynergyHub } from './SynergyHub';
-import { Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock } from 'lucide-react';
+import { 
+    Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock, 
+    Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
+    Hourglass, Lock, HelpCircle, Check, X, Shield, Flame
+} from 'lucide-react';
+import { 
+    checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
+    isConfirmationExpired, getNextOccurrenceDate 
+} from '../utils/remedialSubstitutionUtils';
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -198,6 +206,12 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     // Remedial States
     const [remedialSessions, setRemedialSessions] = useState<RemedialSession[]>([]);
     const [remedialPayouts, setRemedialPayouts] = useState<RemedialPayout[]>([]);
+    const [remedialAllocations, setRemedialAllocations] = useState<RemedialAllocation[]>([]);
+    const [rateSetting, setRateSetting] = useState<RemedialRateSetting | null>(null);
+    const [cancellingAllocation, setCancellingAllocation] = useState<RemedialAllocation | null>(null);
+    const [cancellationReason, setCancellationReason] = useState<string>('Medical Emergency');
+    const [cancellationNotes, setCancellationNotes] = useState<string>('');
+    const [isCancelling, setIsCancelling] = useState(false);
     const [selectedSubjectId, setSelectedSubjectId] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('');
     const [selectedPrefectId, setSelectedPrefectId] = useState('');
@@ -207,22 +221,50 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const loadRemedialData = async () => {
         try {
             const instId = currentInstitution?.id || user?.institutionId || '';
-            const [sessList, payList] = await Promise.all([
+            const [sessList, payList, allocList, ratesList] = await Promise.all([
                 apiService.fetchRemedialSessions(instId),
-                apiService.fetchRemedialPayouts(instId)
+                apiService.fetchRemedialPayouts(instId),
+                apiService.fetchRemedialAllocations(instId).catch(() => []),
+                apiService.fetchRemedialRateSettings(instId).catch(() => [])
             ]);
             setRemedialSessions((sessList || []).filter((s: RemedialSession) => s && s.teacherId === user?.id));
             setRemedialPayouts((payList || []).filter((p: RemedialPayout) => p && p.teacherId === user?.id));
+            setRemedialAllocations(allocList || []);
+            if (ratesList && ratesList.length > 0) {
+                setRateSetting(ratesList[0]);
+            }
         } catch (e) {
             console.error('Failed to load remedial data', e);
         }
     };
 
     useEffect(() => {
+        loadRemedialData();
+    }, [currentInstitution?.id, user?.institutionId]);
+
+    useEffect(() => {
         if (activeTab === 'remedials') {
             loadRemedialData();
         }
-    }, [activeTab, currentInstitution?.id, user?.institutionId]);
+    }, [activeTab]);
+
+    // Teacher's own remedial allocations
+    const myRemedialAllocations = useMemo(() => {
+        return (remedialAllocations || []).filter(a =>
+            a.teacherId === user?.id || (a.status === 'Substitute Pending' && a.originalTeacherId === user?.id)
+        ).sort((a, b) => {
+            const dateA = getNextOccurrenceDate(a.dayOfWeek, a.startTime);
+            const dateB = getNextOccurrenceDate(b.dayOfWeek, b.startTime);
+            return dateA.getTime() - dateB.getTime();
+        });
+    }, [remedialAllocations, user?.id]);
+
+    // Incoming substitute requests targeted at this teacher
+    const pendingSubstituteRequests = useMemo(() => {
+        return (remedialAllocations || []).filter(a =>
+            a.status === 'Substitute Pending' && a.substituteTeacherId === user?.id
+        );
+    }, [remedialAllocations, user?.id]);
     const [myRequestsSubTab, setMyRequestsSubTab] = useState<'catalog' | 'pending' | 'allocations'>('catalog');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -345,6 +387,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     <div className="flex items-center gap-3.5 relative z-10">
                                         {renderTabIcon(tab, "w-4.5 h-4.5")}
                                         <span>{tab.replace(/_/g, ' ')}</span>
+                                        {tab === 'remedials' && pendingSubstituteRequests.length > 0 && (
+                                            <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[8px] font-black animate-pulse">
+                                                {pendingSubstituteRequests.length} Sub Req
+                                            </span>
+                                        )}
                                     </div>
                                     {isActive && (
                                         <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -849,8 +896,386 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             }
                         };
 
+                        const handleStartCancellation = (alloc: RemedialAllocation) => {
+                            const cutoff = checkCancellationCutoff(
+                                alloc.dayOfWeek,
+                                alloc.startTime,
+                                rateSetting?.cancellationCutoffHours ?? 3
+                            );
+                            if (!cutoff.canCancel) {
+                                alert(cutoff.message || 'Cancellation is locked as the lesson start time is within the restricted cutoff window.');
+                                return;
+                            }
+                            setCancellingAllocation(alloc);
+                            setCancellationReason('Medical Emergency');
+                            setCancellationNotes('');
+                        };
+
+                        const handleConfirmCancellation = async (e: React.FormEvent) => {
+                            e.preventDefault();
+                            if (!cancellingAllocation) return;
+
+                            const cutoff = checkCancellationCutoff(
+                                cancellingAllocation.dayOfWeek,
+                                cancellingAllocation.startTime,
+                                rateSetting?.cancellationCutoffHours ?? 3
+                            );
+                            if (!cutoff.canCancel) {
+                                alert(cutoff.message || 'Cannot cancel: lesson start time is within restricted cutoff window.');
+                                return;
+                            }
+
+                            const fullReason = cancellationNotes.trim()
+                                ? `${cancellationReason}: ${cancellationNotes.trim()}`
+                                : cancellationReason;
+
+                            setIsCancelling(true);
+                            try {
+                                const timeoutMins = rateSetting?.confirmationTimeoutMinutes ?? 45;
+                                const { bestCandidate } = rankSubstituteCandidates({
+                                    allocation: cancellingAllocation,
+                                    candidates: (props.users || []) as User[],
+                                    allAllocations: remedialAllocations,
+                                    declinedTeacherIds: cancellingAllocation.declinedTeacherIds || [],
+                                    teacherPreferences: rateSetting?.teacherPreferences,
+                                    classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+                                    maxLessonsPerDay: rateSetting?.maxLessonsPerDay ?? 1,
+                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2
+                                });
+
+                                const updatedAlloc: RemedialAllocation = {
+                                    ...cancellingAllocation,
+                                    status: bestCandidate ? 'Substitute Pending' : 'Escalated to DOS',
+                                    originalTeacherId: user?.id,
+                                    originalTeacherName: user?.name,
+                                    substituteTeacherId: bestCandidate ? bestCandidate.id : undefined,
+                                    substituteTeacherName: bestCandidate ? bestCandidate.name : undefined,
+                                    cancellationReason: fullReason,
+                                    cancelledAt: new Date().toISOString(),
+                                    confirmationDeadline: bestCandidate 
+                                        ? new Date(Date.now() + timeoutMins * 60000).toISOString() 
+                                        : undefined,
+                                    declinedTeacherIds: []
+                                };
+
+                                await apiService.saveRemedialAllocation(updatedAlloc);
+                                props.onLogAction?.(`Teacher ${user?.name} cancelled remedial ${cancellingAllocation.subjectName} on ${cancellingAllocation.dayOfWeek} (Reason: ${fullReason}). Auto-assigned: ${bestCandidate ? bestCandidate.name : 'None - Escalated to DOS'}`);
+
+                                if (bestCandidate) {
+                                    alert(`Lesson cancellation requested successfully!\n\nSubstitute Selected: ${bestCandidate.name}\nConfirmation Deadline: ${timeoutMins} minutes.\n\nIf ${bestCandidate.name} declines or times out, the system will automatically cascade to the next ranked teacher.`);
+                                } else {
+                                    alert(`Lesson cancellation recorded.\n\nNotice: No qualified substitute teachers were currently available without timetable collisions or daily quota limits.\n\nThis request has been automatically escalated to the Director of Studies (DOS).`);
+                                }
+
+                                setCancellingAllocation(null);
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to cancel remedial lesson');
+                            } finally {
+                                setIsCancelling(false);
+                            }
+                        };
+
+                        const handleAcceptSubstituteRequest = async (alloc: RemedialAllocation) => {
+                            if (!window.confirm(`Confirm accepting substitute lesson for ${alloc.subjectName} (${alloc.className || ''} ${alloc.stream || ''}) on ${alloc.dayOfWeek} at ${alloc.startTime}?`)) return;
+
+                            try {
+                                const updated: RemedialAllocation = {
+                                    ...alloc,
+                                    status: 'Confirmed',
+                                    teacherId: user?.id || '',
+                                    teacherName: user?.name || 'Teacher',
+                                    substituteTeacherId: undefined,
+                                    substituteTeacherName: undefined,
+                                    confirmationDeadline: undefined
+                                };
+
+                                await apiService.saveRemedialAllocation(updated);
+                                props.onLogAction?.(`Teacher ${user?.name} accepted substitute lesson for ${alloc.subjectName} on ${alloc.dayOfWeek}`);
+                                alert(`Great! You have accepted the lesson. It is now officially registered on your remedial schedule.`);
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to accept substitute request');
+                            }
+                        };
+
+                        const handleDeclineSubstituteRequest = async (alloc: RemedialAllocation) => {
+                            if (!window.confirm(`Decline substitute request for ${alloc.subjectName} on ${alloc.dayOfWeek}? The system will immediately cascade this request to the next available teacher.`)) return;
+
+                            try {
+                                const updatedDeclined = [...(alloc.declinedTeacherIds || []), user?.id || ''].filter(Boolean);
+                                const timeoutMins = rateSetting?.confirmationTimeoutMinutes ?? 45;
+
+                                const { bestCandidate: nextCandidate } = rankSubstituteCandidates({
+                                    allocation: alloc,
+                                    candidates: (props.users || []) as User[],
+                                    allAllocations: remedialAllocations,
+                                    declinedTeacherIds: updatedDeclined,
+                                    teacherPreferences: rateSetting?.teacherPreferences,
+                                    classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+                                    maxLessonsPerDay: rateSetting?.maxLessonsPerDay ?? 1,
+                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2
+                                });
+
+                                const updated: RemedialAllocation = {
+                                    ...alloc,
+                                    declinedTeacherIds: updatedDeclined,
+                                    status: nextCandidate ? 'Substitute Pending' : 'Escalated to DOS',
+                                    substituteTeacherId: nextCandidate ? nextCandidate.id : undefined,
+                                    substituteTeacherName: nextCandidate ? nextCandidate.name : undefined,
+                                    confirmationDeadline: nextCandidate 
+                                        ? new Date(Date.now() + timeoutMins * 60000).toISOString() 
+                                        : undefined
+                                };
+
+                                await apiService.saveRemedialAllocation(updated);
+                                props.onLogAction?.(`Teacher ${user?.name} declined substitute lesson for ${alloc.subjectName}. Cascaded to: ${nextCandidate ? nextCandidate.name : 'Escalated to DOS'}`);
+                                alert(`You have declined this substitution. The system has automatically forwarded the request to ${nextCandidate ? nextCandidate.name : 'the Director of Studies (DOS)'}.`);
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to decline substitute request');
+                            }
+                        };
+
+                        const handleRecallSubstituteRequest = async (alloc: RemedialAllocation) => {
+                            if (!window.confirm(`Recall your cancellation request for ${alloc.subjectName} on ${alloc.dayOfWeek}? The lesson will be restored directly to your active schedule.`)) return;
+
+                            try {
+                                const updated: RemedialAllocation = {
+                                    ...alloc,
+                                    status: 'Confirmed',
+                                    teacherId: user?.id || '',
+                                    teacherName: user?.name || 'Teacher',
+                                    substituteTeacherId: undefined,
+                                    substituteTeacherName: undefined,
+                                    confirmationDeadline: undefined,
+                                    cancellationReason: undefined,
+                                    cancelledAt: undefined
+                                };
+
+                                await apiService.saveRemedialAllocation(updated);
+                                props.onLogAction?.(`Teacher ${user?.name} recalled cancellation for remedial ${alloc.subjectName} on ${alloc.dayOfWeek}`);
+                                alert(`Cancellation recalled! The lesson is restored to your active timetable.`);
+                                loadRemedialData();
+                            } catch (err: any) {
+                                alert(err.message || 'Failed to recall cancellation');
+                            }
+                        };
+
                         return (
                             <div className="space-y-8 animate-fade-in-up">
+                                {/* 1. INCOMING SUBSTITUTE REQUESTS NOTIFICATION BANNER */}
+                                {pendingSubstituteRequests.length > 0 && (
+                                    <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-6 rounded-[2.5rem] shadow-xl text-white space-y-4 border-2 border-white/20 animate-fade-in">
+                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-white/20 rounded-2xl backdrop-blur-md">
+                                                    <AlertTriangle className="w-6 h-6 text-white animate-pulse" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-base font-black uppercase tracking-wider">
+                                                        Action Required: Incoming Substitute Request ({pendingSubstituteRequests.length})
+                                                    </h3>
+                                                    <p className="text-xs text-amber-100 font-medium">
+                                                        You were auto-selected as priority substitute based on subject alignment and schedule availability.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className="px-3 py-1 bg-white text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest shadow shrink-0">
+                                                Priority Candidate
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                            {pendingSubstituteRequests.map(req => {
+                                                const remainingMins = getRemainingMinutes(req.confirmationDeadline);
+                                                const isExpired = isConfirmationExpired(req.confirmationDeadline);
+                                                return (
+                                                    <div key={req.id} className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/20 space-y-3">
+                                                        <div className="flex items-start justify-between">
+                                                            <div>
+                                                                <h4 className="text-sm font-black uppercase tracking-wide text-white">{req.subjectName}</h4>
+                                                                <p className="text-xs font-bold text-amber-200 uppercase mt-0.5">
+                                                                    {req.className} {req.stream && req.stream !== 'All Streams' ? `• ${req.stream}` : ''}
+                                                                </p>
+                                                            </div>
+                                                            <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase flex items-center gap-1 ${
+                                                                isExpired ? 'bg-red-500 text-white' : 'bg-black/30 text-amber-200'
+                                                            }`}>
+                                                                <Clock className="w-3 h-3" /> {isExpired ? 'Expired' : `${remainingMins}m to respond`}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="text-[11px] space-y-1 text-white/90">
+                                                            <p className="flex items-center gap-1.5 font-medium">
+                                                                <Calendar className="w-3.5 h-3.5 text-amber-200" />
+                                                                <span>{req.dayOfWeek} • {req.startTime} – {req.endTime}</span>
+                                                            </p>
+                                                            <p className="flex items-center gap-1.5 text-amber-100">
+                                                                <UserX className="w-3.5 h-3.5 text-amber-200" />
+                                                                <span>Original Teacher: <strong className="text-white">{req.originalTeacherName || req.teacherName}</strong></span>
+                                                            </p>
+                                                            {req.cancellationReason && (
+                                                                <p className="text-[10px] italic bg-black/20 p-2 rounded-xl text-amber-100">
+                                                                    Reason: "{req.cancellationReason}"
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="pt-2 flex items-center gap-2 border-t border-white/15">
+                                                            <button
+                                                                onClick={() => handleAcceptSubstituteRequest(req)}
+                                                                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                                                            >
+                                                                <CheckCircle2 className="w-4 h-4" /> Accept Lesson
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeclineSubstituteRequest(req)}
+                                                                className="px-4 py-2.5 bg-white/20 hover:bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                                                            >
+                                                                <X className="w-4 h-4" /> Decline
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 2. MY REMEDIAL SCHEDULE & ALLOCATIONS */}
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+                                        <div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                                <Calendar className="w-5 h-5 text-indigo-500" /> My Remedial Schedule &amp; Allocations
+                                            </h3>
+                                            <p className="text-xs text-slate-400 mt-1">
+                                                Your assigned weekly timetable. If you cannot attend, request a substitute outside the restricted {rateSetting?.cancellationCutoffHours ?? 3}-hour cutoff window.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                                {myRemedialAllocations.length} Assigned Session{myRemedialAllocations.length === 1 ? '' : 's'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {myRemedialAllocations.length === 0 ? (
+                                        <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/40 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
+                                            <Calendar className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                                            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">No remedial sessions currently allocated to you</p>
+                                            <p className="text-[10px] text-slate-400 mt-1">Check back once the Director of Studies publishes the weekly timetable.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {myRemedialAllocations.map(alloc => {
+                                                const nextDate = getNextOccurrenceDate(alloc.dayOfWeek, alloc.startTime);
+                                                const cutoff = checkCancellationCutoff(alloc.dayOfWeek, alloc.startTime, rateSetting?.cancellationCutoffHours ?? 3);
+                                                const isSubPending = alloc.status === 'Substitute Pending';
+                                                const isEscalated = alloc.status === 'Escalated to DOS';
+
+                                                return (
+                                                    <div 
+                                                        key={alloc.id}
+                                                        className={`p-5 rounded-3xl border transition-all space-y-3 ${
+                                                            isSubPending
+                                                                ? 'bg-amber-50/70 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800'
+                                                                : isEscalated
+                                                                ? 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-300 dark:border-rose-800'
+                                                                : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800 hover:border-indigo-400'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div>
+                                                                <h4 className="text-sm font-black uppercase text-slate-900 dark:text-white leading-tight">{alloc.subjectName}</h4>
+                                                                <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mt-0.5">
+                                                                    {alloc.className} {alloc.stream && alloc.stream !== 'All Streams' ? `• ${alloc.stream}` : ''}
+                                                                </p>
+                                                            </div>
+                                                            {alloc.priority === 'High' && (
+                                                                <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[8px] font-black uppercase flex items-center gap-0.5">
+                                                                    <Flame className="w-2.5 h-2.5 text-rose-500" /> High Prio
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="text-[11px] space-y-1 text-slate-600 dark:text-slate-400 font-medium">
+                                                            <p className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200 font-bold">
+                                                                <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                                                <span>{alloc.dayOfWeek} • {alloc.startTime} - {alloc.endTime}</span>
+                                                            </p>
+                                                            <p className="text-[10px] text-slate-400">
+                                                                Next: {nextDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at {alloc.startTime}
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Status Badges */}
+                                                        <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between">
+                                                            {isSubPending ? (
+                                                                <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 text-[9px] font-black uppercase flex items-center gap-1">
+                                                                    <Clock className="w-2.5 h-2.5 animate-spin" /> Sub: {alloc.substituteTeacherName || 'Pending'}
+                                                                </span>
+                                                            ) : isEscalated ? (
+                                                                <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-[9px] font-black uppercase flex items-center gap-1">
+                                                                    <AlertTriangle className="w-2.5 h-2.5" /> Escalated to DOS
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-[9px] font-black uppercase flex items-center gap-1">
+                                                                    <CheckCircle2 className="w-2.5 h-2.5" /> Confirmed
+                                                                </span>
+                                                            )}
+
+                                                            {/* Cutoff Window Status */}
+                                                            {cutoff.canCancel ? (
+                                                                <span className="text-[8.5px] font-bold text-emerald-600 dark:text-emerald-400" title={`Cancellation allowed until ${rateSetting?.cancellationCutoffHours || 3}h before start`}>
+                                                                    Notice: {cutoff.hoursRemaining.toFixed(0)}h
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[8.5px] font-bold text-rose-500 flex items-center gap-0.5" title={cutoff.message}>
+                                                                    <Lock className="w-2.5 h-2.5" /> Locked
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Actions */}
+                                                        <div className="pt-1">
+                                                            {isSubPending ? (
+                                                                <button
+                                                                    onClick={() => handleRecallSubstituteRequest(alloc)}
+                                                                    className="w-full py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                                                                >
+                                                                    <RotateCcw className="w-3 h-3" /> Recall Cancellation
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleStartCancellation(alloc)}
+                                                                    className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                                                        cutoff.canCancel
+                                                                            ? 'bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white dark:bg-rose-950/40 dark:text-rose-300'
+                                                                            : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed'
+                                                                    }`}
+                                                                    title={cutoff.canCancel ? 'Cancel and auto-assign next qualified substitute' : cutoff.message}
+                                                                >
+                                                                    {cutoff.canCancel ? (
+                                                                        <>
+                                                                            <UserX className="w-3 h-3" /> Cancel / Request Sub
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Lock className="w-3 h-3" /> Cutoff Passed (Locked)
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
                                     <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                         <QrCode className="w-5 h-5 text-indigo-500" /> Prefect Card Scanner Control Panel
@@ -1043,6 +1468,100 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 >
                                                     Confirm & Sign Anonymously
                                                 </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ===== CANCELLATION & AUTO-SUBSTITUTION MODAL ===== */}
+                                {cancellingAllocation && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+                                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                                                <div>
+                                                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                        <UserX className="w-4 h-4 text-rose-500" /> Cancel Remedial &amp; Auto-Assign Sub
+                                                    </h3>
+                                                    <p className="text-[10px] text-slate-400 mt-0.5">Priority substitute auto-reassignment engine</p>
+                                                </div>
+                                                <button onClick={() => setCancellingAllocation(null)} className="text-slate-400 hover:text-slate-650 text-xl font-bold">&times;</button>
+                                            </div>
+
+                                            <form onSubmit={handleConfirmCancellation} className="p-6 space-y-4">
+                                                {/* Lesson Details */}
+                                                <div className="p-4 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/40 rounded-2xl space-y-1">
+                                                    <p className="text-xs font-black text-rose-950 dark:text-rose-200 uppercase">{cancellingAllocation.subjectName}</p>
+                                                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">
+                                                        {cancellingAllocation.className} {cancellingAllocation.stream ? `• ${cancellingAllocation.stream}` : ''}
+                                                    </p>
+                                                    <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                        {cancellingAllocation.dayOfWeek} at {cancellingAllocation.startTime} – {cancellingAllocation.endTime}
+                                                    </p>
+                                                </div>
+
+                                                {/* Priority System Notice */}
+                                                <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 text-[10px] text-indigo-900 dark:text-indigo-300 space-y-1">
+                                                    <p className="font-bold flex items-center gap-1">
+                                                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                                        How Auto-Reassignment Works:
+                                                    </p>
+                                                    <ul className="list-disc list-inside space-y-0.5 text-[9.5px] text-slate-600 dark:text-slate-400 pl-1">
+                                                        <li>Evaluates qualified subject teachers and preferred day availability.</li>
+                                                        <li>Verifies candidate timetable collisions and daily lesson quotas.</li>
+                                                        <li>Auto-assigns top-ranked candidate with a {rateSetting?.confirmationTimeoutMinutes ?? 45}-min confirmation timer.</li>
+                                                        <li>Cascades automatically to next candidate if declined or timed out.</li>
+                                                    </ul>
+                                                </div>
+
+                                                {/* Cancellation Reason Selection */}
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                                        Reason for Cancellation
+                                                    </label>
+                                                    <select
+                                                        value={cancellationReason}
+                                                        onChange={e => setCancellationReason(e.target.value)}
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-rose-500 dark:text-white"
+                                                        required
+                                                    >
+                                                        <option value="Medical Emergency">🏥 Medical Emergency / Illness</option>
+                                                        <option value="Official School Duty">🏫 Official School Assignment / Duty</option>
+                                                        <option value="Family Emergency">👨‍👩‍👧 Family Emergency</option>
+                                                        <option value="Approved Academic Leave">📄 Approved Academic / Exam Leave</option>
+                                                        <option value="Urgent Personal Matter">⏳ Urgent Personal Matter</option>
+                                                        <option value="Other">📝 Other (Specify below)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                                        Additional Notes for Substitute &amp; DOS (Optional)
+                                                    </label>
+                                                    <textarea
+                                                        value={cancellationNotes}
+                                                        onChange={e => setCancellationNotes(e.target.value)}
+                                                        placeholder="e.g. Please cover Form 4 Quadratic Equations Chapter 5..."
+                                                        rows={2}
+                                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-medium outline-none focus:border-rose-500 dark:text-white"
+                                                    />
+                                                </div>
+
+                                                <div className="pt-2 flex gap-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCancellingAllocation(null)}
+                                                        className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-200"
+                                                    >
+                                                        Keep Lesson
+                                                    </button>
+                                                    <button
+                                                        type="submit"
+                                                        disabled={isCancelling}
+                                                        className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                                                    >
+                                                        {isCancelling ? 'Assigning...' : 'Cancel & Auto-Assign'}
+                                                    </button>
+                                                </div>
                                             </form>
                                         </div>
                                     </div>

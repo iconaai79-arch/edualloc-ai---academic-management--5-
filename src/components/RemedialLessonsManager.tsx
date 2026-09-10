@@ -6,9 +6,10 @@ import {
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
-    Flame, Zap, Sliders, Coffee
+    Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
 
 interface RemedialLessonsManagerProps {
     currentUser: User;
@@ -73,6 +74,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [includeWeekendBreak, setIncludeWeekendBreak] = useState<boolean>(true);
     const [teacherPreferences, setTeacherPreferences] = useState<Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>>({});
     const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
+    const [cancellationCutoffHours, setCancellationCutoffHours] = useState<number>(3);
+    const [confirmationTimeoutMinutes, setConfirmationTimeoutMinutes] = useState<number>(45);
+
+    // Substitution / Reassignment State
+    const [reassigningAlloc, setReassigningAlloc] = useState<RemedialAllocation | null>(null);
+    const [reassignTeacherId, setReassignTeacherId] = useState<string>('');
 
     // Manual Allocation Modal State
     const [showAllocModal, setShowAllocModal] = useState(false);
@@ -166,6 +173,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 setIncludeWeekendBreak(loadedIncludeBreak !== false);
                 const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
                 setTeacherPreferences(loadedTeacherPrefs);
+                setCancellationCutoffHours(r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? r.metadata?.cancellationCutoffHours ?? 3);
+                setConfirmationTimeoutMinutes(r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? r.metadata?.confirmationTimeoutMinutes ?? 45);
             }
         } catch (e) {
             console.error('Failed to load remedial data', e);
@@ -625,6 +634,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 max_lessons_per_day: maxLessonsPerDay,
                 maxWeekendLessonsPerDay,
                 max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                cancellationCutoffHours,
+                cancellation_cutoff_hours: cancellationCutoffHours,
+                confirmationTimeoutMinutes,
+                confirmation_timeout_minutes: confirmationTimeoutMinutes,
                 teacherPreferences,
                 teacher_preferences: teacherPreferences,
                 weekendBreakStartTime,
@@ -638,6 +651,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 metadata: {
                     maxWeekendLessonsPerDay,
                     max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                    cancellationCutoffHours,
+                    cancellation_cutoff_hours: cancellationCutoffHours,
+                    confirmationTimeoutMinutes,
+                    confirmation_timeout_minutes: confirmationTimeoutMinutes,
                     weekendBreakStartTime,
                     weekend_break_start_time: weekendBreakStartTime,
                     weekendBreakEndTime,
@@ -658,11 +675,146 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institution_id: institutionId
             };
             await apiService.saveRemedialRateSetting(data);
-            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Weekday Max ${maxLessonsPerDay}/day, Weekend Max ${maxWeekendLessonsPerDay}/day, Teacher Preferred Days configured`);
-            alert('Remedial rates, rules, and teacher preferred days updated successfully!');
+            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Cutoff ${cancellationCutoffHours}h, Timeout ${confirmationTimeoutMinutes}m, Teacher Preferred Days configured`);
+            alert('Remedial rates, rules, substitution window, and teacher preferred days updated successfully!');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to update rates');
+        }
+    };
+
+    // DOS Administrative Actions for Substitution
+    const handleDosAutoSubstitute = async (alloc: RemedialAllocation) => {
+        try {
+            setLoading(true);
+            const { bestCandidate, rankedCandidates } = rankSubstituteCandidates({
+                allocation: alloc,
+                candidates: teachersList,
+                allAllocations: allocations,
+                declinedTeacherIds: alloc.declinedTeacherIds || [],
+                teacherPreferences,
+                classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+                maxLessonsPerDay,
+                maxWeekendLessonsPerDay
+            });
+
+            if (!bestCandidate) {
+                alert('No qualified substitute teacher is currently available without timetable collisions or exceeding daily lesson limits.');
+                return;
+            }
+
+            const confirmMsg = `Auto-Assign Substitute:\n\nTop Candidate: ${bestCandidate.name}\nSubject Match: ${rankedCandidates[0]?.isSubjectMatch ? 'Yes' : 'No'}\nPriority Score: ${rankedCandidates[0]?.score}\nReasons: ${rankedCandidates[0]?.reasons.join(', ')}\n\nAssign ${bestCandidate.name} as pending substitute with a ${confirmationTimeoutMinutes}-minute confirmation deadline?`;
+            if (!window.confirm(confirmMsg)) return;
+
+            const updated: RemedialAllocation = {
+                ...alloc,
+                status: 'Substitute Pending',
+                originalTeacherId: alloc.originalTeacherId || alloc.teacherId,
+                originalTeacherName: alloc.originalTeacherName || alloc.teacherName,
+                substituteTeacherId: bestCandidate.id,
+                substituteTeacherName: bestCandidate.name,
+                confirmationDeadline: new Date(Date.now() + confirmationTimeoutMinutes * 60000).toISOString(),
+                cancelledAt: alloc.cancelledAt || new Date().toISOString()
+            };
+
+            await apiService.saveRemedialAllocation(updated);
+            onLogAction?.(`DOS auto-assigned substitute ${bestCandidate.name} for ${alloc.subjectName} (${alloc.className} ${alloc.stream || ''}) on ${alloc.dayOfWeek}`);
+            alert(`Substitute teacher ${bestCandidate.name} has been assigned and given ${confirmationTimeoutMinutes} minutes to confirm availability.`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to auto-assign substitute');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDosManualReassign = async (alloc: RemedialAllocation, targetTeacherId: string) => {
+        if (!targetTeacherId) return;
+        const targetTeacher = teachersList.find(t => t.id === targetTeacherId);
+        if (!targetTeacher) return;
+
+        if (!window.confirm(`Directly assign ${targetTeacher.name} as the confirmed teacher for ${alloc.subjectName} on ${alloc.dayOfWeek} at ${alloc.startTime}?`)) return;
+
+        try {
+            setLoading(true);
+            const updated: RemedialAllocation = {
+                ...alloc,
+                status: 'Confirmed',
+                teacherId: targetTeacher.id,
+                teacherName: targetTeacher.name,
+                substituteTeacherId: undefined,
+                substituteTeacherName: undefined,
+                confirmationDeadline: undefined
+            };
+
+            await apiService.saveRemedialAllocation(updated);
+            onLogAction?.(`DOS directly assigned ${targetTeacher.name} to ${alloc.subjectName} (${alloc.className} ${alloc.stream || ''}) on ${alloc.dayOfWeek}`);
+            alert(`Allocation updated! ${targetTeacher.name} is now the confirmed teacher for this lesson.`);
+            setReassigningAlloc(null);
+            setReassignTeacherId('');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to reassign teacher');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDosApprovePendingSub = async (alloc: RemedialAllocation) => {
+        if (!alloc.substituteTeacherId || !alloc.substituteTeacherName) return;
+        if (!window.confirm(`Confirm and permanently transfer this lesson to substitute ${alloc.substituteTeacherName}?`)) return;
+
+        try {
+            setLoading(true);
+            const updated: RemedialAllocation = {
+                ...alloc,
+                status: 'Confirmed',
+                teacherId: alloc.substituteTeacherId,
+                teacherName: alloc.substituteTeacherName,
+                substituteTeacherId: undefined,
+                substituteTeacherName: undefined,
+                confirmationDeadline: undefined
+            };
+
+            await apiService.saveRemedialAllocation(updated);
+            onLogAction?.(`DOS approved substitute ${alloc.substituteTeacherName} for ${alloc.subjectName} on ${alloc.dayOfWeek}`);
+            alert(`Substitute ${alloc.substituteTeacherName} is now confirmed for this lesson!`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to approve substitute');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDosRevertToOriginal = async (alloc: RemedialAllocation) => {
+        const origId = alloc.originalTeacherId || alloc.teacherId;
+        const origName = alloc.originalTeacherName || alloc.teacherName;
+        if (!window.confirm(`Revert this allocation back to original teacher ${origName}? Any pending substitute requests will be cancelled.`)) return;
+
+        try {
+            setLoading(true);
+            const updated: RemedialAllocation = {
+                ...alloc,
+                status: 'Confirmed',
+                teacherId: origId,
+                teacherName: origName,
+                substituteTeacherId: undefined,
+                substituteTeacherName: undefined,
+                confirmationDeadline: undefined,
+                cancellationReason: undefined,
+                cancelledAt: undefined,
+                declinedTeacherIds: []
+            };
+
+            await apiService.saveRemedialAllocation(updated);
+            onLogAction?.(`DOS reverted ${alloc.subjectName} on ${alloc.dayOfWeek} back to original teacher ${origName}`);
+            alert(`Allocation reverted back to ${origName}.`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to revert allocation');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -2474,10 +2626,37 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     All Streams
                                                 </span>
                                             )}
+                                            {alloc.status === 'Substitute Pending' && (
+                                                <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1">
+                                                    <Clock className="w-2.5 h-2.5 text-amber-600 animate-spin" /> Sub Pending ({getRemainingMinutes(alloc.confirmationDeadline)}m)
+                                                </span>
+                                            )}
+                                            {alloc.status === 'Escalated to DOS' && (
+                                                <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1 animate-pulse">
+                                                    <AlertTriangle className="w-2.5 h-2.5 text-rose-500" /> Need DOS Sub
+                                                </span>
+                                            )}
                                         </div>
-                                        <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                            <UserCheck className="w-3 h-3 text-slate-400" /> {alloc.teacherName}
-                                        </p>
+
+                                        <div className="space-y-0.5">
+                                            <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                                <UserCheck className="w-3 h-3 text-slate-400" /> 
+                                                <span className={alloc.substituteTeacherName ? 'line-through text-slate-400' : ''}>
+                                                    {alloc.teacherName}
+                                                </span>
+                                                {alloc.substituteTeacherName && (
+                                                    <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
+                                                        ↳ {alloc.substituteTeacherName}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            {alloc.cancellationReason && (
+                                                <p className="text-[8px] text-rose-500 italic truncate" title={alloc.cancellationReason}>
+                                                    Note: {alloc.cancellationReason}
+                                                </p>
+                                            )}
+                                        </div>
+
                                         {(() => {
                                             const streamPrefect = prefectsList.find(p => {
                                                 const cMatch = p.courseId === alloc.courseId || 
@@ -2495,6 +2674,56 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </p>
                                             );
                                         })()}
+
+                                        {/* DOS Action Bar on Card */}
+                                        <div className="pt-1.5 flex items-center justify-between gap-1 flex-wrap">
+                                            {alloc.status === 'Substitute Pending' && (
+                                                <div className="flex items-center gap-1 w-full justify-between">
+                                                    <button 
+                                                        onClick={() => handleDosApprovePendingSub(alloc)}
+                                                        className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                                        title="Directly confirm and lock this substitute"
+                                                    >
+                                                        <Check className="w-2.5 h-2.5" /> Confirm
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDosRevertToOriginal(alloc)}
+                                                        className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                                        title="Cancel substitute request and revert to original teacher"
+                                                    >
+                                                        <RotateCcw className="w-2.5 h-2.5" /> Revert
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {alloc.status === 'Escalated to DOS' && (
+                                                <div className="flex items-center gap-1 w-full justify-between">
+                                                    <button 
+                                                        onClick={() => handleDosAutoSubstitute(alloc)}
+                                                        className="px-2 py-0.5 bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                                        title="Run priority engine to auto-assign next substitute"
+                                                    >
+                                                        <Sparkles className="w-2.5 h-2.5" /> Auto-Sub
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
+                                                        className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                                        title="Manually select teacher"
+                                                    >
+                                                        <UserPlus className="w-2.5 h-2.5" /> Manual Pick
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {(!alloc.status || alloc.status === 'Confirmed') && (
+                                                <button 
+                                                    onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
+                                                    className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5 transition-colors"
+                                                    title="Reassign or replace teacher"
+                                                >
+                                                    <UserPlus className="w-2.5 h-2.5" /> Reassign
+                                                </button>
+                                            )}
+                                        </div>
+
                                         <div className="pt-1 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
                                             <span className="text-[9px] font-mono font-bold text-slate-400">
                                                 {alloc.startTime} - {alloc.endTime}
@@ -3072,6 +3301,52 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
                                             />
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 5. Teacher Lesson Cancellation & Auto-Substitution Rules */}
+                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                    <Shield className="w-3.5 h-3.5 text-indigo-500" /> Teacher Cancellation &amp; Auto-Substitution Rules
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                            ⏳ Cancellation Cutoff Window
+                                        </label>
+                                        <select 
+                                            value={cancellationCutoffHours}
+                                            onChange={e => setCancellationCutoffHours(Number(e.target.value))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        >
+                                            <option value={1}>1 Hour before lesson</option>
+                                            <option value={2}>2 Hours before lesson</option>
+                                            <option value={3}>3 Hours before lesson (Recommended)</option>
+                                            <option value={4}>4 Hours before lesson</option>
+                                            <option value={6}>6 Hours before lesson</option>
+                                            <option value={12}>12 Hours before lesson</option>
+                                            <option value={24}>24 Hours (1 Day before)</option>
+                                        </select>
+                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">Restricts teachers from cancelling too close to lesson time so substitute has adequate notice.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                            ⏱️ Substitute Confirmation Timeout
+                                        </label>
+                                        <select 
+                                            value={confirmationTimeoutMinutes}
+                                            onChange={e => setConfirmationTimeoutMinutes(Number(e.target.value))}
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        >
+                                            <option value={15}>15 Minutes</option>
+                                            <option value={30}>30 Minutes</option>
+                                            <option value={45}>45 Minutes (Recommended)</option>
+                                            <option value={60}>60 Minutes (1 Hour)</option>
+                                            <option value={90}>90 Minutes</option>
+                                            <option value={120}>120 Minutes (2 Hours)</option>
+                                        </select>
+                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">Time allowed for the substitute to confirm availability before cascading to next teacher.</p>
                                     </div>
                                 </div>
                             </div>
@@ -3936,6 +4211,94 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        )}
+
+        {/* ===== DOS MANUAL REASSIGN / SUBSTITUTE MODAL ===== */}
+        {reassigningAlloc && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                <UserPlus className="w-4 h-4 text-indigo-500" /> Reassign Lesson Teacher
+                            </h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Substitute or transfer teacher allocation</p>
+                        </div>
+                        <button
+                            onClick={() => { setReassigningAlloc(null); setReassignTeacherId(''); }}
+                            className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <div className="p-7 space-y-5">
+                        <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1.5">
+                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{reassigningAlloc.subjectName}</p>
+                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">
+                                {reassigningAlloc.className} {reassigningAlloc.stream && reassigningAlloc.stream !== 'All Streams' ? `• ${reassigningAlloc.stream}` : ''}
+                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                {reassigningAlloc.dayOfWeek} {reassigningAlloc.startTime} - {reassigningAlloc.endTime}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                                Current: <span className="font-bold text-slate-700 dark:text-slate-300">{reassigningAlloc.teacherName}</span>
+                            </p>
+                        </div>
+
+                        {/* Option 1: Trigger Smart Auto-Substitute Engine */}
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Option 1: Recommended Priority Engine</label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const allocToSub = reassigningAlloc;
+                                    setReassigningAlloc(null);
+                                    handleDosAutoSubstitute(allocToSub);
+                                }}
+                                className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center justify-center gap-2"
+                            >
+                                <Sparkles className="w-4 h-4" /> Auto-Find Best Substitute
+                            </button>
+                            <p className="text-[9px] text-slate-400 font-medium">Scoring evaluates subject specialization, day preferences, and collision freedom.</p>
+                        </div>
+
+                        <div className="relative flex py-1 items-center">
+                            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+                            <span className="flex-shrink mx-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">OR</span>
+                            <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+                        </div>
+
+                        {/* Option 2: Direct Manual Override */}
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Option 2: Direct Teacher Assignment
+                                </label>
+                                <select
+                                    value={reassignTeacherId}
+                                    onChange={e => setReassignTeacherId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                >
+                                    <option value="">-- Choose Target Teacher --</option>
+                                    {teachersList.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name} ({t.role || 'Teacher'})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button
+                                type="button"
+                                disabled={!reassignTeacherId}
+                                onClick={() => handleDosManualReassign(reassigningAlloc, reassignTeacherId)}
+                                className="w-full py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                <UserCheck className="w-4 h-4" /> Directly Assign Selected Teacher
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         )}
