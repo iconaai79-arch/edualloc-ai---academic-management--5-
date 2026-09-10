@@ -6350,6 +6350,10 @@ export interface RemedialRateSetting {
     weekendEndTime?: string;
     maxLessonsPerDay?: number;        // weekday limit (legacy + default)
     maxWeekendLessonsPerDay?: number; // weekend-specific limit
+    weekendBreakStartTime?: string;
+    weekendBreakEndTime?: string;
+    weekendBreakLabel?: string;
+    includeWeekendBreak?: boolean;
     feePerStudent: number;
     termFee: number;
     institutionId: string;
