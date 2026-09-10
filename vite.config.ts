@@ -121,16 +121,20 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      chunkSizeWarningLimit: 4500,
+      chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
           manualChunks(id) {
             const normalizedId = id.replace(/\\/g, '/').toLowerCase();
             if (normalizedId.includes('node_modules')) {
+              if (normalizedId.includes('react') || normalizedId.includes('react-dom') || normalizedId.includes('scheduler')) return 'vendor-react';
+              if (normalizedId.includes('@supabase') || normalizedId.includes('postgrest') || normalizedId.includes('gotrue')) return 'vendor-supabase';
+              if (normalizedId.includes('@google/generative-ai')) return 'vendor-ai';
               if (normalizedId.includes('tesseract.js')) return 'vendor-tesseract';
               if (normalizedId.includes('jspdf') || normalizedId.includes('jspdf-autotable')) return 'vendor-pdf';
               if (normalizedId.includes('xlsx')) return 'vendor-xlsx';
               if (normalizedId.includes('lucide-react')) return 'vendor-lucide';
+              if (normalizedId.includes('@capacitor')) return 'vendor-capacitor';
               return 'vendor';
             }
             if (normalizedId.includes('src/components/icons')) {

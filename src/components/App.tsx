@@ -1,42 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
-import { MarketingLandingPage } from './public/MarketingLandingPage';
-import { CampaignCommandView } from './CampaignCommandView';
-import { LoginView } from './LoginView';
 import { Header } from './Header';
-import { ChatBot } from './ChatBot';
-import { MandatoryUpdateView } from './MandatoryUpdateView';
-import { SuspendedAccountView } from './SuspendedAccountView';
-import { TrialExpiredView } from './TrialExpiredView';
-import { PublicAppointmentView } from './PublicAppointmentView';
-import { PublicLessonConfirmationView } from './public/PublicLessonConfirmationView';
-import { GuestFeedbackView } from './GuestFeedbackView';
-import { ProfileModal } from './ProfileModal';
-import { SecurityView, StoreView, InfoDeskView, SupplierView, TransportAssistantView } from './SupportStaffViews';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
-import { RetailCustomerPortal } from './retail/RetailCustomerPortal';
-import { RetailManager } from './retail/RetailManager';
-import { PrivateDriverBillingPortal } from './PrivateDriverBillingPortal';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
-import { BookDemoModal } from './public/BookDemoModal';
-import { AlumnaeRegistrationView } from './AlumnaeRegistrationView';
-import { AlumnaeActivationView } from './AlumnaeActivationView';
-import { AlumnaePortalView } from './AlumnaePortalView';
-import { AlumnaeSecureAccountView } from './AlumnaeSecureAccountView';
-import { AlumnaeLoginView } from './AlumnaeLoginView';
-import { InstitutionClaimView } from './InstitutionClaimView';
-import { ConstructionManager } from './ConstructionManager';
-import { ConstructionProjectView } from './ConstructionProjectView';
-
 import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
-import { BuildingSecurityManager } from './BuildingSecurityManager';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
-import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { detectTimetableConflicts } from '../utils/conflictUtils';
-import { generateInstitutionalDemoData } from '../utils/demoData';
 import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_COMPANY_DETAILS,
     INITIAL_ACADEMIC_LEVELS, INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS,
@@ -68,16 +40,12 @@ import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
-import { SimulatorLeadModal } from './public/SimulatorLeadModal';
 import { SystemPulseLoader } from './common/SystemPulseLoader';
 import { PerspectiveReturnButton } from './common/PerspectiveReturnButton';
 import { SchemaInitializationView } from './common/SchemaInitializationView';
 import { AppErrorBoundary } from './common/AppErrorBoundary';
 import { ToastProvider, useToast } from '../services/ToastContext';
 import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
-import { DSStudentPortal } from './ds/DSStudentPortal';
-import { SecurityKiosk } from './security/SecurityKiosk';
-import { ModuleOnboardingWizard } from './ModuleOnboardingWizard';
 import { localDb } from '../services/localDb';
 import { syncEngine } from '../services/syncEngine';
 import { OfflineSyncWidget } from './common/OfflineSyncWidget';
@@ -113,6 +81,38 @@ function safeLazy<T extends React.ComponentType<any>>(
         }
     });
 }
+
+const MarketingLandingPage = safeLazy(() => import('./public/MarketingLandingPage').then((m: any) => ({ default: m?.MarketingLandingPage || m?.default || m })));
+const LoginView = safeLazy(() => import('./LoginView').then((m: any) => ({ default: m?.LoginView || m?.default || m })));
+const ChatBot = safeLazy(() => import('./ChatBot').then((m: any) => ({ default: m?.ChatBot || m?.default || m })));
+const MandatoryUpdateView = safeLazy(() => import('./MandatoryUpdateView').then((m: any) => ({ default: m?.MandatoryUpdateView || m?.default || m })));
+const SuspendedAccountView = safeLazy(() => import('./SuspendedAccountView').then((m: any) => ({ default: m?.SuspendedAccountView || m?.default || m })));
+const TrialExpiredView = safeLazy(() => import('./TrialExpiredView').then((m: any) => ({ default: m?.TrialExpiredView || m?.default || m })));
+const PublicAppointmentView = safeLazy(() => import('./PublicAppointmentView').then((m: any) => ({ default: m?.PublicAppointmentView || m?.default || m })));
+const PublicLessonConfirmationView = safeLazy(() => import('./public/PublicLessonConfirmationView').then((m: any) => ({ default: m?.PublicLessonConfirmationView || m?.default || m })));
+const GuestFeedbackView = safeLazy(() => import('./GuestFeedbackView').then((m: any) => ({ default: m?.GuestFeedbackView || m?.default || m })));
+const ProfileModal = safeLazy(() => import('./ProfileModal').then((m: any) => ({ default: m?.ProfileModal || m?.default || m })));
+const SecurityView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.SecurityView || m?.default })));
+const StoreView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.StoreView || m?.default })));
+const InfoDeskView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.InfoDeskView || m?.default })));
+const SupplierView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.SupplierView || m?.default })));
+const TransportAssistantView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.TransportAssistantView || m?.default })));
+const RetailCustomerPortal = safeLazy(() => import('./retail/RetailCustomerPortal').then((m: any) => ({ default: m?.RetailCustomerPortal || m?.default || m })));
+const RetailManager = safeLazy(() => import('./retail/RetailManager').then((m: any) => ({ default: m?.RetailManager || m?.default || m })));
+const BookDemoModal = safeLazy(() => import('./public/BookDemoModal').then((m: any) => ({ default: m?.BookDemoModal || m?.default || m })));
+const AlumnaeRegistrationView = safeLazy(() => import('./AlumnaeRegistrationView').then((m: any) => ({ default: m?.AlumnaeRegistrationView || m?.default || m })));
+const AlumnaeActivationView = safeLazy(() => import('./AlumnaeActivationView').then((m: any) => ({ default: m?.AlumnaeActivationView || m?.default || m })));
+const AlumnaePortalView = safeLazy(() => import('./AlumnaePortalView').then((m: any) => ({ default: m?.AlumnaePortalView || m?.default || m })));
+const AlumnaeSecureAccountView = safeLazy(() => import('./AlumnaeSecureAccountView').then((m: any) => ({ default: m?.AlumnaeSecureAccountView || m?.default || m })));
+const AlumnaeLoginView = safeLazy(() => import('./AlumnaeLoginView').then((m: any) => ({ default: m?.AlumnaeLoginView || m?.default || m })));
+const InstitutionClaimView = safeLazy(() => import('./InstitutionClaimView').then((m: any) => ({ default: m?.InstitutionClaimView || m?.default || m })));
+const ConstructionManager = safeLazy(() => import('./ConstructionManager').then((m: any) => ({ default: m?.ConstructionManager || m?.default || m })));
+const ConstructionProjectView = safeLazy(() => import('./ConstructionProjectView').then((m: any) => ({ default: m?.ConstructionProjectView || m?.default || m })));
+const BuildingSecurityManager = safeLazy(() => import('./BuildingSecurityManager').then((m: any) => ({ default: m?.BuildingSecurityManager || m?.default || m })));
+const SimulatorLeadModal = safeLazy(() => import('./public/SimulatorLeadModal').then((m: any) => ({ default: m?.SimulatorLeadModal || m?.default || m })));
+const DSStudentPortal = safeLazy(() => import('./ds/DSStudentPortal').then((m: any) => ({ default: m?.DSStudentPortal || m?.default || m })));
+const SecurityKiosk = safeLazy(() => import('./security/SecurityKiosk').then((m: any) => ({ default: m?.SecurityKiosk || m?.default || m })));
+const ModuleOnboardingWizard = safeLazy(() => import('./ModuleOnboardingWizard').then((m: any) => ({ default: m?.ModuleOnboardingWizard || m?.default || m })));
 
 const PrivacyPolicy = safeLazy(() => import('../pages/PrivacyPolicy'));
 const TermsOfService = safeLazy(() => import('../pages/TermsOfService'));
@@ -185,8 +185,8 @@ const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then((
 const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then((m: any) => ({ default: m?.PublicResultSlipPortal || m?.default || m })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then((m: any) => ({ default: m?.DSInterestPage || m?.default || m })));
 const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then((m: any) => ({ default: m?.RestaurantPOSManager || m?.default || m })));
-import HealthCoreView from './his/HealthCoreView';
-import ModernPharmacyManager from './his/ModernPharmacyManager';
+const HealthCoreView = safeLazy(() => import('./his/HealthCoreView').then((m: any) => ({ default: m?.HealthCoreView || m?.default || m })));
+const ModernPharmacyManager = safeLazy(() => import('./his/ModernPharmacyManager').then((m: any) => ({ default: m?.ModernPharmacyManager || m?.default || m })));
 const CarServiceView = safeLazy(() => import('./carservice/CarServiceView').then((m: any) => ({ default: m?.CarServiceView || m?.default || m })));
 
 
@@ -4194,6 +4194,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         // Generate Demo Data automagically for simulators
         try {
             const demoUserId = `demo_user_${instId}`;
+            const { generateInstitutionalDemoData } = await import('../utils/demoData');
             const demoData = generateInstitutionalDemoData(instId, demoUserId);
             
             // Extract the table map from handleGenerateDemoData logic
@@ -4752,6 +4753,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         setDemoDataGenerationProgress(5);
         
         try {
+            const { generateInstitutionalDemoData } = await import('../utils/demoData');
             const demoData = generateInstitutionalDemoData(activeInstitution.id, currentUser.id);
             
             // Map demoData keys to table names
@@ -6934,38 +6936,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isSuspended = !isReseller && inst && inst.status === 'suspended';
 
             if (inst && !isReseller && (isSuspended || isSubscriptionExpired || hasOverdueBill)) {
-                return <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
-                    await apiService.saveModuleRecord('institution_extension_requests', {
-                        id: `ext_${Date.now()}`,
-                        institutionId: inst.id,
-                        requesterId: currentUser.id,
-                        reason,
-                        status: 'pending',
-                        requestedAt: new Date().toISOString()
-                    });
-                    loadData();
-                }} />;
-            }
-
-            const trialEnded = !isReseller && inst && inst.status === 'trial' && trialEndDate !== null && trialEndDate < now;
-            if (trialEnded) {
                 return (
-                    <TrialExpiredView
-                        user={currentUser}
-                        institution={inst}
-                        companyDetails={companyDetails}
-                        onLogout={handleLogout}
-                        onPay={async (paymentData, items) => {
-                            const status = await apiService.onAddTransaction({
-                                ...paymentData,
-                                institutionId: inst.id,
-                                provider: 'mpesa',
-                                paymentMethod: 'stk'
-                            } as any, items);
-                            if (status === 'completed') loadData();
-                            return status;
-                        }}
-                        onRequestExtension={async (reason) => {
+                    <Suspense fallback={<SystemPulseLoader message="Verifying Account Access..." />}>
+                        <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
                             await apiService.saveModuleRecord('institution_extension_requests', {
                                 id: `ext_${Date.now()}`,
                                 institutionId: inst.id,
@@ -6975,24 +6948,67 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 requestedAt: new Date().toISOString()
                             });
                             loadData();
-                        }}
-                    />
+                        }} />
+                    </Suspense>
+                );
+            }
+
+            const trialEnded = !isReseller && inst && inst.status === 'trial' && trialEndDate !== null && trialEndDate < now;
+            if (trialEnded) {
+                return (
+                    <Suspense fallback={<SystemPulseLoader message="Verifying Trial Status..." />}>
+                        <TrialExpiredView
+                            user={currentUser}
+                            institution={inst}
+                            companyDetails={companyDetails}
+                            onLogout={handleLogout}
+                            onPay={async (paymentData, items) => {
+                                const status = await apiService.onAddTransaction({
+                                    ...paymentData,
+                                    institutionId: inst.id,
+                                    provider: 'mpesa',
+                                    paymentMethod: 'stk'
+                                } as any, items);
+                                if (status === 'completed') loadData();
+                                return status;
+                            }}
+                            onRequestExtension={async (reason) => {
+                                await apiService.saveModuleRecord('institution_extension_requests', {
+                                    id: `ext_${Date.now()}`,
+                                    institutionId: inst.id,
+                                    requesterId: currentUser.id,
+                                    reason,
+                                    status: 'pending',
+                                    requestedAt: new Date().toISOString()
+                                });
+                                loadData();
+                            }}
+                        />
+                    </Suspense>
                 );
             }
         }
         if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_') && currentUser.role !== 'super_admin' && !originalSuperAdminSession && !isSimulatorMode) {
-            return <MandatoryUpdateView user={currentUser} onUpdate={async (pData, passData) => {
-                try {
-                    const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
-                    await apiService.saveUser(updated);
-                    setCurrentUser(updated);
-                    apiService.storeSession(updated);
-                    // Explicitly reload all data to ensure other components pick up the change
-                    await loadData();
-                } catch (err: any) {
-                    toastError(`Failed to activate account: ${err.message || 'Unknown error'}`);
-                }
-            }} onLogout={handleLogout} logoUrl={activeBranding.logoUrl} />;
+            return (
+                <Suspense fallback={<SystemPulseLoader message="Security Handshake..." />}>
+                    <MandatoryUpdateView 
+                        user={currentUser} 
+                        onUpdate={async (pData, passData) => {
+                            try {
+                                const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
+                                await apiService.saveUser(updated);
+                                setCurrentUser(updated);
+                                apiService.storeSession(updated);
+                                await loadData();
+                            } catch (err: any) {
+                                toastError(`Failed to activate account: ${err.message || 'Unknown error'}`);
+                            }
+                        }} 
+                        onLogout={handleLogout} 
+                        logoUrl={activeBranding.logoUrl} 
+                    />
+                </Suspense>
+            );
         }
     }
 
@@ -7002,10 +7018,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     return (
         <AppErrorBoundary>
             {targetManageLessonId ? (
-                <PublicLessonConfirmationView 
-                    lessonId={targetManageLessonId} 
-                    onClose={() => { window.location.href = '/'; }} 
-                />
+                <Suspense fallback={<SystemPulseLoader message="Loading Lesson Confirmation..." />}>
+                    <PublicLessonConfirmationView 
+                        lessonId={targetManageLessonId} 
+                        onClose={() => { window.location.href = '/'; }} 
+                    />
+                </Suspense>
             ) : showPublicEventConfirmation ? (
                 <Suspense fallback={<SystemPulseLoader message="Loading Event Confirmation..." />}>
                     <PublicEventConfirmation />
@@ -7026,17 +7044,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             )}
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
                 {showMarketing ? (
-                    <MarketingLandingPage 
-                        onLogin={() => setShowMarketing(false)}
-                        onBookDemo={() => setShowBookDemo(true)}
-                        onOpenStore={() => { setShowMarketing(false); setShowMarketplace(true); }}
-                        onLaunchSimulator={handleLaunchSimulator}
-                        onRegister={(modId) => {
-                            setRegistrationModuleId(modId);
-                            setLoginInitialView('register');
-                            setShowMarketing(false);
-                        }}
-                    />
+                    <Suspense fallback={<SystemPulseLoader message="Loading EduAI Showcase..." />}>
+                        <MarketingLandingPage 
+                            onLogin={() => setShowMarketing(false)}
+                            onBookDemo={() => setShowBookDemo(true)}
+                            onOpenStore={() => { setShowMarketing(false); setShowMarketplace(true); }}
+                            onLaunchSimulator={handleLaunchSimulator}
+                            onRegister={(modId) => {
+                                setRegistrationModuleId(modId);
+                                setLoginInitialView('register');
+                                setShowMarketing(false);
+                            }}
+                        />
+                    </Suspense>
                 ) : currentUser ? (
                     <>
                         <Header
@@ -7060,9 +7080,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 if (isStrictTeacherUser(currentUser) && !isTeacherRole(r)) {
                                     return;
                                 }
-                                setSelectedRole(r);
+                                React.startTransition(() => {
+                                    setSelectedRole(r);
+                                });
                             }}
-                            onExitPerspective={(impersonatedRole || selectedRole) ? () => { setImpersonatedRole(null); setSelectedRole(null); } : undefined}
+                            onExitPerspective={(impersonatedRole || selectedRole) ? () => {
+                                React.startTransition(() => {
+                                    setImpersonatedRole(null);
+                                    setSelectedRole(null);
+                                });
+                            } : undefined}
                             onToggleHealthSystem={() => setIsHealthSystemOpen(!isHealthSystemOpen)}
                             onTogglePharmacySystem={() => setIsPharmacySystemOpen(!isPharmacySystemOpen)}
                             isHealthSystemOpen={isHealthSystemOpen}
@@ -8818,7 +8845,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         )}
                     </Suspense>
                 )}
-                {companyDetails.chatAssistantConfig?.enabled && <ChatBot welcomeMessage={companyDetails.chatAssistantConfig?.welcomeMessage} currentInstitution={activeInstitution} />}
+                {companyDetails.chatAssistantConfig?.enabled && (
+                    <Suspense fallback={null}>
+                        <ChatBot welcomeMessage={companyDetails.chatAssistantConfig?.welcomeMessage} currentInstitution={activeInstitution} />
+                    </Suspense>
+                )}
                 <PerspectiveReturnButton
                     role={impersonatedRole}
                     isImpersonatedSession={!!originalSuperAdminSession}
@@ -8846,67 +8877,77 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }}
                     onRestoreSession={onRestoreSuperAdminSession}
                 />
-                                {showBookDemo && <BookDemoModal onClose={() => setShowBookDemo(false)} />}
+                {showBookDemo && (
+                    <Suspense fallback={null}>
+                        <BookDemoModal onClose={() => setShowBookDemo(false)} />
+                    </Suspense>
+                )}
                 {isProfileModalOpen && currentUser && (
-                    <ProfileModal
-                        currentUser={currentUser}
-                        currentInstitution={activeInstitution}
-                        onClose={() => setIsProfileModalOpen(false)}
-                        onSave={async (id, data) => {
-                            await onEditUser(id, data);
-                            setIsProfileModalOpen(false);
-                            await handleLogAction(`Updated personal profile`);
-                        }}
-                        onChangePassword={async (id, data) => {
-                            try {
-                                await apiService.updateModuleRecord('users', currentUser.id, { password: data.newPassword });
-                                return { success: true, message: 'Password updated successfully' };
-                            } catch (err: any) {
-                                return { success: false, message: err.message || 'Failed to update password' };
-                            }
-                        }}
-                        onManageUnavailability={() => {
-                            info("Unavailability management coming soon.");
-                        }}
-                    />
+                    <Suspense fallback={null}>
+                        <ProfileModal
+                            currentUser={currentUser}
+                            currentInstitution={activeInstitution}
+                            onClose={() => setIsProfileModalOpen(false)}
+                            onSave={async (id, data) => {
+                                await onEditUser(id, data);
+                                setIsProfileModalOpen(false);
+                                await handleLogAction(`Updated personal profile`);
+                            }}
+                            onChangePassword={async (id, data) => {
+                                try {
+                                    await apiService.updateModuleRecord('users', currentUser.id, { password: data.newPassword });
+                                    return { success: true, message: 'Password updated successfully' };
+                                } catch (err: any) {
+                                    return { success: false, message: err.message || 'Failed to update password' };
+                                }
+                            }}
+                            onManageUnavailability={() => {
+                                info("Unavailability management coming soon.");
+                            }}
+                        />
+                    </Suspense>
                 )}
                 {showSimulatorLeadModal && pendingSimulatorLaunch && (
-                    <SimulatorLeadModal 
-                        moduleName={SIMULATOR_NAMES[pendingSimulatorLaunch.modId] || pendingSimulatorLaunch.modId}
-                        onClose={() => {
-                            setShowSimulatorLeadModal(false);
-                            setPendingSimulatorLaunch(null);
-                        }}
-                        onSuccess={() => {
-                            localStorage.setItem('eduai_simulator_lead_captured', 'true');
-                            const { role, modId } = pendingSimulatorLaunch;
-                            setShowSimulatorLeadModal(false);
-                            setPendingSimulatorLaunch(null);
-                            handleLaunchSimulator(role, modId);
-                        }}
-                    />
+                    <Suspense fallback={null}>
+                        <SimulatorLeadModal 
+                            moduleName={SIMULATOR_NAMES[pendingSimulatorLaunch.modId] || pendingSimulatorLaunch.modId}
+                            onClose={() => {
+                                setShowSimulatorLeadModal(false);
+                                setPendingSimulatorLaunch(null);
+                            }}
+                            onSuccess={() => {
+                                localStorage.setItem('eduai_simulator_lead_captured', 'true');
+                                const { role, modId } = pendingSimulatorLaunch;
+                                setShowSimulatorLeadModal(false);
+                                setPendingSimulatorLaunch(null);
+                                handleLaunchSimulator(role, modId);
+                            }}
+                        />
+                    </Suspense>
                 )}
             </div>
                 </>
             )}
             {showModuleOnboarding && activeInstitution && (
-                <ModuleOnboardingWizard
-                    institution={activeInstitution}
-                    onActivateModules={async (moduleIds: string[]) => {
-                        for (const moduleId of moduleIds) {
-                            try {
-                                await apiService.activateModuleTrial(moduleId, activeInstitution.id);
-                            } catch (e) {
-                                console.error(`[Onboarding] Failed to activate module ${moduleId}:`, e);
+                <Suspense fallback={null}>
+                    <ModuleOnboardingWizard
+                        institution={activeInstitution}
+                        onActivateModules={async (moduleIds: string[]) => {
+                            for (const moduleId of moduleIds) {
+                                try {
+                                    await apiService.activateModuleTrial(moduleId, activeInstitution.id);
+                                } catch (e) {
+                                    console.error(`[Onboarding] Failed to activate module ${moduleId}:`, e);
+                                }
                             }
-                        }
-                        await loadData();
-                    }}
-                    onDismiss={() => {
-                        localStorage.setItem(`edu_onboarding_dismissed_${activeInstitution.id}`, 'true');
-                        setShowModuleOnboarding(false);
-                    }}
-                />
+                            await loadData();
+                        }}
+                        onDismiss={() => {
+                            localStorage.setItem(`edu_onboarding_dismissed_${activeInstitution.id}`, 'true');
+                            setShowModuleOnboarding(false);
+                        }}
+                    />
+                </Suspense>
             )}
         </AppErrorBoundary>
     );

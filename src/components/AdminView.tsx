@@ -1185,14 +1185,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [requests]);
 
     const handleQuickAction = (tabId: string, settingsSubTab?: string, tTabSub?: 'scheduler' | 'calendar' | 'subjects' | 'registry') => {
-        if (tabId === 'billing') {
-            setActiveTab('settings');
-            setRequestedSettingsTab('billing');
-            return;
-        }
-        setActiveTab(tabId as any);
-        if (settingsSubTab) setRequestedSettingsTab(settingsSubTab);
-        if (tTabSub) setTimetableSubTab(tTabSub);
+        React.startTransition(() => {
+            if (tabId === 'billing') {
+                setActiveTab('settings');
+                setRequestedSettingsTab('billing');
+                return;
+            }
+            setActiveTab(tabId as any);
+            if (settingsSubTab) setRequestedSettingsTab(settingsSubTab);
+            if (tTabSub) setTimetableSubTab(tTabSub);
+        });
     };
 
     const perspectiveOptions = [
@@ -1320,8 +1322,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             <button
                                 key={tab.id}
                                 onClick={() => {
-                                    setActiveTab(tab.id as any);
-                                    if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
+                                    React.startTransition(() => {
+                                        setActiveTab(tab.id as any);
+                                        if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
+                                    });
                                 }}
                                 className={`flex items-center gap-2 py-4 px-6 border-b-2 font-black text-xs uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
                                     ? 'border-indigo-600 text-indigo-600'
