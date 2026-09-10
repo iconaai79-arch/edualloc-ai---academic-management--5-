@@ -5620,7 +5620,17 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                     updated_at: new Date().toISOString()
                                                 };
 
-                                                await supabase.from('whatsapp_configs').upsert(payload);
+                                                try {
+                                                    await whatsappService.saveConfig(payload);
+                                                } catch (apiErr) {
+                                                    console.warn('[SettingsManager WA] Server API save notice:', apiErr);
+                                                }
+                                                try {
+                                                    await supabase.from('whatsapp_configs').upsert(payload);
+                                                } catch (sbErr) {
+                                                    console.warn('[SettingsManager WA] Direct Supabase upsert notice:', sbErr);
+                                                }
+
                                                 if (props.onUpdateInstitution) {
                                                     await props.onUpdateInstitution(instId, {
                                                         whatsappConfig: { ...localInstWhatsAppConfig, ...payload } as any

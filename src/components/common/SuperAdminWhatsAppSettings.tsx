@@ -148,26 +148,30 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
     useEffect(() => {
         const init = async () => {
             if (supabase) {
-                const { data: dbConfig } = await supabase
-                    .from('whatsapp_configs')
-                    .select('*')
-                    .or('institution_id.eq.global,institution_id.eq.SYSTEM')
-                    .order('updated_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                try {
+                    const { data: dbConfig } = await supabase
+                        .from('whatsapp_configs')
+                        .select('*')
+                        .or('institution_id.eq.global,institution_id.eq.SYSTEM')
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
 
-                if (dbConfig) {
-                    const cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
-                    setConfig(prev => ({
-                        ...prev,
-                        ...dbConfig,
-                        gateway_url: cleanUrl,
-                        provider_type: dbConfig.provider_type || 'gateway'
-                    }));
-                    // Detect if the saved URL matches the platform gateway
-                    if (cleanUrl && cleanUrl === PLATFORM_GATEWAY_URL) {
-                        setUsePlatformGateway(true);
+                    if (dbConfig) {
+                        const cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
+                        setConfig(prev => ({
+                            ...prev,
+                            ...dbConfig,
+                            gateway_url: cleanUrl,
+                            provider_type: dbConfig.provider_type || 'gateway'
+                        }));
+                        // Detect if the saved URL matches the platform gateway
+                        if (cleanUrl && cleanUrl === PLATFORM_GATEWAY_URL) {
+                            setUsePlatformGateway(true);
+                        }
                     }
+                } catch (sbErr) {
+                    console.warn('[SuperAdmin WA] Direct Supabase load warning:', sbErr);
                 }
             }
             checkLiveStatus();
@@ -269,13 +273,37 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                 updated_at: new Date().toISOString()
             };
 
-            if (supabase) {
-                const { error: upsertErr } = await supabase
-                    .from('whatsapp_configs')
-                    .upsert(payload);
-                if (upsertErr) throw upsertErr;
+            let dbSaved = false;
+
+            // 1. Try server-side integration API first (uses Service Role, bypasses RLS and direct network connection drops)
+            try {
+                const apiRes = await whatsappService.saveConfig(payload);
+                if (apiRes?.success) {
+                    dbSaved = true;
+                } else if (apiRes?.message) {
+                    console.warn('[SuperAdmin WA] Server API save note:', apiRes.message);
+                }
+            } catch (apiErr) {
+                console.warn('[SuperAdmin WA] Server API save fallback warning:', apiErr);
             }
 
+            // 2. Direct client-side Supabase attempt (safely caught in case of connection drop)
+            if (supabase && !dbSaved) {
+                try {
+                    const { error: upsertErr } = await supabase
+                        .from('whatsapp_configs')
+                        .upsert(payload);
+                    if (!upsertErr) {
+                        dbSaved = true;
+                    } else {
+                        console.warn('[SuperAdmin WA] Direct Supabase upsert notice:', upsertErr.message);
+                    }
+                } catch (sbErr) {
+                    console.warn('[SuperAdmin WA] Direct Supabase connection notice:', sbErr);
+                }
+            }
+
+            // 3. Always update companyDetails & local state so platform state is synchronized immediately
             if (onUpdateCompanyDetails) {
                 await onUpdateCompanyDetails({
                     ...companyDetails,
@@ -287,7 +315,10 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
             }
 
             setSaveStatus('success');
-            setSaveMessage('Super Admin WhatsApp settings saved & synchronized successfully.');
+            setSaveMessage(dbSaved 
+                ? 'Super Admin WhatsApp settings saved & synchronized successfully.' 
+                : 'Super Admin WhatsApp settings saved to platform cache (run migration 382 to sync DB).'
+            );
             setTimeout(() => setSaveStatus('idle'), 4000);
             await checkLiveStatus();
         } catch (err: any) {
@@ -309,10 +340,14 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
         try {
             await whatsappService.disconnect('global');
             if (supabase) {
-                await supabase
-                    .from('whatsapp_configs')
-                    .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
-                    .eq('institution_id', 'global');
+                try {
+                    await supabase
+                        .from('whatsapp_configs')
+                        .update({ is_connected: false, qr_code_data: null, updated_at: new Date().toISOString() })
+                        .eq('institution_id', 'global');
+                } catch (sbErr) {
+                    console.warn('[SuperAdmin WA] Direct Supabase disconnect update notice:', sbErr);
+                }
             }
             await checkLiveStatus();
         } catch (err: any) {

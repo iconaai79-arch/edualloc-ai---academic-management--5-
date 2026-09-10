@@ -176,6 +176,24 @@ export const whatsappService = {
         }
     },
 
+    /**
+     * Save WhatsApp configuration to database via server API (using Service Role)
+     */
+    async saveConfig(config: Partial<WhatsAppConfig>): Promise<{ success: boolean; data?: any; message?: string }> {
+        try {
+            const res = await apiService.post('/api/integrations', {
+                action: 'saveWhatsAppConfig',
+                config
+            });
+            return res || { success: true };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: error?.message || 'Failed to save WhatsApp configuration'
+            };
+        }
+    },
+
 
     /**
      * Send instant payment receipt over WhatsApp

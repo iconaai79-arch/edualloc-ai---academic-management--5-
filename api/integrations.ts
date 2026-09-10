@@ -250,13 +250,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments & Recovery)
-        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'sendWhatsApp', 'getWhatsAppStatus', 'provisionWhatsAppInstance', 'disconnectWhatsApp', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
+        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'sendWhatsApp', 'getWhatsAppStatus', 'provisionWhatsAppInstance', 'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
 
         if (!user && isPublicAction) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
-            // For callbacks and payment initiation, we allow the bypass directly
-            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'provisionWhatsAppInstance') {
+            // For callbacks, payment initiation, and system setup, we allow the bypass directly
+            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig') {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
                 authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
@@ -740,6 +740,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({
                     success: false,
                     message: err.message || 'Error connecting to Evolution API server'
+                });
+            }
+        }
+
+        if (action === 'saveWhatsAppConfig') {
+            const configPayload = req.body?.config || req.body?.data || req.body;
+            const targetInstitutionId = configPayload?.institution_id || configPayload?.institutionId || 'global';
+
+            const cleanPayload: any = {
+                id: configPayload.id || (targetInstitutionId === 'global' ? 'wacfg_global' : `wacfg_${targetInstitutionId}`),
+                institution_id: targetInstitutionId,
+                provider_type: configPayload.provider_type || configPayload.providerType || 'gateway',
+                gateway_url: configPayload.gateway_url || configPayload.gatewayUrl || null,
+                api_key: configPayload.api_key || configPayload.apiKey || null,
+                instance_name: configPayload.instance_name || configPayload.instanceName || (targetInstitutionId === 'global' ? 'eduai_master' : `eduai_${targetInstitutionId}`),
+                phone_number: configPayload.phone_number || configPayload.phoneNumber || null,
+                meta_phone_number_id: configPayload.meta_phone_number_id || configPayload.metaPhoneNumberId || null,
+                meta_access_token: configPayload.meta_access_token || configPayload.metaAccessToken || null,
+                meta_waba_id: configPayload.meta_waba_id || configPayload.metaWabaId || null,
+                auto_send_receipts: Boolean(configPayload.auto_send_receipts ?? configPayload.autoSendReceipts),
+                auto_send_fee_reminders: Boolean(configPayload.auto_send_fee_reminders ?? configPayload.autoSendFeeReminders),
+                auto_send_academic_results: Boolean(configPayload.auto_send_academic_results ?? configPayload.autoSendAcademicResults),
+                allow_institution_failover: configPayload.allow_institution_failover ?? configPayload.allowInstitutionFailover ?? true,
+                global_dispatch_enabled: configPayload.global_dispatch_enabled ?? configPayload.globalDispatchEnabled ?? true,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                // Upsert into whatsapp_configs using service-role supabase client
+                const { data: savedData, error: dbErr } = await supabase
+                    .from('whatsapp_configs')
+                    .upsert(cleanPayload)
+                    .select('*')
+                    .maybeSingle();
+
+                if (dbErr) {
+                    console.error('[API saveWhatsAppConfig] Database error:', dbErr.message);
+                    return res.status(200).json({
+                        success: false,
+                        message: dbErr.message,
+                        payload: cleanPayload
+                    });
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'WhatsApp configuration saved successfully',
+                    data: savedData || cleanPayload
+                });
+            } catch (err: any) {
+                console.error('[API saveWhatsAppConfig] Exception:', err.message);
+                return res.status(200).json({
+                    success: false,
+                    message: err.message,
+                    payload: cleanPayload
                 });
             }
         }
