@@ -948,6 +948,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanDsStudent) : cleanDsStudent(currentPayload);
             }
+            if (moduleName === 'school_remedial_rate_settings') {
+                const cleanRemedialRateSettings = (rec: any) => {
+                    if (!rec || typeof rec !== 'object') return rec;
+                    const copy = { ...rec };
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.hourlyRate !== undefined && copy.hourly_rate === undefined) copy.hourly_rate = copy.hourlyRate;
+                    if (copy.weekdayHourlyRate !== undefined && copy.weekday_hourly_rate === undefined) copy.weekday_hourly_rate = copy.weekdayHourlyRate;
+                    if (copy.weekendHourlyRate !== undefined && copy.weekend_hourly_rate === undefined) copy.weekend_hourly_rate = copy.weekendHourlyRate;
+                    if (copy.weekdayStartTime !== undefined && copy.weekday_start_time === undefined) copy.weekday_start_time = copy.weekdayStartTime;
+                    if (copy.weekdayEndTime !== undefined && copy.weekday_end_time === undefined) copy.weekday_end_time = copy.weekdayEndTime;
+                    if (copy.weekendStartTime !== undefined && copy.weekend_start_time === undefined) copy.weekend_start_time = copy.weekendStartTime;
+                    if (copy.weekendEndTime !== undefined && copy.weekend_end_time === undefined) copy.weekend_end_time = copy.weekendEndTime;
+                    if (copy.maxLessonsPerDay !== undefined && copy.max_lessons_per_day === undefined) copy.max_lessons_per_day = copy.maxLessonsPerDay;
+                    if (copy.maxWeekendLessonsPerDay !== undefined && copy.max_weekend_lessons_per_day === undefined) copy.max_weekend_lessons_per_day = copy.maxWeekendLessonsPerDay;
+                    if (copy.feePerStudent !== undefined && copy.fee_per_student === undefined) copy.fee_per_student = copy.feePerStudent;
+                    if (copy.termFee !== undefined && copy.term_fee === undefined) copy.term_fee = copy.termFee;
+                    delete copy.institutionId;
+                    delete copy.hourlyRate;
+                    delete copy.weekdayHourlyRate;
+                    delete copy.weekendHourlyRate;
+                    delete copy.weekdayStartTime;
+                    delete copy.weekdayEndTime;
+                    delete copy.weekendStartTime;
+                    delete copy.weekendEndTime;
+                    delete copy.maxLessonsPerDay;
+                    delete copy.maxWeekendLessonsPerDay;
+                    delete copy.feePerStudent;
+                    delete copy.termFee;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialRateSettings) : cleanRemedialRateSettings(currentPayload);
+            }
 
             if (moduleName === 'sms_logs') {
                 const cleanSmsLog = (log: any) => {

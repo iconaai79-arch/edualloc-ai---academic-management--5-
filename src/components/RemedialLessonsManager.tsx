@@ -123,18 +123,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             setRemedialSubjects(remSubList);
 
             if (rates && rates.length > 0) {
-                setRateSetting(rates[0]);
-                setHourlyRate(rates[0].hourlyRate || 1000);
-                setWeekdayHourlyRate(rates[0].weekdayHourlyRate ?? rates[0].hourlyRate ?? 1000);
-                setWeekendHourlyRate(rates[0].weekendHourlyRate ?? 1500);
-                setWeekdayStartTime(rates[0].weekdayStartTime || '16:00');
-                setWeekdayEndTime(rates[0].weekdayEndTime || '18:00');
-                setWeekendStartTime(rates[0].weekendStartTime || '08:00');
-                setWeekendEndTime(rates[0].weekendEndTime || '12:00');
-                setMaxLessonsPerDay(rates[0].maxLessonsPerDay ?? 1);
-                setMaxWeekendLessonsPerDay(rates[0].maxWeekendLessonsPerDay ?? rates[0].maxLessonsPerDay ?? 2);
-                setFeePerStudent(rates[0].feePerStudent || 200);
-                setTermFee(rates[0].termFee || 3000);
+                const r: any = rates[0];
+                setRateSetting(r);
+                setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
+                setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
+                setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
+                setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
+                setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
+                setWeekendStartTime(r.weekendStartTime || r.weekend_start_time || '08:00');
+                setWeekendEndTime(r.weekendEndTime || r.weekend_end_time || '12:00');
+                setMaxLessonsPerDay(r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1);
+                setMaxWeekendLessonsPerDay(r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 2);
+                setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
+                setTermFee(r.termFee ?? r.term_fee ?? 3000);
             }
         } catch (e) {
             console.error('Failed to load remedial data', e);
@@ -392,20 +393,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Save Rate Settings
     const handleSaveRates = async () => {
         try {
-            const data: Partial<RemedialRateSetting> = {
+            const data: any = {
                 id: rateSetting?.id || `rate_${Date.now()}`,
                 hourlyRate: weekdayHourlyRate,
+                hourly_rate: weekdayHourlyRate,
                 weekdayHourlyRate,
+                weekday_hourly_rate: weekdayHourlyRate,
                 weekendHourlyRate,
+                weekend_hourly_rate: weekendHourlyRate,
                 weekdayStartTime,
+                weekday_start_time: weekdayStartTime,
                 weekdayEndTime,
+                weekday_end_time: weekdayEndTime,
                 weekendStartTime,
+                weekend_start_time: weekendStartTime,
                 weekendEndTime,
+                weekend_end_time: weekendEndTime,
                 maxLessonsPerDay,
+                max_lessons_per_day: maxLessonsPerDay,
                 maxWeekendLessonsPerDay,
+                max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
                 feePerStudent,
+                fee_per_student: feePerStudent,
                 termFee,
-                institutionId
+                term_fee: termFee,
+                institutionId,
+                institution_id: institutionId
             };
             await apiService.saveRemedialRateSetting(data);
             onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Weekday Max ${maxLessonsPerDay}/day, Weekend Max ${maxWeekendLessonsPerDay}/day`);
