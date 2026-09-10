@@ -88,6 +88,29 @@ export const whatsappService = {
     },
 
     /**
+     * Provision or verify an Evolution API gateway instance
+     */
+    async provisionInstance(params: {
+        gatewayUrl: string;
+        apiKey: string;
+        instanceName: string;
+        institutionId?: string;
+    }): Promise<{ success: boolean; message: string; alreadyExists?: boolean }> {
+        try {
+            const res = await apiService.post('/api/integrations', {
+                action: 'provisionWhatsAppInstance',
+                ...params
+            });
+            return res || { success: false, message: 'No response from server' };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: error?.message || 'Failed to provision instance'
+            };
+        }
+    },
+
+    /**
      * Send a WhatsApp message (Text or Document attachment)
      */
     async sendMessage(params: SendWhatsAppParams): Promise<{ success: boolean; messageId?: string; message?: string }> {

@@ -21,10 +21,8 @@ import {
 } from '../icons';
 
 // ─── Platform-level Evolution API endpoint ─────────────────────────────────
-// Change this once when you deploy your central gateway server.
-// All institutions will inherit this URL automatically when
-// "Use Platform Gateway" is enabled.
-const PLATFORM_GATEWAY_URL = (import.meta as any).env?.VITE_PLATFORM_GATEWAY_URL || 'https://wa.eduai.platform';
+// Set VITE_PLATFORM_GATEWAY_URL in your environment or enter your VPS URL below.
+const PLATFORM_GATEWAY_URL = (import.meta as any).env?.VITE_PLATFORM_GATEWAY_URL || '';
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Generates a cryptographically-secure 64-char hex token */
@@ -174,65 +172,53 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
         init();
     }, [checkLiveStatus, fetchLogs]);
 
-    // When platform gateway toggle changes, auto-fill / clear URL
+    // When platform gateway toggle changes, auto-fill / clear URL if configured
     useEffect(() => {
-        if (usePlatformGateway) {
+        if (usePlatformGateway && PLATFORM_GATEWAY_URL) {
             setConfig(prev => ({ ...prev, gateway_url: PLATFORM_GATEWAY_URL }));
         }
     }, [usePlatformGateway]);
 
-    // Auto-provision instance on Evolution API
+    // Auto-provision instance on Evolution API via secure server proxy
     const handleAutoProvision = useCallback(async () => {
-        const baseUrl = config.gateway_url || PLATFORM_GATEWAY_URL;
-        const apiKey = config.api_key;
-        const instanceName = config.instance_name || 'eduai_master';
+        const baseUrl = (config.gateway_url || PLATFORM_GATEWAY_URL || '').trim();
+        const apiKey = (config.api_key || '').trim();
+        const instanceName = (config.instance_name || 'eduai_master').trim();
 
         if (!baseUrl || !apiKey) {
             setProvisionResult({ success: false, message: 'Gateway URL and API Token are required before provisioning.' });
             return;
         }
 
+        if (baseUrl.includes('wa.eduai.platform') || baseUrl.includes('example.com')) {
+            setProvisionResult({
+                success: false,
+                message: 'Please enter your actual Evolution API server address (e.g. https://whatsapp.yourdomain.com or http://YOUR_VPS_IP:8080) instead of the placeholder domain.'
+            });
+            return;
+        }
+
         setIsProvisioning(true);
         setProvisionResult(null);
         try {
-            // Check if instance already exists
-            const checkRes = await fetch(`${baseUrl}/instance/connectionState/${instanceName}`, {
-                headers: { apikey: apiKey }
+            // Provision via serverless proxy (avoids CORS, browser network errors & Service Worker issues)
+            const res = await whatsappService.provisionInstance({
+                gatewayUrl: baseUrl,
+                apiKey,
+                instanceName,
+                institutionId: 'global'
             });
-
-            if (checkRes.ok) {
-                const state = await checkRes.json();
-                setProvisionResult({
-                    success: true,
-                    message: `Instance "${instanceName}" already exists (state: ${state?.instance?.state || 'unknown'}). Ready to sync QR.`
-                });
-                await checkLiveStatus();
-                return;
-            }
-
-            // Create instance
-            const createRes = await fetch(`${baseUrl}/instance/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', apikey: apiKey },
-                body: JSON.stringify({
-                    instanceName,
-                    qrcode: true,
-                    integration: 'WHATSAPP-BAILEYS'
-                })
-            });
-
-            if (!createRes.ok) {
-                const err = await createRes.json().catch(() => ({}));
-                throw new Error(err?.message || `HTTP ${createRes.status}`);
-            }
 
             setProvisionResult({
-                success: true,
-                message: `Instance "${instanceName}" provisioned successfully! Syncing QR code...`
+                success: res.success,
+                message: res.message
             });
-            setTimeout(() => checkLiveStatus(), 1500);
+
+            if (res.success) {
+                setTimeout(() => checkLiveStatus(), 1500);
+            }
         } catch (err: any) {
-            setProvisionResult({ success: false, message: err.message || 'Provisioning failed. Check URL and token.' });
+            setProvisionResult({ success: false, message: err.message || 'Provisioning failed. Check server URL and token.' });
         } finally {
             setIsProvisioning(false);
         }
@@ -678,24 +664,24 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                                                 type="url"
                                                 value={config.gateway_url || ''}
                                                 onChange={e => setConfig({ ...config, gateway_url: e.target.value })}
-                                                readOnly={usePlatformGateway}
-                                                placeholder="https://wa.yourdomain.com"
+                                                readOnly={usePlatformGateway && Boolean(PLATFORM_GATEWAY_URL)}
+                                                placeholder="https://whatsapp.yourdomain.com or http://YOUR_VPS_IP:8080"
                                                 className={`w-full px-4 h-12 border rounded-xl text-xs font-mono text-white placeholder-slate-600 focus:outline-none transition-all ${
-                                                    usePlatformGateway
+                                                    usePlatformGateway && Boolean(PLATFORM_GATEWAY_URL)
                                                         ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300 cursor-not-allowed'
                                                         : 'bg-slate-950 border-white/10 focus:border-emerald-500'
                                                 }`}
                                             />
-                                            {usePlatformGateway && (
+                                            {usePlatformGateway && Boolean(PLATFORM_GATEWAY_URL) && (
                                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase text-emerald-500 bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-500/20">
                                                     🔒 Locked
                                                 </span>
                                             )}
                                         </div>
                                         <span className="text-[10px] text-slate-500 mt-1 block">
-                                            {usePlatformGateway
-                                                ? `Centrally managed at: ${PLATFORM_GATEWAY_URL}`
-                                                : 'HTTP endpoint of your self-hosted Evolution API / Baileys server'}
+                                            {usePlatformGateway && Boolean(PLATFORM_GATEWAY_URL)
+                                                ? `Centrally managed platform URL: ${PLATFORM_GATEWAY_URL}`
+                                                : 'Enter the HTTP(S) address and port of your Evolution API server (e.g. http://123.45.67.89:8080)'}
                                         </span>
                                     </div>
 

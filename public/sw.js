@@ -34,6 +34,9 @@ self.addEventListener('fetch', (event) => {
   // Ignore non-http(s) schemes (e.g. chrome-extension://, moz-extension://)
   if (!url.startsWith('http://') && !url.startsWith('https://')) return;
 
+  // Only intercept same-origin requests; never intercept third-party APIs, gateways, or cross-domain endpoints
+  if (!url.startsWith(self.location.origin)) return;
+
   // Let browser natively handle JS/CSS bundle chunks, assets & API calls to prevent MIME type & stale chunk errors
   if (url.includes('/api/') || url.includes('.js') || url.includes('.css') || url.includes('/assets/')) return;
 
@@ -69,7 +72,7 @@ self.addEventListener('fetch', (event) => {
       }
       return networkResponse;
     }).catch(() => {
-      return caches.match(event.request).then((cached) => cached || Promise.reject('offline'));
+      return caches.match(event.request).then((cached) => cached || new Response('Offline', { status: 503, statusText: 'Service Unavailable' }));
     })
   );
 });

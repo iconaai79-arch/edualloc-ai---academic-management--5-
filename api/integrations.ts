@@ -250,13 +250,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments & Recovery)
-        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'sendWhatsApp', 'getWhatsAppStatus', 'disconnectWhatsApp', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
+        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'sendWhatsApp', 'getWhatsAppStatus', 'provisionWhatsAppInstance', 'disconnectWhatsApp', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
 
         if (!user && isPublicAction) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
             // For callbacks and payment initiation, we allow the bypass directly
-            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome') {
+            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'provisionWhatsAppInstance') {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
                 authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
@@ -675,7 +675,75 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // --- WHATSAPP GATEWAY & META CLOUD DISPATCHERS ---
-        // --- WHATSAPP GATEWAY & META CLOUD DISPATCHERS ---
+        if (action === 'provisionWhatsAppInstance') {
+            const institutionId = getParam('institutionId') || 'global';
+            const gatewayUrl = (getParam('gatewayUrl') || '').trim().replace(/\/$/, '');
+            const apiKey = (getParam('apiKey') || '').trim();
+            const instanceName = (getParam('instanceName') || 'eduai_master').trim();
+
+            if (!gatewayUrl || !apiKey) {
+                return res.status(200).json({ success: false, message: 'Gateway URL and API Token are required before provisioning.' });
+            }
+
+            if (gatewayUrl.includes('wa.eduai.platform') || gatewayUrl.includes('example.com')) {
+                return res.status(200).json({
+                    success: false,
+                    message: 'Please replace placeholder URL (wa.eduai.platform) with your real Evolution API server address (e.g. https://whatsapp.yourdomain.com or http://your-vps-ip:8080).'
+                });
+            }
+
+            try {
+                // 1. Check if instance already exists
+                const checkRes = await fetch(`${gatewayUrl}/instance/connectionState/${instanceName}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json', apikey: apiKey },
+                    signal: AbortSignal.timeout(6000)
+                }).catch((fetchErr: any) => {
+                    throw new Error(`Unable to reach Gateway at ${gatewayUrl} (${fetchErr.message || 'Connection refused'}). Verify your server is online and port is accessible.`);
+                });
+
+                if (checkRes && checkRes.ok) {
+                    const stateData = await checkRes.json().catch(() => ({}));
+                    return res.status(200).json({
+                        success: true,
+                        alreadyExists: true,
+                        state: stateData?.instance?.state || stateData?.state || 'open',
+                        message: `Instance "${instanceName}" already exists on gateway and is reachable!`
+                    });
+                }
+
+                // 2. Create instance
+                const createRes = await fetch(`${gatewayUrl}/instance/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', apikey: apiKey },
+                    body: JSON.stringify({
+                        instanceName,
+                        qrcode: true,
+                        integration: 'WHATSAPP-BAILEYS'
+                    }),
+                    signal: AbortSignal.timeout(10000)
+                }).catch((createErr: any) => {
+                    throw new Error(`Failed to create instance on Gateway at ${gatewayUrl}: ${createErr.message}`);
+                });
+
+                if (!createRes.ok) {
+                    const err = await createRes.json().catch(() => ({}));
+                    throw new Error(err?.message || err?.error || `Gateway returned HTTP ${createRes.status}`);
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    created: true,
+                    message: `Instance "${instanceName}" provisioned successfully on Evolution API server!`
+                });
+            } catch (err: any) {
+                return res.status(200).json({
+                    success: false,
+                    message: err.message || 'Error connecting to Evolution API server'
+                });
+            }
+        }
+
         if (action === 'getWhatsAppStatus') {
             const institutionId = getParam('institutionId') || user?.institutionId || user?.user_metadata?.institutionId || 'global';
 
