@@ -425,11 +425,13 @@ export interface StudentEnrollment {
     assessmentNumber?: string;
     dateOfBirth?: string;
     dob?: string;
+    leadershipPosition?: string;
     status: 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped';
     enrollmentDate: string;
     metadata: {
         dateOfBirth?: string;
         dob?: string;
+        leadershipPosition?: string;
         licenseTypeInterested?: string;
         licenseCategory?: string;
         preferredInstructorId?: string;

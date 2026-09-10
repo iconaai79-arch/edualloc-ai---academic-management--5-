@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment } from '../types';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
@@ -36,6 +36,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [payouts, setPayouts] = useState<RemedialPayout[]>([]);
     const [allocations, setAllocations] = useState<RemedialAllocation[]>([]);
     const [remedialSubjects, setRemedialSubjects] = useState<RemedialSubject[]>([]);
+    const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub'>('sessions');
     
@@ -103,11 +104,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const loadData = async () => {
         setLoading(true);
         try {
-            const [sessList, rates, payList, invList] = await Promise.all([
+            const [sessList, rates, payList, invList, enrList] = await Promise.all([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
                 apiService.fetchInvoices(institutionId),
+                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', institutionId).catch(() => [])
             ]);
 
             // Fetch allocations & subjects separately with fallback
@@ -134,6 +136,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             setPayouts(payList || []);
             setAllocations(allocList);
             setRemedialSubjects(remSubList);
+            setEnrollments(enrList || []);
 
             if (rates && rates.length > 0) {
                 const r: any = rates[0];
@@ -177,8 +180,83 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [users]);
 
     const prefectsList = useMemo(() => {
-        return (users || []).filter(u => u && ((u.role as string) === 'prefect' || (u.metadata as any)?.isPrefect));
-    }, [users]);
+        const list: any[] = [];
+        const addedIds = new Set<string>();
+
+        // 1. Existing user-level prefects
+        (users || []).forEach(u => {
+            if (u && ((u.role as string) === 'prefect' || (u.metadata as any)?.isPrefect)) {
+                list.push(u);
+                addedIds.add(u.id);
+            }
+        });
+
+        // 2. Enrolled students who hold leadership positions
+        (enrollments || []).forEach(enr => {
+            const leadPos = (enr.leadershipPosition || enr.metadata?.leadershipPosition || (enr as any)?.leadership_position || '').trim();
+            if (!leadPos) return;
+
+            const studentUser = users.find(u => u.id === enr.userId);
+            const rawId = studentUser?.id || enr.userId || enr.id;
+            if (addedIds.has(rawId)) return;
+
+            const studentName = studentUser?.name || enr.metadata?.studentName || enr.metadata?.name || enr.metadata?.fullName || 'Student Leader';
+            const grade = enr.metadata?.gradeLevel || (studentUser as any)?.studentClass || '';
+            const stream = enr.metadata?.stream || (studentUser as any)?.stream || '';
+
+            // Match course/class
+            const matchedCourse = courses.find(c => 
+                c.id === enr.courseId || 
+                (c.name && grade && c.name.trim().toLowerCase() === grade.trim().toLowerCase())
+            );
+
+            list.push({
+                id: rawId,
+                name: `${studentName} (${leadPos})`,
+                role: 'prefect',
+                institutionId: enr.institutionId || institutionId,
+                courseId: matchedCourse?.id || enr.courseId || '',
+                className: matchedCourse?.name || grade || '',
+                stream: stream || '',
+                leadershipPosition: leadPos,
+                enrollmentId: enr.id,
+                email: studentUser?.email,
+                phoneNumber: studentUser?.phoneNumber,
+                metadata: {
+                    ...(studentUser?.metadata || {}),
+                    isPrefect: true,
+                    leadershipPosition: leadPos,
+                    className: matchedCourse?.name || grade || '',
+                    stream: stream || ''
+                }
+            });
+            addedIds.add(rawId);
+        });
+
+        return list;
+    }, [users, enrollments, courses, institutionId]);
+
+    // Auto-select matching prefect when class or stream changes in manual logging
+    useEffect(() => {
+        if (!manualCourseId) return;
+        const selectedCourse = courses.find(c => c.id === manualCourseId);
+        const courseName = selectedCourse?.name?.toLowerCase().trim() || '';
+
+        // Find best matching enrolled leader for this class & stream
+        const matchingPrefect = prefectsList.find(p => {
+            const classMatch = p.courseId === manualCourseId || 
+                (p.className && courseName && p.className.toLowerCase().trim() === courseName);
+            if (!classMatch) return false;
+            if (manualStream && manualStream !== 'All Streams' && p.stream) {
+                return p.stream.toLowerCase().trim() === manualStream.toLowerCase().trim();
+            }
+            return true;
+        });
+
+        if (matchingPrefect) {
+            setManualPrefectId(matchingPrefect.id);
+        }
+    }, [manualCourseId, manualStream, courses, prefectsList]);
 
     // Active Remedial Subjects for dropdowns
     const activeRemedialSubjectsList = useMemo(() => {
@@ -2400,6 +2478,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
                                             <UserCheck className="w-3 h-3 text-slate-400" /> {alloc.teacherName}
                                         </p>
+                                        {(() => {
+                                            const streamPrefect = prefectsList.find(p => {
+                                                const cMatch = p.courseId === alloc.courseId || 
+                                                    (p.className && alloc.className && p.className.toLowerCase().trim() === alloc.className.toLowerCase().trim());
+                                                if (!cMatch) return false;
+                                                if (alloc.stream && alloc.stream !== 'All Streams' && p.stream) {
+                                                    return p.stream.toLowerCase().trim() === alloc.stream.toLowerCase().trim();
+                                                }
+                                                return true;
+                                            });
+                                            if (!streamPrefect) return null;
+                                            return (
+                                                <p className="text-[8.5px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 truncate" title={`Designated Leader: ${streamPrefect.name}`}>
+                                                    <Shield className="w-2.5 h-2.5 shrink-0 text-amber-500" /> Leader: {streamPrefect.name}
+                                                </p>
+                                            );
+                                        })()}
                                         <div className="pt-1 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
                                             <span className="text-[9px] font-mono font-bold text-slate-400">
                                                 {alloc.startTime} - {alloc.endTime}
@@ -3004,7 +3099,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <div key={prefect.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800/50 transition-all">
                                         <div>
                                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{prefect.name}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Stream: {course?.name || 'Unassigned'}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                                Class / Stream: {course?.name || prefect.className || 'General'}{prefect.stream ? ` • ${prefect.stream}` : ''}
+                                            </p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button 
@@ -3558,14 +3655,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
 
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Class Prefect</label>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                    <span>Class Prefect</span>
+                                    {manualPrefectId && (
+                                        <span className="text-amber-600 dark:text-amber-400 font-bold lowercase text-[9px] flex items-center gap-1">
+                                            <Shield className="w-2.5 h-2.5" /> auto-linked
+                                        </span>
+                                    )}
+                                </label>
                                 <select 
                                     value={manualPrefectId}
                                     onChange={e => setManualPrefectId(e.target.value)}
                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
                                 >
                                     <option value="">-- Select Prefect --</option>
-                                    {prefectsList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    {prefectsList.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.name}{p.stream ? ` • Stream ${p.stream}` : ''}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 

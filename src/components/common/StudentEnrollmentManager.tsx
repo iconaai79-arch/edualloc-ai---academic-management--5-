@@ -696,7 +696,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         { key: 'parentName', label: 'Guardian / Parent Name' },
         { key: 'parentPhone', label: 'Parent Phone Number' },
         { key: 'parentEmail', label: 'Parent Email Address' },
-        { key: 'secondaryPhone', label: 'Secondary / Alternative Phone' }
+        { key: 'secondaryPhone', label: 'Secondary / Alternative Phone' },
+        { key: 'leadershipPosition', label: 'Leadership Role (e.g. Class Prefect, School Captain, Class Secretary)' }
     ], [context]);
 
     const secondaryPhoneFields = useMemo(() => [
@@ -710,6 +711,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         { key: 'studentPhone', label: 'Student Personal Phone Number' },
         { key: 'gradeLevel', label: 'Grade / Class Level (e.g., Form 3, Grade 10)' },
         { key: 'stream', label: 'Class Stream / Allocation (e.g., Central, East, West)' },
+        { key: 'leadershipPosition', label: 'Leadership Position / Title' },
     ], []);
 
     const teacherFields = useMemo(() => [
@@ -734,6 +736,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         admissionNumber: '',
         assessmentNo: '',
         dateOfBirth: '',
+        leadershipPosition: '',
         status: 'Enrolled' as StudentEnrollment['status'],
         enrollmentDate: new Date().toISOString().split('T')[0],
         gender: '' as 'Male' | 'Female' | 'Other' | '',
@@ -743,6 +746,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         // Context-specific metadata
         metadata: {
             dateOfBirth: '',
+            leadershipPosition: '',
             licenseCategory: '',
             preferredInstructorId: '',
             preferredLessonHours: 'Morning' as 'Morning' | 'Noon' | 'Evening',
@@ -1159,10 +1163,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const primaryParent = formData.metadata.parents?.[0] || { name: '', phone: '', email: '', relation: 'Father' };
             const finalAssessmentNo = formData.metadata.assessmentNo || (formData as any).assessmentNo || '';
             const resolvedDob = formData.dateOfBirth || formData.metadata.dateOfBirth || '';
+            const resolvedLeadership = formData.leadershipPosition || formData.metadata.leadershipPosition || '';
             const metadataToSave = {
                 ...formData.metadata,
                 dateOfBirth: resolvedDob,
                 dob: resolvedDob,
+                leadershipPosition: resolvedLeadership,
                 assessmentNo: finalAssessmentNo,
                 parentName: primaryParent.name,
                 parentPhone: primaryParent.phone,
@@ -1179,6 +1185,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     assessmentNo: finalAssessmentNo,
                     dateOfBirth: resolvedDob,
                     dob: resolvedDob,
+                    leadershipPosition: resolvedLeadership,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
@@ -1205,6 +1212,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     assessmentNo: finalAssessmentNo,
                     dateOfBirth: resolvedDob,
                     dob: resolvedDob,
+                    leadershipPosition: resolvedLeadership,
                     status: formData.status,
                     enrollmentDate: formData.enrollmentDate,
                     metadata: metadataToSave,
@@ -1236,6 +1244,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 admissionNumber: '',
                 assessmentNo: '',
                 dateOfBirth: '',
+                leadershipPosition: '',
                 status: 'Enrolled',
                 enrollmentDate: new Date().toISOString().split('T')[0],
                 gender: '',
@@ -1244,6 +1253,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 biometricTemplate: '',
                 metadata: {
                     dateOfBirth: '',
+                    leadershipPosition: '',
                     licenseCategory: '',
                     preferredInstructorId: '',
                     preferredLessonHours: 'Morning',
@@ -1284,6 +1294,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             admissionNumber: nextAdm,
             assessmentNo: '',
             dateOfBirth: '',
+            leadershipPosition: '',
             status: 'Enrolled',
             enrollmentDate: new Date().toISOString().split('T')[0],
             gender: '',
@@ -1292,6 +1303,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             biometricTemplate: '',
             metadata: {
                 dateOfBirth: '',
+                leadershipPosition: '',
                 licenseCategory: '',
                 preferredInstructorId: '',
                 preferredLessonHours: 'Morning',
@@ -1395,6 +1407,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         const resolvedGrade = matchedCohort || normalizeGradeLabel(rawGrade) || rawGrade;
 
         const currentStream = enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || '';
+        const leadershipVal = enr.leadershipPosition || enr.metadata?.leadershipPosition || (enr as any)?.leadership_position || associatedUser?.metadata?.leadershipPosition || '';
 
         setFormData({
             fullName: associatedUser?.name || enr.metadata?.studentName || enr.metadata?.name || 'Unknown',
@@ -1403,6 +1416,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             admissionNumber: enr.admissionNumber || (associatedUser as any)?.admissionNumber || '',
             assessmentNo: assessmentNoVal,
             dateOfBirth: dobVal,
+            leadershipPosition: leadershipVal,
             status: enr.status,
             enrollmentDate: enr.enrollmentDate,
             gender: (associatedUser?.gender || enr.metadata?.gender || '') as any,
@@ -1411,6 +1425,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             biometricTemplate: associatedUser?.metadata?.fingerprintTemplate || '',
             metadata: {
                 dateOfBirth: dobVal,
+                leadershipPosition: leadershipVal,
                 licenseCategory: enr.metadata?.licenseCategory || '',
                 preferredInstructorId: enr.metadata?.preferredInstructorId || '',
                 preferredLessonHours: enr.metadata?.preferredLessonHours || 'Morning',
@@ -1717,6 +1732,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const secondaryPhoneVal = item.secondaryPhone || existingEnrollment?.metadata?.secondaryPhone || '';
                         const assessmentNoVal = item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
                         const resolvedEnrollmentDob = dobImportVal || existingEnrollment?.dateOfBirth || existingEnrollment?.metadata?.dateOfBirth || '';
+                        const leadershipImportVal = item.leadershipPosition || item.leadership_position || item.leadershipRole || item.leadership_role || item.position || item.prefectRole || item.leadership || existingEnrollment?.leadershipPosition || existingEnrollment?.metadata?.leadershipPosition || '';
 
                         const metadataObj = {
                             ...(existingEnrollment?.metadata || {}),
@@ -1724,6 +1740,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
                             gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
                             stream: item.stream || importStream || existingEnrollment?.metadata?.stream || '',
+                            leadershipPosition: leadershipImportVal,
                             assessmentNo: assessmentNoVal,
                             dateOfBirth: resolvedEnrollmentDob,
                             dob: resolvedEnrollmentDob,
@@ -1742,6 +1759,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 assessmentNo: assessmentNoVal,
                                 dateOfBirth: resolvedEnrollmentDob,
                                 dob: resolvedEnrollmentDob,
+                                leadershipPosition: leadershipImportVal,
                                 metadata: metadataObj,
                                 updatedAt: new Date().toISOString()
                             };
@@ -1757,6 +1775,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 assessmentNo: assessmentNoVal,
                                 dateOfBirth: resolvedEnrollmentDob,
                                 dob: resolvedEnrollmentDob,
+                                leadershipPosition: leadershipImportVal,
                                 status: 'Enrolled',
                                 enrollmentDate: new Date().toISOString().split('T')[0],
                                 metadata: metadataObj,
@@ -5977,8 +5996,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                                 {/* ── Student Info ── */}
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight flex items-center gap-2">
-                                                        {getStudentDisplayName(enr, user)}
+                                                    <p className="text-sm font-black text-slate-800 dark:text-white truncate leading-tight flex items-center gap-2 flex-wrap">
+                                                        <span>{getStudentDisplayName(enr, user)}</span>
+                                                        {(() => {
+                                                            const leaderPos = enr.leadershipPosition || enr.metadata?.leadershipPosition || (enr as any)?.leadership_position || user?.metadata?.leadershipPosition;
+                                                            if (!leaderPos) return null;
+                                                            return (
+                                                                <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-md shadow-xs" title={`Leadership Position: ${leaderPos}`}>
+                                                                    <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
+                                                                    {leaderPos}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                         {isNameUnknown(user?.name) && (enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name) && (
                                                             <button
                                                                 onClick={(e) => {
@@ -8329,6 +8358,62 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                 <option value="day_scholar">Day Scholar</option>
                                                 <option value="boarder">Boarder</option>
                                             </select>
+                                        </div>
+                                        <div className="sm:col-span-2">
+                                            <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                                                <span className="flex items-center gap-1">
+                                                    <Star className="w-3 h-3 text-amber-500 fill-amber-400" /> Student Leadership Role / Responsibility
+                                                </span>
+                                                <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 lowercase">(prefects auto-sync to remedial portal)</span>
+                                            </label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                                                <select
+                                                    value={
+                                                        ['', 'Class Prefect', 'Assistant Class Prefect', 'Class Representative', 'Class Secretary', 'School Captain', 'Assistant School Captain', 'Dining Hall Captain', 'Games Captain', 'Academic Prefect', 'Library Prefect', 'Sanitation Prefect', 'Dormitory Captain'].includes(formData.leadershipPosition || formData.metadata.leadershipPosition || '')
+                                                            ? (formData.leadershipPosition || formData.metadata.leadershipPosition || '')
+                                                            : '__custom__'
+                                                    }
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const finalVal = val === '__custom__' ? (formData.leadershipPosition || '') : val;
+                                                        setFormData({
+                                                            ...formData,
+                                                            leadershipPosition: finalVal,
+                                                            metadata: { ...formData.metadata, leadershipPosition: finalVal }
+                                                        });
+                                                    }}
+                                                    className="form-select w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                >
+                                                    <option value="">None (Regular Student)</option>
+                                                    <option value="Class Prefect">Class Prefect ⭐</option>
+                                                    <option value="Assistant Class Prefect">Assistant Class Prefect</option>
+                                                    <option value="Class Representative">Class Representative (Class Rep)</option>
+                                                    <option value="Class Secretary">Class Secretary</option>
+                                                    <option value="School Captain">School Captain 👑</option>
+                                                    <option value="Assistant School Captain">Assistant School Captain</option>
+                                                    <option value="Dining Hall Captain">Dining Hall Captain</option>
+                                                    <option value="Games Captain">Games Captain</option>
+                                                    <option value="Academic Prefect">Academic Prefect</option>
+                                                    <option value="Library Prefect">Library Prefect</option>
+                                                    <option value="Sanitation Prefect">Sanitation / Health Prefect</option>
+                                                    <option value="Dormitory Captain">Dormitory / House Captain</option>
+                                                    <option value="__custom__">Custom / Other Title...</option>
+                                                </select>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Or type custom leadership title..."
+                                                    value={formData.leadershipPosition || formData.metadata.leadershipPosition || ''}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setFormData({
+                                                            ...formData,
+                                                            leadershipPosition: val,
+                                                            metadata: { ...formData.metadata, leadershipPosition: val }
+                                                        });
+                                                    }}
+                                                    className="form-input w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 )}

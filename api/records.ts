@@ -1557,6 +1557,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return clean;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
+            } else if (moduleName === 'student_enrollments') {
+                const cleanEnrollmentRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
+                    if (copy.leadership_position && !copy.leadershipPosition) copy.leadershipPosition = copy.leadership_position;
+                    if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
+                    if (copy.assessmentNo && !copy.assessment_no) copy.assessment_no = copy.assessmentNo;
+                    if (copy.admissionNumber && !copy.admission_number) copy.admission_number = copy.admissionNumber;
+                    if (copy.enrollmentType && !copy.enrollment_type) copy.enrollment_type = copy.enrollmentType;
+                    if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
             }
 
             let data: any = null;
@@ -2142,6 +2158,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (clean.abbreviation && !clean.short_name) clean.short_name = clean.abbreviation;
                     if (clean.short_name && !clean.abbreviation) clean.abbreviation = clean.short_name;
                     currentUpdateData = clean;
+                } else if (moduleName === 'student_enrollments') {
+                    const copy = { ...currentUpdateData };
+                    if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
+                    if (copy.leadership_position && !copy.leadershipPosition) copy.leadershipPosition = copy.leadership_position;
+                    if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
+                    if (copy.assessmentNo && !copy.assessment_no) copy.assessment_no = copy.assessmentNo;
+                    if (copy.admissionNumber && !copy.admission_number) copy.admission_number = copy.admissionNumber;
+                    if (copy.enrollmentType && !copy.enrollment_type) copy.enrollment_type = copy.enrollmentType;
+                    if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    currentUpdateData = copy;
                 }
                 let data: any = null;
                 let error: any = null;

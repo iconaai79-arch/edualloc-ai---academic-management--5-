@@ -1199,6 +1199,16 @@ export const apiService = {
                         p.op_number = fileNo;
                     });
                 }
+                if (module === 'student_enrollments' && Array.isArray(finalResult)) {
+                    finalResult.forEach((enr: any) => {
+                        const meta = typeof enr.metadata === 'object' && enr.metadata !== null ? enr.metadata : {};
+                        const leadPos = enr.leadershipPosition || enr.leadership_position || meta.leadershipPosition || meta.leadership_position || '';
+                        if (leadPos) {
+                            enr.leadershipPosition = leadPos;
+                            enr.leadership_position = leadPos;
+                        }
+                    });
+                }
                 return finalResult;
             };
 
@@ -1433,6 +1443,11 @@ export const apiService = {
                         }
                         if (!enr.stream && meta.stream) {
                             enr.stream = meta.stream;
+                        }
+                        const leadPos = enr.leadershipPosition || enr.leadership_position || meta.leadershipPosition || meta.leadership_position || '';
+                        if (leadPos) {
+                            enr.leadershipPosition = leadPos;
+                            enr.leadership_position = leadPos;
                         }
                     });
                 }
@@ -1908,9 +1923,15 @@ export const apiService = {
                 if (genderVal && !meta.gender) meta.gender = genderVal;
                 if (gradeVal && !meta.gradeLevel) meta.gradeLevel = gradeVal;
                 if (streamVal && !meta.stream) meta.stream = streamVal;
+                const leadVal = item.leadershipPosition || item.leadership_position || meta.leadershipPosition || meta.leadership_position;
+                if (leadVal) {
+                    meta.leadershipPosition = leadVal;
+                    item.leadership_position = leadVal;
+                }
                 item.metadata = meta;
 
                 // Strip virtual fields from root payload so PostgREST schema cache never complains or retries
+                delete item.leadershipPosition;
                 delete item.dateOfBirth;
                 delete item.date_of_birth;
                 delete item.dob;
