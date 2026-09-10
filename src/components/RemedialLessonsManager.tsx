@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject } from '../types';
-import { apiService } from '../services/apiService';
+import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
@@ -132,8 +132,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
                 setWeekendStartTime(r.weekendStartTime || r.weekend_start_time || '08:00');
                 setWeekendEndTime(r.weekendEndTime || r.weekend_end_time || '12:00');
+                const cachedWeekendLimit = safeLocalStorage.getItem(`eduai_remedial_weekend_max_${institutionId}`);
+                const weekendLimitVal = r.maxWeekendLessonsPerDay ?? 
+                                        r.max_weekend_lessons_per_day ?? 
+                                        r.metadata?.maxWeekendLessonsPerDay ?? 
+                                        r.metadata?.max_weekend_lessons_per_day ?? 
+                                        (cachedWeekendLimit ? Number(cachedWeekendLimit) : undefined) ?? 
+                                        2;
                 setMaxLessonsPerDay(r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1);
-                setMaxWeekendLessonsPerDay(r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 2);
+                setMaxWeekendLessonsPerDay(weekendLimitVal);
                 setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
                 setTermFee(r.termFee ?? r.term_fee ?? 3000);
             }
@@ -393,6 +400,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Save Rate Settings
     const handleSaveRates = async () => {
         try {
+            safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerDay));
             const data: any = {
                 id: rateSetting?.id || `rate_${Date.now()}`,
                 hourlyRate: weekdayHourlyRate,
@@ -413,6 +421,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 max_lessons_per_day: maxLessonsPerDay,
                 maxWeekendLessonsPerDay,
                 max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                metadata: {
+                    maxWeekendLessonsPerDay,
+                    max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                    ...(rateSetting?.metadata || {})
+                },
                 feePerStudent,
                 fee_per_student: feePerStudent,
                 termFee,

@@ -95,6 +95,16 @@ UPDATE public.whatsapp_configs
 SET gateway_url = NULL 
 WHERE gateway_url LIKE '%wa.eduai.platform%';
 
--- 7. Reload schema cache
+-- 7. Ensure school_remedial_rate_settings has max_weekend_lessons_per_day & metadata
+ALTER TABLE IF EXISTS public.school_remedial_rate_settings 
+    ADD COLUMN IF NOT EXISTS max_weekend_lessons_per_day INTEGER DEFAULT 2;
+
+ALTER TABLE IF EXISTS public.school_remedial_rate_settings 
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
+COMMENT ON COLUMN public.school_remedial_rate_settings.max_weekend_lessons_per_day
+    IS 'Maximum number of remedial lessons a teacher can teach on a Saturday or Sunday (defaults to 2, applied independently from the weekday cap).';
+
+-- 8. Reload schema cache
 NOTIFY pgrst, 'reload schema';
 

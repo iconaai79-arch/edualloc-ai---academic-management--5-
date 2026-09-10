@@ -456,6 +456,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json([]);
             }
 
+            if (moduleName === 'school_remedial_rate_settings' && Array.isArray(data)) {
+                data.forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
+                        if (r.max_weekend_lessons_per_day === undefined && meta.max_weekend_lessons_per_day !== undefined) {
+                            r.max_weekend_lessons_per_day = meta.max_weekend_lessons_per_day;
+                        }
+                        if (r.maxWeekendLessonsPerDay === undefined) {
+                            r.maxWeekendLessonsPerDay = r.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? 2;
+                        }
+                    }
+                });
+            }
+
             return res.status(200).json(data || []);
         }
 
@@ -952,6 +966,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanRemedialRateSettings = (rec: any) => {
                     if (!rec || typeof rec !== 'object') return rec;
                     const copy = { ...rec };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
                     if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
                     if (copy.hourlyRate !== undefined && copy.hourly_rate === undefined) copy.hourly_rate = copy.hourlyRate;
                     if (copy.weekdayHourlyRate !== undefined && copy.weekday_hourly_rate === undefined) copy.weekday_hourly_rate = copy.weekdayHourlyRate;
@@ -962,8 +978,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.weekendEndTime !== undefined && copy.weekend_end_time === undefined) copy.weekend_end_time = copy.weekendEndTime;
                     if (copy.maxLessonsPerDay !== undefined && copy.max_lessons_per_day === undefined) copy.max_lessons_per_day = copy.maxLessonsPerDay;
                     if (copy.maxWeekendLessonsPerDay !== undefined && copy.max_weekend_lessons_per_day === undefined) copy.max_weekend_lessons_per_day = copy.maxWeekendLessonsPerDay;
+                    if (copy.max_weekend_lessons_per_day !== undefined) {
+                        meta.max_weekend_lessons_per_day = copy.max_weekend_lessons_per_day;
+                        meta.maxWeekendLessonsPerDay = copy.max_weekend_lessons_per_day;
+                    }
                     if (copy.feePerStudent !== undefined && copy.fee_per_student === undefined) copy.fee_per_student = copy.feePerStudent;
                     if (copy.termFee !== undefined && copy.term_fee === undefined) copy.term_fee = copy.termFee;
+                    copy.metadata = meta;
+
                     delete copy.institutionId;
                     delete copy.hourlyRate;
                     delete copy.weekdayHourlyRate;
@@ -1638,6 +1660,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (Array.isArray(recordData)) {
                 return res.status(200).json(data || { success: true, count: recordData.length });
             }
+
+            if (moduleName === 'school_remedial_rate_settings') {
+                const returned = data?.[0] || recordData;
+                if (returned && typeof returned === 'object') {
+                    const fallbackWeekend = (recordData as any)?.max_weekend_lessons_per_day ?? (recordData as any)?.maxWeekendLessonsPerDay ?? 2;
+                    if (returned.max_weekend_lessons_per_day === undefined) {
+                        returned.max_weekend_lessons_per_day = fallbackWeekend;
+                    }
+                    if (returned.maxWeekendLessonsPerDay === undefined) {
+                        returned.maxWeekendLessonsPerDay = returned.max_weekend_lessons_per_day ?? fallbackWeekend;
+                    }
+                }
+                return res.status(200).json(returned);
+            }
+
             return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
 

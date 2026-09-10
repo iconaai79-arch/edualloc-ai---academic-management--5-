@@ -6,7 +6,7 @@ import type {
     Course, LetterheadConfig, AllocationRequestPreferences, UserTask, Institution,
     CountyInventoryItem, RemedialSession, RemedialPayout
 } from '../types';
-import { apiService } from '../services/apiService';
+import { apiService, safeLocalStorage } from '../services/apiService';
 import { SynergyHub } from './SynergyHub';
 import { Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock } from 'lucide-react';
 
@@ -754,8 +754,17 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 const ratesList = await apiService.fetchRemedialRateSettings(currentInstitution?.id || user?.institutionId || '');
                                 const todayDow = new Date().getDay(); // 0 = Sun, 6 = Sat
                                 const isTodayWeekend = todayDow === 0 || todayDow === 6;
-                                const weekdayLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxLessonsPerDay !== undefined) ? ratesList[0].maxLessonsPerDay : 1;
-                                const weekendLimit = (ratesList && ratesList.length > 0 && ratesList[0].maxWeekendLessonsPerDay !== undefined) ? ratesList[0].maxWeekendLessonsPerDay : weekdayLimit;
+                                const instId = currentInstitution?.id || user?.institutionId || '';
+                                const rawRate: any = (ratesList && ratesList.length > 0) ? ratesList[0] : null;
+                                const cachedWeekendLimit = safeLocalStorage.getItem(`eduai_remedial_weekend_max_${instId}`);
+                                
+                                const weekdayLimit = rawRate?.maxLessonsPerDay ?? rawRate?.max_lessons_per_day ?? 1;
+                                const weekendLimit = rawRate?.maxWeekendLessonsPerDay ?? 
+                                                     rawRate?.max_weekend_lessons_per_day ?? 
+                                                     rawRate?.metadata?.maxWeekendLessonsPerDay ?? 
+                                                     rawRate?.metadata?.max_weekend_lessons_per_day ?? 
+                                                     (cachedWeekendLimit ? Number(cachedWeekendLimit) : undefined) ?? 
+                                                     2;
                                 const maxLimit = isTodayWeekend ? weekendLimit : weekdayLimit;
                                 const limitLabel = isTodayWeekend ? 'weekend' : 'weekday';
 
