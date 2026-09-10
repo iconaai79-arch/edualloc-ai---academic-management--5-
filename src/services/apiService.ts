@@ -1959,6 +1959,7 @@ export const apiService = {
                 delete item.classes;
                 delete item.is_complete;
                 delete item.isComplete;
+                delete item.metadata;
             }
 
             // Commission withdrawal requests normalization

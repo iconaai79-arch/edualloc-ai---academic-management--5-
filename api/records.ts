@@ -133,6 +133,26 @@ const PUBLIC_MODULES = [
   'app_notifications', 'whatsapp_configs', 'whatsapp_logs'
 ];
 
+const TABLES_WITH_METADATA = new Set([
+  'users',
+  'institutions',
+  'student_enrollments',
+  'retail_sales',
+  'visitors',
+  'his_patients',
+  'app_notifications',
+  'whatsapp_configs',
+  'whatsapp_logs',
+  'school_remedial_subjects',
+  'mpesa_transactions',
+  'airtel_transactions',
+  'intasend_transactions',
+  'ncba_transactions',
+  'his_tariffs',
+  'bursary_disbursements',
+  'ds_payments'
+]);
+
 const MODULE_ALIASES: Record<string, string> = {
   'guest_feedback': 'feedback_submissions',
   'guest_feedbacks': 'feedback_submissions',
@@ -1522,6 +1542,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.classes;
                     delete copy.is_complete;
                     delete copy.isComplete;
+                    delete copy.metadata;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
@@ -1530,7 +1551,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any = null;
             let error: any = null;
             let maxRetries = 15;
-            let tableSupportsMetadata = true;
+            let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
             while (maxRetries >= 0) {
                 const queryRes = await supabase.from(targetDbTable).upsert(currentPayload).select();
@@ -2097,12 +2118,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.classes;
                     delete copy.is_complete;
                     delete copy.isComplete;
+                    delete copy.metadata;
                     currentUpdateData = copy;
                 }
                 let data: any = null;
                 let error: any = null;
                 let patchRetries = 15;
-                let patchTableSupportsMetadata = true;
+                let patchTableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
                 while (patchRetries >= 0) {
                     let q = supabase.from(targetDbTable).update(currentUpdateData);
