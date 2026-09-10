@@ -753,7 +753,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .eq('institution_id', institutionId)
                 .maybeSingle();
 
-            if (!config || !config.gateway_url) {
+            const rawGwUrl = (config?.gateway_url || '').trim();
+            if (!config || !rawGwUrl || rawGwUrl.includes('wa.eduai.platform') || rawGwUrl.includes('example.com')) {
                 return res.status(200).json({
                     success: true,
                     isConnected: false,

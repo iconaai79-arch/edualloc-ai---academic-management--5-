@@ -47,18 +47,20 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
 }) => {
     // ── 1. Configuration State ──
     const initialConfig: WhatsAppConfig = useMemo(() => {
-        return (companyDetails as any)?.whatsappConfig || {
+        const raw = (companyDetails as any)?.whatsappConfig;
+        const cleanUrl = (raw?.gateway_url || '').includes('wa.eduai.platform') ? '' : (raw?.gateway_url || '');
+        return {
             institution_id: 'global',
             provider_type: 'gateway',
-            gateway_url: '',
-            api_key: '',
-            instance_name: 'eduai_master',
-            phone_number: '',
-            auto_send_receipts: true,
-            auto_send_fee_reminders: false,
-            auto_send_academic_results: false,
-            allow_institution_failover: true,
-            global_dispatch_enabled: true
+            gateway_url: cleanUrl,
+            api_key: raw?.api_key || '',
+            instance_name: raw?.instance_name || 'eduai_master',
+            phone_number: raw?.phone_number || '',
+            auto_send_receipts: raw?.auto_send_receipts ?? true,
+            auto_send_fee_reminders: raw?.auto_send_fee_reminders ?? false,
+            auto_send_academic_results: raw?.auto_send_academic_results ?? false,
+            allow_institution_failover: raw?.allow_institution_failover ?? true,
+            global_dispatch_enabled: raw?.global_dispatch_enabled ?? true
         };
     }, [(companyDetails as any)?.whatsappConfig]);
 
@@ -155,13 +157,15 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                     .maybeSingle();
 
                 if (dbConfig) {
+                    const cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
                     setConfig(prev => ({
                         ...prev,
                         ...dbConfig,
+                        gateway_url: cleanUrl,
                         provider_type: dbConfig.provider_type || 'gateway'
                     }));
                     // Detect if the saved URL matches the platform gateway
-                    if (dbConfig.gateway_url === PLATFORM_GATEWAY_URL) {
+                    if (cleanUrl && cleanUrl === PLATFORM_GATEWAY_URL) {
                         setUsePlatformGateway(true);
                     }
                 }
