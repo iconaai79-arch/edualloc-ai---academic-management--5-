@@ -866,11 +866,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let errorMessage = '';
 
             try {
-                if (config && config.provider_type === 'gateway' && config.gateway_url) {
+                const rawGatewayUrl = (config?.gateway_url || '').trim();
+                const isPlaceholderGateway = rawGatewayUrl.includes('wa.eduai.platform') || rawGatewayUrl.includes('example.com');
+
+                if (config && config.provider_type === 'gateway' && rawGatewayUrl && !isPlaceholderGateway) {
                     const instName = config.instance_name || (config.institution_id === 'global' ? 'eduai_master' : `eduai_${(config.institution_id || requestedInstId).replace(/[^a-zA-Z0-9]/g, '_')}`);
                     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
                     if (config.api_key) headers['apikey'] = config.api_key;
-                    const gatewayBase = config.gateway_url.replace(/\/$/, '');
+                    const gatewayBase = rawGatewayUrl.replace(/\/$/, '');
                     
                     if (mediaUrl) {
                         const docPayload = {
@@ -888,6 +891,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                         responsePayload = await sendRes.json().catch(() => ({ status: sendRes.status }));
                         sendSuccess = sendRes.ok;
+                        if (!sendRes.ok) {
+                            const raw = responsePayload?.response?.message || 
+                                        responsePayload?.message || 
+                                        responsePayload?.error?.message || 
+                                        (typeof responsePayload?.error === 'string' ? responsePayload.error : null) || 
+                                        (sendRes.status === 404 ? `Instance "${instName}" not found on Gateway server. Please provision or create it in Settings.` : null) ||
+                                        (sendRes.status === 400 ? `WhatsApp session "${instName}" is not connected or phone is un-paired. Please scan the QR code first.` : null) ||
+                                        `Gateway returned HTTP ${sendRes.status}`;
+                            errorMessage = Array.isArray(raw) ? raw.join(', ') : String(raw);
+                        }
                     } else {
                         const textPayload = {
                             number: cleanPhone,
@@ -900,7 +913,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
                         responsePayload = await sendRes.json().catch(() => ({ status: sendRes.status }));
                         sendSuccess = sendRes.ok;
+                        if (!sendRes.ok) {
+                            const raw = responsePayload?.response?.message || 
+                                        responsePayload?.message || 
+                                        responsePayload?.error?.message || 
+                                        (typeof responsePayload?.error === 'string' ? responsePayload.error : null) || 
+                                        (sendRes.status === 404 ? `Instance "${instName}" not found on Gateway server. Please provision or create it in Settings.` : null) ||
+                                        (sendRes.status === 400 ? `WhatsApp session "${instName}" is not connected or phone is un-paired. Please scan the QR code first.` : null) ||
+                                        `Gateway returned HTTP ${sendRes.status}`;
+                            errorMessage = Array.isArray(raw) ? raw.join(', ') : String(raw);
+                        }
                     }
+                } else if (config && config.provider_type === 'gateway' && isPlaceholderGateway) {
+                    sendSuccess = false;
+                    errorMessage = 'Gateway URL is set to placeholder (wa.eduai.platform). Enter your live Evolution API server address or switch to Meta Cloud API in Settings.';
+                    responsePayload = { error: errorMessage };
                 } else if (config && config.provider_type === 'meta_cloud' && config.meta_access_token && config.meta_phone_number_id) {
                     const metaRes = await fetch(`https://graph.facebook.com/v19.0/${config.meta_phone_number_id}/messages`, {
                         method: 'POST',
@@ -917,12 +944,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                     responsePayload = await metaRes.json().catch(() => ({ status: metaRes.status }));
                     sendSuccess = metaRes.ok;
+                    if (!metaRes.ok) {
+                        const metaErr = responsePayload?.error;
+                        if (metaErr) {
+                            let msg = metaErr.message || `Meta Cloud API error (${metaErr.code || metaRes.status})`;
+                            if (metaErr.code === 131030) {
+                                msg += ' — Sandbox mode: Ensure this recipient number (+254...) is added to the allowed "To" phone numbers in Meta Developer Portal.';
+                            } else if (metaErr.code === 190) {
+                                msg += ' — Meta Access Token is expired or invalid. Please generate a fresh System User Token in Meta Developer Portal.';
+                            }
+                            errorMessage = msg;
+                        } else {
+                            errorMessage = responsePayload?.message || `Meta Cloud API returned HTTP ${metaRes.status}`;
+                        }
+                    }
+                } else if (config && config.provider_type === 'meta_cloud') {
+                    sendSuccess = false;
+                    errorMessage = 'Meta Cloud API is selected, but Meta Access Token or Phone Number ID is missing in Settings.';
+                    responsePayload = { error: errorMessage };
                 } else {
                     sendSuccess = true;
                     responsePayload = { simulated: true, note: 'WhatsApp message queued. Connect a Gateway or Meta Cloud API in Settings to dispatch directly to handset.' };
                 }
             } catch (err: any) {
-                errorMessage = err.message || 'Gateway network error';
+                errorMessage = err.message ? `Connection error: ${err.message}` : 'Gateway network error';
                 console.error('[WhatsApp Gateway Error]:', err);
             }
 

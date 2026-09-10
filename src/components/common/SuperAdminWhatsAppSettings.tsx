@@ -1098,11 +1098,24 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                             </button>
 
                             {testResult && (
-                                <div className={`p-4 rounded-xl text-xs font-bold flex items-center gap-2 ${
-                                    testResult.success ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-200' : 'bg-rose-950/60 border border-rose-500/40 text-rose-200'
+                                <div className={`p-4 rounded-xl text-xs flex items-start gap-3 transition-all ${
+                                    testResult.success
+                                        ? 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-200'
+                                        : 'bg-rose-950/60 border border-rose-500/40 text-rose-200'
                                 }`}>
-                                    {testResult.success ? <CheckCircleIcon className="w-4 h-4 text-emerald-400" /> : <XCircleIcon className="w-4 h-4 text-rose-400" />}
-                                    <span>{testResult.message}</span>
+                                    {testResult.success ? (
+                                        <CheckCircleIcon className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                                    ) : (
+                                        <XCircleIcon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                                    )}
+                                    <div className="space-y-1">
+                                        <div className="font-black uppercase tracking-wider text-[11px]">
+                                            {testResult.success ? 'Dispatch Succeeded' : 'Dispatch Failed'}
+                                        </div>
+                                        <div className="font-medium text-slate-300 leading-relaxed text-xs">
+                                            {testResult.message}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

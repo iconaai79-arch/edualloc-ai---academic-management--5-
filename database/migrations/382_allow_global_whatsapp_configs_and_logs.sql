@@ -90,5 +90,11 @@ INSERT INTO public.whatsapp_configs (
     allow_institution_failover = EXCLUDED.allow_institution_failover,
     global_dispatch_enabled = EXCLUDED.global_dispatch_enabled;
 
--- 6. Reload schema cache
+-- 6. Clean legacy placeholder domain if present
+UPDATE public.whatsapp_configs 
+SET gateway_url = NULL 
+WHERE gateway_url LIKE '%wa.eduai.platform%';
+
+-- 7. Reload schema cache
 NOTIFY pgrst, 'reload schema';
+
