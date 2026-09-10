@@ -33,6 +33,8 @@
     { "source": "/iclock/:path*", "destination": "/api/zkteco-webhook" },
     { "source": "/api/payments/:path*", "destination": "/api/payments?path=:path*" },
     { "source": "/api/coop-b2b/:path*", "destination": "/api/coop-b2b?path=:path*" },
+    { "source": "/webhook/whatsapp", "destination": "/api/whatsapp-webhook" },
+    { "source": "/whatsapp-webhook", "destination": "/api/whatsapp-webhook" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
