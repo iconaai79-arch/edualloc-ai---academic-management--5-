@@ -24,7 +24,7 @@ import {
 // Change this once when you deploy your central gateway server.
 // All institutions will inherit this URL automatically when
 // "Use Platform Gateway" is enabled.
-const PLATFORM_GATEWAY_URL = import.meta.env.VITE_PLATFORM_GATEWAY_URL || 'https://wa.eduai.platform';
+const PLATFORM_GATEWAY_URL = (import.meta as any).env?.VITE_PLATFORM_GATEWAY_URL || 'https://wa.eduai.platform';
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Generates a cryptographically-secure 64-char hex token */
@@ -49,7 +49,7 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
 }) => {
     // ── 1. Configuration State ──
     const initialConfig: WhatsAppConfig = useMemo(() => {
-        return companyDetails?.whatsappConfig || {
+        return (companyDetails as any)?.whatsappConfig || {
             institution_id: 'global',
             provider_type: 'gateway',
             gateway_url: '',
@@ -62,7 +62,7 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
             allow_institution_failover: true,
             global_dispatch_enabled: true
         };
-    }, [companyDetails?.whatsappConfig]);
+    }, [(companyDetails as any)?.whatsappConfig]);
 
     const [config, setConfig] = useState<WhatsAppConfig>(initialConfig);
     const [activeSection, setActiveSection] = useState<'gateway' | 'policies' | 'sandbox' | 'institutions' | 'logs'>('gateway');
@@ -397,7 +397,7 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
             return {
                 id: inst.id,
                 name: inst.name,
-                code: inst.code,
+                code: inst.institutionCode,
                 hasDedicated,
                 isConnected: inst.whatsappConfig?.is_connected || false,
                 providerType: inst.whatsappConfig?.provider_type || 'gateway'
