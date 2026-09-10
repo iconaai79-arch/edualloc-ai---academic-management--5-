@@ -138,7 +138,7 @@ const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboar
 const CarShowroomReportsDashboard = lazy(() => import('./automotive/CarShowroomReportsDashboard').then(m => ({ default: m.CarShowroomReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
-import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution } from '../utils/roleUtils';
+import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution, isStrictTeacherUser } from '../utils/roleUtils';
 
 export interface AdminViewProps {
     currentUser?: User;
@@ -767,7 +767,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             } else if (isMilling || role === 'miller_admin' || role === 'weighbridge_operator') {
                 setActiveTab('milling');
             } else if (isEdu || isSchool) {
-                setActiveTab(role === 'head_teacher' ? 'dashboard' : 'timetable');
+                const isLeadership = ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'dos', 'director_of_studies', 'admin'].includes(role || '');
+                setActiveTab(isLeadership ? 'dashboard' : 'timetable');
                 setActiveScope('console_hub');
             }
             setHasSetDefaultTab(true);
@@ -780,8 +781,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (role === 'mechanic_admin') {
                 setActiveTab('car_service');
                 setActiveScope('logistics');
-            } else if ((role === 'admin' || role === 'head_teacher') && (isEdu || isSchool)) {
-                setActiveTab(role === 'head_teacher' ? 'dashboard' : 'timetable');
+            } else if (['admin', 'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'dos', 'director_of_studies'].includes(role) && (isEdu || isSchool)) {
+                const isLeadership = ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'dos', 'director_of_studies', 'admin'].includes(role || '');
+                setActiveTab(isLeadership ? 'dashboard' : 'timetable');
                 setActiveScope('console_hub');
             }
         }
@@ -833,9 +835,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [props.currentInstitution?.moduleStates, props.currentInstitution?.institutionType, props.currentInstitution?.id, props.currentInstitution?.status, props.currentUser, isBC, isEdu, isSchool]);
 
     const isCoreAdmin = useMemo(() => {
-        const role = props.currentUser?.role;
-        return ['admin', 'head_teacher', 'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin', 'retail_agent', 'transport_admin', 'dos', 'deputy', 'hod', 'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(role || '');
-    }, [props.currentUser?.role]);
+        const role = props.activeRole || props.currentUser?.role;
+        return [
+            'admin', 'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress',
+            'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin',
+            'retail_agent', 'transport_admin', 'dos', 'director_of_studies', 'academics_officer',
+            'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head',
+            'hod', 'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin',
+            'managing_director', 'hoi', 'operation_manager', 'operations_manager'
+        ].includes(role || '');
+    }, [props.activeRole, props.currentUser?.role]);
 
     const tabs = useMemo(() => {
         const baseTabs = [
@@ -1267,6 +1276,28 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         if (!moduleId) return null;
         return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
     };
+
+    if (isStrictTeacherUser(props.currentUser)) {
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center p-6">
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-8 max-w-md text-center shadow-xl">
+                    <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
+                        <ShieldExclamationIcon className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Teacher Portal Access Only</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+                        Teacher accounts are strictly restricted to the Teacher Portal. Institutional administration is reserved for DOS, Deputy, and Head Teacher.
+                    </p>
+                    <button
+                        onClick={() => { window.location.href = '/'; }}
+                        className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all"
+                    >
+                        Return to Teacher Portal
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">

@@ -104,7 +104,7 @@ export function getRolesForInstitution(institution: Institution | null | undefin
 
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'operation_manager', 'deputy', 'dos', 'hod', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'procurement_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['head_teacher', 'principal', 'deputy', 'dos', 'operation_manager', 'hod', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'procurement_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
     }
 
     // Tertiary / Higher Ed
@@ -342,11 +342,11 @@ export function formatRoleDisplayName(role: Role, institution?: Institution | nu
     // School context
     if (isSchoolInstitution(institution)) {
         switch (role) {
-            case 'head_teacher': case 'admin': return 'Head Teacher';
+            case 'head_teacher': case 'headteacher': case 'admin': case 'principal': case 'headmaster': case 'headmistress': return 'Head Teacher / Principal';
             case 'operation_manager': case 'operations_manager': return 'Operation Manager';
-            case 'deputy': return 'Deputy Principal';
-            case 'dos': case 'academics_officer': return 'DOS / Academics';
-            case 'teacher': case 'lecturer': return 'Teacher';
+            case 'deputy': case 'deputy_headteacher': case 'deputy_principal': case 'deputy_head': return 'Deputy Principal / Head';
+            case 'dos': case 'director_of_studies': case 'academics_officer': return 'Director of Studies (DOS)';
+            case 'teacher': case 'lecturer': case 'practice_teacher': return 'Teacher';
             case 'class_supervisor': return 'Class Supervisor';
             case 'boarding_master': return 'Boarding Manager';
             case 'managing_director': return 'Managing Director';
@@ -449,4 +449,87 @@ export function formatRoleDisplayName(role: Role, institution?: Institution | nu
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
+}
+
+/**
+ * Standard teacher roles that belong strictly to the Teacher Portal.
+ */
+export const TEACHER_ROLES: Role[] = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
+
+/**
+ * Checks if a given role is a teacher-related role.
+ */
+export function isTeacherRole(role?: Role | string | null): boolean {
+    if (!role) return false;
+    const normalized = String(role).toLowerCase();
+    return TEACHER_ROLES.some(r => r.toLowerCase() === normalized);
+}
+
+/**
+ * Administrative leadership roles with access to the Admin Portal (including DOS, Headteacher, Deputy).
+ */
+export const SCHOOL_ADMIN_ROLES: Role[] = [
+    'super_admin',
+    'group_admin',
+    'school_group_admin',
+    'school_admin',
+    'admin',
+    'head_teacher',
+    'headteacher',
+    'principal',
+    'headmaster',
+    'headmistress',
+    'deputy',
+    'deputy_headteacher',
+    'deputy_principal',
+    'deputy_head',
+    'dos',
+    'director_of_studies',
+    'academics_officer',
+    'director',
+    'managing_director',
+    'hoi',
+    'operation_manager',
+    'operations_manager',
+    'manager'
+];
+
+/**
+ * Checks if a given role is an institutional administrative leadership role.
+ */
+export function isSchoolAdminRole(role?: Role | string | null): boolean {
+    if (!role) return false;
+    const normalized = String(role).toLowerCase();
+    return SCHOOL_ADMIN_ROLES.some(r => r.toLowerCase() === normalized);
+}
+
+/**
+ * Checks if a user is strictly a teacher (possesses teacher role without holding administrative leadership roles).
+ */
+export function isStrictTeacherUser(user: { role?: Role | string | null; roles?: (Role | string)[] | null } | null | undefined): boolean {
+    if (!user) return false;
+    const userRoles: string[] = Array.isArray(user.roles)
+        ? user.roles.map(r => String(r).toLowerCase())
+        : (user.role ? [String(user.role).toLowerCase()] : []);
+
+    const hasAdmin = userRoles.some(r => SCHOOL_ADMIN_ROLES.some(ar => ar.toLowerCase() === r));
+    if (hasAdmin) return false;
+
+    return isTeacherRole(user.role) || userRoles.some(r => isTeacherRole(r));
+}
+
+/**
+ * Checks if a user has authorization to access the Admin Portal.
+ * Teachers are strictly restricted from the Admin Portal unless they hold administrative leadership roles.
+ */
+export function canAccessAdminPortal(user: { role?: Role | string | null; roles?: (Role | string)[] | null } | null | undefined, activeRole?: Role | string | null): boolean {
+    if (!user) return false;
+    if (isStrictTeacherUser(user)) return false;
+    if (activeRole && isSchoolAdminRole(activeRole)) return true;
+
+    const userRoles: string[] = Array.isArray(user.roles)
+        ? user.roles.map(r => String(r).toLowerCase())
+        : (user.role ? [String(user.role).toLowerCase()] : []);
+
+    return userRoles.some(r => SCHOOL_ADMIN_ROLES.some(ar => ar.toLowerCase() === r));
 }

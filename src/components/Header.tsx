@@ -4,7 +4,7 @@ import { NotificationBell } from './NotificationBell';
 import { InstallAppButton } from './InstallAppButton';
 import { OfflineSyncWidget } from './common/OfflineSyncWidget';
 import { getInitials } from '../utils/stringUtils';
-import { formatRoleDisplayName, isEduInstitution, isHISInstitution } from '../utils/roleUtils';
+import { formatRoleDisplayName, isEduInstitution, isHISInstitution, isStrictTeacherUser, isTeacherRole } from '../utils/roleUtils';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ArrowRightOnRectangleIcon } from './icons/ArrowRightOnRectangleIcon';
 import { PencilIcon } from './icons/PencilIcon';
@@ -116,12 +116,19 @@ export const Header: React.FC<HeaderProps> = ({
             ? currentUser.roles
             : (currentUser.role ? [currentUser.role] : []);
 
-        const roles = rawRoles.filter(r => r != null && r !== undefined);
+        let roles = rawRoles.filter(r => r != null && r !== undefined);
 
         // Ensure primary role is included
         if (currentUser.role && !roles.includes(currentUser.role)) {
             roles.unshift(currentUser.role);
         }
+
+        // STRICT ACCESS ENFORCEMENT: Teachers can strictly access Teacher Portal only
+        if (isStrictTeacherUser(currentUser)) {
+            roles = roles.filter(r => isTeacherRole(r));
+            if (roles.length === 0) roles = ['teacher'];
+        }
+
         return [...new Set(roles)];
     }, [currentUser]);
 
@@ -279,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                             {isMenuOpen && (
                                 <div className="origin-top-right absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl bg-white dark:bg-slate-800 ring-1 ring-black ring-opacity-5 z-[110] overflow-hidden animate-fade-in-up border border-slate-100 dark:border-slate-700">
-                                     {!hidePerspectiveSwitcher && (
+                                     {!hidePerspectiveSwitcher && availableRoles.length > 1 && (
                                         <div className="px-5 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                                             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-3">Available Roles</p>
                                             <div className="space-y-2">

@@ -31,7 +31,7 @@ import { ConstructionProjectView } from './ConstructionProjectView';
 import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
 import { BuildingSecurityManager } from './BuildingSecurityManager';
-import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution } from '../utils/roleUtils';
+import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
@@ -785,13 +785,21 @@ export const App: React.FC = () => {
     }, [currentUser, institutions, counties, schoolRegistry, activeStoreTenantId, institutionModuleStates, constituencies]);
 
     const activeRole = useMemo<Role | null>(() => {
-        if (impersonatedRole) return impersonatedRole;
         if (!currentUser) return null;
+
+        // STRICT ACCESS ENFORCEMENT:
+        // A user whose assigned role is strictly a teacher (no administrative leadership role)
+        // must strictly access the Teacher Portal only.
+        if (isStrictTeacherUser(currentUser)) {
+            return (currentUser.role === 'lecturer' || currentUser.role === 'practice_teacher') ? currentUser.role : 'teacher';
+        }
+
+        if (impersonatedRole) return impersonatedRole;
 
         const roleToUse = selectedRole || currentUser.role;
 
         // Force HIS Admin role for HIS/Hospital/Clinic institutions (independent from EduPulse, do not login as principal/head_teacher)
-        if (isHISInstitution(activeInstitution) && (['admin', 'head_teacher', 'principal', 'teacher', 'headmaster'] as string[]).includes(roleToUse as string)) {
+        if (isHISInstitution(activeInstitution) && (['admin', 'head_teacher', 'headteacher', 'principal', 'teacher', 'headmaster'] as string[]).includes(roleToUse as string)) {
             return 'his_admin';
         }
 
@@ -802,7 +810,26 @@ export const App: React.FC = () => {
         return isHISInstitution(activeInstitution, activeRole);
     }, [activeInstitution, activeRole]);
 
-    const isAdminCatchAll = ['super_admin', 'group_admin', 'school_group_admin', 'school_admin', 'admin', 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'teacher', 'practice_teacher', 'county_teacher', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse', 'carwash_admin', 'transport_admin', 'reseller', 'retail_agent', 'field_agent', 'store', 'supplier', 'fuel_admin', 'legal_admin', 'cooperative_manager', 'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin', 'driving_instructor', 'staff', 'security', 'driver', 'event_manager', 'sales', 'director', 'finance', 'reception', 'mechanic_admin', 'finance_officer', 'procurement_officer', 'managing_director', 'hoi', 'operation_manager', 'operations_manager', 'principal', 'headmaster', 'headmistress', 'manager'].includes(activeRole || '');
+    const isAdminCatchAll = useMemo(() => {
+        // Pure teachers can NEVER access the Admin Portal
+        if (isStrictTeacherUser(currentUser)) return false;
+        if (isTeacherRole(activeRole)) return false;
+
+        return [
+            'super_admin', 'group_admin', 'school_group_admin', 'school_admin', 'admin',
+            'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress',
+            'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head',
+            'dos', 'director_of_studies', 'academics_officer',
+            'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse',
+            'carwash_admin', 'transport_admin', 'reseller', 'retail_agent', 'field_agent',
+            'store', 'supplier', 'fuel_admin', 'legal_admin', 'cooperative_manager',
+            'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin',
+            'driving_instructor', 'staff', 'security', 'driver', 'event_manager',
+            'sales', 'director', 'finance', 'reception', 'mechanic_admin',
+            'finance_officer', 'procurement_officer', 'managing_director', 'hoi',
+            'operation_manager', 'operations_manager', 'manager'
+        ].includes(activeRole || '');
+    }, [currentUser, activeRole]);
 
     const isFullWidthLayout = useMemo(() => {
         return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
@@ -6431,6 +6458,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onOnboardStudent: handleOnboardStudent,
         onOffboardStudent: handleOffboardStudent,
         onSwitchPerspective: (role: Role | null) => {
+            if (isStrictTeacherUser(currentUser) && role && !isTeacherRole(role)) {
+                return;
+            }
             setImpersonatedRole(role);
             setSelectedRole(role);
             if (!role && typeof window !== 'undefined' && window.dispatchEvent) {
@@ -7026,7 +7056,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             isApiOnline={isApiOnline}
                             applicationTitle={companyDetails.applicationTitle}
                             activeRole={activeRole as Role}
-                            onSwitchRole={(r) => setSelectedRole(r)}
+                            onSwitchRole={(r) => {
+                                if (isStrictTeacherUser(currentUser) && !isTeacherRole(r)) {
+                                    return;
+                                }
+                                setSelectedRole(r);
+                            }}
                             onExitPerspective={(impersonatedRole || selectedRole) ? () => { setImpersonatedRole(null); setSelectedRole(null); } : undefined}
                             onToggleHealthSystem={() => setIsHealthSystemOpen(!isHealthSystemOpen)}
                             onTogglePharmacySystem={() => setIsPharmacySystemOpen(!isPharmacySystemOpen)}
@@ -7445,7 +7480,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                     </ModuleAccessGuard>
-                                ) : activeRole === 'lecturer' ? (
+                                ) : (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || isStrictTeacherUser(currentUser)) ? (
                                     <LecturerView {...{
                                         ...lecturerProps,
                                         user: currentUser,
