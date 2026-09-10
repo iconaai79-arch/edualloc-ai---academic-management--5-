@@ -81,6 +81,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     const [formData, setFormData] = useState({
         name: '',
         code: '',
+        abbreviation: '',
         departmentId: '',
         periodsPerWeek: 4
     });
@@ -697,6 +698,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setFormData({
             name: '',
             code: '',
+            abbreviation: '',
             departmentId: departments[0]?.id || '',
             periodsPerWeek: 4
         });
@@ -712,6 +714,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setFormData({
             name: subject.name,
             code: subject.code,
+            abbreviation: subject.abbreviation || subject.shortName || '',
             departmentId: subject.departmentId || departments[0]?.id || '',
             periodsPerWeek: periods
         });
@@ -729,9 +732,12 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
 
         if (editingSubject) {
             // Edit existing subject
+            const abbr = (formData.abbreviation || '').trim().toUpperCase();
             const updatedData = {
                 name: formData.name.trim(),
                 code: formData.code.trim().toUpperCase(),
+                abbreviation: abbr,
+                shortName: abbr,
                 departmentId: formData.departmentId || undefined,
                 lessonStructure
             };
@@ -748,10 +754,13 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         } else {
             // Add new subject & allocate to activeAllocationTarget
             const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            const abbr = (formData.abbreviation || '').trim().toUpperCase();
             const newSubjData: any = {
                 id: newId,
                 name: formData.name.trim(),
                 code: formData.code.trim().toUpperCase(),
+                abbreviation: abbr,
+                shortName: abbr,
                 departmentId: formData.departmentId || departments[0]?.id || 'dept_1',
                 lessonStructure,
                 isComplete: true,
@@ -1072,14 +1081,14 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono text-xs font-black shrink-0 ${
                                                 isAssigned ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
                                             }`}>
-                                                {subject.code.slice(0, 4)}
+                                                {(subject.abbreviation || subject.shortName || subject.code).slice(0, 4)}
                                             </div>
                                             <div className="min-w-0">
                                                 <h4 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white truncate">
                                                     {subject.name}
                                                 </h4>
                                                 <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                                    {subject.code} • {subject.lessonStructure && subject.lessonStructure.length > 0 ? `${subject.lessonStructure.reduce((a, b) => a + b.count, 0)} p/wk` : 'N/A'}
+                                                    {subject.code}{subject.abbreviation ? ` • ${subject.abbreviation}` : (subject.shortName ? ` • ${subject.shortName}` : '')} • {subject.lessonStructure && subject.lessonStructure.length > 0 ? `${subject.lessonStructure.reduce((a, b) => a + b.count, 0)} p/wk` : 'N/A'}
                                                 </p>
                                             </div>
                                         </div>
@@ -1174,6 +1183,20 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                                         value={formData.code}
                                         onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                                         placeholder="e.g. INT-SCI, KISW-01"
+                                        className="form-input font-mono uppercase font-bold"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">
+                                        Abbreviation
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.abbreviation}
+                                        onChange={e => setFormData({ ...formData, abbreviation: e.target.value.toUpperCase() })}
+                                        placeholder="e.g. SS, ENG, MAT, SCI"
+                                        maxLength={10}
                                         className="form-input font-mono uppercase font-bold"
                                     />
                                 </div>

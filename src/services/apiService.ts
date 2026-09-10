@@ -1949,10 +1949,24 @@ export const apiService = {
 
             // Subjects module normalization: strictly allow only core database columns
             if (module === 'subjects') {
+                if (item.abbreviation !== undefined && item.abbreviation !== null) {
+                    item.abbreviation = String(item.abbreviation).trim().toUpperCase();
+                    if (!item.short_name && !item.shortName) {
+                        item.short_name = item.abbreviation;
+                    }
+                }
+                if (item.shortName && !item.abbreviation) {
+                    item.abbreviation = String(item.shortName).trim().toUpperCase();
+                }
+                if (item.short_name && !item.abbreviation) {
+                    item.abbreviation = String(item.short_name).trim().toUpperCase();
+                }
+
                 const allowed = new Set([
                     'id', 'code', 'name', 'description', 
                     'department_id', 'institution_id', 
                     'lesson_structure', 'has_exam', 'dedicated_room_id',
+                    'abbreviation', 'short_name',
                     'created_at', 'updated_at'
                 ]);
                 Object.keys(item).forEach(key => {
@@ -4225,8 +4239,11 @@ export const apiService = {
                     cls = matchedClasses;
                 }
             }
+            const abbr = s.abbreviation || s.short_name || s.shortName || '';
             return {
                 ...s,
+                abbreviation: abbr,
+                shortName: abbr || s.shortName || s.short_name || '',
                 targetClasses: cls,
                 assignedClasses: cls,
                 classes: cls

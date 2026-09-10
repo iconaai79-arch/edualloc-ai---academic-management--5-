@@ -840,6 +840,7 @@ export interface Subject {
     hasExam?: boolean;
     dedicatedRoomId?: string;
     shortName?: string;
+    abbreviation?: string;
     targetCourseLevelId?: string;
     targetClasses?: string[];
     assignedClasses?: string[];

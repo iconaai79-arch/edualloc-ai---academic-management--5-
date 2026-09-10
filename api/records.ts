@@ -1536,6 +1536,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'id', 'code', 'name', 'description', 
                         'department_id', 'institution_id', 
                         'lesson_structure', 'has_exam', 'dedicated_room_id',
+                        'abbreviation', 'short_name',
                         'created_at', 'updated_at'
                     ]);
                     const clean: any = {};
@@ -1549,6 +1550,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (item.lessonStructure && !clean.lesson_structure) clean.lesson_structure = item.lessonStructure;
                     if (item.hasExam !== undefined && clean.has_exam === undefined) clean.has_exam = item.hasExam;
                     if (item.dedicatedRoomId && !clean.dedicated_room_id) clean.dedicated_room_id = item.dedicatedRoomId;
+                    if (item.abbreviation !== undefined && clean.abbreviation === undefined) clean.abbreviation = item.abbreviation;
+                    if (item.shortName !== undefined && clean.short_name === undefined) clean.short_name = item.shortName;
+                    if (clean.abbreviation && !clean.short_name) clean.short_name = clean.abbreviation;
+                    if (clean.short_name && !clean.abbreviation) clean.abbreviation = clean.short_name;
                     return clean;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
@@ -2118,6 +2123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'id', 'code', 'name', 'description', 
                         'department_id', 'institution_id', 
                         'lesson_structure', 'has_exam', 'dedicated_room_id',
+                        'abbreviation', 'short_name',
                         'created_at', 'updated_at'
                     ]);
                     const clean: any = {};
@@ -2131,6 +2137,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (currentUpdateData.lessonStructure && !clean.lesson_structure) clean.lesson_structure = currentUpdateData.lessonStructure;
                     if (currentUpdateData.hasExam !== undefined && clean.has_exam === undefined) clean.has_exam = currentUpdateData.hasExam;
                     if (currentUpdateData.dedicatedRoomId && !clean.dedicated_room_id) clean.dedicated_room_id = currentUpdateData.dedicatedRoomId;
+                    if (currentUpdateData.abbreviation !== undefined && clean.abbreviation === undefined) clean.abbreviation = currentUpdateData.abbreviation;
+                    if (currentUpdateData.shortName !== undefined && clean.short_name === undefined) clean.short_name = currentUpdateData.shortName;
+                    if (clean.abbreviation && !clean.short_name) clean.short_name = clean.abbreviation;
+                    if (clean.short_name && !clean.abbreviation) clean.abbreviation = clean.short_name;
                     currentUpdateData = clean;
                 }
                 let data: any = null;

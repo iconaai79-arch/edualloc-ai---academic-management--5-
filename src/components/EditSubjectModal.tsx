@@ -314,8 +314,19 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                                     </div>
                                     <div className="space-y-4">
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Short Label</label>
-                                            <input type="text" name="shortName" value={formData.shortName || ''} onChange={handleChange} className="form-input" placeholder="Calculus" />
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Abbreviation / Short Name</label>
+                                            <input 
+                                                type="text" 
+                                                name="abbreviation" 
+                                                value={formData.abbreviation || formData.shortName || ''} 
+                                                onChange={e => {
+                                                    const val = e.target.value.toUpperCase();
+                                                    setFormData({ ...formData, abbreviation: val, shortName: val });
+                                                }} 
+                                                className="form-input font-mono font-bold uppercase" 
+                                                placeholder="e.g. SS, MATH, CALC" 
+                                                maxLength={10}
+                                            />
                                         </div>
                                         {!isSchool && (
                                             <div>

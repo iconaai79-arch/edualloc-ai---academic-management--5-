@@ -389,6 +389,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                                     id: '',
                                     name: '',
                                     code: '',
+                                    abbreviation: '',
+                                    shortName: '',
                                     departmentId: defaultDeptId,
                                     institutionId: '',
                                     lessonStructure: [],
@@ -523,7 +525,14 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                                                 {group.subjects.map(subject => (
                                                     <tr key={subject.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
                                                         <td className="px-8 py-4 whitespace-nowrap text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono uppercase w-32">
-                                                            {highlightMatch(subject.code, searchQuery)}
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span>{highlightMatch(subject.code, searchQuery)}</span>
+                                                                {(subject.abbreviation || subject.shortName) && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono font-bold border border-indigo-100 dark:border-indigo-900" title="Abbreviation">
+                                                                        {subject.abbreviation || subject.shortName}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                         <td className="px-8 py-4 whitespace-nowrap">
                                                             <div className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">{highlightMatch(subject.name, searchQuery)}</div>
@@ -561,7 +570,14 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                         {filteredSubjects.map(subject => (
                             <tr key={subject.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors group">
                                 <td className="px-8 py-5 whitespace-nowrap text-sm font-black text-indigo-600 dark:text-indigo-400 font-mono uppercase">
-                                    {highlightMatch(subject.code, searchQuery)}
+                                    <div className="flex items-center gap-2">
+                                        <span>{highlightMatch(subject.code, searchQuery)}</span>
+                                        {(subject.abbreviation || subject.shortName) && (
+                                            <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono font-bold border border-indigo-100 dark:border-indigo-900" title="Abbreviation">
+                                                {subject.abbreviation || subject.shortName}
+                                            </span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td className="px-8 py-5 whitespace-nowrap">
                                     <div className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">
