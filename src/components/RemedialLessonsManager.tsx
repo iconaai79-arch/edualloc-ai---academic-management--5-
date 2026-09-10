@@ -5,8 +5,9 @@ import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
-    Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X
+    Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 interface RemedialLessonsManagerProps {
     currentUser: User;
@@ -73,8 +74,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [allocStartTime, setAllocStartTime] = useState('16:00');
     const [allocEndTime, setAllocEndTime] = useState('18:00');
 
-    // QR Print State
+    // QR Print / Preview State
     const [printingPrefect, setPrintingPrefect] = useState<User | null>(null);
+    const [prefectQrUrl, setPrefectQrUrl] = useState<string>('');
+    const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
 
     // Manual Log Session Modal State
     const [showLogModal, setShowLogModal] = useState(false);
@@ -750,12 +753,317 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Print Prefect Card
-    const printPrefectCard = (prefect: User) => {
-        setPrintingPrefect(prefect);
-        setTimeout(() => {
+    // QR Code Generation Effect whenever printingPrefect changes
+    useEffect(() => {
+        if (!printingPrefect) {
+            setPrefectQrUrl('');
+            return;
+        }
+
+        const token = `prefect_remedial_token_class_${printingPrefect.courseId}`;
+        let isMounted = true;
+        setIsGeneratingQr(true);
+
+        const generateQr = async () => {
+            const QRCodeLib = (window as any).QRCode || (window as any).QRCodeLib;
+            if (QRCodeLib && typeof QRCodeLib.toDataURL === 'function') {
+                try {
+                    QRCodeLib.toDataURL(token, {
+                        width: 360,
+                        margin: 2,
+                        errorCorrectionLevel: 'H',
+                        color: {
+                            dark: '#1e1b4b',
+                            light: '#ffffff'
+                        }
+                    }, (err: any, url: string) => {
+                        if (isMounted) {
+                            setIsGeneratingQr(false);
+                            if (!err && url) {
+                                setPrefectQrUrl(url);
+                            } else {
+                                setPrefectQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(token)}`);
+                            }
+                        }
+                    });
+                    return;
+                } catch (err) {
+                    console.error('QRCode generation error:', err);
+                }
+            }
+
+            // Fallback if window.QRCode is not yet loaded
+            if (isMounted) {
+                setIsGeneratingQr(false);
+                setPrefectQrUrl(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(token)}`);
+            }
+        };
+
+        generateQr();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [printingPrefect]);
+
+    // Download Prefect QR Pass as A6 PDF
+    const downloadPrefectCardPdf = (prefect: User, qrDataUrl: string, courseName: string, institutionName: string) => {
+        try {
+            const lib = (window as any).jspdf || (window as any).jsPDF;
+            const jsPDFClass = lib?.jsPDF || lib || jsPDF;
+            const doc = new jsPDFClass({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a6'
+            });
+
+            const pageWidth = doc.internal.pageSize.getWidth();
+            
+            // Outer double border
+            doc.setDrawColor(79, 70, 229);
+            doc.setLineWidth(1);
+            doc.roundedRect(6, 6, pageWidth - 12, 136, 6, 6, 'S');
+            
+            doc.setDrawColor(199, 210, 254);
+            doc.setLineWidth(0.4);
+            doc.roundedRect(8, 8, pageWidth - 16, 132, 4, 4, 'S');
+
+            // Institution Name
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.setTextColor(30, 27, 75);
+            doc.text((institutionName || 'School Remedial Program').toUpperCase(), pageWidth / 2, 17, { align: 'center' });
+
+            // Badge Pill
+            doc.setFontSize(7.5);
+            doc.setTextColor(79, 70, 229);
+            doc.text('CLASS PREFECT VALIDATION CARD', pageWidth / 2, 23, { align: 'center' });
+
+            // Horizontal Rule
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.3);
+            doc.line(14, 26, pageWidth - 14, 26);
+
+            // Prefect Name
+            doc.setFontSize(13);
+            doc.setTextColor(15, 23, 42);
+            doc.text(prefect.name.toUpperCase(), pageWidth / 2, 34, { align: 'center' });
+
+            // Stream Name
+            doc.setFontSize(9);
+            doc.setTextColor(79, 70, 229);
+            doc.text(`STREAM: ${(courseName || 'Class').toUpperCase()}`, pageWidth / 2, 40, { align: 'center' });
+
+            // QR Code Image
+            const qrSource = qrDataUrl || prefectQrUrl;
+            if (qrSource) {
+                const qrSize = 54;
+                const qrX = (pageWidth - qrSize) / 2;
+                doc.addImage(qrSource, 'PNG', qrX, 45, qrSize, qrSize);
+            }
+
+            // Token ID
+            doc.setFont('courier', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(100, 116, 139);
+            const tokenStr = `Token: prefect_remedial_token_class_${prefect.courseId}`;
+            doc.text(tokenStr, pageWidth / 2, 106, { align: 'center' });
+
+            // Instructions
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(71, 85, 105);
+            doc.text('Scan this QR code to verify session start and end.', pageWidth / 2, 114, { align: 'center' });
+            doc.text('Authorized by Academic Administration', pageWidth / 2, 118, { align: 'center' });
+
+            // Bottom Footer
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(79, 70, 229);
+            doc.text('REMEDIAL LESSONS SCAN PASS', pageWidth / 2, 130, { align: 'center' });
+
+            const filename = `Prefect_${prefect.name.replace(/[^a-zA-Z0-9]/g, '_')}_Remedial_QR.pdf`;
+            doc.save(filename);
+        } catch (err) {
+            console.error('Failed to generate prefect QR PDF:', err);
+            alert('Failed to generate PDF. Please use the Print option instead.');
+        }
+    };
+
+    // Print Prefect Card Handler (Direct isolated window or fallback to page print)
+    const handlePrintPrefectCard = (prefectToPrint?: User) => {
+        const target = prefectToPrint || printingPrefect;
+        if (!target) return;
+
+        const courseName = courses.find(c => c.id === target.courseId)?.name || 'Class / Stream';
+        const institutionName = currentInstitution?.name || 'School Remedial Program';
+        const tokenId = `prefect_remedial_token_class_${target.courseId}`;
+        const qrSrc = prefectQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tokenId)}`;
+
+        const printWindow = window.open('', '_blank', 'width=650,height=750');
+        if (printWindow) {
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Prefect QR Card - ${target.name}</title>
+                    <style>
+                        @page {
+                            size: A4 portrait;
+                            margin: 15mm;
+                        }
+                        * {
+                            box-sizing: border-box;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                            margin: 0;
+                            padding: 24px;
+                            background: #ffffff;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: 90vh;
+                        }
+                        .card-container {
+                            width: 360px;
+                            border: 3px double #4338ca;
+                            border-radius: 28px;
+                            padding: 30px 24px;
+                            text-align: center;
+                            background: #ffffff;
+                            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06);
+                        }
+                        .institution-title {
+                            font-size: 15px;
+                            font-weight: 900;
+                            text-transform: uppercase;
+                            color: #1e1b4b;
+                            letter-spacing: 0.5px;
+                            margin: 0 0 6px 0;
+                        }
+                        .badge-pill {
+                            display: inline-block;
+                            background: #eef2ff;
+                            color: #4338ca;
+                            border: 1px solid #c7d2fe;
+                            padding: 4px 14px;
+                            border-radius: 9999px;
+                            font-size: 10px;
+                            font-weight: 800;
+                            text-transform: uppercase;
+                            letter-spacing: 1.5px;
+                            margin-bottom: 16px;
+                        }
+                        .prefect-name {
+                            font-size: 20px;
+                            font-weight: 900;
+                            text-transform: uppercase;
+                            color: #0f172a;
+                            letter-spacing: -0.5px;
+                            margin: 0 0 4px 0;
+                        }
+                        .stream-badge {
+                            font-size: 12px;
+                            font-weight: 800;
+                            color: #4f46e5;
+                            text-transform: uppercase;
+                            margin: 0 0 16px 0;
+                        }
+                        .qr-box {
+                            width: 200px;
+                            height: 200px;
+                            margin: 0 auto 16px;
+                            padding: 10px;
+                            background: #ffffff;
+                            border: 2px dashed #cbd5e1;
+                            border-radius: 20px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .qr-box img {
+                            width: 100%;
+                            height: 100%;
+                            object-fit: contain;
+                        }
+                        .token-badge {
+                            display: inline-block;
+                            font-family: monospace;
+                            font-size: 8.5px;
+                            font-weight: 700;
+                            color: #64748b;
+                            background: #f8fafc;
+                            border: 1px solid #e2e8f0;
+                            padding: 5px 10px;
+                            border-radius: 8px;
+                            margin-bottom: 14px;
+                            word-break: break-all;
+                        }
+                        .instructions {
+                            font-size: 9.5px;
+                            color: #475569;
+                            line-height: 1.4;
+                            border-top: 1px solid #f1f5f9;
+                            padding-top: 12px;
+                            margin: 0 0 12px 0;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            letter-spacing: 0.3px;
+                        }
+                        .security-footer {
+                            font-size: 9px;
+                            font-weight: 900;
+                            color: #4338ca;
+                            letter-spacing: 2px;
+                            text-transform: uppercase;
+                            margin: 0;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="card-container">
+                        <h2 class="institution-title">${institutionName}</h2>
+                        <div class="badge-pill">Class Prefect Card</div>
+                        <h3 class="prefect-name">${target.name}</h3>
+                        <p class="stream-badge">Stream: ${courseName}</p>
+                        <div class="qr-box">
+                            <img src="${qrSrc}" alt="Prefect Remedial QR Code" />
+                        </div>
+                        <div class="token-badge">Token: ${tokenId}</div>
+                        <p class="instructions">Scan this QR code using the Remedial Lessons Scanner to authenticate session initiation and completion.</p>
+                        <p class="security-footer">Remedial Lessons Scan Pass</p>
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.focus();
+                                window.print();
+                            }, 350);
+                        };
+                    </script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        } else {
+            // Popup was blocked - fall back to native in-DOM print
             window.print();
-        }, 300);
+        }
+    };
+
+    // Open Prefect Card (Preview modal or direct print)
+    const printPrefectCard = (prefect: User, autoPrint: boolean = false) => {
+        setPrintingPrefect(prefect);
+        if (autoPrint) {
+            setTimeout(() => {
+                handlePrintPrefectCard(prefect);
+            }, 350);
+        }
     };
     
     // Parent Billing Calculations (Term Fee billing)
@@ -1849,18 +2157,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             {prefectsList.map(prefect => {
                                 const course = courses.find(c => c.id === prefect.courseId);
                                 return (
-                                    <div key={prefect.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <div key={prefect.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800/50 transition-all">
                                         <div>
                                             <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{prefect.name}</p>
                                             <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">Stream: {course?.name || 'Unassigned'}</p>
                                         </div>
-                                        <button 
-                                            onClick={() => printPrefectCard(prefect)}
-                                            className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all"
-                                            title="Print Prefect Verification Card"
-                                        >
-                                            <Printer className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => printPrefectCard(prefect, false)}
+                                                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                                                title="Preview Prefect Card & QR Code"
+                                            >
+                                                <Eye className="w-3.5 h-3.5" /> Preview Card
+                                            </button>
+                                            <button 
+                                                onClick={() => printPrefectCard(prefect, true)}
+                                                className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-600 hover:text-white rounded-xl transition-all"
+                                                title="Print Prefect Verification Card"
+                                            >
+                                                <Printer className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -2024,28 +2341,159 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             </div>
             </div>
 
-            {/* Print Layout (Hidden on Screen, Visible on Print) */}
+            {/* PREFECT QR CARD INTERACTIVE SCREEN PREVIEW MODAL */}
             {printingPrefect && (
-                <div className="hidden print:block fixed inset-0 bg-white z-[9999] p-8 text-black text-center font-sans">
-                    <div className="border-4 border-double border-indigo-600 p-8 max-w-sm mx-auto rounded-[2rem] space-y-6">
-                        <h2 className="text-lg font-black uppercase tracking-tight text-indigo-750">{currentInstitution?.name || 'SCHOOL LOGO'}</h2>
-                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full mx-auto"></div>
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in no-print" 
+                    onClick={() => setPrintingPrefect(null)}
+                >
+                    <div 
+                        className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 rounded-xl">
+                                    <QrCode className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Prefect Card Preview</h3>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Remedial Lesson Validation Pass</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setPrintingPrefect(null)} 
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Card Preview Graphic */}
+                        <div className="p-6 sm:p-8 flex flex-col items-center">
+                            <div className="w-full max-w-xs bg-white text-black p-6 rounded-[2rem] border-4 border-double border-indigo-600 text-center shadow-lg space-y-4">
+                                <div>
+                                    <h4 className="text-sm font-black uppercase tracking-tight text-indigo-950 leading-tight">
+                                        {currentInstitution?.name || 'SCHOOL REMEDIAL PROGRAM'}
+                                    </h4>
+                                    <span className="inline-block mt-2 px-3 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[9px] font-black uppercase tracking-wider rounded-full">
+                                        Class Prefect Card
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900">{printingPrefect.name}</h3>
+                                    <p className="text-xs font-black uppercase text-indigo-600 mt-0.5">
+                                        Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
+                                    </p>
+                                </div>
+
+                                {/* QR Code Display Container */}
+                                <div className="mx-auto w-[180px] h-[180px] border-2 border-dashed border-slate-200 p-2 rounded-2xl flex items-center justify-center bg-white">
+                                    {isGeneratingQr ? (
+                                        <div className="flex flex-col items-center gap-2">
+                                            <RefreshCw className="w-6 h-6 text-indigo-500 animate-spin" />
+                                            <span className="text-[10px] font-black uppercase text-slate-400">Generating QR...</span>
+                                        </div>
+                                    ) : prefectQrUrl ? (
+                                        <img 
+                                            src={prefectQrUrl} 
+                                            alt="Prefect QR Code" 
+                                            className="w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`prefect_remedial_token_class_${printingPrefect.courseId}`)}`}
+                                            alt="Prefect QR Code" 
+                                            className="w-full h-full object-contain"
+                                        />
+                                    )}
+                                </div>
+
+                                <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                                    <p className="text-[9px] font-mono font-bold text-slate-600 select-all">
+                                        Token: prefect_remedial_token_class_{printingPrefect.courseId}
+                                    </p>
+                                </div>
+
+                                <p className="text-[9px] text-slate-500 uppercase font-medium leading-relaxed border-t border-slate-100 pt-3">
+                                    Teachers scan this token to authenticate session start &amp; end.
+                                </p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-indigo-700">
+                                    REMEDIAL LESSONS SCAN CARD
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-3 justify-end">
+                            <button
+                                onClick={() => downloadPrefectCardPdf(
+                                    printingPrefect,
+                                    prefectQrUrl,
+                                    courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class',
+                                    currentInstitution?.name || 'School Remedial Program'
+                                )}
+                                className="px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                            >
+                                <Download className="w-4 h-4" /> Download PDF
+                            </button>
+                            <button
+                                onClick={() => handlePrintPrefectCard(printingPrefect)}
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <Printer className="w-4 h-4" /> Print Card
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DOM Print Sheet for Native Browser Print Preview (Includes .print-only to override body visibility:hidden) */}
+            {printingPrefect && (
+                <div id="prefect-print-sheet" className="print-only hidden print:flex fixed inset-0 bg-white z-[999999] flex-col items-center justify-center p-8 text-black text-center font-sans">
+                    <div className="border-4 border-double border-indigo-600 p-8 max-w-sm w-full mx-auto rounded-[2rem] space-y-5 bg-white">
+                        <h2 className="text-lg font-black uppercase tracking-tight text-indigo-900">
+                            {currentInstitution?.name || 'SCHOOL REMEDIAL PROGRAM'}
+                        </h2>
+                        <div className="inline-block px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase tracking-widest rounded-full">
+                            Class Prefect Card
+                        </div>
                         <div>
-                            <h3 className="text-2xl font-black uppercase italic tracking-tight">{printingPrefect.name}</h3>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mt-1">Class Prefect Card</p>
-                            <p className="text-xs font-black uppercase text-indigo-600 mt-1">Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}</p>
+                            <h3 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{printingPrefect.name}</h3>
+                            <p className="text-xs font-black uppercase text-indigo-600 mt-1">
+                                Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
+                            </p>
                         </div>
                         
-                        {/* Generates high-quality physical QR code */}
-                        <div className="mx-auto w-[160px] h-[160px] border-2 border-slate-100 p-2 rounded-2xl flex items-center justify-center bg-white">
-                            <img 
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`prefect_remedial_token_class_${printingPrefect.courseId}`)}`}
-                                alt="Prefect Validation QR"
-                                className="w-full h-full object-contain"
-                            />
+                        {/* High-quality physical QR code */}
+                        <div className="mx-auto w-[200px] h-[200px] border-2 border-dashed border-slate-300 p-2 rounded-2xl flex items-center justify-center bg-white">
+                            {prefectQrUrl ? (
+                                <img 
+                                    src={prefectQrUrl}
+                                    alt="Prefect Validation QR"
+                                    className="w-full h-full object-contain"
+                                />
+                            ) : (
+                                <img 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`prefect_remedial_token_class_${printingPrefect.courseId}`)}`}
+                                    alt="Prefect Validation QR"
+                                    className="w-full h-full object-contain"
+                                />
+                            )}
                         </div>
-                        <p className="text-[8px] font-mono font-bold text-slate-400">Token ID: prefect_remedial_token_class_{printingPrefect.courseId}</p>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-700 pt-2 border-t border-slate-100">REMEDIAL LESSONS SCAN CARD</p>
+                        <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg inline-block">
+                            <p className="text-[9px] font-mono font-bold text-slate-600">
+                                Token ID: prefect_remedial_token_class_{printingPrefect.courseId}
+                            </p>
+                        </div>
+                        <p className="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide border-t border-slate-100 pt-3">
+                            Scan this card to verify remedial session initiation &amp; conclusion
+                        </p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                            REMEDIAL LESSONS SCAN CARD
+                        </p>
                     </div>
                 </div>
             )}
