@@ -6313,6 +6313,7 @@ export interface RemedialAllocation {
     startTime: string;
     endTime: string;
     isWeekend?: boolean;
+    priority?: 'High' | 'Medium' | 'Low';
     createdAt?: string;
     institutionId: string;
 }
@@ -6323,7 +6324,19 @@ export interface RemedialSubject {
     subjectId: string;
     subjectName: string;
     isActive: boolean;
+    priority?: 'High' | 'Medium' | 'Low';
+    weeklyOccurrences?: number;
+    preferredDayType?: 'any' | 'weekdays' | 'weekends';
+    metadata?: any;
     createdAt?: string;
+}
+
+export interface TeacherDayPreference {
+    teacherId: string;
+    teacherName?: string;
+    preferredDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];
+    maxLessonsPerWeek?: number;
+    notes?: string;
 }
 
 export interface RemedialRateSetting {
@@ -6340,6 +6353,8 @@ export interface RemedialRateSetting {
     feePerStudent: number;
     termFee: number;
     institutionId: string;
+    teacherPreferences?: Record<string, TeacherDayPreference> | TeacherDayPreference[];
+    metadata?: any;
 }
 
 export interface RemedialPayout {

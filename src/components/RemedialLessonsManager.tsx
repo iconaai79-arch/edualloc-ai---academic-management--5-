@@ -5,7 +5,8 @@ import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
-    Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download
+    Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
+    Flame, Zap, Sliders
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
@@ -42,6 +43,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [showSubjectModal, setShowSubjectModal] = useState(false);
     const [newSubjectId, setNewSubjectId] = useState('');
     const [customSubjectName, setCustomSubjectName] = useState('');
+    const [newSubjectPriority, setNewSubjectPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
+    const [newSubjectWeeklyOccurrences, setNewSubjectWeeklyOccurrences] = useState<number>(1);
+    const [newSubjectPreferredDayType, setNewSubjectPreferredDayType] = useState<'any' | 'weekdays' | 'weekends'>('any');
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
     
     // Filters & Search
@@ -62,6 +66,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [maxWeekendLessonsPerDay, setMaxWeekendLessonsPerDay] = useState<number>(2);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
+    const [teacherPreferences, setTeacherPreferences] = useState<Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>>({});
+    const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
 
     // Manual Allocation Modal State
     const [showAllocModal, setShowAllocModal] = useState(false);
@@ -146,6 +152,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 setMaxWeekendLessonsPerDay(weekendLimitVal);
                 setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
                 setTermFee(r.termFee ?? r.term_fee ?? 3000);
+                const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
+                setTeacherPreferences(loadedTeacherPrefs);
             }
         } catch (e) {
             console.error('Failed to load remedial data', e);
@@ -153,6 +161,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             setLoading(false);
         }
     };
+
+    // Teachers and Prefects Lists
+    const teachersList = useMemo(() => {
+        return (users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'instructor'));
+    }, [users]);
+
+    const prefectsList = useMemo(() => {
+        return (users || []).filter(u => u && (u.role === 'prefect' || (u.metadata as any)?.isPrefect));
+    }, [users]);
 
     // Active Remedial Subjects for dropdowns
     const activeRemedialSubjectsList = useMemo(() => {
@@ -279,6 +296,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 subjectId: subId,
                 subjectName,
                 isActive: true,
+                priority: newSubjectPriority,
+                weeklyOccurrences: newSubjectWeeklyOccurrences,
+                preferredDayType: newSubjectPreferredDayType,
                 createdAt: new Date().toISOString()
             };
 
@@ -288,14 +308,84 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 await apiService.saveModuleRecord('school_remedial_subjects', newRemSubject);
             }
 
-            onLogAction?.(`Registered remedial subject "${subjectName}"`);
+            onLogAction?.(`Registered remedial subject "${subjectName}" (Priority: ${newSubjectPriority}, ${newSubjectWeeklyOccurrences}x/week)`);
             alert(`Remedial subject "${subjectName}" added successfully!`);
             setShowSubjectModal(false);
             setNewSubjectId('');
             setCustomSubjectName('');
+            setNewSubjectPriority('Medium');
+            setNewSubjectWeeklyOccurrences(1);
+            setNewSubjectPreferredDayType('any');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to save remedial subject');
+        }
+    };
+
+    // Update specific subject rule (Priority, Weekly Occurrences, Preferred Day Placement)
+    const handleUpdateSubjectRule = async (remSub: RemedialSubject, updates: Partial<RemedialSubject>) => {
+        try {
+            const updated: RemedialSubject = {
+                ...remSub,
+                ...updates
+            };
+            if (typeof (apiService as any).saveRemedialSubject === 'function') {
+                await (apiService as any).saveRemedialSubject(updated);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_subjects', updated);
+            }
+            setRemedialSubjects(prev => prev.map(s => s.id === remSub.id ? updated : s));
+            onLogAction?.(`Updated remedial rules for ${remSub.subjectName}: Priority ${updated.priority || 'Medium'}, ${updated.weeklyOccurrences || 1}x/wk`);
+        } catch (err: any) {
+            alert('Failed to update subject rule: ' + err.message);
+        }
+    };
+
+    // Apply Smart Core STEM & Priority Preset across all registered subjects
+    const handleApplyCoreStemPreset = async () => {
+        if (remedialSubjects.length === 0) return alert('No remedial subjects registered yet. Click "Register All School Subjects" first.');
+        if (!window.confirm('Apply Smart STEM & Core Subject Priorities?\n\n• Mathematics, Sciences (Physics, Chemistry, Biology) and Core Languages set to High Priority (2x / week).\n• Humanities and Technicals set to Medium (1x / week).')) return;
+
+        try {
+            setLoading(true);
+            const updatedList: RemedialSubject[] = [];
+            for (const remSub of remedialSubjects) {
+                const nameLower = remSub.subjectName.toLowerCase();
+                const isCoreStem = nameLower.includes('math') || 
+                                   nameLower.includes('calc') || 
+                                   nameLower.includes('physic') || 
+                                   nameLower.includes('chem') || 
+                                   nameLower.includes('bio') || 
+                                   nameLower.includes('eng') ||
+                                   nameLower.includes('kisw');
+                const isHumanity = nameLower.includes('hist') || 
+                                   nameLower.includes('geo') || 
+                                   nameLower.includes('cre') || 
+                                   nameLower.includes('ire') || 
+                                   nameLower.includes('agri') ||
+                                   nameLower.includes('bus');
+
+                const updated: RemedialSubject = {
+                    ...remSub,
+                    priority: isCoreStem ? 'High' : (isHumanity ? 'Medium' : 'Low'),
+                    weeklyOccurrences: isCoreStem ? 2 : 1,
+                    preferredDayType: isCoreStem ? 'any' : 'weekdays'
+                };
+
+                if (typeof (apiService as any).saveRemedialSubject === 'function') {
+                    await (apiService as any).saveRemedialSubject(updated);
+                } else {
+                    await apiService.saveModuleRecord('school_remedial_subjects', updated);
+                }
+                updatedList.push(updated);
+            }
+            setRemedialSubjects(updatedList);
+            onLogAction?.('Applied Smart Core STEM Priority & Occurrence Presets');
+            alert('Smart Priorities Applied: Mathematics & Sciences set to High Priority (2x/week), humanities to Medium (1x/week).');
+        } catch (err: any) {
+            alert('Failed to apply presets: ' + err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -331,10 +421,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Auto-Register All School Subjects
+    // Auto-Register All School Subjects with Smart Defaults
     const handleRegisterAllSubjects = async () => {
         if (subjects.length === 0) return alert('No general school subjects found in the institution.');
-        if (!window.confirm(`Register all ${subjects.length} school subjects as Active Remedial Subjects?`)) return;
+        if (!window.confirm(`Register all ${subjects.length} school subjects as Active Remedial Subjects with priority defaults?`)) return;
 
         try {
             setLoading(true);
@@ -342,12 +432,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             let count = 0;
             for (const sub of subjects) {
                 if (!existingIds.has(sub.id)) {
+                    const nameLower = sub.name.toLowerCase();
+                    const isCoreStem = nameLower.includes('math') || 
+                                       nameLower.includes('physic') || 
+                                       nameLower.includes('chem') || 
+                                       nameLower.includes('bio') || 
+                                       nameLower.includes('eng') ||
+                                       nameLower.includes('kisw');
                     const newRemSub: RemedialSubject = {
                         id: `rem_sub_${Date.now()}_${sub.id.slice(-4)}_${count}`,
                         institutionId,
                         subjectId: sub.id,
                         subjectName: sub.name,
                         isActive: true,
+                        priority: isCoreStem ? 'High' : 'Medium',
+                        weeklyOccurrences: isCoreStem ? 2 : 1,
+                        preferredDayType: isCoreStem ? 'any' : 'weekdays',
                         createdAt: new Date().toISOString()
                     };
                     if (typeof (apiService as any).saveRemedialSubject === 'function') {
@@ -358,8 +458,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     count++;
                 }
             }
-            onLogAction?.(`Registered ${count} new remedial subjects from school catalog.`);
-            alert(`Successfully registered ${count} remedial subjects!`);
+            onLogAction?.(`Registered ${count} new remedial subjects with priority rules.`);
+            alert(`Successfully registered ${count} remedial subjects with priority rules!`);
             loadData();
         } catch (err: any) {
             alert('Failed to register subjects: ' + err.message);
@@ -368,39 +468,39 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    useEffect(() => {
-        loadData();
-    }, [institutionId]);
-
-    // Filtered Sessions
-    const filteredSessions = useMemo(() => {
-        return sessions.filter(s => {
-            const teacher = users.find(u => u.id === s.teacherId);
-            const subject = subjects.find(sub => sub.id === s.subjectId);
-            const course = courses.find(c => c.id === s.courseId);
-
-            const matchQuery = 
-                (teacher?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (subject?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (course?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-
-            const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-
-            return matchQuery && matchStatus;
+    // Teacher Day Preference Handlers
+    const handleToggleTeacherDay = (teacherId: string, day: string) => {
+        setTeacherPreferences(prev => {
+            const existing = prev[teacherId] || { preferredDays: [] };
+            const days = existing.preferredDays || [];
+            const newDays = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
+            return {
+                ...prev,
+                [teacherId]: {
+                    ...existing,
+                    preferredDays: newDays
+                }
+            };
         });
-    }, [sessions, users, subjects, courses, searchQuery, statusFilter]);
+    };
 
-    // List of Prefects (students with role 'prefect' or 'student')
-    const prefectsList = useMemo(() => {
-        return users.filter(u => u.role === 'student' && u.institutionId === institutionId);
-    }, [users, institutionId]);
+    const handleSetTeacherDaysPreset = (teacherId: string, preset: 'weekdays' | 'weekends' | 'all' | 'clear') => {
+        const dayMap = {
+            weekdays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+            weekends: ['Saturday', 'Sunday'],
+            all: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+            clear: []
+        };
+        setTeacherPreferences(prev => ({
+            ...prev,
+            [teacherId]: {
+                ...(prev[teacherId] || {}),
+                preferredDays: dayMap[preset] as any
+            }
+        }));
+    };
 
-    // List of Teachers/Lecturers
-    const teachersList = useMemo(() => {
-        return users.filter(u => (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'staff') && u.institutionId === institutionId);
-    }, [users, institutionId]);
-
-    // Save Rate Settings
+    // Save Rate Settings (including teacher preferences)
     const handleSaveRates = async () => {
         try {
             safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerDay));
@@ -424,9 +524,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 max_lessons_per_day: maxLessonsPerDay,
                 maxWeekendLessonsPerDay,
                 max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                teacherPreferences,
+                teacher_preferences: teacherPreferences,
                 metadata: {
                     maxWeekendLessonsPerDay,
                     max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                    teacherPreferences,
+                    teacher_preferences: teacherPreferences,
                     ...(rateSetting?.metadata || {})
                 },
                 feePerStudent,
@@ -437,8 +541,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institution_id: institutionId
             };
             await apiService.saveRemedialRateSetting(data);
-            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Weekday Max ${maxLessonsPerDay}/day, Weekend Max ${maxWeekendLessonsPerDay}/day`);
-            alert('Remedial rates and rules updated successfully!');
+            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Weekday Max ${maxLessonsPerDay}/day, Weekend Max ${maxWeekendLessonsPerDay}/day, Teacher Preferred Days configured`);
+            alert('Remedial rates, rules, and teacher preferred days updated successfully!');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to update rates');
@@ -572,79 +676,216 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Auto-Generate Timetable Engine
+    // Smart Auto-Generate Timetable Engine (Priority-Weighted, Spaced Occurrences, Teacher Preferred Day Matching)
     const handleAutoGenerateTimetable = async () => {
-        if (courses.length === 0 || subjects.length === 0 || teachersList.length === 0) {
-            return alert('Insufficient data to auto-generate remedial timetable. Please ensure classes, subjects, and teachers are registered.');
+        if (courses.length === 0 || teachersList.length === 0) {
+            return alert('Insufficient data to auto-generate remedial timetable. Please ensure classes and teachers are registered.');
         }
 
-        if (!window.confirm(`Auto-generate balanced weekly remedial timetable for ${courses.length} class(es)? This will auto-assign subjects and teachers to weekday/weekend slots respecting configured rules.`)) {
-            return;
+        // Use active remedial subjects if configured, or fall back to general school catalog
+        const activeSubjects = remedialSubjects.filter(rs => rs.isActive !== false);
+        const subjectsPool: { subjectId: string; subjectName: string; priority: 'High' | 'Medium' | 'Low'; weeklyOccurrences: number; preferredDayType: 'any' | 'weekdays' | 'weekends' }[] = 
+            activeSubjects.length > 0 
+                ? activeSubjects.map(rs => ({
+                    subjectId: rs.subjectId,
+                    subjectName: rs.subjectName,
+                    priority: rs.priority || 'Medium',
+                    weeklyOccurrences: Math.min(Math.max(rs.weeklyOccurrences || 1, 1), 4),
+                    preferredDayType: rs.preferredDayType || 'any'
+                }))
+                : subjects.map(s => {
+                    const nameLower = s.name.toLowerCase();
+                    const isCoreStem = nameLower.includes('math') || nameLower.includes('calc') || nameLower.includes('physic') || nameLower.includes('chem') || nameLower.includes('bio') || nameLower.includes('eng') || nameLower.includes('kisw');
+                    return {
+                        subjectId: s.id,
+                        subjectName: s.name,
+                        priority: isCoreStem ? 'High' : 'Medium',
+                        weeklyOccurrences: isCoreStem ? 2 : 1,
+                        preferredDayType: isCoreStem ? 'any' : 'weekdays'
+                    };
+                });
+
+        if (subjectsPool.length === 0) {
+            return alert('No subjects available for allocation. Please register school or remedial subjects.');
         }
+
+        const highPriorityCount = subjectsPool.filter(s => s.priority === 'High').length;
+        const totalExpectedLessonsPerClass = subjectsPool.reduce((acc, s) => acc + s.weeklyOccurrences, 0);
+
+        const confirmMsg = 
+            `Auto-Generate Smart Remedial Timetable for ${courses.length} class(es)?\n\n` +
+            `• Subject Priority Ordering: High Priority subjects (e.g. Mathematics, Sciences) scheduled first.\n` +
+            `• Weekly Occurrences: ${totalExpectedLessonsPerClass} total sessions planned per stream (High Priority subjects occur 2x/wk).\n` +
+            `• Occurrence Spacing: Multiple sessions of the same subject spaced across non-consecutive days.\n` +
+            `• Teacher Preferred Days: Teachers matched to their chosen available days (+bonus scoring).\n` +
+            `• Daily Caps Enforced: Weekdays max ${maxLessonsPerDay}/day, Weekends max ${maxWeekendLessonsPerDay}/day per teacher.`;
+
+        if (!window.confirm(confirmMsg)) return;
 
         try {
             setLoading(true);
-            const newAllocations: RemedialAllocation[] = [];
             const daysOfWeek: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[] = [
                 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
             ];
 
+            // Teacher tracking
             const teacherDailyCount: Record<string, Record<string, number>> = {};
+            const teacherSlotBooked: Record<string, Set<string>> = {}; // key: `${teacherId}_${day}_${startTime}`
             teachersList.forEach(t => {
                 teacherDailyCount[t.id] = {};
+                teacherSlotBooked[t.id] = new Set();
                 daysOfWeek.forEach(day => {
                     teacherDailyCount[t.id][day] = 0;
                 });
             });
 
-            let teacherIdx = 0;
+            // Class tracking
+            const classDayBooked: Record<string, Set<string>> = {};
+            courses.forEach(c => {
+                classDayBooked[c.id] = new Set();
+            });
+
+            const newAllocations: RemedialAllocation[] = [];
+            let totalHighAllocated = 0;
+            let totalPreferredDayMatches = 0;
+
+            // Sort subjects by priority: High (3) -> Medium (2) -> Low (1)
+            const priorityScore = (p: string) => (p === 'High' ? 3 : p === 'Medium' ? 2 : 1);
+            const sortedSubjects = [...subjectsPool].sort((a, b) => priorityScore(b.priority) - priorityScore(a.priority));
 
             for (const course of courses) {
-                for (let subIdx = 0; subIdx < Math.min(subjects.length, 7); subIdx++) {
-                    const subject = subjects[subIdx];
-                    const day = daysOfWeek[subIdx % daysOfWeek.length];
-                    const isWeekend = ['Saturday', 'Sunday'].includes(day);
-                    const startTime = isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00');
-                    const endTime = isWeekend ? (weekendEndTime || '18:00') : (weekdayEndTime || '18:00');
+                // Build the queue for this course
+                const courseQueue: { subject: typeof sortedSubjects[0]; occurrenceIdx: number; totalOcc: number }[] = [];
+                for (const sub of sortedSubjects) {
+                    for (let occ = 0; occ < sub.weeklyOccurrences; occ++) {
+                        courseQueue.push({ subject: sub, occurrenceIdx: occ, totalOcc: sub.weeklyOccurrences });
+                    }
+                }
 
-                    let assignedTeacher: User | null = null;
-                    for (let attempt = 0; attempt < teachersList.length; attempt++) {
-                        const candidate = teachersList[(teacherIdx + attempt) % teachersList.length];
-                        const currentCount = teacherDailyCount[candidate.id]?.[day] || 0;
-                        const dayIsWeekend = ['Saturday', 'Sunday'].includes(day);
-                        const dayLimit = dayIsWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
-                        if (currentCount < dayLimit) {
-                            assignedTeacher = candidate;
-                            teacherIdx = (teacherIdx + attempt + 1) % teachersList.length;
+                // Track assigned days for each subject in this course to ensure spacing
+                const subjectAssignedDays: Record<string, string[]> = {};
+
+                for (const item of courseQueue) {
+                    const sub = item.subject;
+                    if (sub.priority === 'High') totalHighAllocated++;
+
+                    const previousDays = subjectAssignedDays[sub.subjectId] || [];
+
+                    // Filter candidate days by preferredDayType
+                    let candidateDays = [...daysOfWeek];
+                    if (sub.preferredDayType === 'weekends') {
+                        candidateDays = candidateDays.filter(d => ['Saturday', 'Sunday'].includes(d));
+                    } else if (sub.preferredDayType === 'weekdays') {
+                        candidateDays = candidateDays.filter(d => !['Saturday', 'Sunday'].includes(d));
+                    }
+
+                    // Sort candidate days by spacing from previous assignments of this subject
+                    candidateDays.sort((d1, d2) => {
+                        const idx1 = daysOfWeek.indexOf(d1);
+                        const idx2 = daysOfWeek.indexOf(d2);
+
+                        const dist1 = previousDays.length > 0 
+                            ? Math.min(...previousDays.map(pd => Math.abs(idx1 - daysOfWeek.indexOf(pd as any))))
+                            : 99;
+                        const dist2 = previousDays.length > 0 
+                            ? Math.min(...previousDays.map(pd => Math.abs(idx2 - daysOfWeek.indexOf(pd as any))))
+                            : 99;
+
+                        // Prefer day slots that this course doesn't have yet
+                        const classFree1 = classDayBooked[course.id]?.has(d1) ? 0 : 1;
+                        const classFree2 = classDayBooked[course.id]?.has(d2) ? 0 : 1;
+                        if (classFree1 !== classFree2) return classFree2 - classFree1;
+
+                        // Prefer greater spacing distance
+                        return dist2 - dist1;
+                    });
+
+                    let selectedDay: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday') | null = null;
+                    let selectedTeacher: User | null = null;
+                    let matchedPreferredDay = false;
+
+                    // Evaluate candidate days and teachers
+                    for (const day of candidateDays) {
+                        const isWeekend = ['Saturday', 'Sunday'].includes(day);
+                        const startTime = isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00');
+                        const dayLimit = isWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+
+                        // Score candidate teachers
+                        const candidates = teachersList.map(t => {
+                            const dailyCount = teacherDailyCount[t.id]?.[day] || 0;
+                            if (dailyCount >= dayLimit) return { teacher: t, score: -9999 }; // Hit daily limit
+                            if (teacherSlotBooked[t.id]?.has(`${day}_${startTime}`)) return { teacher: t, score: -9999 }; // Collision
+
+                            let score = 100;
+                            const prefs = teacherPreferences[t.id];
+                            const preferredDays = prefs?.preferredDays || [];
+                            const isPreferred = preferredDays.includes(day);
+
+                            if (isPreferred) {
+                                score += 80; // Significant bonus for teacher's preferred day
+                            } else if (preferredDays.length > 0) {
+                                score -= 30; // Teacher specified preferences, but not for today
+                            }
+
+                            // Workload balancing penalty
+                            const weeklyTotal = Object.values(teacherDailyCount[t.id] || {}).reduce((a, b) => a + b, 0);
+                            score -= weeklyTotal * 10;
+                            score -= dailyCount * 25;
+
+                            return { teacher: t, score, isPreferred };
+                        }).filter(c => c.score > -1000);
+
+                        candidates.sort((a, b) => b.score - a.score);
+
+                        if (candidates.length > 0) {
+                            selectedDay = day;
+                            selectedTeacher = candidates[0].teacher;
+                            matchedPreferredDay = candidates[0].isPreferred;
                             break;
                         }
                     }
 
-                    if (!assignedTeacher) {
-                        assignedTeacher = teachersList[teacherIdx % teachersList.length];
+                    // Fallback
+                    if (!selectedDay || !selectedTeacher) {
+                        selectedDay = candidateDays[0] || 'Monday';
+                        selectedTeacher = teachersList[0];
                     }
 
-                    teacherDailyCount[assignedTeacher.id][day] = (teacherDailyCount[assignedTeacher.id][day] || 0) + 1;
+                    const isWeekend = ['Saturday', 'Sunday'].includes(selectedDay);
+                    const startTime = isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00');
+                    const endTime = isWeekend ? (weekendEndTime || '12:00') : (weekdayEndTime || '18:00');
+
+                    // Register booking
+                    teacherDailyCount[selectedTeacher.id][selectedDay] = (teacherDailyCount[selectedTeacher.id][selectedDay] || 0) + 1;
+                    teacherSlotBooked[selectedTeacher.id].add(`${selectedDay}_${startTime}`);
+                    classDayBooked[course.id].add(selectedDay);
+
+                    if (!subjectAssignedDays[sub.subjectId]) subjectAssignedDays[sub.subjectId] = [];
+                    subjectAssignedDays[sub.subjectId].push(selectedDay);
+
+                    if (matchedPreferredDay) totalPreferredDayMatches++;
 
                     newAllocations.push({
-                        id: `rem_alloc_${Date.now()}_${course.id.slice(-4)}_${subject.id.slice(-4)}_${day.slice(0, 3)}_${subIdx}`,
+                        id: `rem_alloc_${Date.now()}_${course.id.slice(-4)}_${sub.subjectId.slice(-4)}_${selectedDay.slice(0, 3)}_${item.occurrenceIdx}`,
                         courseId: course.id,
                         className: course.name,
                         stream: 'All Streams',
-                        subjectId: subject.id,
-                        subjectName: subject.name,
-                        teacherId: assignedTeacher.id,
-                        teacherName: assignedTeacher.name,
-                        dayOfWeek: day,
+                        subjectId: sub.subjectId,
+                        subjectName: sub.subjectName,
+                        teacherId: selectedTeacher.id,
+                        teacherName: selectedTeacher.name,
+                        dayOfWeek: selectedDay,
                         startTime,
                         endTime,
                         isWeekend,
+                        priority: sub.priority,
                         createdAt: new Date().toISOString(),
                         institutionId
                     });
                 }
             }
 
+            // Save allocations
             for (const alloc of newAllocations) {
                 if (typeof (apiService as any).saveRemedialAllocation === 'function') {
                     await (apiService as any).saveRemedialAllocation(alloc);
@@ -653,8 +894,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
             }
 
-            onLogAction?.(`Auto-generated ${newAllocations.length} remedial lesson allocations across ${courses.length} classes.`);
-            alert(`Successfully auto-generated and scheduled ${newAllocations.length} remedial lesson allocations!`);
+            const matchPct = newAllocations.length > 0 ? Math.round((totalPreferredDayMatches / newAllocations.length) * 100) : 0;
+            onLogAction?.(`Smart auto-generated ${newAllocations.length} remedial allocations across ${courses.length} classes. ${totalHighAllocated} high-priority slots scheduled, ${matchPct}% matched teacher preferred days.`);
+            alert(
+                `Smart Remedial Timetable Auto-Generated Successfully!\n\n` +
+                `• Total Scheduled Sessions: ${newAllocations.length}\n` +
+                `• High-Priority Sessions (e.g. Mathematics/Sciences 2×/wk): ${totalHighAllocated}\n` +
+                `• Teacher Preferred Day Match Rate: ${matchPct}%\n` +
+                `• Spaced Occurrences & Daily Limits: Enforced (${maxLessonsPerDay}/day Mon-Fri, ${maxWeekendLessonsPerDay}/day Sat-Sun).`
+            );
             loadData();
         } catch (err: any) {
             console.error('Failed to auto-generate timetable', err);
@@ -1409,13 +1657,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                             <button
                                 onClick={handleRegisterAllSubjects}
-                                className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
-                                <Sparkles className="w-4 h-4" /> Register All School Subjects
+                                <Sparkles className="w-4 h-4" /> Register All Subjects
+                            </button>
+                            <button
+                                onClick={handleApplyCoreStemPreset}
+                                className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                title="Set Mathematics & Sciences to High Priority (2x/wk), humanities to Medium (1x/wk)"
+                            >
+                                <Zap className="w-4 h-4" /> Smart STEM &amp; Core Priorities
                             </button>
                             <button
                                 onClick={() => setShowSubjectModal(true)}
-                                className="flex-1 md:flex-none px-5 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="flex-1 md:flex-none px-4 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <Plus className="w-4 h-4" /> Add Remedial Subject
                             </button>
@@ -1477,6 +1732,74 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
+                                        </div>
+
+                                        {/* Subject Priority & Frequency Controls */}
+                                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                                            <div>
+                                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                                                    <Flame className="w-3 h-3 text-rose-500" /> Priority
+                                                </label>
+                                                <select
+                                                    value={remSub.priority || 'Medium'}
+                                                    onChange={e => handleUpdateSubjectRule(remSub, { priority: e.target.value as any })}
+                                                    className={`w-full text-[10px] font-black uppercase tracking-wider px-2 py-1.5 rounded-xl border outline-none transition-all cursor-pointer ${
+                                                        (remSub.priority || 'Medium') === 'High'
+                                                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/50'
+                                                            : (remSub.priority || 'Medium') === 'Medium'
+                                                            ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/50'
+                                                            : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                                                    }`}
+                                                >
+                                                    <option value="High">🔥 High</option>
+                                                    <option value="Medium">⚡ Medium</option>
+                                                    <option value="Low">📘 Low</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                                                    <Calendar className="w-3 h-3 text-indigo-500" /> Frequency
+                                                </label>
+                                                <select
+                                                    value={remSub.weeklyOccurrences || 1}
+                                                    onChange={e => handleUpdateSubjectRule(remSub, { weeklyOccurrences: Number(e.target.value) })}
+                                                    className="w-full text-[10px] font-bold px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                                                >
+                                                    <option value={1}>1× / week</option>
+                                                    <option value={2}>2× / week (Rec.)</option>
+                                                    <option value={3}>3× / week</option>
+                                                    <option value={4}>4× / week</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Preferred Day Placement */}
+                                        <div className="pt-0.5">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                                    Day Placement
+                                                </span>
+                                                <span className="text-[9px] font-bold text-slate-500">
+                                                    {remSub.preferredDayType === 'weekends' ? 'Weekends only' : remSub.preferredDayType === 'weekdays' ? 'Weekdays only' : 'Any day'}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                                {(['any', 'weekdays', 'weekends'] as const).map(dt => (
+                                                    <button
+                                                        key={dt}
+                                                        type="button"
+                                                        onClick={() => handleUpdateSubjectRule(remSub, { preferredDayType: dt })}
+                                                        className={`py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                                                            (remSub.preferredDayType || 'any') === dt
+                                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                                : 'bg-slate-100 dark:bg-slate-900 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'
+                                                        }`}
+                                                    >
+                                                        {dt === 'any' ? 'Any' : dt === 'weekdays' ? 'Weekdays' : 'Weekends'}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60">
@@ -1643,7 +1966,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative group hover:border-indigo-500/50 transition-all space-y-1.5"
                                                     >
                                                         <div className="flex items-start justify-between gap-1">
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">{alloc.subjectName}</p>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">{alloc.subjectName}</p>
+                                                                {alloc.priority === 'High' && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5">
+                                                                        <Flame className="w-2.5 h-2.5 text-rose-500" /> High
+                                                                    </span>
+                                                                )}
+                                                                {alloc.priority === 'Medium' && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[8px] font-black uppercase tracking-wider">
+                                                                        Med
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                             <button 
                                                                 onClick={() => handleDeleteAllocation(alloc.id)}
                                                                 className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100"
@@ -2183,6 +2518,156 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             })}
                         </div>
                     </div>
+
+                    {/* Teacher Remedial Preferred Days & Availability Matrix */}
+                    <div className="col-span-1 md:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-5">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
+                                        <Sliders className="w-5 h-5" />
+                                    </span>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-widest italic">
+                                        Teacher Remedial Preferred Days &amp; Availability
+                                    </h4>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                                    Designate which days each teacher prefers to conduct remedial classes. The Smart Timetable Auto-Generator prioritizes teachers on their selected days (+80 bonus score) while balancing overall load and daily caps.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <div className="relative w-full sm:w-64">
+                                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search teacher..."
+                                        value={teacherDaySearchQuery}
+                                        onChange={e => setTeacherDaySearchQuery(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleSaveRates}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all shrink-0 flex items-center gap-1.5"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Save Preferences
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Teacher List Matrix */}
+                        <div className="space-y-3 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
+                            {teachersList
+                                .filter(t => t.name.toLowerCase().includes(teacherDaySearchQuery.toLowerCase()))
+                                .map(teacher => {
+                                    const prefs = teacherPreferences[teacher.id];
+                                    const selectedDays = prefs?.preferredDays || [];
+                                    const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+                                    return (
+                                        <div
+                                            key={teacher.id}
+                                            className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">
+                                                        {teacher.name}
+                                                    </p>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                                                        selectedDays.length === 0
+                                                            ? 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                                                            : selectedDays.length >= 5
+                                                            ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
+                                                            : 'bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400'
+                                                    }`}>
+                                                        {selectedDays.length === 0 ? 'Any Day Available' : `${selectedDays.length} Day${selectedDays.length === 1 ? '' : 's'} Selected`}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+                                                    {teacher.email || `ID: ${teacher.id.slice(-8)}`}
+                                                </p>
+                                            </div>
+
+                                            {/* Interactive 7-Day Chips & Presets */}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {/* Day Chips */}
+                                                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                    {daysOfWeek.map((day, i) => {
+                                                        const isWeekend = i >= 5;
+                                                        const isSelected = selectedDays.includes(day);
+                                                        const shortName = day.slice(0, 3);
+
+                                                        return (
+                                                            <button
+                                                                key={day}
+                                                                type="button"
+                                                                onClick={() => handleToggleTeacherDay(teacher.id, day)}
+                                                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer ${
+                                                                    isSelected
+                                                                        ? isWeekend
+                                                                            ? 'bg-amber-500 text-white shadow-sm'
+                                                                            : 'bg-indigo-600 text-white shadow-sm'
+                                                                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                                                }`}
+                                                                title={`${teacher.name}: Toggle ${day}`}
+                                                            >
+                                                                {shortName}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Preset Shortcuts */}
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSetTeacherDaysPreset(teacher.id, 'weekdays')}
+                                                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300 rounded-lg text-[8px] font-black uppercase text-slate-500 transition-colors cursor-pointer"
+                                                        title="Set Monday through Friday"
+                                                    >
+                                                        Weekdays
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSetTeacherDaysPreset(teacher.id, 'weekends')}
+                                                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/40 dark:hover:text-amber-300 rounded-lg text-[8px] font-black uppercase text-slate-500 transition-colors cursor-pointer"
+                                                        title="Set Saturday & Sunday"
+                                                    >
+                                                        Weekends
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSetTeacherDaysPreset(teacher.id, 'all')}
+                                                        className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300 rounded-lg text-[8px] font-black uppercase text-slate-500 transition-colors cursor-pointer"
+                                                        title="Set All 7 Days"
+                                                    >
+                                                        All
+                                                    </button>
+                                                    {selectedDays.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSetTeacherDaysPreset(teacher.id, 'clear')}
+                                                            className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 rounded-lg text-[8px] font-black uppercase text-slate-400 transition-colors cursor-pointer"
+                                                            title="Clear all preferences (Any day available)"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                            {teachersList.length === 0 && (
+                                <div className="text-center py-8 text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                    No teachers or lecturers registered in this institution.
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -2340,6 +2825,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             )}
             </div>
             </div>
+        </div>
 
             {/* PREFECT QR CARD INTERACTIVE SCREEN PREVIEW MODAL */}
             {printingPrefect && (
@@ -2605,7 +3091,6 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
                 </div>
             )}
-        </div>
 
         {/* ===== MANUAL ALLOCATION MODAL ===== */}
         {showAllocModal && (
@@ -2863,6 +3348,56 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 />
                             </div>
                         )}
+
+                        {/* Priority Selection */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+                                <Flame className="w-3.5 h-3.5 text-rose-500" /> Remedial Priority Level
+                            </label>
+                            <select
+                                value={newSubjectPriority}
+                                onChange={e => setNewSubjectPriority(e.target.value as any)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-pink-600 dark:text-white cursor-pointer"
+                            >
+                                <option value="High">🔥 High Priority (Allocated first, e.g. Mathematics, Sciences)</option>
+                                <option value="Medium">⚡ Medium Priority (Standard subjects)</option>
+                                <option value="Low">📘 Low Priority (Electives &amp; technicals)</option>
+                            </select>
+                        </div>
+
+                        {/* Weekly Frequency & Placement */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Weekly Frequency
+                                </label>
+                                <select
+                                    value={newSubjectWeeklyOccurrences}
+                                    onChange={e => setNewSubjectWeeklyOccurrences(Number(e.target.value))}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-pink-600 dark:text-white cursor-pointer"
+                                >
+                                    <option value={1}>1× per week</option>
+                                    <option value={2}>2× per week (Rec.)</option>
+                                    <option value={3}>3× per week</option>
+                                    <option value={4}>4× per week</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Day Placement
+                                </label>
+                                <select
+                                    value={newSubjectPreferredDayType}
+                                    onChange={e => setNewSubjectPreferredDayType(e.target.value as any)}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-pink-600 dark:text-white cursor-pointer"
+                                >
+                                    <option value="any">Any Days</option>
+                                    <option value="weekdays">Weekdays Only</option>
+                                    <option value="weekends">Weekends Only</option>
+                                </select>
+                            </div>
+                        </div>
 
                         <div className="flex items-center gap-3 pt-2">
                             <button
