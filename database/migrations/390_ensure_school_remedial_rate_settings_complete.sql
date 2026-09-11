@@ -58,6 +58,9 @@ DROP POLICY IF EXISTS "Allow anon all for school_remedial_rate_settings" ON publ
 CREATE POLICY "Allow anon all for school_remedial_rate_settings" 
     ON public.school_remedial_rate_settings FOR ALL TO anon USING (true) WITH CHECK (true);
 
+-- Ensure table permissions for all roles
+GRANT ALL ON TABLE public.school_remedial_rate_settings TO anon, authenticated, service_role;
+
 -- Create index on institution_id for fast lookup
 CREATE INDEX IF NOT EXISTS idx_school_remedial_rate_settings_inst 
     ON public.school_remedial_rate_settings (institution_id);
