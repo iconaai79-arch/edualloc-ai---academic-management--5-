@@ -50,6 +50,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [payouts, setPayouts] = useState<RemedialPayout[]>([]);
     const [allocations, setAllocations] = useState<RemedialAllocation[]>([]);
     const [remedialSubjects, setRemedialSubjects] = useState<RemedialSubject[]>([]);
+    const [fetchedSchoolSubjects, setFetchedSchoolSubjects] = useState<Subject[]>([]);
+    const effectiveSchoolSubjects = useMemo(() => {
+        if (subjects && subjects.length > 0) return subjects;
+        return fetchedSchoolSubjects;
+    }, [subjects, fetchedSchoolSubjects]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('sessions');
@@ -194,13 +199,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     const parsed = JSON.parse(cachedSessions);
                     if (Array.isArray(parsed) && parsed.length > 0) setSessions(parsed);
                 }
+                const cachedSubs = safeLocalStorage.getItem(`remedial_subjects_${institutionId}`);
+                if (cachedSubs) {
+                    const parsed = JSON.parse(cachedSubs);
+                    if (Array.isArray(parsed) && parsed.length > 0) setRemedialSubjects(parsed);
+                }
             } catch (err) {
                 // Ignore cache parse warnings
             }
         }
 
         // Only show full loading spinner if we have zero cached items
-        if (sessions.length === 0 && allocations.length === 0) {
+        if (sessions.length === 0 && allocations.length === 0 && remedialSubjects.length === 0) {
             setLoading(true);
         }
 
@@ -239,20 +249,29 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (sessList.length > 0) {
                 safeLocalStorage.setItem(`remedial_sessions_${institutionId}`, JSON.stringify(sessList));
             }
+            if (remSubList.length > 0) {
+                safeLocalStorage.setItem(`remedial_subjects_${institutionId}`, JSON.stringify(remSubList));
+            }
 
             // Unblock the user interface immediately!
             setLoading(false);
 
-            // 3. Asynchronously fetch heavy tables (invoices, student enrollments) in the background
+            // 3. Asynchronously fetch heavy tables (invoices, student enrollments, school subjects fallback) in the background
             Promise.allSettled([
                 apiService.fetchInvoices(institutionId),
-                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', institutionId).catch(() => [])
-            ]).then(([invRes, enrRes]) => {
+                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', institutionId).catch(() => []),
+                (!subjects || subjects.length === 0)
+                    ? apiService.fetchModuleRecords<Subject>('subjects', institutionId).catch(() => [])
+                    : Promise.resolve([])
+            ]).then(([invRes, enrRes, subRes]) => {
                 if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {
                     setInvoices(invRes.value);
                 }
                 if (enrRes.status === 'fulfilled' && Array.isArray(enrRes.value)) {
                     setEnrollments(enrRes.value);
+                }
+                if (subRes.status === 'fulfilled' && Array.isArray(subRes.value) && subRes.value.length > 0) {
+                    setFetchedSchoolSubjects(subRes.value);
                 }
             }).catch(e => {
                 console.warn('[Remedial] Background invoice/enrollment fetch warning:', e);
@@ -263,6 +282,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             setLoading(false);
         }
     };
+
+    // Auto-load data on mount and whenever the active institution changes
+    useEffect(() => {
+        if (institutionId) {
+            loadData();
+        }
+    }, [institutionId]);
 
     // Teachers and Prefects Lists
     const teachersList = useMemo(() => {
@@ -354,8 +380,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const active = remedialSubjects.filter(rs => rs.isActive !== false);
             if (active.length > 0) return active.map(rs => ({ id: rs.subjectId, name: rs.subjectName }));
         }
-        return subjects.map(s => ({ id: s.id, name: s.name }));
-    }, [remedialSubjects, subjects]);
+        return effectiveSchoolSubjects.map(s => ({ id: s.id, name: s.name }));
+    }, [remedialSubjects, effectiveSchoolSubjects]);
 
     // Filtered Sessions for Sessions Tab
     const filteredSessions = useMemo(() => {
@@ -474,7 +500,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             subjectName = customSubjectName.trim();
             subId = `custom_sub_${Date.now()}`;
         } else if (newSubjectId) {
-            const found = subjects.find(s => s.id === newSubjectId);
+            const found = effectiveSchoolSubjects.find(s => s.id === newSubjectId);
             subjectName = found ? found.name : newSubjectId;
         } else {
             return alert('Please select a subject or specify a custom name');
@@ -614,14 +640,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Auto-Register All School Subjects with Smart Defaults
     const handleRegisterAllSubjects = async () => {
-        if (subjects.length === 0) return alert('No general school subjects found in the institution.');
-        if (!window.confirm(`Register all ${subjects.length} school subjects as Active Remedial Subjects with priority defaults?`)) return;
+        if (effectiveSchoolSubjects.length === 0) return alert('No general school subjects found in the institution.');
+        if (!window.confirm(`Register all ${effectiveSchoolSubjects.length} school subjects as Active Remedial Subjects with priority defaults?`)) return;
 
         try {
             setLoading(true);
             const existingIds = new Set(remedialSubjects.map(rs => rs.subjectId));
             let count = 0;
-            for (const sub of subjects) {
+            for (const sub of effectiveSchoolSubjects) {
                 if (!existingIds.has(sub.id)) {
                     const nameLower = sub.name.toLowerCase();
                     const isCoreStem = nameLower.includes('math') || 
@@ -924,7 +950,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             const teacher = users.find(u => u.id === manualTeacherId);
-            const subject = subjects.find(s => s.id === manualSubjectId);
+            const remSubMatch = remedialSubjects.find(r => r.subjectId === manualSubjectId || r.id === manualSubjectId);
+            const schoolSubMatch = effectiveSchoolSubjects.find(s => s.id === manualSubjectId);
+            const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || manualSubjectId || 'Unknown';
             const course = courses.find(c => c.id === manualCourseId);
             const prefect = users.find(u => u.id === manualPrefectId);
 
@@ -938,7 +966,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 teacherId: manualTeacherId,
                 teacherName: teacher?.name || 'Unknown',
                 subjectId: manualSubjectId,
-                subjectName: subject?.name || 'Unknown',
+                subjectName: resolvedSubjectName,
                 courseId: manualCourseId,
                 className: course?.name || 'Unknown',
                 stream: manualStream || 'All Streams',
@@ -988,7 +1016,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             const course = courses.find(c => c.id === allocCourseId);
-            const subject = subjects.find(s => s.id === allocSubjectId);
+            const remSubMatch = remedialSubjects.find(r => r.subjectId === allocSubjectId || r.id === allocSubjectId);
+            const schoolSubMatch = effectiveSchoolSubjects.find(s => s.id === allocSubjectId);
+            const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || 'Subject';
             const teacher = users.find(u => u.id === allocTeacherId);
             const isWeekend = ['Saturday', 'Sunday'].includes(allocDay);
             const effectiveStream = allocStream === '__custom__'
@@ -1001,7 +1031,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 className: course?.name || 'Class',
                 stream: effectiveStream,
                 subjectId: allocSubjectId,
-                subjectName: subject?.name || 'Subject',
+                subjectName: resolvedSubjectName,
                 teacherId: allocTeacherId,
                 teacherName: teacher?.name || 'Teacher',
                 dayOfWeek: allocDay,
@@ -1017,7 +1047,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             } else {
                 await apiService.saveModuleRecord('school_remedial_allocations', newAlloc);
             }
-            onLogAction?.(`Allocated remedial ${subject?.name} for ${course?.name} (${effectiveStream}) to ${teacher?.name} on ${allocDay}`);
+            onLogAction?.(`Allocated remedial ${resolvedSubjectName} for ${course?.name} (${effectiveStream}) to ${teacher?.name} on ${allocDay}`);
             alert('Remedial allocation saved successfully!');
             setShowAllocModal(false);
             setAllocStream('All Streams');
@@ -1045,7 +1075,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     weeklyOccurrences: Math.min(Math.max(rs.weeklyOccurrences || 1, 1), 4),
                     preferredDayType: rs.preferredDayType || 'any'
                 }))
-                : subjects.map(s => {
+                : effectiveSchoolSubjects.map(s => {
                     const nameLower = s.name.toLowerCase();
                     const isCoreStem = nameLower.includes('math') || nameLower.includes('calc') || nameLower.includes('physic') || nameLower.includes('chem') || nameLower.includes('bio') || nameLower.includes('eng') || nameLower.includes('kisw');
                     return {
@@ -5883,7 +5913,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-pink-600 dark:text-white"
                             >
                                 <option value="">-- Choose Subject --</option>
-                                {subjects.map(s => (
+                                {effectiveSchoolSubjects.map(s => (
                                     <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                                 <option value="custom">+ Other / Custom Subject Name</option>
