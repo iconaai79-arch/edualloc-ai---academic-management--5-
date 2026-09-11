@@ -149,6 +149,7 @@ const PROTECTED_KEYS = new Set([
     'classTeacherCommentsConfig', 'class_teacher_comments_config',
     'classRankingConfigs', 'class_ranking_configs',
     'othersExamSettings', 'others_exam_settings',
+    'teacherPreferences', 'teacher_preferences',
     'imConfig', 'im_config'
 ]);
 

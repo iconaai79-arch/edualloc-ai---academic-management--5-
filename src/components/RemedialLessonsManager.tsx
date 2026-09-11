@@ -6,10 +6,23 @@ import {
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
-    Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus
+    Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
+    FileText, BarChart3, Filter
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
+import {
+    generateTeacherPayoutLedgerPdf,
+    generatePrefectAuditReportPdf,
+    generateStudentBillingReportPdf,
+    exportRemedialToExcel,
+    generateRemedialMasterTimetablePdf,
+    exportRemedialMasterTimetableToExcel,
+    getSubjectCode,
+    getTeacherCode,
+    getClassShortCode,
+    getDistinctTimetableClasses
+} from '../utils/remedialReportGenerator';
 
 interface RemedialLessonsManagerProps {
     currentUser: User;
@@ -39,7 +52,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [remedialSubjects, setRemedialSubjects] = useState<RemedialSubject[]>([]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub'>('sessions');
+    const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('sessions');
     
     // Remedial Subject Modal / Filter States
     const [showSubjectModal, setShowSubjectModal] = useState(false);
@@ -107,78 +120,146 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [manualHours, setManualHours] = useState<number>(2);
     const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // Load Data
-    const loadData = async () => {
-        setLoading(true);
+    // Reports Hub State
+    const [selectedReportType, setSelectedReportType] = useState<'master_timetable' | 'payout_ledger' | 'prefect_audit' | 'billing_statement' | 'workload_summary'>('master_timetable');
+    const [reportStartDate, setReportStartDate] = useState<string>(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString().split('T')[0];
+    });
+    const [reportEndDate, setReportEndDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [reportTeacherFilter, setReportTeacherFilter] = useState<string>('All');
+    const [reportClassFilter, setReportClassFilter] = useState<string>('All');
+    const [reportStatusFilter, setReportStatusFilter] = useState<string>('all');
+    const [isExporting, setIsExporting] = useState<boolean>(false);
+
+    // Master Timetable Report Specific Parameters (matching school printed schedule)
+    const [timetableStage, setTimetableStage] = useState<string>('JS');
+    const [timetableTerm, setTimetableTerm] = useState<string>('TERM 3');
+    const [timetableWeek, setTimetableWeek] = useState<string>('WEEK 3');
+    const [timetableYear, setTimetableYear] = useState<string>('2026');
+    const [timetableSatDuty, setTimetableSatDuty] = useState<string>('38, 32');
+    const [timetableSunDuty, setTimetableSunDuty] = useState<string>('14, 13');
+
+    // Helper to safely apply loaded or cached rate settings
+    const applyRateSettings = (r: any) => {
+        if (!r) return;
+        setRateSetting(r);
+        setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
+        setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
+        setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
+        setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
+        setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
+        setWeekendStartTime(r.weekendStartTime || r.weekend_start_time || '08:00');
+        setWeekendEndTime(r.weekendEndTime || r.weekend_end_time || '12:00');
+        const cachedWeekendLimit = safeLocalStorage.getItem(`eduai_remedial_weekend_max_${institutionId}`);
+        const weekendLimitVal = r.maxWeekendLessonsPerDay ?? 
+                                r.max_weekend_lessons_per_day ?? 
+                                r.metadata?.maxWeekendLessonsPerDay ?? 
+                                r.metadata?.max_weekend_lessons_per_day ?? 
+                                (cachedWeekendLimit ? Number(cachedWeekendLimit) : undefined) ?? 
+                                2;
+        setMaxLessonsPerDay(r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1);
+        setMaxWeekendLessonsPerDay(weekendLimitVal);
+        setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
+        setTermFee(r.termFee ?? r.term_fee ?? 3000);
+        setWeekendBreakStartTime(r.weekendBreakStartTime || r.weekend_break_start_time || r.metadata?.weekendBreakStartTime || r.metadata?.weekend_break_start_time || '10:00');
+        setWeekendBreakEndTime(r.weekendBreakEndTime || r.weekend_break_end_time || r.metadata?.weekendBreakEndTime || r.metadata?.weekend_break_end_time || '10:30');
+        setWeekendBreakLabel(r.weekendBreakLabel || r.weekend_break_label || r.metadata?.weekendBreakLabel || r.metadata?.weekend_break_label || 'Tea & Refreshment Break');
+        const loadedIncludeBreak = r.includeWeekendBreak ?? r.include_weekend_break ?? r.metadata?.includeWeekendBreak ?? r.metadata?.include_weekend_break ?? true;
+        setIncludeWeekendBreak(loadedIncludeBreak !== false);
+        const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
+        setTeacherPreferences(loadedTeacherPrefs);
+        setCancellationCutoffHours(r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? r.metadata?.cancellationCutoffHours ?? 3);
+        setConfirmationTimeoutMinutes(r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? r.metadata?.confirmationTimeoutMinutes ?? 45);
+    };
+
+    // Load Data with optimistic caching and instantaneous unblocking
+    const loadData = async (skipCache = false) => {
+        // 1. Optimistic hydration from cache for instant zero-latency UI rendering
+        if (!skipCache && institutionId) {
+            try {
+                const cachedRates = safeLocalStorage.getItem(`remedial_rates_${institutionId}`);
+                if (cachedRates) {
+                    const parsed = JSON.parse(cachedRates);
+                    if (Array.isArray(parsed) && parsed.length > 0) applyRateSettings(parsed[0]);
+                }
+                const cachedAlloc = safeLocalStorage.getItem(`remedial_allocations_${institutionId}`);
+                if (cachedAlloc) {
+                    const parsed = JSON.parse(cachedAlloc);
+                    if (Array.isArray(parsed) && parsed.length > 0) setAllocations(parsed);
+                }
+                const cachedSessions = safeLocalStorage.getItem(`remedial_sessions_${institutionId}`);
+                if (cachedSessions) {
+                    const parsed = JSON.parse(cachedSessions);
+                    if (Array.isArray(parsed) && parsed.length > 0) setSessions(parsed);
+                }
+            } catch (err) {
+                // Ignore cache parse warnings
+            }
+        }
+
+        // Only show full loading spinner if we have zero cached items
+        if (sessions.length === 0 && allocations.length === 0) {
+            setLoading(true);
+        }
+
         try {
-            const [sessList, rates, payList, invList, enrList] = await Promise.all([
+            // 2. Fetch primary remedial operations in parallel (ultra-fast, ~100ms)
+            const [sessResult, ratesResult, payResult, allocResult, remSubResult] = await Promise.allSettled([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
-                apiService.fetchInvoices(institutionId),
-                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', institutionId).catch(() => [])
+                typeof (apiService as any).fetchRemedialAllocations === 'function'
+                    ? (apiService as any).fetchRemedialAllocations(institutionId)
+                    : apiService.fetchModuleRecords<RemedialAllocation>('school_remedial_allocations', institutionId).catch(() => []),
+                typeof (apiService as any).fetchRemedialSubjects === 'function'
+                    ? (apiService as any).fetchRemedialSubjects(institutionId)
+                    : apiService.fetchModuleRecords<RemedialSubject>('school_remedial_subjects', institutionId).catch(() => [])
             ]);
 
-            // Fetch allocations & subjects separately with fallback
-            let allocList: RemedialAllocation[] = [];
-            let remSubList: RemedialSubject[] = [];
-            try {
-                if (typeof (apiService as any).fetchRemedialAllocations === 'function') {
-                    allocList = await (apiService as any).fetchRemedialAllocations(institutionId) || [];
-                }
-            } catch {
-                allocList = [];
-            }
+            const sessList = sessResult.status === 'fulfilled' && Array.isArray(sessResult.value) ? sessResult.value : [];
+            const rates = ratesResult.status === 'fulfilled' && Array.isArray(ratesResult.value) ? ratesResult.value : [];
+            const payList = payResult.status === 'fulfilled' && Array.isArray(payResult.value) ? payResult.value : [];
+            const allocList = allocResult.status === 'fulfilled' && Array.isArray(allocResult.value) ? allocResult.value : [];
+            const remSubList = remSubResult.status === 'fulfilled' && Array.isArray(remSubResult.value) ? remSubResult.value : [];
 
-            try {
-                if (typeof (apiService as any).fetchRemedialSubjects === 'function') {
-                    remSubList = await (apiService as any).fetchRemedialSubjects(institutionId) || [];
-                }
-            } catch {
-                remSubList = [];
-            }
-
-            setSessions(sessList || []);
-            setInvoices(invList || []);
-            setPayouts(payList || []);
+            setSessions(sessList);
+            setPayouts(payList);
             setAllocations(allocList);
             setRemedialSubjects(remSubList);
-            setEnrollments(enrList || []);
 
             if (rates && rates.length > 0) {
-                const r: any = rates[0];
-                setRateSetting(r);
-                setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
-                setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
-                setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
-                setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
-                setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
-                setWeekendStartTime(r.weekendStartTime || r.weekend_start_time || '08:00');
-                setWeekendEndTime(r.weekendEndTime || r.weekend_end_time || '12:00');
-                const cachedWeekendLimit = safeLocalStorage.getItem(`eduai_remedial_weekend_max_${institutionId}`);
-                const weekendLimitVal = r.maxWeekendLessonsPerDay ?? 
-                                        r.max_weekend_lessons_per_day ?? 
-                                        r.metadata?.maxWeekendLessonsPerDay ?? 
-                                        r.metadata?.max_weekend_lessons_per_day ?? 
-                                        (cachedWeekendLimit ? Number(cachedWeekendLimit) : undefined) ?? 
-                                        2;
-                setMaxLessonsPerDay(r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1);
-                setMaxWeekendLessonsPerDay(weekendLimitVal);
-                setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
-                setTermFee(r.termFee ?? r.term_fee ?? 3000);
-                setWeekendBreakStartTime(r.weekendBreakStartTime || r.weekend_break_start_time || r.metadata?.weekendBreakStartTime || r.metadata?.weekend_break_start_time || '10:00');
-                setWeekendBreakEndTime(r.weekendBreakEndTime || r.weekend_break_end_time || r.metadata?.weekendBreakEndTime || r.metadata?.weekend_break_end_time || '10:30');
-                setWeekendBreakLabel(r.weekendBreakLabel || r.weekend_break_label || r.metadata?.weekendBreakLabel || r.metadata?.weekend_break_label || 'Tea & Refreshment Break');
-                const loadedIncludeBreak = r.includeWeekendBreak ?? r.include_weekend_break ?? r.metadata?.includeWeekendBreak ?? r.metadata?.include_weekend_break ?? true;
-                setIncludeWeekendBreak(loadedIncludeBreak !== false);
-                const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
-                setTeacherPreferences(loadedTeacherPrefs);
-                setCancellationCutoffHours(r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? r.metadata?.cancellationCutoffHours ?? 3);
-                setConfirmationTimeoutMinutes(r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? r.metadata?.confirmationTimeoutMinutes ?? 45);
+                applyRateSettings(rates[0]);
+                safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify(rates));
             }
+            if (allocList.length > 0) {
+                safeLocalStorage.setItem(`remedial_allocations_${institutionId}`, JSON.stringify(allocList));
+            }
+            if (sessList.length > 0) {
+                safeLocalStorage.setItem(`remedial_sessions_${institutionId}`, JSON.stringify(sessList));
+            }
+
+            // Unblock the user interface immediately!
+            setLoading(false);
+
+            // 3. Asynchronously fetch heavy tables (invoices, student enrollments) in the background
+            Promise.allSettled([
+                apiService.fetchInvoices(institutionId),
+                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', institutionId).catch(() => [])
+            ]).then(([invRes, enrRes]) => {
+                if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {
+                    setInvoices(invRes.value);
+                }
+                if (enrRes.status === 'fulfilled' && Array.isArray(enrRes.value)) {
+                    setEnrollments(enrRes.value);
+                }
+            }).catch(e => {
+                console.warn('[Remedial] Background invoice/enrollment fetch warning:', e);
+            });
+
         } catch (e) {
             console.error('Failed to load remedial data', e);
-        } finally {
             setLoading(false);
         }
     };
@@ -614,8 +695,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const handleSaveRates = async () => {
         try {
             safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerDay));
+            const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
             const data: any = {
-                id: rateSetting?.id || `rate_${Date.now()}`,
+                id: stableId,
                 hourlyRate: weekdayHourlyRate,
                 hourly_rate: weekdayHourlyRate,
                 weekdayHourlyRate,
@@ -674,6 +756,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institutionId,
                 institution_id: institutionId
             };
+            setRateSetting(data);
             await apiService.saveRemedialRateSetting(data);
             onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Cutoff ${cancellationCutoffHours}h, Timeout ${confirmationTimeoutMinutes}m, Teacher Preferred Days configured`);
             alert('Remedial rates, rules, substitution window, and teacher preferred days updated successfully!');
@@ -1300,6 +1383,368 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // 1. Report: Teacher Payouts Ledger Data
+    const reportPayoutsData = useMemo(() => {
+        const filtered = (sessions || []).filter(s => {
+            const sDate = s.date || s.startTime?.split('T')[0] || '';
+            const matchStart = !reportStartDate || !sDate || sDate >= reportStartDate;
+            const matchEnd = !reportEndDate || !sDate || sDate <= reportEndDate;
+            const matchTeacher = reportTeacherFilter === 'All' || s.teacherId === reportTeacherFilter;
+            const matchStatus = reportStatusFilter === 'all' || s.status === reportStatusFilter;
+            return matchStart && matchEnd && matchTeacher && matchStatus;
+        });
+
+        const teacherMap: Record<string, {
+            teacherName: string;
+            teacherEmail?: string;
+            weekdayHours: number;
+            weekendHours: number;
+            totalHours: number;
+            hourlyRate: number;
+            weekendRate: number;
+            totalAmount: number;
+            status: string;
+            sessionCount: number;
+        }> = {};
+
+        filtered.forEach(s => {
+            const tId = s.teacherId || 'unknown';
+            if (!teacherMap[tId]) {
+                const u = users.find(user => user.id === tId);
+                teacherMap[tId] = {
+                    teacherName: s.teacherName || u?.name || 'Unknown Teacher',
+                    teacherEmail: u?.email,
+                    weekdayHours: 0,
+                    weekendHours: 0,
+                    totalHours: 0,
+                    hourlyRate: weekdayHourlyRate || hourlyRate || 1000,
+                    weekendRate: weekendHourlyRate || 1500,
+                    totalAmount: 0,
+                    status: s.status === 'Paid' ? 'Paid' : (s.status === 'Approved' ? 'Approved' : 'Pending Verification'),
+                    sessionCount: 0
+                };
+            }
+
+            const hrs = s.hours || 1;
+            const sDate = new Date(s.date || s.startTime);
+            const isWeekend = sDate.getDay() === 0 || sDate.getDay() === 6;
+
+            if (isWeekend) {
+                teacherMap[tId].weekendHours += hrs;
+                teacherMap[tId].totalAmount += hrs * (weekendHourlyRate || 1500);
+            } else {
+                teacherMap[tId].weekdayHours += hrs;
+                teacherMap[tId].totalAmount += hrs * (weekdayHourlyRate || hourlyRate || 1000);
+            }
+            teacherMap[tId].totalHours += hrs;
+            teacherMap[tId].sessionCount += 1;
+            if (s.status === 'Paid') teacherMap[tId].status = 'Paid';
+        });
+
+        return Object.values(teacherMap);
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, users]);
+
+    // 2. Report: Prefect QR Audit Trail Data
+    const reportPrefectAuditData = useMemo(() => {
+        return (sessions || []).filter(s => {
+            const sDate = s.date || s.startTime?.split('T')[0] || '';
+            const matchStart = !reportStartDate || !sDate || sDate >= reportStartDate;
+            const matchEnd = !reportEndDate || !sDate || sDate <= reportEndDate;
+            const matchTeacher = reportTeacherFilter === 'All' || s.teacherId === reportTeacherFilter;
+            const matchClass = reportClassFilter === 'All' || s.courseId === reportClassFilter;
+            const matchStatus = reportStatusFilter === 'all' || s.status === reportStatusFilter;
+            return matchStart && matchEnd && matchTeacher && matchClass && matchStatus;
+        }).map(s => {
+            const course = courses.find(c => c.id === s.courseId);
+            return {
+                date: s.date || s.startTime?.split('T')[0] || 'N/A',
+                subjectName: s.subjectName || 'Remedial Session',
+                className: s.className || course?.name || 'Class',
+                stream: s.stream || '',
+                teacherName: s.teacherName || 'Teacher',
+                prefectName: s.prefectName || 'Class Leader',
+                qrToken: s.qrToken || (s.courseId ? `prefect_remedial_token_class_${s.courseId}` : ''),
+                hours: s.hours || 1,
+                status: s.status || 'Pending',
+                verifiedAt: s.verifiedAt
+            };
+        });
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportClassFilter, reportStatusFilter, courses]);
+
+    // 3. Report: Student Billing & Arrears Data
+    const reportBillingData = useMemo(() => {
+        const studentUsers = (users || []).filter(u => u.role === 'student' && (!institutionId || u.institutionId === institutionId));
+        return studentUsers.filter(stu => {
+            const matchClass = reportClassFilter === 'All' || stu.courseId === reportClassFilter;
+            return matchClass;
+        }).map(stu => {
+            const course = courses.find(c => c.id === stu.courseId);
+            const stuInvoices = (invoices || []).filter(inv => inv.studentId === stu.id);
+            const remedialInv = stuInvoices.find(inv => 
+                (inv.items || []).some(item => (item.description || '').toLowerCase().includes('remedial'))
+            ) || stuInvoices[0];
+
+            const totalBilled = remedialInv ? (remedialInv.totalAmount || remedialInv.amount || termFee) : termFee;
+            const paid = remedialInv?.status === 'paid' ? totalBilled : 0;
+            const balance = Math.max(0, totalBilled - paid);
+            const status = balance <= 0 ? 'Paid' : (paid > 0 ? 'Partial' : 'Unpaid');
+
+            if (reportStatusFilter !== 'all' && status.toLowerCase() !== reportStatusFilter.toLowerCase()) {
+                return null;
+            }
+
+            return {
+                studentName: stu.name,
+                className: course?.name || (stu as any).studentClass || 'Class',
+                stream: (stu as any).stream || '',
+                invoiceNumber: remedialInv?.invoiceNumber || (remedialInv?.id ? `INV-${remedialInv.id.slice(0, 6)}` : '-'),
+                termFee: totalBilled,
+                paidAmount: paid,
+                balance,
+                parentPhone: stu.phoneNumber || (stu as any).parentPhone || (stu.metadata as any)?.parentPhone || '-',
+                status
+            };
+        }).filter(Boolean) as Array<{
+            studentName: string;
+            className: string;
+            stream?: string;
+            invoiceNumber?: string;
+            termFee: number;
+            paidAmount: number;
+            balance: number;
+            parentPhone?: string;
+            status: string;
+        }>;
+    }, [users, courses, invoices, termFee, reportClassFilter, reportStatusFilter, institutionId]);
+
+    // 4. Report: Workload & Subject Distribution Data
+    const reportWorkloadData = useMemo(() => {
+        const subjectStats: Record<string, {
+            subjectName: string;
+            priority: string;
+            allocatedSessions: number;
+            deliveredSessions: number;
+            totalHours: number;
+            teachers: Set<string>;
+        }> = {};
+
+        (allocations || []).forEach(a => {
+            const sName = a.subjectName || 'General';
+            if (!subjectStats[sName]) {
+                const remSub = remedialSubjects.find(rs => rs.subjectName === sName);
+                subjectStats[sName] = {
+                    subjectName: sName,
+                    priority: remSub?.priority || 'Medium',
+                    allocatedSessions: 0,
+                    deliveredSessions: 0,
+                    totalHours: 0,
+                    teachers: new Set<string>()
+                };
+            }
+            subjectStats[sName].allocatedSessions += 1;
+            if (a.teacherName) subjectStats[sName].teachers.add(a.teacherName);
+        });
+
+        (sessions || []).forEach(s => {
+            const sName = s.subjectName || 'General';
+            if (!subjectStats[sName]) {
+                const remSub = remedialSubjects.find(rs => rs.subjectName === sName);
+                subjectStats[sName] = {
+                    subjectName: sName,
+                    priority: remSub?.priority || 'Medium',
+                    allocatedSessions: 0,
+                    deliveredSessions: 0,
+                    totalHours: 0,
+                    teachers: new Set<string>()
+                };
+            }
+            subjectStats[sName].deliveredSessions += 1;
+            subjectStats[sName].totalHours += (s.hours || 1);
+            if (s.teacherName) subjectStats[sName].teachers.add(s.teacherName);
+        });
+
+        return Object.values(subjectStats).map(st => ({
+            ...st,
+            teacherCount: st.teachers.size
+        }));
+    }, [allocations, sessions, remedialSubjects]);
+
+    // Executive KPI Summaries
+    const reportKpis = useMemo(() => {
+        const totalDeliveredHours = (sessions || []).reduce((acc, s) => acc + (s.hours || 0), 0);
+        const verifiedCount = (sessions || []).filter(s => s.status === 'Prefect Confirmed' || s.status === 'Approved' || s.status === 'Paid').length;
+        const totalSessionsCount = sessions?.length || 0;
+        const totalAccruedLiability = reportPayoutsData.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
+        const totalBilled = reportBillingData.reduce((acc, b) => acc + (b.termFee || 0), 0);
+        const totalCollected = reportBillingData.reduce((acc, b) => acc + (b.paidAmount || 0), 0);
+        const totalArrears = reportBillingData.reduce((acc, b) => acc + (b.balance || 0), 0);
+
+        return {
+            totalDeliveredHours,
+            verifiedCount,
+            totalSessionsCount,
+            verificationRate: totalSessionsCount > 0 ? Math.round((verifiedCount / totalSessionsCount) * 100) : 100,
+            totalAccruedLiability,
+            totalBilled,
+            totalCollected,
+            totalArrears
+        };
+    }, [sessions, reportPayoutsData, reportBillingData]);
+
+    // Report PDF Download Action
+    const handleDownloadReportPdf = async () => {
+        setIsExporting(true);
+        try {
+            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(users.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(courses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}`;
+
+            if (selectedReportType === 'master_timetable') {
+                const doc = await generateRemedialMasterTimetablePdf({
+                    institution: currentInstitution,
+                    allocations,
+                    courses,
+                    users,
+                    rateSetting,
+                    termName: timetableTerm,
+                    weekName: timetableWeek,
+                    yearName: timetableYear,
+                    stageName: timetableStage,
+                    saturdayDutyStaff: timetableSatDuty,
+                    sundayDutyStaff: timetableSunDuty
+                });
+                const cleanFileName = `${timetableStage ? `${timetableStage}_` : ''}${timetableWeek.replace(/\s+/g, '_')}_${timetableTerm.replace(/\s+/g, '_')}_${timetableYear}_REMEDIAL_TT.pdf`;
+                doc.save(cleanFileName);
+                onLogAction?.('Exported Official Remedial Master Timetable PDF');
+            } else if (selectedReportType === 'payout_ledger') {
+                const doc = await generateTeacherPayoutLedgerPdf({
+                    institution: currentInstitution,
+                    payoutsData: reportPayoutsData,
+                    dateRange: { startDate: reportStartDate, endDate: reportEndDate },
+                    rateSetting,
+                    filtersSummary: filterSummary
+                });
+                doc.save(`Remedial_Teacher_Payout_Ledger_${new Date().toISOString().split('T')[0]}.pdf`);
+                onLogAction?.('Exported Teacher Remedial Payout Ledger PDF');
+            } else if (selectedReportType === 'prefect_audit') {
+                const doc = await generatePrefectAuditReportPdf({
+                    institution: currentInstitution,
+                    sessionsData: reportPrefectAuditData,
+                    filtersSummary: filterSummary
+                });
+                doc.save(`Remedial_Prefect_QR_Verification_Audit_${new Date().toISOString().split('T')[0]}.pdf`);
+                onLogAction?.('Exported Prefect QR Verification Audit PDF');
+            } else if (selectedReportType === 'billing_statement') {
+                const doc = await generateStudentBillingReportPdf({
+                    institution: currentInstitution,
+                    billingData: reportBillingData,
+                    filtersSummary: filterSummary
+                });
+                doc.save(`Remedial_Student_Billing_Statement_${new Date().toISOString().split('T')[0]}.pdf`);
+                onLogAction?.('Exported Student Remedial Billing Statement PDF');
+            } else if (selectedReportType === 'workload_summary') {
+                handlePrintTimetable();
+                onLogAction?.('Printed Remedial Workload Timetable');
+            }
+        } catch (err: any) {
+            console.error('PDF export failed:', err);
+            alert('Failed to generate report PDF: ' + (err.message || 'Unknown error'));
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    // Report Excel Export Action
+    const handleExportExcel = () => {
+        try {
+            if (selectedReportType === 'master_timetable') {
+                exportRemedialMasterTimetableToExcel({
+                    fileName: `${timetableStage ? `${timetableStage}_` : ''}${timetableWeek.replace(/\s+/g, '_')}_${timetableTerm.replace(/\s+/g, '_')}_${timetableYear}_Remedial_Timetable`,
+                    allocations,
+                    courses,
+                    users,
+                    termName: timetableTerm,
+                    weekName: timetableWeek,
+                    yearName: timetableYear,
+                    saturdayDutyStaff: timetableSatDuty,
+                    sundayDutyStaff: timetableSunDuty
+                });
+                onLogAction?.('Exported Remedial Master Timetable to Excel');
+            } else if (selectedReportType === 'payout_ledger') {
+                exportRemedialToExcel({
+                    fileName: 'Remedial_Teacher_Payout_Ledger',
+                    sheetName: 'Teacher Payouts',
+                    data: reportPayoutsData.map((p, idx) => ({
+                        '#': idx + 1,
+                        'Teacher Name': p.teacherName,
+                        'Email': p.teacherEmail || '-',
+                        'Weekday Hours': p.weekdayHours,
+                        'Weekend Hours': p.weekendHours,
+                        'Total Hours': p.totalHours,
+                        'Tariff Rate (KES)': p.hourlyRate,
+                        'Weekend Tariff (KES)': p.weekendRate,
+                        'Gross Payable (KES)': p.totalAmount,
+                        'Status': p.status,
+                        'Sessions Count': p.sessionCount
+                    }))
+                });
+                onLogAction?.('Exported Teacher Remedial Payouts to Excel');
+            } else if (selectedReportType === 'prefect_audit') {
+                exportRemedialToExcel({
+                    fileName: 'Remedial_Prefect_QR_Audit',
+                    sheetName: 'Prefect Audit Log',
+                    data: reportPrefectAuditData.map((s, idx) => ({
+                        '#': idx + 1,
+                        'Date': s.date,
+                        'Subject': s.subjectName,
+                        'Class': s.className,
+                        'Stream': s.stream || 'Whole Class',
+                        'Teacher': s.teacherName,
+                        'Prefect Signer': s.prefectName,
+                        'QR Token': s.qrToken,
+                        'Hours': s.hours,
+                        'Status': s.status
+                    }))
+                });
+                onLogAction?.('Exported Prefect Remedial Audit to Excel');
+            } else if (selectedReportType === 'billing_statement') {
+                exportRemedialToExcel({
+                    fileName: 'Remedial_Student_Billing_Ledger',
+                    sheetName: 'Student Billing',
+                    data: reportBillingData.map((b, idx) => ({
+                        '#': idx + 1,
+                        'Student Name': b.studentName,
+                        'Class': b.className,
+                        'Stream': b.stream || '-',
+                        'Invoice Number': b.invoiceNumber,
+                        'Term Fee (KES)': b.termFee,
+                        'Paid Amount (KES)': b.paidAmount,
+                        'Arrears Balance (KES)': b.balance,
+                        'Parent Contact': b.parentPhone,
+                        'Status': b.status
+                    }))
+                });
+                onLogAction?.('Exported Student Remedial Billing to Excel');
+            } else if (selectedReportType === 'workload_summary') {
+                exportRemedialToExcel({
+                    fileName: 'Remedial_Workload_Subject_Summary',
+                    sheetName: 'Subject Workload',
+                    data: reportWorkloadData.map((w, idx) => ({
+                        '#': idx + 1,
+                        'Subject': w.subjectName,
+                        'Priority': w.priority,
+                        'Allocated Slots': w.allocatedSessions,
+                        'Delivered Sessions': w.deliveredSessions,
+                        'Delivered Hours': w.totalHours,
+                        'Teachers Assigned': w.teacherCount
+                    }))
+                });
+                onLogAction?.('Exported Remedial Workload Summary to Excel');
+            }
+        } catch (err: any) {
+            alert('Failed to export Excel spreadsheet: ' + err.message);
+        }
+    };
+
+
     // QR Code Generation Effect whenever printingPrefect changes
     useEffect(() => {
         if (!printingPrefect) {
@@ -1615,6 +2060,235 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Print Timetable Handler (Dedicated printable window with official header, 7-day grid, and weekend break)
     const handlePrintTimetable = () => {
+        if (selectedReportType === 'master_timetable') {
+            const schoolName = String(currentInstitution?.name || 'KIPKEINO SCHOOL').toUpperCase();
+            const docTitle = `${timetableStage ? `${timetableStage} ` : ''}${timetableWeek} ${timetableTerm} ${timetableYear} REMEDIAL TT`.toUpperCase();
+            const distinctClasses = getDistinctTimetableClasses(allocations, courses);
+            const weekdayDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
+
+            // Weekday rows
+            const weekdayRowsHtml = distinctClasses.map(cls => `
+                <tr>
+                    <td style="font-weight:bold;text-align:center;background:#f8fafc;padding:6px;border:1px solid #334155;">${cls.shortCode}</td>
+                    ${weekdayDays.map(day => {
+                        const matches = allocations.filter(a =>
+                            a.dayOfWeek === day &&
+                            (a.className === cls.className || a.courseId === cls.className) &&
+                            (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream)
+                        );
+                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
+                        return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
+                    }).join('')}
+                </tr>
+            `).join('');
+
+            // Saturday slots
+            const satSlots = [
+                { label: '0800-0900', start: '08:00', end: '09:00', isBreak: false },
+                { label: '0900:1000', start: '09:00', end: '10:00', isBreak: false },
+                { label: '1000-1030', isBreak: true },
+                { label: '1030-1130', start: '10:30', end: '11:30', isBreak: false },
+                { label: '1130-1230', start: '11:30', end: '12:30', isBreak: false },
+                { label: '1230-1330', start: '12:30', end: '13:30', isBreak: false }
+            ];
+            const satRowsHtml = distinctClasses.map(cls => `
+                <tr>
+                    <td style="font-weight:bold;text-align:center;background:#f8fafc;padding:6px;border:1px solid #334155;">${cls.shortCode}</td>
+                    ${satSlots.map(slot => {
+                        if (slot.isBreak) {
+                            return `<td style="text-align:center;font-weight:bold;background:#fef3c7;color:#92400e;padding:6px;border:1px solid #334155;">BREAK</td>`;
+                        }
+                        const matches = allocations.filter(a =>
+                            a.dayOfWeek === 'Saturday' &&
+                            (a.className === cls.className || a.courseId === cls.className) &&
+                            (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
+                            (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                        );
+                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
+                        return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
+                    }).join('')}
+                </tr>
+            `).join('');
+
+            // Sunday slots
+            const sunSlots = [
+                { label: '9:30-1100', start: '09:30', end: '11:00', isBreak: false },
+                { label: '11:00-11:30', isBreak: true },
+                { label: '11:30-1:00', start: '11:30', end: '13:00', isBreak: false }
+            ];
+            const sunRowsHtml = distinctClasses.map(cls => `
+                <tr>
+                    <td style="font-weight:bold;text-align:center;background:#f8fafc;padding:6px;border:1px solid #334155;">${cls.shortCode}</td>
+                    ${sunSlots.map(slot => {
+                        if (slot.isBreak) {
+                            return `<td style="text-align:center;font-weight:bold;background:#fef3c7;color:#92400e;padding:6px;border:1px solid #334155;">BREAK</td>`;
+                        }
+                        const matches = allocations.filter(a =>
+                            a.dayOfWeek === 'Sunday' &&
+                            (a.className === cls.className || a.courseId === cls.className) &&
+                            (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
+                            (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                        );
+                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
+                        return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
+                    }).join('')}
+                </tr>
+            `).join('');
+
+            // Legend
+            const subjectMap = new Map<string, string>();
+            const teacherMap = new Map<string, string>();
+            allocations.forEach(a => {
+                const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                if (sCode && a.subjectName) subjectMap.set(sCode, a.subjectName);
+                const tCode = getTeacherCode(a.teacherId, a.teacherName, users);
+                if (tCode && a.teacherName) teacherMap.set(tCode, a.teacherName);
+            });
+            const subEntries = Array.from(subjectMap.entries());
+            const teachEntries = Array.from(teacherMap.entries());
+            const maxRows = Math.max(subEntries.length, teachEntries.length);
+            let legendHtml = '';
+            for (let i = 0; i < maxRows; i++) {
+                const sub = subEntries[i];
+                const teach = teachEntries[i];
+                legendHtml += `
+                    <tr>
+                        <td style="font-weight:bold;padding:4px 8px;border:1px solid #cbd5e1;text-align:center;">${sub ? sub[0] : ''}</td>
+                        <td style="padding:4px 8px;border:1px solid #cbd5e1;">${sub ? sub[1] : ''}</td>
+                        <td style="font-weight:bold;padding:4px 8px;border:1px solid #cbd5e1;text-align:center;">${teach ? teach[0] : ''}</td>
+                        <td style="padding:4px 8px;border:1px solid #cbd5e1;">${teach ? teach[1] : ''}</td>
+                    </tr>
+                `;
+            }
+
+            const printWindow = window.open('', '_blank', 'width=1150,height=800');
+            if (printWindow) {
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <title>${docTitle}</title>
+                        <style>
+                            @page { size: A4 portrait; margin: 10mm; }
+                            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 12px; color: #0f172a; font-size: 11px; }
+                            .title-box { text-align: center; margin-bottom: 12px; border-bottom: 2px solid #0f172a; padding-bottom: 8px; }
+                            .school-title { font-size: 18px; font-weight: 900; letter-spacing: 0.5px; margin: 0 0 4px 0; text-transform: uppercase; }
+                            .doc-title { font-size: 13px; font-weight: 800; color: #334155; margin: 0; text-transform: uppercase; }
+                            .sub-heading { font-size: 11px; font-weight: 900; margin: 12px 0 4px 0; text-transform: uppercase; color: #0f172a; }
+                            table.tt-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; border: 1.5px solid #334155; font-size: 10px; }
+                            table.tt-table th, table.tt-table td { border: 1px solid #334155; padding: 5px; text-align: center; }
+                            table.tt-table th { background: #f1f5f9; font-weight: 900; text-transform: uppercase; font-size: 9.5px; }
+                            .legend-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; border: 1px solid #cbd5e1; }
+                            .legend-table th, .legend-table td { border: 1px solid #cbd5e1; padding: 3px 6px; }
+                            .legend-table th { background: #f8fafc; font-weight: 800; font-size: 9px; }
+                            .sig-block { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 12px; border-top: 1px solid #cbd5e1; }
+                            .sig-col { text-align: center; width: 190px; }
+                            .sig-line { border-top: 1.5px solid #0f172a; margin-top: 30px; padding-top: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="title-box">
+                            <h1 class="school-title">${schoolName}</h1>
+                            <h2 class="doc-title">${docTitle}</h2>
+                        </div>
+
+                        <!-- Table 1: Weekdays -->
+                        <table class="tt-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;"></th>
+                                    <th>MONDAY</th>
+                                    <th>TUESDAY</th>
+                                    <th>WEDNESDAY</th>
+                                    <th>THURSDAY</th>
+                                    <th>FRIDAY</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${weekdayRowsHtml}
+                            </tbody>
+                        </table>
+
+                        <!-- Table 2: Saturday -->
+                        <div class="sub-heading">SATURDAY – DUTY ${timetableSatDuty}</div>
+                        <table class="tt-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;"></th>
+                                    ${satSlots.map(s => `<th>${s.label}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${satRowsHtml}
+                            </tbody>
+                        </table>
+
+                        <!-- Table 3: Sunday -->
+                        <div class="sub-heading">SUNDAY - DUTY ${timetableSunDuty}</div>
+                        <table class="tt-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;"></th>
+                                    ${sunSlots.map(s => `<th>${s.label}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sunRowsHtml}
+                            </tbody>
+                        </table>
+
+                        <!-- Table 4: Staff & Subject Legend -->
+                        <div class="sub-heading">STAFF &amp; SUBJECT REFERENCE KEY</div>
+                        <table class="legend-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 15%;">SUBJECT CODE</th>
+                                    <th style="width: 35%;">SUBJECT NAME</th>
+                                    <th style="width: 15%;">STAFF CODE</th>
+                                    <th style="width: 35%;">TEACHER NAME</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${legendHtml}
+                            </tbody>
+                        </table>
+
+                        <!-- Official Certification Block -->
+                        <div class="sig-block">
+                            <div class="sig-col">
+                                <div class="sig-line">Director of Studies</div>
+                                <div style="font-size: 8px; color: #64748b; margin-top: 2px;">Sign &amp; Date</div>
+                            </div>
+                            <div class="sig-col">
+                                <div class="sig-line">Remedial Coordinator</div>
+                                <div style="font-size: 8px; color: #64748b; margin-top: 2px;">Sign &amp; Date</div>
+                            </div>
+                            <div class="sig-col">
+                                <div class="sig-line">Principal / Headteacher</div>
+                                <div style="font-size: 8px; color: #64748b; margin-top: 2px;">Official Stamp &amp; Seal</div>
+                            </div>
+                        </div>
+
+                        <script>
+                            window.onload = function() {
+                                setTimeout(function() {
+                                    window.focus();
+                                    window.print();
+                                }, 350);
+                            };
+                        </script>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            } else {
+                window.print();
+            }
+            return;
+        }
+
         const institutionName = currentInstitution?.name || 'School Remedial Program';
         const className = selectedTimetableClass === 'All' ? 'All Classes' : (courses.find(c => c.id === selectedTimetableClass)?.name || selectedTimetableClass);
         const streamName = selectedTimetableStream === 'All' ? 'All Streams' : selectedTimetableStream;
@@ -2276,6 +2950,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
                         </button>
+
+                        <button 
+                            onClick={() => setActiveTab('reports')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'reports' 
+                                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'reports' ? 'bg-white/20 text-white' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <BarChart3 className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Remedial Reports</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'reports' ? 'text-indigo-100' : 'text-slate-400'}`}>Audits, ledger &amp; exports</p>
+                                </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                activeTab === 'reports' ? 'bg-white text-indigo-700' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+                            }`}>
+                                PDF / XLS
+                            </span>
+                        </button>
+
                     </div>
                 </div>
 
@@ -3700,6 +4401,852 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     Configure Rates <Layers className="w-3.5 h-3.5" />
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: REMEDIAL REPORTS & AUDIT HUB */}
+            {activeTab === 'reports' && (
+                <div className="space-y-6 animate-fade-in">
+                    {/* Header & Export Actions Bar */}
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                                    <BarChart3 className="w-3 h-3" /> Audit &amp; Payroll Intelligence
+                                </span>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mt-1">
+                                Remedial Reports Suite
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">
+                                Generate official certified PDF ledgers with school letterhead and sign-off blocks, or export structured datasets to Excel (.xlsx).
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                            <button
+                                type="button"
+                                onClick={handleExportExcel}
+                                className="flex-1 sm:flex-none px-5 py-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm cursor-pointer"
+                            >
+                                <Download className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                Export Excel (.xlsx)
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleDownloadReportPdf}
+                                disabled={isExporting}
+                                className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25 active:scale-95 border border-indigo-400/30 cursor-pointer disabled:opacity-50"
+                            >
+                                {isExporting ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" /> Generating PDF...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Printer className="w-4 h-4" /> Download Official PDF
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Executive KPI Summary Bar */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between text-slate-400">
+                                <span className="text-[10px] font-black uppercase tracking-wider">Hours Delivered</span>
+                                <Clock className="w-4 h-4 text-indigo-500" />
+                            </div>
+                            <h4 className="text-2xl font-black text-slate-900 dark:text-white">
+                                {reportKpis.totalDeliveredHours.toFixed(1)} <span className="text-xs font-bold text-slate-400">hrs</span>
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                                Across {reportKpis.totalSessionsCount} remedial sessions
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between text-slate-400">
+                                <span className="text-[10px] font-black uppercase tracking-wider">Prefect QR Verified</span>
+                                <Shield className="w-4 h-4 text-emerald-500" />
+                            </div>
+                            <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                {reportKpis.verificationRate}%
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                                {reportKpis.verifiedCount} authenticated sessions
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between text-slate-400">
+                                <span className="text-[10px] font-black uppercase tracking-wider">Teacher Pay Liability</span>
+                                <DollarSign className="w-4 h-4 text-violet-500" />
+                            </div>
+                            <h4 className="text-2xl font-black text-violet-600 dark:text-violet-400">
+                                KES {Math.round(reportKpis.totalAccruedLiability).toLocaleString()}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                                For {reportPayoutsData.length} instructors
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between text-slate-400">
+                                <span className="text-[10px] font-black uppercase tracking-wider">Fee Arrears Balance</span>
+                                <CreditCard className="w-4 h-4 text-amber-500" />
+                            </div>
+                            <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                                KES {Math.round(reportKpis.totalArrears).toLocaleString()}
+                            </h4>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                                KES {Math.round(reportKpis.totalCollected).toLocaleString()} collected of {Math.round(reportKpis.totalBilled).toLocaleString()}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Report Navigation Tabs & Dynamic Filters */}
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-6">
+                        {/* Selector Tabs */}
+                        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedReportType('master_timetable')}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                    selectedReportType === 'master_timetable'
+                                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                <Calendar className="w-3.5 h-3.5" /> School Master Timetable (Weekly Grid)
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedReportType('payout_ledger')}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                    selectedReportType === 'payout_ledger'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                <DollarSign className="w-3.5 h-3.5" /> Teacher Payout Ledger
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedReportType('prefect_audit')}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                    selectedReportType === 'prefect_audit'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                <Shield className="w-3.5 h-3.5" /> Prefect QR Audit
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedReportType('billing_statement')}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                    selectedReportType === 'billing_statement'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                <CreditCard className="w-3.5 h-3.5" /> Student Fee Recovery
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setSelectedReportType('workload_summary')}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                    selectedReportType === 'workload_summary'
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                }`}
+                            >
+                                <BookOpen className="w-3.5 h-3.5" /> Subject &amp; Workload
+                            </button>
+                        </div>
+
+                        {/* Filter Bar Controls */}
+                        {selectedReportType === 'master_timetable' ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Stage / Level
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={timetableStage}
+                                        onChange={e => setTimetableStage(e.target.value)}
+                                        placeholder="e.g. JS, Primary"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Week
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={timetableWeek}
+                                        onChange={e => setTimetableWeek(e.target.value)}
+                                        placeholder="e.g. WEEK 3"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Term
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={timetableTerm}
+                                        onChange={e => setTimetableTerm(e.target.value)}
+                                        placeholder="e.g. TERM 3"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Year
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={timetableYear}
+                                        onChange={e => setTimetableYear(e.target.value)}
+                                        placeholder="e.g. 2026"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Sat Duty Staff
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={timetableSatDuty}
+                                        onChange={e => setTimetableSatDuty(e.target.value)}
+                                        placeholder="e.g. 38, 32"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Sun Duty Staff
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={timetableSunDuty}
+                                        onChange={e => setTimetableSunDuty(e.target.value)}
+                                        placeholder="e.g. 14, 13"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Start Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={reportStartDate}
+                                        onChange={e => setReportStartDate(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        End Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={reportEndDate}
+                                        onChange={e => setReportEndDate(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Filter Teacher
+                                    </label>
+                                    <select
+                                        value={reportTeacherFilter}
+                                        onChange={e => setReportTeacherFilter(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                                    >
+                                        <option value="All">All Instructors</option>
+                                        {teachersList.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Filter Class
+                                    </label>
+                                    <select
+                                        value={reportClassFilter}
+                                        onChange={e => setReportClassFilter(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                                    >
+                                        <option value="All">All Classes / Grades</option>
+                                        {courses.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Interactive Data Table Preview */}
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                            {/* 0. MASTER TIMETABLE PREVIEW (EXACT LAYOUT OF SCHOOL SCHEDULE) */}
+                            {selectedReportType === 'master_timetable' && (
+                                <div className="space-y-6 p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl">
+                                    {/* Timetable Header Card */}
+                                    <div className="text-center py-4 border-b-2 border-slate-900 dark:border-slate-100 space-y-1">
+                                        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                            {currentInstitution?.name || 'KIPKEINO SCHOOL'}
+                                        </h2>
+                                        <h3 className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-indigo-700 dark:text-indigo-400">
+                                            {timetableStage ? `${timetableStage} ` : ''}{timetableWeek} {timetableTerm} {timetableYear} REMEDIAL TT
+                                        </h3>
+                                    </div>
+
+                                    {/* TABLE 1: WEEKDAY TIMETABLE (MONDAY TO FRIDAY) */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                Weekday Tuition Schedule (Monday – Friday)
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                                Weekday window: {weekdayStartTime} – {weekdayEndTime}
+                                            </span>
+                                        </div>
+                                        <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
+                                            <table className="w-full text-center text-xs border-collapse">
+                                                <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
+                                                    <tr>
+                                                        <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
+                                                        <th className="py-2.5 px-3 border-r border-slate-400 dark:border-slate-700">MONDAY</th>
+                                                        <th className="py-2.5 px-3 border-r border-slate-400 dark:border-slate-700">TUESDAY</th>
+                                                        <th className="py-2.5 px-3 border-r border-slate-400 dark:border-slate-700">WEDNESDAY</th>
+                                                        <th className="py-2.5 px-3 border-r border-slate-400 dark:border-slate-700">THURSDAY</th>
+                                                        <th className="py-2.5 px-3">FRIDAY</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y border-slate-800 dark:border-slate-600">
+                                                    {getDistinctTimetableClasses(allocations, courses).map(cls => (
+                                                        <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                                                            <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
+                                                                {cls.shortCode}
+                                                            </td>
+                                                            {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const).map((day, dIdx) => {
+                                                                const matches = allocations.filter(a =>
+                                                                    a.dayOfWeek === day &&
+                                                                    (a.className === cls.className || a.courseId === cls.className) &&
+                                                                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream)
+                                                                );
+                                                                return (
+                                                                    <td key={day} className={`py-2 px-2 text-[11px] font-bold ${dIdx < 4 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
+                                                                        {matches.length === 0 ? (
+                                                                            <span className="text-slate-300 dark:text-slate-600">-</span>
+                                                                        ) : (
+                                                                            matches.map((a, mIdx) => (
+                                                                                <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
+                                                                                    <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
+                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, users)}</span>
+                                                                                </div>
+                                                                            ))
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* TABLE 2: SATURDAY TIMETABLE */}
+                                    <div className="space-y-2 pt-2">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                Saturday Schedule – Duty {timetableSatDuty}
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
+                                                Weekend Recess: 10:00 – 10:30 (Break)
+                                            </span>
+                                        </div>
+                                        <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
+                                            <table className="w-full text-center text-xs border-collapse">
+                                                <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
+                                                    <tr>
+                                                        <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">08:00 - 09:00</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">09:00 - 10:00</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700 bg-amber-200/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300">10:00 - 10:30</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">10:30 - 11:30</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">11:30 - 12:30</th>
+                                                        <th className="py-2.5 px-2">12:30 - 13:30</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y border-slate-800 dark:border-slate-600">
+                                                    {getDistinctTimetableClasses(allocations, courses).map(cls => (
+                                                        <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                                                            <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
+                                                                {cls.shortCode}
+                                                            </td>
+                                                            {[
+                                                                { start: '08:00', end: '09:00', isBreak: false },
+                                                                { start: '09:00', end: '10:00', isBreak: false },
+                                                                { isBreak: true },
+                                                                { start: '10:30', end: '11:30', isBreak: false },
+                                                                { start: '11:30', end: '12:30', isBreak: false },
+                                                                { start: '12:30', end: '13:30', isBreak: false }
+                                                            ].map((slot, sIdx) => {
+                                                                if (slot.isBreak) {
+                                                                    return (
+                                                                        <td key={sIdx} className="py-2 px-2 border-r border-slate-300 dark:border-slate-700 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-black tracking-widest text-[10px]">
+                                                                            BREAK
+                                                                        </td>
+                                                                    );
+                                                                }
+                                                                const matches = allocations.filter(a =>
+                                                                    a.dayOfWeek === 'Saturday' &&
+                                                                    (a.className === cls.className || a.courseId === cls.className) &&
+                                                                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
+                                                                    (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                                                                );
+                                                                return (
+                                                                    <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < 5 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
+                                                                        {matches.length === 0 ? (
+                                                                            <span className="text-slate-300 dark:text-slate-600">-</span>
+                                                                        ) : (
+                                                                            matches.map((a, mIdx) => (
+                                                                                <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
+                                                                                    <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
+                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, users)}</span>
+                                                                                </div>
+                                                                            ))
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* TABLE 3: SUNDAY TIMETABLE */}
+                                    <div className="space-y-2 pt-2">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                Sunday Schedule – Duty {timetableSunDuty}
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
+                                                Weekend Recess: 11:00 – 11:30 (Break)
+                                            </span>
+                                        </div>
+                                        <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
+                                            <table className="w-full text-center text-xs border-collapse">
+                                                <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
+                                                    <tr>
+                                                        <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">09:30 - 11:00</th>
+                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700 bg-amber-200/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300">11:00 - 11:30</th>
+                                                        <th className="py-2.5 px-2">11:30 - 13:00</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y border-slate-800 dark:border-slate-600">
+                                                    {getDistinctTimetableClasses(allocations, courses).map(cls => (
+                                                        <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                                                            <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
+                                                                {cls.shortCode}
+                                                            </td>
+                                                            {[
+                                                                { start: '09:30', end: '11:00', isBreak: false },
+                                                                { isBreak: true },
+                                                                { start: '11:30', end: '13:00', isBreak: false }
+                                                            ].map((slot, sIdx) => {
+                                                                if (slot.isBreak) {
+                                                                    return (
+                                                                        <td key={sIdx} className="py-2 px-2 border-r border-slate-300 dark:border-slate-700 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-black tracking-widest text-[10px]">
+                                                                            BREAK
+                                                                        </td>
+                                                                    );
+                                                                }
+                                                                const matches = allocations.filter(a =>
+                                                                    a.dayOfWeek === 'Sunday' &&
+                                                                    (a.className === cls.className || a.courseId === cls.className) &&
+                                                                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
+                                                                    (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                                                                );
+                                                                return (
+                                                                    <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < 2 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
+                                                                        {matches.length === 0 ? (
+                                                                            <span className="text-slate-300 dark:text-slate-600">-</span>
+                                                                        ) : (
+                                                                            matches.map((a, mIdx) => (
+                                                                                <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
+                                                                                    <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
+                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, users)}</span>
+                                                                                </div>
+                                                                            ))
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* TABLE 4: REFERENCE LEGEND (SUBJECT & STAFF CODE DIRECTORY) */}
+                                    <div className="space-y-2 pt-2">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                            Reference Key (Subject &amp; Staff Code Directory)
+                                        </h4>
+                                        <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
+                                            <table className="w-full text-left text-xs border-collapse">
+                                                <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] font-black uppercase text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                                                    <tr>
+                                                        <th className="py-2 px-3 w-28">Subject Code</th>
+                                                        <th className="py-2 px-3 border-r border-slate-200 dark:border-slate-700">Subject Name</th>
+                                                        <th className="py-2 px-3 w-24">Staff Code</th>
+                                                        <th className="py-2 px-3">Teacher Name</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {(() => {
+                                                        const subMap = new Map<string, string>();
+                                                        const teachMap = new Map<string, string>();
+                                                        allocations.forEach(a => {
+                                                            const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                                                            if (sCode && a.subjectName) subMap.set(sCode, a.subjectName);
+                                                            const tCode = getTeacherCode(a.teacherId, a.teacherName, users);
+                                                            if (tCode && a.teacherName) teachMap.set(tCode, a.teacherName);
+                                                        });
+                                                        const subArr = Array.from(subMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+                                                        const teachArr = Array.from(teachMap.entries()).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+                                                        const maxL = Math.max(subArr.length, teachArr.length, 1);
+                                                        const rows = [];
+                                                        for (let i = 0; i < maxL; i++) {
+                                                            const s = subArr[i];
+                                                            const t = teachArr[i];
+                                                            rows.push(
+                                                                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                                                    <td className="py-1.5 px-3 font-mono font-black text-indigo-700 dark:text-indigo-400">{s ? s[0] : '-'}</td>
+                                                                    <td className="py-1.5 px-3 font-medium text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700">{s ? s[1] : '-'}</td>
+                                                                    <td className="py-1.5 px-3 font-mono font-black text-slate-900 dark:text-white">{t ? t[0] : '-'}</td>
+                                                                    <td className="py-1.5 px-3 font-medium text-slate-800 dark:text-slate-200">{t ? t[1] : '-'}</td>
+                                                                </tr>
+                                                            );
+                                                        }
+                                                        return rows;
+                                                    })()}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* TABLE 5: OFFICIAL SIGN-OFF CERTIFICATION BLOCK */}
+                                    <div className="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+                                            <div className="space-y-1">
+                                                <div className="h-10"></div>
+                                                <div className="border-t-2 border-slate-900 dark:border-slate-300 pt-1">
+                                                    <p className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Director of Studies</p>
+                                                    <p className="text-[9px] text-slate-400">Signature &amp; Date</p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="h-10"></div>
+                                                <div className="border-t-2 border-slate-900 dark:border-slate-300 pt-1">
+                                                    <p className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Remedial Coordinator</p>
+                                                    <p className="text-[9px] text-slate-400">Signature &amp; Date</p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="h-10"></div>
+                                                <div className="border-t-2 border-slate-900 dark:border-slate-300 pt-1">
+                                                    <p className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Principal / Headteacher</p>
+                                                    <p className="text-[9px] text-slate-400">Official Seal &amp; Stamp</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 1. PAYOUT LEDGER TABLE */}
+                            {selectedReportType === 'payout_ledger' && (
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th className="py-3 px-4">Instructor</th>
+                                            <th className="py-3 px-4 text-center">Weekday</th>
+                                            <th className="py-3 px-4 text-center">Weekend</th>
+                                            <th className="py-3 px-4 text-center">Total Hrs</th>
+                                            <th className="py-3 px-4 text-center">Tariff Rates (KES)</th>
+                                            <th className="py-3 px-4 text-right">Gross Payable</th>
+                                            <th className="py-3 px-4 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {reportPayoutsData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                                                    No remedial sessions recorded within the selected period or filters.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            reportPayoutsData.map((p, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
+                                                        {p.teacherName}
+                                                        {p.teacherEmail && (
+                                                            <span className="block text-[10px] font-normal text-slate-400">{p.teacherEmail}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center font-mono">{p.weekdayHours}h</td>
+                                                    <td className="py-3.5 px-4 text-center font-mono">{p.weekendHours}h</td>
+                                                    <td className="py-3.5 px-4 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                                        {p.totalHours}h
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center text-[11px] text-slate-500 font-mono">
+                                                        {p.hourlyRate?.toLocaleString()} / {p.weekendRate?.toLocaleString()}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-white">
+                                                        KES {Math.round(p.totalAmount).toLocaleString()}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                            p.status === 'Paid'
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                                : p.status === 'Approved'
+                                                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                                        }`}>
+                                                            {p.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                    {reportPayoutsData.length > 0 && (
+                                        <tfoot className="bg-slate-50 dark:bg-slate-800/50 font-black text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-700">
+                                            <tr>
+                                                <td className="py-3 px-4 uppercase text-[10px] tracking-wider">Grand Totals</td>
+                                                <td className="py-3 px-4 text-center font-mono">
+                                                    {reportPayoutsData.reduce((acc, p) => acc + p.weekdayHours, 0)}h
+                                                </td>
+                                                <td className="py-3 px-4 text-center font-mono">
+                                                    {reportPayoutsData.reduce((acc, p) => acc + p.weekendHours, 0)}h
+                                                </td>
+                                                <td className="py-3 px-4 text-center font-mono text-indigo-600 dark:text-indigo-400">
+                                                    {reportPayoutsData.reduce((acc, p) => acc + p.totalHours, 0)}h
+                                                </td>
+                                                <td className="py-3 px-4 text-center">-</td>
+                                                <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                                                    KES {Math.round(reportPayoutsData.reduce((acc, p) => acc + p.totalAmount, 0)).toLocaleString()}
+                                                </td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
+                                </table>
+                            )}
+
+                            {/* 2. PREFECT QR AUDIT TABLE */}
+                            {selectedReportType === 'prefect_audit' && (
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th className="py-3 px-4">Date</th>
+                                            <th className="py-3 px-4">Subject</th>
+                                            <th className="py-3 px-4">Class &amp; Stream</th>
+                                            <th className="py-3 px-4">Teacher</th>
+                                            <th className="py-3 px-4">Prefect Signer</th>
+                                            <th className="py-3 px-4 text-center">Duration</th>
+                                            <th className="py-3 px-4 text-center">Verification Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {reportPrefectAuditData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                                                    No session logs matched the selected criteria.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            reportPrefectAuditData.map((s, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                                    <td className="py-3.5 px-4 font-mono text-slate-600 dark:text-slate-400">{s.date}</td>
+                                                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{s.subjectName}</td>
+                                                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                                                        {s.className} {s.stream ? `(${s.stream})` : ''}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 font-medium text-slate-900 dark:text-white">{s.teacherName}</td>
+                                                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">
+                                                        {s.prefectName}
+                                                        {s.qrToken && (
+                                                            <span className="block font-mono text-[9px] text-slate-400">
+                                                                Token: {s.qrToken.slice(-8)}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                                        {s.hours}h
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                            s.status === 'Prefect Confirmed' || s.status === 'Approved' || s.status === 'Paid'
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                                        }`}>
+                                                            {s.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+
+                            {/* 3. STUDENT BILLING TABLE */}
+                            {selectedReportType === 'billing_statement' && (
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th className="py-3 px-4">Student Name</th>
+                                            <th className="py-3 px-4">Class &amp; Stream</th>
+                                            <th className="py-3 px-4">Invoice #</th>
+                                            <th className="py-3 px-4 text-right">Billed Fee</th>
+                                            <th className="py-3 px-4 text-right">Paid</th>
+                                            <th className="py-3 px-4 text-right">Arrears Balance</th>
+                                            <th className="py-3 px-4 text-center">Parent Contact</th>
+                                            <th className="py-3 px-4 text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {reportBillingData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={8} className="py-8 text-center text-slate-400 font-bold">
+                                                    No student billing records found.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            reportBillingData.map((b, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{b.studentName}</td>
+                                                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
+                                                        {b.className} {b.stream ? `(${b.stream})` : ''}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 font-mono text-slate-500">{b.invoiceNumber}</td>
+                                                    <td className="py-3.5 px-4 text-right font-mono">KES {Math.round(b.termFee).toLocaleString()}</td>
+                                                    <td className="py-3.5 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                                                        KES {Math.round(b.paidAmount).toLocaleString()}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
+                                                        KES {Math.round(b.balance).toLocaleString()}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center font-mono text-slate-500">{b.parentPhone}</td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                            b.status === 'Paid'
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                                : b.status === 'Partial'
+                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                                                : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                        }`}>
+                                                            {b.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+
+                            {/* 4. WORKLOAD & SUBJECT SUMMARY TABLE */}
+                            {selectedReportType === 'workload_summary' && (
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-700">
+                                        <tr>
+                                            <th className="py-3 px-4">Subject</th>
+                                            <th className="py-3 px-4 text-center">Priority</th>
+                                            <th className="py-3 px-4 text-center">Allocated Weekly Slots</th>
+                                            <th className="py-3 px-4 text-center">Delivered Sessions</th>
+                                            <th className="py-3 px-4 text-center">Total Hours Taught</th>
+                                            <th className="py-3 px-4 text-center">Assigned Teachers</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {reportWorkloadData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="py-8 text-center text-slate-400 font-bold">
+                                                    No subject workload data recorded yet.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            reportWorkloadData.map((w, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                                                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">{w.subjectName}</td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                            w.priority === 'High'
+                                                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300'
+                                                                : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300'
+                                                        }`}>
+                                                            {w.priority}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center font-mono font-bold">{w.allocatedSessions} slots</td>
+                                                    <td className="py-3.5 px-4 text-center font-mono text-emerald-600 dark:text-emerald-400">
+                                                        {w.deliveredSessions} sessions
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                                        {w.totalHours.toFixed(1)} hrs
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center font-mono">{w.teacherCount} teachers</td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        {/* Official Sign-off Notice Banner */}
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-4 text-slate-500 text-[11px]">
+                            <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-indigo-500 shrink-0" />
+                                <span>
+                                    All generated PDF reports automatically include your institution's official letterhead and three certification signature lines (DOS, Bursar, and Principal).
+                                </span>
+                            </div>
+                            <span className="font-mono text-[10px] text-slate-400 shrink-0">Official Academic Seal</span>
                         </div>
                     </div>
                 </div>

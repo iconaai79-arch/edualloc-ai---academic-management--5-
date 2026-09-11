@@ -330,10 +330,10 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
     // 4. Else if subjects have explicit targetClasses matching this class, return only those.
     // 5. Fallback only if no explicit allocations exist at all.
     const getSubjectsForClass = useMemo(() => {
-        return (cName: string): Array<{ name: string; code: string; paperName?: string }> => {
+        return (clsName: string): Array<{ name: string; code: string; paperName?: string }> => {
             const seenKeys = new Set<string>();
             const result: Array<{ name: string; code: string; paperName?: string }> = [];
-            const clsClean = (cName || '').trim();
+            const clsClean = (clsName || '').trim();
             const clsLower = clsClean.toLowerCase();
             const clsNorm = clsLower.replace(/[^a-z0-9]/g, '');
 

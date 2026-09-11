@@ -144,6 +144,7 @@ const TABLES_WITH_METADATA = new Set([
   'whatsapp_configs',
   'whatsapp_logs',
   'school_remedial_subjects',
+  'school_remedial_rate_settings',
   'mpesa_transactions',
   'airtel_transactions',
   'intasend_transactions',
@@ -476,8 +477,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json([]);
             }
 
-            if (moduleName === 'school_remedial_rate_settings' && Array.isArray(data)) {
-                data.forEach(r => {
+            if (moduleName === 'school_remedial_rate_settings') {
+                let records = Array.isArray(data) ? data : [];
+                if (records.length === 0 && institutionId) {
+                    try {
+                        const { data: imsData } = await supabase
+                            .from('institution_module_states')
+                            .select('data')
+                            .eq('id', `${institutionId}_school_remedial_rate_settings`)
+                            .limit(1);
+                        if (imsData && imsData.length > 0 && imsData[0].data) {
+                            records = [imsData[0].data];
+                            data = records;
+                        }
+                    } catch (_) {}
+                }
+                records.forEach((r: any) => {
                     if (r && typeof r === 'object') {
                         const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
                         if (r.max_weekend_lessons_per_day === undefined && meta.max_weekend_lessons_per_day !== undefined) {
@@ -485,6 +500,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         if (r.maxWeekendLessonsPerDay === undefined) {
                             r.maxWeekendLessonsPerDay = r.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? 2;
+                        }
+                        if (r.cancellation_cutoff_hours === undefined && meta.cancellation_cutoff_hours !== undefined) {
+                            r.cancellation_cutoff_hours = meta.cancellation_cutoff_hours;
+                        }
+                        if (r.cancellationCutoffHours === undefined) {
+                            r.cancellationCutoffHours = r.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? 3;
+                        }
+                        if (r.confirmation_timeout_minutes === undefined && meta.confirmation_timeout_minutes !== undefined) {
+                            r.confirmation_timeout_minutes = meta.confirmation_timeout_minutes;
+                        }
+                        if (r.confirmationTimeoutMinutes === undefined) {
+                            r.confirmationTimeoutMinutes = r.confirmation_timeout_minutes ?? meta.confirmationTimeoutMinutes ?? 45;
+                        }
+                        if (r.teacher_preferences === undefined && meta.teacher_preferences !== undefined) {
+                            r.teacher_preferences = meta.teacher_preferences;
+                        }
+                        if (r.teacherPreferences === undefined) {
+                            r.teacherPreferences = r.teacher_preferences ?? meta.teacherPreferences ?? {};
+                        }
+                        if (r.weekend_break_start_time === undefined && meta.weekend_break_start_time !== undefined) {
+                            r.weekend_break_start_time = meta.weekend_break_start_time;
+                        }
+                        if (r.weekendBreakStartTime === undefined) {
+                            r.weekendBreakStartTime = r.weekend_break_start_time ?? meta.weekendBreakStartTime ?? '10:00';
+                        }
+                        if (r.weekend_break_end_time === undefined && meta.weekend_break_end_time !== undefined) {
+                            r.weekend_break_end_time = meta.weekend_break_end_time;
+                        }
+                        if (r.weekendBreakEndTime === undefined) {
+                            r.weekendBreakEndTime = r.weekend_break_end_time ?? meta.weekendBreakEndTime ?? '10:30';
+                        }
+                        if (r.weekend_break_label === undefined && meta.weekend_break_label !== undefined) {
+                            r.weekend_break_label = meta.weekend_break_label;
+                        }
+                        if (r.weekendBreakLabel === undefined) {
+                            r.weekendBreakLabel = r.weekend_break_label ?? meta.weekendBreakLabel ?? 'Tea & Refreshment Break';
+                        }
+                        if (r.include_weekend_break === undefined && meta.include_weekend_break !== undefined) {
+                            r.include_weekend_break = meta.include_weekend_break;
+                        }
+                        if (r.includeWeekendBreak === undefined) {
+                            r.includeWeekendBreak = r.include_weekend_break ?? meta.includeWeekendBreak ?? true;
                         }
                     }
                 });
@@ -1002,8 +1059,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         meta.max_weekend_lessons_per_day = copy.max_weekend_lessons_per_day;
                         meta.maxWeekendLessonsPerDay = copy.max_weekend_lessons_per_day;
                     }
+                    if (copy.cancellationCutoffHours !== undefined && copy.cancellation_cutoff_hours === undefined) copy.cancellation_cutoff_hours = copy.cancellationCutoffHours;
+                    if (copy.cancellation_cutoff_hours !== undefined) {
+                        meta.cancellation_cutoff_hours = copy.cancellation_cutoff_hours;
+                        meta.cancellationCutoffHours = copy.cancellation_cutoff_hours;
+                    }
+                    if (copy.confirmationTimeoutMinutes !== undefined && copy.confirmation_timeout_minutes === undefined) copy.confirmation_timeout_minutes = copy.confirmationTimeoutMinutes;
+                    if (copy.confirmation_timeout_minutes !== undefined) {
+                        meta.confirmation_timeout_minutes = copy.confirmation_timeout_minutes;
+                        meta.confirmationTimeoutMinutes = copy.confirmation_timeout_minutes;
+                    }
+                    if (copy.teacherPreferences !== undefined && copy.teacher_preferences === undefined) copy.teacher_preferences = copy.teacherPreferences;
+                    if (copy.teacher_preferences !== undefined) {
+                        meta.teacher_preferences = copy.teacher_preferences;
+                        meta.teacherPreferences = copy.teacher_preferences;
+                    }
+                    if (copy.weekendBreakStartTime !== undefined && copy.weekend_break_start_time === undefined) copy.weekend_break_start_time = copy.weekendBreakStartTime;
+                    if (copy.weekendBreakEndTime !== undefined && copy.weekend_break_end_time === undefined) copy.weekend_break_end_time = copy.weekendBreakEndTime;
+                    if (copy.weekendBreakLabel !== undefined && copy.weekend_break_label === undefined) copy.weekend_break_label = copy.weekendBreakLabel;
+                    if (copy.includeWeekendBreak !== undefined && copy.include_weekend_break === undefined) copy.include_weekend_break = copy.includeWeekendBreak;
+                    if (copy.weekend_break_start_time !== undefined) {
+                        meta.weekend_break_start_time = copy.weekend_break_start_time;
+                        meta.weekendBreakStartTime = copy.weekend_break_start_time;
+                    }
+                    if (copy.weekend_break_end_time !== undefined) {
+                        meta.weekend_break_end_time = copy.weekend_break_end_time;
+                        meta.weekendBreakEndTime = copy.weekend_break_end_time;
+                    }
+                    if (copy.weekend_break_label !== undefined) {
+                        meta.weekend_break_label = copy.weekend_break_label;
+                        meta.weekendBreakLabel = copy.weekend_break_label;
+                    }
+                    if (copy.include_weekend_break !== undefined) {
+                        meta.include_weekend_break = copy.include_weekend_break;
+                        meta.includeWeekendBreak = copy.include_weekend_break;
+                    }
                     if (copy.feePerStudent !== undefined && copy.fee_per_student === undefined) copy.fee_per_student = copy.feePerStudent;
                     if (copy.termFee !== undefined && copy.term_fee === undefined) copy.term_fee = copy.termFee;
+                    copy.updated_at = new Date().toISOString();
                     copy.metadata = meta;
 
                     delete copy.institutionId;
@@ -1016,6 +1109,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.weekendEndTime;
                     delete copy.maxLessonsPerDay;
                     delete copy.maxWeekendLessonsPerDay;
+                    delete copy.cancellationCutoffHours;
+                    delete copy.confirmationTimeoutMinutes;
+                    delete copy.teacherPreferences;
+                    delete copy.weekendBreakStartTime;
+                    delete copy.weekendBreakEndTime;
+                    delete copy.weekendBreakLabel;
+                    delete copy.includeWeekendBreak;
                     delete copy.feePerStudent;
                     delete copy.termFee;
                     return copy;
@@ -1575,6 +1675,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
             }
 
+            if (moduleName === 'school_remedial_rate_settings') {
+                const checkItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
+                const instId = checkItem?.institution_id;
+                if (instId) {
+                    try {
+                        const { data: existingRateRows } = await supabase
+                            .from('school_remedial_rate_settings')
+                            .select('id')
+                            .eq('institution_id', instId)
+                            .order('updated_at', { ascending: false })
+                            .limit(1);
+                        if (existingRateRows && existingRateRows.length > 0 && existingRateRows[0].id) {
+                            const existingId = existingRateRows[0].id;
+                            if (Array.isArray(currentPayload)) {
+                                currentPayload.forEach(p => { p.id = existingId; });
+                            } else if (currentPayload && typeof currentPayload === 'object') {
+                                currentPayload.id = existingId;
+                            }
+                        } else {
+                            const defaultId = `rate_setting_${instId}`;
+                            if (Array.isArray(currentPayload)) {
+                                currentPayload.forEach(p => { if (!p.id) p.id = defaultId; });
+                            } else if (currentPayload && typeof currentPayload === 'object') {
+                                if (!currentPayload.id) currentPayload.id = defaultId;
+                            }
+                        }
+                    } catch (_) {}
+                }
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 15;
@@ -1661,6 +1791,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 break;
+            }
+
+            if (moduleName === 'school_remedial_rate_settings') {
+                const savedItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
+                const instId = savedItem?.institution_id;
+                if (instId) {
+                    supabase.from('institution_module_states').upsert({
+                        id: `${instId}_school_remedial_rate_settings`,
+                        institution_id: instId,
+                        module_id: 'school_remedial_rate_settings',
+                        status: 'active',
+                        data: savedItem,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+                }
             }
 
             if (moduleName === 'ds_settings') {
