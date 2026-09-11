@@ -19,7 +19,8 @@ import type {
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
     RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise,
-    InvoiceClient, CompanyInvoiceSettings
+    InvoiceClient, CompanyInvoiceSettings,
+    SchoolAuthorizedDevice, SchoolRouterProfile
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -5335,6 +5336,32 @@ export const apiService = {
         } catch (err) {
             console.error("[apiService] Failed to automatically allocate prepayments:", err);
         }
+    },
+
+    async fetchSchoolAuthorizedDevices(institutionId: string): Promise<SchoolAuthorizedDevice[]> {
+        const records = await apiService.getModuleRecords('school_authorized_devices', institutionId);
+        return Array.isArray(records) ? records : [];
+    },
+
+    async saveSchoolAuthorizedDevice(device: Partial<SchoolAuthorizedDevice>): Promise<SchoolAuthorizedDevice> {
+        return await apiService.saveModuleRecord('school_authorized_devices', device);
+    },
+
+    async deleteSchoolAuthorizedDevice(id: string): Promise<void> {
+        await apiService.deleteModuleRecord('school_authorized_devices', id);
+    },
+
+    async fetchSchoolRouterProfiles(institutionId: string): Promise<SchoolRouterProfile[]> {
+        const records = await apiService.getModuleRecords('school_router_profiles', institutionId);
+        return Array.isArray(records) ? records : [];
+    },
+
+    async saveSchoolRouterProfile(profile: Partial<SchoolRouterProfile>): Promise<SchoolRouterProfile> {
+        return await apiService.saveModuleRecord('school_router_profiles', profile);
+    },
+
+    async deleteSchoolRouterProfile(id: string): Promise<void> {
+        await apiService.deleteModuleRecord('school_router_profiles', id);
     }
 };
 

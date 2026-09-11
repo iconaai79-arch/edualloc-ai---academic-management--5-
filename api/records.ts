@@ -131,7 +131,8 @@ const PUBLIC_MODULES = [
   'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads',
   'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks',
   'app_notifications', 'whatsapp_configs', 'whatsapp_logs',
-  'invoice_clients', 'company_invoice_settings'
+  'invoice_clients', 'company_invoice_settings',
+  'school_authorized_devices', 'school_router_profiles'
 ];
 
 const TABLES_WITH_METADATA = new Set([
@@ -146,6 +147,8 @@ const TABLES_WITH_METADATA = new Set([
   'whatsapp_logs',
   'school_remedial_subjects',
   'school_remedial_rate_settings',
+  'school_authorized_devices',
+  'school_router_profiles',
   'invoice_clients',
   'company_invoice_settings',
   'mpesa_transactions',
@@ -1125,6 +1128,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialRateSettings) : cleanRemedialRateSettings(currentPayload);
+            }
+
+            if (moduleName === 'school_authorized_devices') {
+                const cleanAuthorizedDevice = (rec: any) => {
+                    if (!rec || typeof rec !== 'object') return rec;
+                    const copy = { ...rec };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.deviceName && !copy.device_name) copy.device_name = copy.deviceName;
+                    if (copy.deviceType && !copy.device_type) copy.device_type = copy.deviceType;
+                    if (copy.macAddress && !copy.mac_address) copy.mac_address = copy.macAddress;
+                    if (copy.ipAddress !== undefined && copy.ip_address === undefined) copy.ip_address = copy.ipAddress;
+                    if (copy.ownerType && !copy.owner_type) copy.owner_type = copy.ownerType;
+                    if (copy.ownerId !== undefined && copy.owner_id === undefined) copy.owner_id = copy.ownerId;
+                    if (copy.ownerName !== undefined && copy.owner_name === undefined) copy.owner_name = copy.ownerName;
+                    if (copy.bandwidthLimitMbps !== undefined && copy.bandwidth_limit_mbps === undefined) copy.bandwidth_limit_mbps = copy.bandwidthLimitMbps;
+                    if (copy.accessStatus && !copy.access_status) copy.access_status = copy.accessStatus;
+                    if (copy.routerProfileId !== undefined && copy.router_profile_id === undefined) copy.router_profile_id = copy.routerProfileId;
+                    if (copy.validUntil !== undefined && copy.valid_until === undefined) copy.valid_until = copy.validUntil;
+
+                    // Normalize MAC address: uppercase and strip non-hex separators if needed
+                    if (copy.mac_address && typeof copy.mac_address === 'string') {
+                        const raw = copy.mac_address.trim().toUpperCase().replace(/[^0-9A-F]/g, '');
+                        if (raw.length === 12) {
+                            copy.mac_address = raw.match(/.{1,2}/g)?.join(':') || copy.mac_address.toUpperCase();
+                        } else {
+                            copy.mac_address = copy.mac_address.trim().toUpperCase();
+                        }
+                    }
+
+                    copy.updated_at = new Date().toISOString();
+                    copy.metadata = meta;
+
+                    delete copy.institutionId;
+                    delete copy.deviceName;
+                    delete copy.deviceType;
+                    delete copy.macAddress;
+                    delete copy.ipAddress;
+                    delete copy.ownerType;
+                    delete copy.ownerId;
+                    delete copy.ownerName;
+                    delete copy.bandwidthLimitMbps;
+                    delete copy.accessStatus;
+                    delete copy.routerProfileId;
+                    delete copy.validUntil;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanAuthorizedDevice) : cleanAuthorizedDevice(currentPayload);
+            }
+
+            if (moduleName === 'school_router_profiles') {
+                const cleanRouterProfile = (rec: any) => {
+                    if (!rec || typeof rec !== 'object') return rec;
+                    const copy = { ...rec };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.routerName && !copy.router_name) copy.router_name = copy.routerName;
+                    if (copy.ipAddress !== undefined && copy.ip_address === undefined) copy.ip_address = copy.ipAddress;
+                    if (copy.wifiSsid !== undefined && copy.wifi_ssid === undefined) copy.wifi_ssid = copy.wifiSsid;
+                    if (copy.filterMode !== undefined && copy.filter_mode === undefined) copy.filter_mode = copy.filterMode;
+
+                    copy.updated_at = new Date().toISOString();
+                    copy.metadata = meta;
+
+                    delete copy.institutionId;
+                    delete copy.routerName;
+                    delete copy.ipAddress;
+                    delete copy.wifiSsid;
+                    delete copy.filterMode;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRouterProfile) : cleanRouterProfile(currentPayload);
             }
 
             if (moduleName === 'sms_logs') {

@@ -73,6 +73,7 @@ const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({
 const CdfManager = lazy(() => import('./CdfManager').then(m => ({ default: m.CdfManager })));
 const EduAiHub = lazy(() => import('./common/EduAiHub').then(m => ({ default: m.EduAiHub })));
 const GrainMillerManager = lazy(() => import('./milling/GrainMillerManager').then(m => ({ default: m.GrainMillerManager })));
+const SchoolDeviceAccessManager = lazy(() => import('./Network/SchoolDeviceAccessManager').then(m => ({ default: m.SchoolDeviceAccessManager })));
 
 
 import { ModuleAccessGuard } from './ModuleAccessGuard';
@@ -93,6 +94,7 @@ import { ChartBarIcon } from './icons/ChartBarIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { EyeIcon } from './icons/EyeIcon';
+import { SignalIcon } from './icons/SignalIcon';
 import { ShieldIcon } from './icons/ShieldIcon';
 import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -489,7 +491,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>('console_hub');
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
@@ -898,6 +900,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'ai_hub', label: 'AI Hub ✨', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'milling', label: 'Maize Milling', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
             { id: 'corporate_invoices', label: 'Invoicing & Billing', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
+            { id: 'network_devices', label: 'WiFi & Devices', icon: <SignalIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
@@ -1026,6 +1029,10 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return allowed.includes(tab.id);
             }
 
+            if (tab.id === 'network_devices') {
+                return isEdu || isSchool || isSuperAdminUser(props.currentUser?.role);
+            }
+
             if (tab.id === 'corporate_invoices') {
                 return isInvoicing || isModuleActive('invoicing') || isModuleActive('corporate_invoicing');
             }
@@ -1055,6 +1062,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             // If it is educational (isEdu || isSchool), show dynamic tabs based on selected activeScope
             if (isEdu || isSchool) {
                 if (activeScope === 'console_hub') {
+                    if (activeTab === 'network_devices' && tab.id === 'network_devices') return true;
                     return false; // Hide sidebar navigation entirely when in the console gateway!
                 }
                 if (activeScope === 'eduvote') {
@@ -1330,12 +1338,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            {(!(isEdu || isSchool) || activeScope !== 'console_hub') && activeScope !== 'academics' && tabs.length > 0 && (
+            {(!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && activeScope !== 'academics' && tabs.length > 0 && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar-horizontal pb-2 no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
-                    {(isEdu || isSchool || isDS) && activeScope !== 'console_hub' && (
+                    {(isEdu || isSchool || isDS) && (activeScope !== 'console_hub' || activeTab === 'network_devices') && (
                         <button
                             onClick={() => {
                                 setActiveScope('console_hub');
+                                setActiveTab('dashboard');
                             }}
                             className="flex items-center gap-2 py-4 px-6 border-b-2 border-transparent font-black text-xs uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all whitespace-nowrap bg-indigo-50/50 dark:bg-indigo-950/20 rounded-l-2xl border-r border-slate-200 dark:border-slate-700 mr-2 cursor-pointer"
                         >
@@ -1389,7 +1398,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{isRetailAgency ? 'Initializing Communications Hub...' : 'Synchronizing Perspective Hub...'}</p>
                     </div>
                 }>
-                {((isEdu || isSchool) && !isDS && activeScope === 'console_hub') ? (
+                {((isEdu || isSchool) && !isDS && activeScope === 'console_hub' && activeTab !== 'network_devices') ? (
                     <div className="py-12 animate-fade-in-up">
                         {/* Hub Header */}
                         <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
@@ -2434,6 +2443,34 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                         Activate Trial
                                                     </button>
                                                 )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card 14: WiFi & Authorized Device Manager (Tenda F3/F6 Ready) */}
+                            {(() => {
+                                return (
+                                    <div 
+                                        onClick={() => { 
+                                            setActiveTab('network_devices'); 
+                                        }}
+                                        className="group relative bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 p-8 rounded-[2.5rem] shadow-sm hover:shadow-2xl hover:border-cyan-500/40 transition-all duration-300 cursor-pointer overflow-hidden transform hover:-translate-y-1.5 flex flex-col justify-between min-h-[240px]"
+                                    >
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 dark:bg-cyan-500/10 rounded-bl-[5rem] -mr-6 -mt-6 transition-transform group-hover:scale-110" />
+                                        <div className="relative z-10 flex flex-col justify-between h-full space-y-6">
+                                            <div className="p-4 bg-cyan-600 text-white rounded-2xl w-fit shadow-lg shadow-cyan-100 dark:shadow-none">
+                                                <SignalIcon className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">WiFi & Devices</h3>
+                                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">Tenda F3/F6</span>
+                                                </div>
+                                                <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 mt-2 leading-relaxed">
+                                                    Control who accesses school internet. Whitelist teacher laptops, student tablets, manage bandwidth quotas, and export MAC filters for Tenda F3 & F6 routers.
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
@@ -3683,6 +3720,19 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             currentInstitution={props.currentInstitution!}
                             companyDetails={props.companyDetails}
                             onLogAction={props.onLogAction}
+                        />
+                    </Suspense>
+                )}
+
+                {activeTab === 'network_devices' && (
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center p-20">
+                            <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <SchoolDeviceAccessManager
+                            currentUser={props.currentUser!}
+                            currentInstitution={props.currentInstitution!}
                         />
                     </Suspense>
                 )}

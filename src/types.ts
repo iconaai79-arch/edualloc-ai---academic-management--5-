@@ -6832,4 +6832,38 @@ export interface HISNBUAdmission {
     updatedAt?: string;
 }
 
+export interface SchoolAuthorizedDevice {
+    id: string;
+    institutionId: string;
+    deviceName: string;
+    deviceType: 'laptop' | 'desktop' | 'phone' | 'tablet' | 'printer' | 'cctv' | 'smart_tv' | 'other';
+    macAddress: string;
+    ipAddress?: string;
+    ownerType: 'teacher' | 'staff' | 'student' | 'department' | 'infrastructure' | 'visitor';
+    ownerId?: string;
+    ownerName?: string;
+    department?: string;
+    bandwidthLimitMbps?: number;
+    accessStatus: 'authorized' | 'suspended' | 'revoked' | 'pending';
+    routerProfileId?: string;
+    notes?: string;
+    validUntil?: string;
+    metadata?: Record<string, any>;
+    createdAt?: string;
+    updatedAt?: string;
+}
 
+export interface SchoolRouterProfile {
+    id: string;
+    institutionId: string;
+    routerName: string;
+    model?: string;
+    ipAddress?: string;
+    location?: string;
+    wifiSsid?: string;
+    filterMode?: 'whitelist' | 'blacklist';
+    notes?: string;
+    metadata?: Record<string, any>;
+    createdAt?: string;
+    updatedAt?: string;
+}
