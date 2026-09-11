@@ -6413,6 +6413,14 @@ export interface RemedialRateSetting {
     weekdayEndTime?: string;
     weekendStartTime?: string;
     weekendEndTime?: string;
+    saturdayStartTime?: string;
+    saturdayEndTime?: string;
+    sundayStartTime?: string;
+    sundayEndTime?: string;
+    saturday_start_time?: string;
+    saturday_end_time?: string;
+    sunday_start_time?: string;
+    sunday_end_time?: string;
     maxLessonsPerDay?: number;        // weekday limit (legacy + default)
     maxWeekendLessonsPerDay?: number; // weekend-specific limit
     weekendBreakStartTime?: string;

@@ -82,6 +82,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [weekdayEndTime, setWeekdayEndTime] = useState<string>('18:00');
     const [weekendStartTime, setWeekendStartTime] = useState<string>('08:00');
     const [weekendEndTime, setWeekendEndTime] = useState<string>('12:00');
+    const [saturdayStartTime, setSaturdayStartTime] = useState<string>('08:00');
+    const [saturdayEndTime, setSaturdayEndTime] = useState<string>('12:00');
+    const [sundayStartTime, setSundayStartTime] = useState<string>('09:00');
+    const [sundayEndTime, setSundayEndTime] = useState<string>('13:00');
     const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerDay, setMaxWeekendLessonsPerDay] = useState<number>(2);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
@@ -155,8 +159,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
         setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
         setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
-        setWeekendStartTime(r.weekendStartTime || r.weekend_start_time || '08:00');
-        setWeekendEndTime(r.weekendEndTime || r.weekend_end_time || '12:00');
+        const satStart = r.saturdayStartTime || r.saturday_start_time || r.metadata?.saturdayStartTime || r.metadata?.saturday_start_time || r.weekendStartTime || r.weekend_start_time || '08:00';
+        const satEnd = r.saturdayEndTime || r.saturday_end_time || r.metadata?.saturdayEndTime || r.metadata?.saturday_end_time || r.weekendEndTime || r.weekend_end_time || '12:00';
+        const sunStart = r.sundayStartTime || r.sunday_start_time || r.metadata?.sundayStartTime || r.metadata?.sunday_start_time || r.weekendStartTime || r.weekend_start_time || '09:00';
+        const sunEnd = r.sundayEndTime || r.sunday_end_time || r.metadata?.sundayEndTime || r.metadata?.sunday_end_time || r.weekendEndTime || r.weekend_end_time || '13:00';
+        setSaturdayStartTime(satStart);
+        setSaturdayEndTime(satEnd);
+        setSundayStartTime(sunStart);
+        setSundayEndTime(sunEnd);
+        setWeekendStartTime(satStart);
+        setWeekendEndTime(satEnd);
         const cachedWeekendLimit = safeLocalStorage.getItem(`eduai_remedial_weekend_max_${institutionId}`);
         const weekendLimitVal = r.maxWeekendLessonsPerDay ?? 
                                 r.max_weekend_lessons_per_day ?? 
@@ -734,10 +746,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 weekday_start_time: weekdayStartTime,
                 weekdayEndTime,
                 weekday_end_time: weekdayEndTime,
-                weekendStartTime,
-                weekend_start_time: weekendStartTime,
-                weekendEndTime,
-                weekend_end_time: weekendEndTime,
+                weekendStartTime: saturdayStartTime,
+                weekend_start_time: saturdayStartTime,
+                weekendEndTime: saturdayEndTime,
+                weekend_end_time: saturdayEndTime,
+                saturdayStartTime,
+                saturday_start_time: saturdayStartTime,
+                saturdayEndTime,
+                saturday_end_time: saturdayEndTime,
+                sundayStartTime,
+                sunday_start_time: sundayStartTime,
+                sundayEndTime,
+                sunday_end_time: sundayEndTime,
                 maxLessonsPerDay,
                 max_lessons_per_day: maxLessonsPerDay,
                 maxWeekendLessonsPerDay,
@@ -757,6 +777,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 includeWeekendBreak,
                 include_weekend_break: includeWeekendBreak,
                 metadata: {
+                    saturdayStartTime,
+                    saturday_start_time: saturdayStartTime,
+                    saturdayEndTime,
+                    saturday_end_time: saturdayEndTime,
+                    sundayStartTime,
+                    sunday_start_time: sundayStartTime,
+                    sundayEndTime,
+                    sunday_end_time: sundayEndTime,
                     maxWeekendLessonsPerDay,
                     max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
                     cancellationCutoffHours,
@@ -956,8 +984,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const course = courses.find(c => c.id === manualCourseId);
             const prefect = users.find(u => u.id === manualPrefectId);
 
-            const isWeekend = [0, 6].includes(manualDateObj.getDay());
-            const defaultStart = isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00');
+            const isSunday = manualDateObj.getDay() === 0;
+            const isSaturday = manualDateObj.getDay() === 6;
+            const defaultStart = isSunday ? (sundayStartTime || '09:00') : isSaturday ? (saturdayStartTime || '08:00') : (weekdayStartTime || '16:00');
             const startTime = new Date(`${manualDate}T${defaultStart}:00`).toISOString();
             const endTime = new Date(new Date(startTime).getTime() + manualHours * 60 * 60 * 1000).toISOString();
 
@@ -1192,11 +1221,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const courseDayLessonCount = newAllocations.filter(a => a.courseId === course.id && a.dayOfWeek === day).length;
                         
                         let candidateStartTime = weekdayStartTime || '16:00';
-                        if (isWeekend) {
+                        if (day === 'Saturday') {
                             if (includeWeekendBreak) {
-                                candidateStartTime = courseDayLessonCount === 0 ? (weekendStartTime || '08:00') : (weekendBreakEndTime || '10:30');
+                                candidateStartTime = courseDayLessonCount === 0 ? (saturdayStartTime || '08:00') : (weekendBreakEndTime || '10:30');
                             } else {
-                                candidateStartTime = courseDayLessonCount === 0 ? (weekendStartTime || '08:00') : '10:00';
+                                candidateStartTime = courseDayLessonCount === 0 ? (saturdayStartTime || '08:00') : '10:00';
+                            }
+                        } else if (day === 'Sunday') {
+                            if (includeWeekendBreak) {
+                                candidateStartTime = courseDayLessonCount === 0 ? (sundayStartTime || '09:00') : (weekendBreakEndTime || '11:00');
+                            } else {
+                                candidateStartTime = courseDayLessonCount === 0 ? (sundayStartTime || '09:00') : '11:00';
                             }
                         }
                         const dayLimit = isWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
@@ -1247,22 +1282,40 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     let startTime = weekdayStartTime || '16:00';
                     let endTime = weekdayEndTime || '18:00';
 
-                    if (isWeekend) {
+                    if (selectedDay === 'Saturday') {
                         if (includeWeekendBreak) {
                             if (courseDayLessonCount === 0) {
-                                startTime = weekendStartTime || '08:00';
+                                startTime = saturdayStartTime || '08:00';
                                 endTime = weekendBreakStartTime || '10:00';
                             } else {
                                 startTime = weekendBreakEndTime || '10:30';
-                                endTime = weekendEndTime || '12:30';
+                                endTime = saturdayEndTime || '12:30';
                             }
                         } else {
                             if (courseDayLessonCount === 0) {
-                                startTime = weekendStartTime || '08:00';
+                                startTime = saturdayStartTime || '08:00';
                                 endTime = '10:00';
                             } else {
                                 startTime = '10:00';
-                                endTime = weekendEndTime || '12:00';
+                                endTime = saturdayEndTime || '12:00';
+                            }
+                        }
+                    } else if (selectedDay === 'Sunday') {
+                        if (includeWeekendBreak) {
+                            if (courseDayLessonCount === 0) {
+                                startTime = sundayStartTime || '09:00';
+                                endTime = weekendBreakStartTime || '11:00';
+                            } else {
+                                startTime = weekendBreakEndTime || '11:30';
+                                endTime = sundayEndTime || '13:30';
+                            }
+                        } else {
+                            if (courseDayLessonCount === 0) {
+                                startTime = sundayStartTime || '09:00';
+                                endTime = '11:00';
+                            } else {
+                                startTime = '11:00';
+                                endTime = sundayEndTime || '13:00';
                             }
                         }
                     }
@@ -2630,7 +2683,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     <div class="footer">
                         <div>
                             <div><strong>Guidelines:</strong> Weekday tuition starts at ${weekdayStartTime} to ${weekdayEndTime}.</div>
-                            <div>Weekend tuition window: ${weekendStartTime} to ${weekendEndTime}. ${includeWeekendBreak ? `Weekend break interval observed: ${weekendBreakStartTime} – ${weekendBreakEndTime} (${weekendBreakLabel}).` : ''}</div>
+                            <div>Weekend tuition window: Saturday ${saturdayStartTime} to ${saturdayEndTime} | Sunday ${sundayStartTime} to ${sundayEndTime}. ${includeWeekendBreak ? `Weekend break interval observed: ${weekendBreakStartTime} – ${weekendBreakEndTime} (${weekendBreakLabel}).` : ''}</div>
                             <div style="margin-top: 3px; font-size: 8.5px; color: #94a3b8;">All remedial sessions require prefect QR authentication upon session initiation and conclusion.</div>
                         </div>
                         <div style="display: flex; gap: 32px;">
@@ -3878,19 +3931,51 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             />
                                         </div>
                                     </div>
+                                    {/* Saturday Hours */}
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Remedial Window (Start – End)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                                            Saturday Remedial Hours (Start – End)
+                                        </label>
                                         <div className="grid grid-cols-2 gap-3">
                                             <input 
                                                 type="time"
-                                                value={weekendStartTime}
-                                                onChange={e => setWeekendStartTime(e.target.value)}
+                                                value={saturdayStartTime}
+                                                onChange={e => {
+                                                    setSaturdayStartTime(e.target.value);
+                                                    setWeekendStartTime(e.target.value);
+                                                }}
                                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                             />
                                             <input 
                                                 type="time"
-                                                value={weekendEndTime}
-                                                onChange={e => setWeekendEndTime(e.target.value)}
+                                                value={saturdayEndTime}
+                                                onChange={e => {
+                                                    setSaturdayEndTime(e.target.value);
+                                                    setWeekendEndTime(e.target.value);
+                                                }}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Sunday Hours */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                            <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                                            Sunday Remedial Hours (Start – End)
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input 
+                                                type="time"
+                                                value={sundayStartTime}
+                                                onChange={e => setSundayStartTime(e.target.value)}
+                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                            <input 
+                                                type="time"
+                                                value={sundayEndTime}
+                                                onChange={e => setSundayEndTime(e.target.value)}
                                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                             />
                                         </div>
@@ -5686,8 +5771,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             type="button"
                                             onClick={() => {
                                                 setAllocDay(fullDay);
-                                                setAllocStartTime(isWeekend ? (weekendStartTime || '08:00') : (weekdayStartTime || '16:00'));
-                                                setAllocEndTime(isWeekend ? (includeWeekendBreak ? (weekendBreakStartTime || '10:00') : (weekendEndTime || '12:00')) : (weekdayEndTime || '18:00'));
+                                                if (fullDay === 'Saturday') {
+                                                    setAllocStartTime(saturdayStartTime || '08:00');
+                                                    setAllocEndTime(includeWeekendBreak ? (weekendBreakStartTime || '10:00') : (saturdayEndTime || '12:00'));
+                                                } else if (fullDay === 'Sunday') {
+                                                    setAllocStartTime(sundayStartTime || '09:00');
+                                                    setAllocEndTime(sundayEndTime || '13:00');
+                                                } else {
+                                                    setAllocStartTime(weekdayStartTime || '16:00');
+                                                    setAllocEndTime(weekdayEndTime || '18:00');
+                                                }
                                             }}
                                             className={`py-2 rounded-xl text-[9px] font-black uppercase transition-all ${
                                                 isSelected
@@ -5727,30 +5820,48 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
 
-                            {['Saturday', 'Sunday'].includes(allocDay) && includeWeekendBreak && (
+                            {allocDay === 'Saturday' && includeWeekendBreak && (
                                 <div className="flex items-center gap-2 flex-wrap pt-1">
                                     <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                        <Coffee className="w-3 h-3" /> Break-Aware Slots:
+                                        <Coffee className="w-3 h-3" /> Saturday Break Slots:
                                     </span>
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setAllocStartTime(weekendStartTime || '08:00');
+                                            setAllocStartTime(saturdayStartTime || '08:00');
                                             setAllocEndTime(weekendBreakStartTime || '10:00');
                                         }}
                                         className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
                                     >
-                                        Pre-Break ({weekendStartTime || '08:00'} - {weekendBreakStartTime || '10:00'})
+                                        Pre-Break ({saturdayStartTime || '08:00'} - {weekendBreakStartTime || '10:00'})
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setAllocStartTime(weekendBreakEndTime || '10:30');
-                                            setAllocEndTime(weekendEndTime || '12:30');
+                                            setAllocEndTime(saturdayEndTime || '12:30');
                                         }}
                                         className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
                                     >
-                                        Post-Break ({weekendBreakEndTime || '10:30'} - {weekendEndTime || '12:30'})
+                                        Post-Break ({weekendBreakEndTime || '10:30'} - {saturdayEndTime || '12:30'})
+                                    </button>
+                                </div>
+                            )}
+
+                            {allocDay === 'Sunday' && (
+                                <div className="flex items-center gap-2 flex-wrap pt-1">
+                                    <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" /> Sunday Window:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAllocStartTime(sundayStartTime || '09:00');
+                                            setAllocEndTime(sundayEndTime || '13:00');
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
+                                    >
+                                        Full Window ({sundayStartTime || '09:00'} - {sundayEndTime || '13:00'})
                                     </button>
                                 </div>
                             )}

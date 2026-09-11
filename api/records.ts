@@ -1060,6 +1060,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.weekdayEndTime !== undefined && copy.weekday_end_time === undefined) copy.weekday_end_time = copy.weekdayEndTime;
                     if (copy.weekendStartTime !== undefined && copy.weekend_start_time === undefined) copy.weekend_start_time = copy.weekendStartTime;
                     if (copy.weekendEndTime !== undefined && copy.weekend_end_time === undefined) copy.weekend_end_time = copy.weekendEndTime;
+                    if (copy.saturdayStartTime !== undefined && copy.saturday_start_time === undefined) copy.saturday_start_time = copy.saturdayStartTime;
+                    if (copy.saturdayEndTime !== undefined && copy.saturday_end_time === undefined) copy.saturday_end_time = copy.saturdayEndTime;
+                    if (copy.sundayStartTime !== undefined && copy.sunday_start_time === undefined) copy.sunday_start_time = copy.sundayStartTime;
+                    if (copy.sundayEndTime !== undefined && copy.sunday_end_time === undefined) copy.sunday_end_time = copy.sundayEndTime;
+                    if (copy.saturday_start_time !== undefined) {
+                        meta.saturday_start_time = copy.saturday_start_time;
+                        meta.saturdayStartTime = copy.saturday_start_time;
+                    }
+                    if (copy.saturday_end_time !== undefined) {
+                        meta.saturday_end_time = copy.saturday_end_time;
+                        meta.saturdayEndTime = copy.saturday_end_time;
+                    }
+                    if (copy.sunday_start_time !== undefined) {
+                        meta.sunday_start_time = copy.sunday_start_time;
+                        meta.sundayStartTime = copy.sunday_start_time;
+                    }
+                    if (copy.sunday_end_time !== undefined) {
+                        meta.sunday_end_time = copy.sunday_end_time;
+                        meta.sundayEndTime = copy.sunday_end_time;
+                    }
                     if (copy.maxLessonsPerDay !== undefined && copy.max_lessons_per_day === undefined) copy.max_lessons_per_day = copy.maxLessonsPerDay;
                     if (copy.maxWeekendLessonsPerDay !== undefined && copy.max_weekend_lessons_per_day === undefined) copy.max_weekend_lessons_per_day = copy.maxWeekendLessonsPerDay;
                     if (copy.max_weekend_lessons_per_day !== undefined) {
@@ -1114,6 +1134,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.weekdayEndTime;
                     delete copy.weekendStartTime;
                     delete copy.weekendEndTime;
+                    delete copy.saturdayStartTime;
+                    delete copy.saturdayEndTime;
+                    delete copy.sundayStartTime;
+                    delete copy.sundayEndTime;
                     delete copy.maxLessonsPerDay;
                     delete copy.maxWeekendLessonsPerDay;
                     delete copy.cancellationCutoffHours;
