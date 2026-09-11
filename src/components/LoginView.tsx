@@ -809,9 +809,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     if (type === 'Restaurant') cat = 'Restaurant & Cafe POS';
                                                     if (type === 'IELTS Academy') cat = 'IELTS & Language Academy';
                                                     if (type === 'Maize Miller' || type === 'Milling') cat = 'Commercial Maize Miller';
+                                                    if (type === 'Invoicing' || type === 'Billing Services') cat = 'Commercial Invoicing & Billing';
                                                     setRegData({ ...regData, institutionType: type as any, category: cat, businessSubType: cat });
                                                 }}
                                             >
+                                                <option value="Invoicing">💼 Corporate Invoicing &amp; Billing Services</option>
                                                 <option value="Education">Education Sector</option>
                                                 <option value="IELTS Academy">IELTS & Language Training Academy</option>
                                                 <option value="Beauty College">Beauty & Cosmetology College</option>
@@ -835,6 +837,25 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                 <option value="Restaurant">Restaurant & Cafe POS</option>
                                                 <option value="Constituency">Constituency (NG-CDF)</option>
                                             </select>
+
+                                            {(regData.institutionType === 'Invoicing' || (regData.institutionType as any) === 'Billing Services') && (
+                                                <div className="mt-3 animate-fade-in">
+                                                    <label className={labelClasses}>Invoicing Business Category</label>
+                                                    <select
+                                                        className={inputClasses}
+                                                        value={regData.category || 'Commercial Invoicing & Billing'}
+                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        required
+                                                    >
+                                                        <option value="Commercial Invoicing & Billing">Commercial Invoicing &amp; Billing</option>
+                                                        <option value="Consultancy & Professional Services">Consultancy &amp; Professional Services</option>
+                                                        <option value="General Supplier & Trade">General Supplier &amp; Trade</option>
+                                                        <option value="Contractor & Technical Services">Contractor &amp; Technical Services</option>
+                                                        <option value="Freelance & Creative Agency">Freelance &amp; Creative Agency</option>
+                                                        <option value="SME Business Billing">SME Business Invoicing</option>
+                                                    </select>
+                                                </div>
+                                            )}
 
                                             {(regData.institutionType === 'Maize Miller' || (regData.institutionType as any) === 'Milling') && (
                                                 <div className="mt-3 animate-fade-in">

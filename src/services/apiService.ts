@@ -18,7 +18,8 @@ import type {
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
-    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise
+    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise,
+    InvoiceClient, CompanyInvoiceSettings
 } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
@@ -4666,6 +4667,12 @@ export const apiService = {
     async fetchRemedialSubjects(instId?: string): Promise<RemedialSubject[]> { return apiService.fetchModuleRecords('school_remedial_subjects', instId); },
     async saveRemedialSubject(data: Partial<RemedialSubject>): Promise<void> { await apiService.saveModuleRecord('school_remedial_subjects', data); },
     async deleteRemedialSubject(id: string): Promise<void> { await apiService.deleteModuleRecord('school_remedial_subjects', id); },
+    // Corporate Invoicing & Billing Services
+    async fetchInvoiceClients(instId?: string): Promise<InvoiceClient[]> { return apiService.fetchModuleRecords('invoice_clients', instId); },
+    async saveInvoiceClient(data: Partial<InvoiceClient>): Promise<void> { await apiService.saveModuleRecord('invoice_clients', data); },
+    async deleteInvoiceClient(id: string): Promise<void> { await apiService.deleteModuleRecord('invoice_clients', id); },
+    async fetchCompanyInvoiceSettings(instId?: string): Promise<CompanyInvoiceSettings[]> { return apiService.fetchModuleRecords('company_invoice_settings', instId); },
+    async saveCompanyInvoiceSettings(data: Partial<CompanyInvoiceSettings>): Promise<void> { await apiService.saveModuleRecord('company_invoice_settings', data); },
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
         // Supabase Logic - Moved to secure proxy
         try {

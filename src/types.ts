@@ -626,7 +626,7 @@ export interface Institution {
     email: string;
     phoneNumber: string;
     address?: string;
-    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant' | 'IELTS Academy' | 'Maize Miller' | 'Milling';
+    institutionType: 'Education' | 'Business' | 'Broadcaster' | 'Reseller' | 'HIS' | 'Cooperative' | 'SACCO' | 'Agrovet' | 'Church' | 'Property Management' | 'Pharmacy' | 'Primary' | 'Secondary' | 'Law Firm' | 'Driving School' | 'Beauty College' | 'Logistics' | 'Community' | 'Hospitality' | 'Construction' | 'Chemist' | 'Political Campaign' | 'Fuel Station' | 'Retail' | 'Transport' | 'Car Showroom' | 'Constituency' | 'Restaurant' | 'IELTS Academy' | 'Maize Miller' | 'Milling' | 'Invoicing' | 'Billing Services';
     category?: string;
     parentInstitutionId?: string;
     createdAt?: string;
@@ -1793,6 +1793,59 @@ export interface Invoice {
     status: 'paid' | 'pending' | 'overdue' | 'quote' | 'partial' | 'cancelled';
     studentId?: string;
     className?: string;
+    // Corporate client & custom invoicing extensions
+    clientId?: string;
+    clientName?: string;
+    clientEmail?: string;
+    clientPhone?: string;
+    clientTaxPin?: string;
+    clientAddress?: string;
+    notes?: string;
+    terms?: string;
+    discountAmount?: number;
+    amountPaid?: number;
+    balance?: number;
+    currency?: string;
+}
+
+export interface InvoiceClient {
+    id: string;
+    institutionId: string;
+    clientName: string;
+    contactPerson?: string;
+    email?: string;
+    phone?: string;
+    taxPin?: string;
+    address?: string;
+    city?: string;
+    notes?: string;
+    metadata?: Record<string, any>;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface CompanyInvoiceSettings {
+    id?: string;
+    institutionId: string;
+    invoicePrefix?: string;
+    quotePrefix?: string;
+    receiptPrefix?: string;
+    currency?: string;
+    taxRate?: number;
+    taxName?: string;
+    paymentTermsDays?: number;
+    bankName?: string;
+    accountName?: string;
+    accountNumber?: string;
+    mpesaPaybill?: string;
+    mpesaTill?: string;
+    notesTemplate?: string;
+    termsTemplate?: string;
+    logoUrl?: string;
+    stampUrl?: string;
+    metadata?: Record<string, any>;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface Receipt {

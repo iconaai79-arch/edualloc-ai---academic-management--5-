@@ -36,6 +36,9 @@ export function getAdminRoleForInstitution(institution: Partial<Institution> | n
     // Driving School — admin role is Director
     if (type === 'Driving School' || subType.includes('driving school') || (institution.category || '').toLowerCase() === 'driving school') return 'director';
 
+    // Corporate Invoicing & Billing Services
+    if (type === 'Invoicing' || type === 'Billing Services' || subType.includes('invoicing') || subType.includes('billing') || (institution.category || '').toLowerCase().includes('invoicing')) return 'admin';
+
     // Grain Milling & Processing
     if (isMillingInstitution(institution)) return 'miller_admin' as any;
 
@@ -146,6 +149,11 @@ export function getRolesForInstitution(institution: Institution | null | undefin
         return ['miller_admin', 'weighbridge_operator', 'miller_technician', 'quality_officer', 'packer', 'feed_operator', 'grain_buyer', 'finance', 'finance_officer', 'store', 'security', 'driver'] as any[];
     }
 
+    // Invoicing & Billing Services
+    if (type === 'Invoicing' || type === 'Billing Services' || subType.includes('invoicing') || subType.includes('billing') || (institution.category || '').toLowerCase().includes('invoicing')) {
+        return ['admin', 'finance', 'finance_officer', 'staff', 'customer', 'supplier'] as any[];
+    }
+
     return ['admin', 'managing_director', 'hr_officer', 'finance_officer', 'procurement_officer', 'staff', 'security', 'driver', 'store', 'customer'] as any[];
 }
 
@@ -212,9 +220,26 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
     // Driving School accounts are independent — not part of the education pipeline
     if (category === 'driving school' || type === 'driving school') return false;
 
+    // Invoicing & Billing accounts are independent commercial businesses
+    if (type === 'invoicing' || type === 'billing services' || category.includes('invoicing') || category.includes('billing') || subType.includes('invoicing') || subType.includes('billing')) {
+        return false;
+    }
+
     const eduCats = ['primary', 'secondary', 'university', 'college', 'institute', 'polytechnic', 'ecd', 'international', 'tvet', 'kindergarten', 'pre-primary', 'junior secondary', 'school', 'academy', 'high school', 'k-12', 'education', 'tuition'];
     
     return type === 'education' || type === 'school' || eduCats.includes(type) || eduCats.includes(category) || eduCats.some(c => category.includes(c) || subType.includes(c) || name.includes(c));
+}
+
+/**
+ * Centralized logic to determine if an institution is an Invoicing & Billing entity.
+ */
+export function isInvoicingInstitution(institution: Partial<Institution> | null | undefined): boolean {
+    if (!institution) return false;
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const subType = (institution.businessSubType || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'invoicing' || m.moduleId === 'corporate_invoicing') && (m.status === 'active' || m.status === 'trial'));
+    return type === 'invoicing' || type === 'billing services' || category.includes('invoicing') || category.includes('billing') || subType.includes('invoicing') || subType.includes('billing') || !!hasModule;
 }
 
 /**

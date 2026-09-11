@@ -130,7 +130,8 @@ const PUBLIC_MODULES = [
   'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
   'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads',
   'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks',
-  'app_notifications', 'whatsapp_configs', 'whatsapp_logs'
+  'app_notifications', 'whatsapp_configs', 'whatsapp_logs',
+  'invoice_clients', 'company_invoice_settings'
 ];
 
 const TABLES_WITH_METADATA = new Set([
@@ -145,6 +146,8 @@ const TABLES_WITH_METADATA = new Set([
   'whatsapp_logs',
   'school_remedial_subjects',
   'school_remedial_rate_settings',
+  'invoice_clients',
+  'company_invoice_settings',
   'mpesa_transactions',
   'airtel_transactions',
   'intasend_transactions',
@@ -207,6 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 
           'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 
           'school_remedial_allocations', 'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
+          'invoice_clients', 'company_invoice_settings',
           'his_billing_settings', 'his_invoices', 'his_payments', 'his_billing_items', 'his_insurance_remittances',
           'his_insurance_providers', 'his_tariffs', 'his_hospital_rooms', 'his_partner_labs', 'his_branding',
           'his_prescriptions', 'his_prescription_items', 'his_pharmacy_inventory', 'his_pharmacy_batches', 'his_pharmacy_sales', 'his_pharmacy_ledger',

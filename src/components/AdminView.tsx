@@ -138,7 +138,8 @@ const RetailReportsDashboard = lazy(() => import('./retail/RetailReportsDashboar
 const CarShowroomReportsDashboard = lazy(() => import('./automotive/CarShowroomReportsDashboard').then(m => ({ default: m.CarShowroomReportsDashboard })));
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
-import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution, isStrictTeacherUser } from '../utils/roleUtils';
+const CorporateInvoicingManager = lazy(() => import('./Invoicing/CorporateInvoicingManager').then(m => ({ default: m.CorporateInvoicingManager })));
+import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution, isInvoicingInstitution, isStrictTeacherUser } from '../utils/roleUtils';
 
 export interface AdminViewProps {
     currentUser?: User;
@@ -488,7 +489,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>('console_hub');
     const [projectorElectionId, setProjectorElectionId] = useState<string | null>(null);
 
@@ -622,11 +623,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return cat.includes('beauty college') || type.includes('beauty college') || !!hasModule;
     }, [props.currentInstitution, institutionType]);
 
+    const isInvoicing = useMemo(() => {
+        return isInvoicingInstitution(props.currentInstitution);
+    }, [props.currentInstitution]);
+
     const isEdu = useMemo(() => {
-        // Driving Schools and Beauty Colleges are independent – they must never enter the education console flow
-        if (isDS || isBC) return false;
+        // Driving Schools, Beauty Colleges, and Corporate Invoicing are independent – they must never enter the education console flow
+        if (isDS || isBC || isInvoicing) return false;
         return isEduInstitution(props.currentInstitution);
-    }, [props.currentInstitution, isDS, isBC]);
+    }, [props.currentInstitution, isDS, isBC, isInvoicing]);
 
     const isLaw = useMemo(() => {
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
@@ -766,6 +771,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('fuel_station');
             } else if (isMilling || role === 'miller_admin' || role === 'weighbridge_operator') {
                 setActiveTab('milling');
+            } else if (isInvoicing || role === 'invoicing_admin') {
+                setActiveTab('corporate_invoices');
             } else if (isEdu || isSchool) {
                 const isLeadership = ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'dos', 'director_of_studies', 'admin'].includes(role || '');
                 setActiveTab(isLeadership ? 'dashboard' : 'timetable');
@@ -890,12 +897,23 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             { id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> },
             { id: 'ai_hub', label: 'AI Hub ✨', icon: <SparklesIcon className="w-5 h-5 mr-2" /> },
             { id: 'milling', label: 'Maize Milling', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
+            { id: 'corporate_invoices', label: 'Invoicing & Billing', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
         ];
 
 
 
         if (isHeritage) {
             return [];
+        }
+
+        if (isInvoicing) {
+            return [
+                { id: 'corporate_invoices', label: 'Invoicing & Billing', icon: <DocumentTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Staff & Team', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'reports', label: 'Financial Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+                { id: 'settings', label: 'Company Settings', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
+            ];
         }
 
         if (isRetailAgency) {
@@ -1003,6 +1021,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         let filteredTabs = baseTabs.filter(tab => {
             const roleToUse = props.activeRole || props.currentUser?.role;
 
+            if (isInvoicing) {
+                const allowed = ['corporate_invoices', 'comms', 'users', 'reports', 'settings'];
+                return allowed.includes(tab.id);
+            }
+
+            if (tab.id === 'corporate_invoices') {
+                return isInvoicing || isModuleActive('invoicing') || isModuleActive('corporate_invoicing');
+            }
+
             if (isBC) {
                 const allowed = ['dashboard', 'bc_students', 'bc_courses', 'bc_finance', 'bc_practicals', 'bc_trainers', 'bc_broadcaster', 'users', 'reports', 'fiscal_guard', 'settings'];
                 if (!allowed.includes(tab.id)) return false;
@@ -1062,14 +1089,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             // Educational tabs
             if (['timetable', 'courses', 'leaveout', 'boarding', 'remedials', 'eduflow', 'eduvote', 'enrollment'].includes(tab.id)) {
                 if (!isEdu && !isSchool) return false;
-                if (isDS || isBC) return false;
+                if (isDS || isBC || isInvoicing) return false;
                 return true;
             }
 
             if (tab.id === 'users') {
                 if (props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session')) return true;
                 if (isAutoMarket) return ['director', 'finance', 'finance_officer', 'admin'].includes(roleToUse || '');
-                if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS) return true;
+                if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS || isInvoicing) return true;
                 return isEdu && !isDS;
             }
 
@@ -2417,7 +2444,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 ) : (
                     <>
-                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && !isLaw && activeScope !== 'ds' && activeScope !== 'bc' && (
+                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && !isLaw && !isInvoicing && activeScope !== 'ds' && activeScope !== 'bc' && (
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
@@ -3643,6 +3670,21 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         onGenerateAgreement={props.onGenerateLawAgreement as any}
                         onApproveAgreement={props.onApproveLawAgreement as any}
                     />
+                )}
+
+                {(activeTab === 'corporate_invoices' || (activeTab === 'dashboard' && isInvoicing)) && (
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center p-20">
+                            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    }>
+                        <CorporateInvoicingManager
+                            currentUser={props.currentUser!}
+                            currentInstitution={props.currentInstitution!}
+                            companyDetails={props.companyDetails}
+                            onLogAction={props.onLogAction}
+                        />
+                    </Suspense>
                 )}
 
                 {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && (isDS || activeScope === 'ds') && (

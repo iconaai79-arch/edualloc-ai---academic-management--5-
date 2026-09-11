@@ -5,7 +5,7 @@ import { sendEmailNotification, getInstitutionEmailConfig } from '../services/em
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
-import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
+import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { detectTimetableConflicts } from '../utils/conflictUtils';
@@ -7837,7 +7837,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             activityLog={activityLog}
                                         />
                                     </ModuleAccessGuard>
-                                ) : ((activeRole === 'finance_officer' || activeRole === 'finance' || activeRole === 'procurement_officer') && !isAutoMarket) ? (
+                                ) : ((activeRole === 'finance_officer' || activeRole === 'finance' || activeRole === 'procurement_officer') && !isAutoMarket && !isInvoicingInstitution(activeInstitution)) ? (
                                     <ModuleAccessGuard
                                         moduleId="finance"
                                         moduleName="Finance & Fees"
