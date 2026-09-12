@@ -7,7 +7,7 @@ import {
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
-    FileText, BarChart3, Filter
+    FileText, BarChart3, Filter, Pencil
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
@@ -61,6 +61,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     
     // Remedial Subject Modal / Filter States
     const [showSubjectModal, setShowSubjectModal] = useState(false);
+    const [editingSubject, setEditingSubject] = useState<RemedialSubject | null>(null);
     const [newSubjectId, setNewSubjectId] = useState('');
     const [customSubjectName, setCustomSubjectName] = useState('');
     const [newSubjectPriority, setNewSubjectPriority] = useState<'High' | 'Medium' | 'Low'>('Medium');
@@ -105,6 +106,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Manual Allocation Modal State
     const [showAllocModal, setShowAllocModal] = useState(false);
+    const [editingAlloc, setEditingAlloc] = useState<RemedialAllocation | null>(null);
     const [allocCourseId, setAllocCourseId] = useState('');
     const [allocStream, setAllocStream] = useState('All Streams');
     const [customAllocStream, setCustomAllocStream] = useState('');
@@ -501,7 +503,35 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     }, [allocations, selectedTimetableClass, courses]);
 
-    // Save Remedial Subject Handler
+    // Open Create Subject Modal
+    const handleOpenCreateSubject = () => {
+        setEditingSubject(null);
+        setNewSubjectId('');
+        setCustomSubjectName('');
+        setNewSubjectPriority('Medium');
+        setNewSubjectWeeklyOccurrences(1);
+        setNewSubjectPreferredDayType('any');
+        setShowSubjectModal(true);
+    };
+
+    // Open Edit Subject Modal
+    const handleOpenEditSubject = (remSub: RemedialSubject) => {
+        setEditingSubject(remSub);
+        const matchSchool = effectiveSchoolSubjects.find(s => s.id === remSub.subjectId);
+        if (matchSchool) {
+            setNewSubjectId(remSub.subjectId);
+            setCustomSubjectName('');
+        } else {
+            setNewSubjectId('custom');
+            setCustomSubjectName(remSub.subjectName);
+        }
+        setNewSubjectPriority(remSub.priority || 'Medium');
+        setNewSubjectWeeklyOccurrences(remSub.weeklyOccurrences || 1);
+        setNewSubjectPreferredDayType(remSub.preferredDayType || 'any');
+        setShowSubjectModal(true);
+    };
+
+    // Save Remedial Subject Handler (Create or Edit)
     const handleSaveRemedialSubject = async (e: React.FormEvent) => {
         e.preventDefault();
         let subjectName = '';
@@ -510,7 +540,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (newSubjectId === 'custom') {
             if (!customSubjectName.trim()) return alert('Please enter custom subject name');
             subjectName = customSubjectName.trim();
-            subId = `custom_sub_${Date.now()}`;
+            subId = editingSubject ? editingSubject.subjectId : `custom_sub_${Date.now()}`;
         } else if (newSubjectId) {
             const found = effectiveSchoolSubjects.find(s => s.id === newSubjectId);
             subjectName = found ? found.name : newSubjectId;
@@ -519,27 +549,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
 
         try {
-            const newRemSubject: RemedialSubject = {
-                id: `rem_sub_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            const subjectPayload: RemedialSubject = {
+                ...(editingSubject || {}),
+                id: editingSubject?.id || `rem_sub_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
                 institutionId,
                 subjectId: subId,
                 subjectName,
-                isActive: true,
+                isActive: editingSubject ? (editingSubject.isActive !== false) : true,
                 priority: newSubjectPriority,
                 weeklyOccurrences: newSubjectWeeklyOccurrences,
                 preferredDayType: newSubjectPreferredDayType,
-                createdAt: new Date().toISOString()
+                createdAt: editingSubject?.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             };
 
             if (typeof (apiService as any).saveRemedialSubject === 'function') {
-                await (apiService as any).saveRemedialSubject(newRemSubject);
+                await (apiService as any).saveRemedialSubject(subjectPayload);
             } else {
-                await apiService.saveModuleRecord('school_remedial_subjects', newRemSubject);
+                await apiService.saveModuleRecord('school_remedial_subjects', subjectPayload);
             }
 
-            onLogAction?.(`Registered remedial subject "${subjectName}" (Priority: ${newSubjectPriority}, ${newSubjectWeeklyOccurrences}x/week)`);
-            alert(`Remedial subject "${subjectName}" added successfully!`);
+            onLogAction?.(`${editingSubject ? 'Updated' : 'Registered'} remedial subject "${subjectName}" (Priority: ${newSubjectPriority}, ${newSubjectWeeklyOccurrences}x/week)`);
+            alert(`Remedial subject "${subjectName}" ${editingSubject ? 'updated' : 'added'} successfully!`);
             setShowSubjectModal(false);
+            setEditingSubject(null);
             setNewSubjectId('');
             setCustomSubjectName('');
             setNewSubjectPriority('Medium');
@@ -1036,7 +1069,47 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Manual Allocation Handler
+    // Open Create Allocation Modal
+    const handleOpenCreateAllocation = () => {
+        setEditingAlloc(null);
+        setAllocCourseId('');
+        setAllocStream('All Streams');
+        setCustomAllocStream('');
+        setAllocSubjectId('');
+        setAllocTeacherId('');
+        setAllocDay('Monday');
+        setAllocStartTime(weekdayStartTime || '16:00');
+        setAllocEndTime(weekdayEndTime || '18:00');
+        setShowAllocModal(true);
+    };
+
+    // Open Edit Allocation Modal
+    const handleOpenEditAllocation = (alloc: RemedialAllocation) => {
+        setEditingAlloc(alloc);
+        setAllocCourseId(alloc.courseId || '');
+
+        const matchedCourse = courses.find(c => c.id === alloc.courseId);
+        const courseStreams = matchedCourse?.streams || [];
+        if (!alloc.stream || alloc.stream === 'All Streams') {
+            setAllocStream('All Streams');
+            setCustomAllocStream('');
+        } else if (courseStreams.includes(alloc.stream)) {
+            setAllocStream(alloc.stream);
+            setCustomAllocStream('');
+        } else {
+            setAllocStream('__custom__');
+            setCustomAllocStream(alloc.stream);
+        }
+
+        setAllocSubjectId(alloc.subjectId || '');
+        setAllocTeacherId(alloc.teacherId || '');
+        setAllocDay((alloc.dayOfWeek as any) || 'Monday');
+        setAllocStartTime(alloc.startTime || (['Saturday', 'Sunday'].includes(alloc.dayOfWeek) ? (alloc.dayOfWeek === 'Sunday' ? (sundayStartTime || '09:00') : (saturdayStartTime || '08:00')) : (weekdayStartTime || '16:00')));
+        setAllocEndTime(alloc.endTime || (['Saturday', 'Sunday'].includes(alloc.dayOfWeek) ? (alloc.dayOfWeek === 'Sunday' ? (sundayEndTime || '13:00') : (saturdayEndTime || '12:00')) : (weekdayEndTime || '18:00')));
+        setShowAllocModal(true);
+    };
+
+    // Manual Allocation Handler (Create or Edit)
     const handleCreateManualAllocation = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!allocCourseId || !allocSubjectId || !allocTeacherId) {
@@ -1054,31 +1127,34 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 ? (customAllocStream.trim() || 'All Streams')
                 : (allocStream || 'All Streams');
 
-            const newAlloc: RemedialAllocation = {
-                id: `rem_alloc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            const payloadAlloc: RemedialAllocation = {
+                ...(editingAlloc || {}),
+                id: editingAlloc?.id || `rem_alloc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 courseId: allocCourseId,
-                className: course?.name || 'Class',
+                className: course?.name || editingAlloc?.className || 'Class',
                 stream: effectiveStream,
                 subjectId: allocSubjectId,
                 subjectName: resolvedSubjectName,
                 teacherId: allocTeacherId,
-                teacherName: teacher?.name || 'Teacher',
+                teacherName: teacher?.name || editingAlloc?.teacherName || 'Teacher',
                 dayOfWeek: allocDay,
                 startTime: allocStartTime,
                 endTime: allocEndTime,
                 isWeekend,
-                createdAt: new Date().toISOString(),
+                createdAt: editingAlloc?.createdAt || new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
                 institutionId
             };
 
             if (typeof (apiService as any).saveRemedialAllocation === 'function') {
-                await (apiService as any).saveRemedialAllocation(newAlloc);
+                await (apiService as any).saveRemedialAllocation(payloadAlloc);
             } else {
-                await apiService.saveModuleRecord('school_remedial_allocations', newAlloc);
+                await apiService.saveModuleRecord('school_remedial_allocations', payloadAlloc);
             }
-            onLogAction?.(`Allocated remedial ${resolvedSubjectName} for ${course?.name} (${effectiveStream}) to ${teacher?.name} on ${allocDay}`);
-            alert('Remedial allocation saved successfully!');
+            onLogAction?.(`${editingAlloc ? 'Updated' : 'Allocated'} remedial ${resolvedSubjectName} for ${course?.name} (${effectiveStream}) to ${teacher?.name} on ${allocDay}`);
+            alert(editingAlloc ? 'Remedial allocation updated successfully!' : 'Remedial allocation saved successfully!');
             setShowAllocModal(false);
+            setEditingAlloc(null);
             setAllocStream('All Streams');
             setCustomAllocStream('');
             loadData();
@@ -3095,7 +3171,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <Zap className="w-4 h-4" /> Smart STEM &amp; Core Priorities
                             </button>
                             <button
-                                onClick={() => setShowSubjectModal(true)}
+                                onClick={handleOpenCreateSubject}
                                 className="flex-1 md:flex-none px-4 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <Plus className="w-4 h-4" /> Add Remedial Subject
@@ -3151,13 +3227,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     ID: {remSub.subjectId}
                                                 </p>
                                             </div>
-                                            <button
-                                                onClick={() => handleDeleteRemedialSubject(remSub.id, remSub.subjectName)}
-                                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                                                title="Remove remedial subject"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => handleOpenEditSubject(remSub)}
+                                                    className="text-slate-400 hover:text-pink-600 dark:hover:text-pink-400 p-1.5 rounded-xl hover:bg-pink-50 dark:hover:bg-pink-950/30 transition-colors"
+                                                    title="Edit remedial subject"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteRemedialSubject(remSub.id, remSub.subjectName)}
+                                                    className="text-slate-400 hover:text-red-500 p-1.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                                    title="Remove remedial subject"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Subject Priority & Frequency Controls */}
@@ -3298,7 +3383,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <Sparkles className="w-4 h-4" /> Auto-Generate Timetable
                             </button>
                             <button
-                                onClick={() => setShowAllocModal(true)}
+                                onClick={handleOpenCreateAllocation}
                                 className="flex-1 md:flex-none px-5 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <Plus className="w-4 h-4" /> Manual Allocation
@@ -3390,13 +3475,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </span>
                                                 )}
                                             </div>
-                                            <button 
-                                                onClick={() => handleDeleteAllocation(alloc.id)}
-                                                className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100"
-                                                title="Delete allocation"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <button 
+                                                    onClick={() => handleOpenEditAllocation(alloc)}
+                                                    className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                                                    title="Edit allocation"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteAllocation(alloc.id)}
+                                                    className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/40"
+                                                    title="Delete allocation"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">{alloc.className}</p>
@@ -3498,13 +3592,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </div>
                                             )}
                                             {(!alloc.status || alloc.status === 'Confirmed') && (
-                                                <button 
-                                                    onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
-                                                    className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5 transition-colors"
-                                                    title="Reassign or replace teacher"
-                                                >
-                                                    <UserPlus className="w-2.5 h-2.5" /> Reassign
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button 
+                                                        onClick={() => handleOpenEditAllocation(alloc)}
+                                                        className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5 transition-colors"
+                                                        title="Edit allocation slot"
+                                                    >
+                                                        <Pencil className="w-2.5 h-2.5" /> Edit
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
+                                                        className="text-[8px] font-bold text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 flex items-center gap-0.5 transition-colors"
+                                                        title="Reassign or replace teacher"
+                                                    >
+                                                        <UserPlus className="w-2.5 h-2.5" /> Reassign
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
 
@@ -5654,12 +5757,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <div>
                             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-violet-500" /> Manual Allocation
+                                <Calendar className="w-4 h-4 text-violet-500" /> {editingAlloc ? 'Edit Allocation' : 'Manual Allocation'}
                             </h3>
-                            <p className="text-[10px] text-slate-400 mt-0.5">Assign a subject & teacher to a specific day slot</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                {editingAlloc ? 'Modify scheduling, subject, class, stream, or teacher' : 'Assign a subject & teacher to a specific day slot'}
+                            </p>
                         </div>
                         <button
-                            onClick={() => setShowAllocModal(false)}
+                            onClick={() => { setShowAllocModal(false); setEditingAlloc(null); }}
                             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
                         >
                             <X className="w-4 h-4" />
@@ -5886,16 +5991,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="flex items-center gap-3 pt-2">
                             <button
                                 type="button"
-                                onClick={() => setShowAllocModal(false)}
+                                onClick={() => { setShowAllocModal(false); setEditingAlloc(null); }}
                                 className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                className="flex-1 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                                className="flex-1 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
-                                Save Allocation
+                                {editingAlloc ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                                {editingAlloc ? 'Update Allocation' : 'Save Allocation'}
                             </button>
                         </div>
                     </form>
@@ -5999,12 +6105,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <div>
                             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                                <BookOpen className="w-4 h-4 text-pink-500" /> Add Remedial Subject
+                                <BookOpen className="w-4 h-4 text-pink-500" /> {editingSubject ? 'Edit Remedial Subject' : 'Add Remedial Subject'}
                             </h3>
-                            <p className="text-[10px] text-slate-400 mt-0.5">Register a subject to enable extra tuition sessions</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                {editingSubject ? 'Update subject priority, weekly occurrences, and day placement' : 'Register a subject to enable extra tuition sessions'}
+                            </p>
                         </div>
                         <button
-                            onClick={() => setShowSubjectModal(false)}
+                            onClick={() => { setShowSubjectModal(false); setEditingSubject(null); }}
                             className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors"
                         >
                             <X className="w-4 h-4" />
@@ -6100,16 +6208,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="flex items-center gap-3 pt-2">
                             <button
                                 type="button"
-                                onClick={() => setShowSubjectModal(false)}
+                                onClick={() => { setShowSubjectModal(false); setEditingSubject(null); }}
                                 className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest transition-all"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                className="flex-1 py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-500/20 transition-all active:scale-95"
+                                className="flex-1 py-3.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-pink-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
-                                Register Subject
+                                {editingSubject ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                                {editingSubject ? 'Update Subject' : 'Register Subject'}
                             </button>
                         </div>
                     </form>
