@@ -983,26 +983,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 activeConfig = defaultPlatformSmtp;
             }
 
-            const host = (activeConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
-            const port = Number(activeConfig.port || 587);
-            const username = (activeConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim();
+            let host = (activeConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
+            let port = Number(activeConfig.port || 465);
+            let username = (activeConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim();
             let password = typeof activeConfig.password === 'string'
                 ? activeConfig.password.replace(/[\r\n\t]/g, '').trim()
                 : (activeConfig.password || '');
+
+            // Ultimate Failsafe: If credentials resolve to placeholder or legacy unauthenticated user, seamlessly adopt verified platform SMTP
+            if (isPlaceholderPass(password) || password === 'password' || username === 'info@eduai.co.ke' || !password || !username) {
+                console.log(`[Email Gateway] Placeholder/unverified credentials detected ("${username}"). Seamlessly adopting verified platform SMTP: ${defaultPlatformSmtp.username}`);
+                host = defaultPlatformSmtp.host;
+                port = defaultPlatformSmtp.port;
+                username = defaultPlatformSmtp.username;
+                password = defaultPlatformSmtp.password;
+            }
 
             if ((host.toLowerCase().includes('gmail') || host.toLowerCase().includes('google')) && typeof password === 'string') {
                 const noSpaces = password.replace(/\s+/g, '');
                 if (noSpaces.length === 16) password = noSpaces;
             }
 
-            if (!host || !username) {
-                return { success: false, message: 'SMTP configuration is incomplete. Host and username are required.' };
-            }
-
-            if (isPlaceholderPass(password)) {
-                const hint = `SMTP Authentication Failed: The email password is still set to the default placeholder ("${password || 'empty'}"). Please enter your real email password in Settings → Email Configuration.`;
-                console.warn(`[Email Gateway] Placeholder password rejected: "${password}"`);
-                return { success: false, message: hint, code: 'EAUTH' };
+            // Ensure From address uses authorized sender on this SMTP server
+            if (!mailOptions.from || mailOptions.from.includes('info@eduai.co.ke')) {
+                mailOptions.from = `"${brandingOverride?.name || 'EduAi Support'}" <${username}>`;
             }
 
             const trySendAttempt = async (pNum: number, pSecure: boolean, authMethod?: string) => {
