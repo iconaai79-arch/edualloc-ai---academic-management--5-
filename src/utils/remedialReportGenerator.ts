@@ -600,25 +600,132 @@ export const exportRemedialToExcel = ({
  * Weekday (Mon-Fri) Grid + Saturday (with Duty Roster & Break) + Sunday (with Duty & Break) + Legend
  */
 
-// Helper to extract clean uppercase subject code (e.g. "Mathematics" -> "MATH", "Creative Arts" -> "CA")
+// Helper to extract clean uppercase subject code matching standard aSc Timetable abbreviations (e.g. "Mathematics" -> "MAT", "Chemistry" -> "CHE")
 export const getSubjectCode = (subjectName?: string, subjectId?: string): string => {
     if (!subjectName) return '';
     const clean = subjectName.trim().toUpperCase();
-    if (clean.includes('MATH')) return 'MATH';
+    if (clean.includes('MATH')) return 'MAT';
     if (clean.includes('ENG')) return 'ENG';
     if (clean.includes('KISW') || clean.includes('KIS')) return 'KIS';
+    if (clean.includes('CHEM') || clean.includes('CHE')) return 'CHE';
+    if (clean.includes('BIO')) return 'BIO';
+    if (clean.includes('PHYS') || clean.includes('PHY')) return 'PHY';
+    if (clean.includes('HIST')) return 'HIST';
+    if (clean.includes('GEO')) return 'GEO';
     if (clean.includes('CRE') || clean.includes('RELIG')) return 'CRE';
+    if (clean.includes('IRE')) return 'IRE';
     if (clean.includes('AGRI') || clean.includes('AGR')) return 'AGR';
+    if (clean.includes('BUSI') || clean.includes('BST')) return 'BST';
+    if (clean.includes('COMP') || clean.includes('ICT') || clean.includes('CS')) return 'CS';
+    if (clean.includes('HOME') || clean.includes('HS')) return 'HS';
+    if (clean.includes('FREN') || clean.includes('FRE')) return 'FRE';
+    if (clean.includes('GERM') || clean.includes('GER')) return 'GER';
     if (clean.includes('SOCI') || clean.includes('SST')) return 'SST';
     if (clean.includes('INTEG') || clean.includes('INT SCI') || clean.includes('INT')) return 'INT';
     if (clean.includes('CREAT') || clean.includes('CA') || clean.includes('ART')) return 'CA';
     if (clean.includes('PRE-TECH') || clean.includes('PTS') || clean.includes('TECH')) return 'PTS';
-    if (clean.includes('SPORT') || clean.includes('P.E') || clean.includes('PE') || clean.includes('SP')) return 'SP';
-    if (clean.includes('COMP') || clean.includes('ICT')) return 'COMP';
+    if (clean.includes('SPORT') || clean.includes('P.E') || clean.includes('PE') || clean.includes('SP')) return 'PE';
     if (clean.includes('SWIM')) return 'SWIM';
-    if (clean.includes('SCI') || clean.includes('PHYS') || clean.includes('CHEM') || clean.includes('BIO')) return clean.slice(0, 4);
     if (clean.length <= 4) return clean;
     return clean.replace(/[^A-Z]/g, '').slice(0, 4) || clean.slice(0, 4);
+};
+
+export interface AscSubjectColor {
+    bg: string;
+    text: string;
+    border: string;
+    accent: string;
+    gradient: string;
+}
+
+// Map subjects to authentic aSc Timetable color palette
+export const getAscSubjectColor = (subjectName?: string, subjectId?: string): AscSubjectColor => {
+    const code = getSubjectCode(subjectName, subjectId).toUpperCase();
+    
+    // aSc Timetables standard color scheme (matching official school timetables)
+    if (code === 'KIS') {
+        return { bg: '#00c5ff', text: '#0f172a', border: '#00a8dc', accent: '#008bb6', gradient: 'from-[#38bdf8] to-[#00c5ff]' }; // Cyan / Light Blue
+    }
+    if (code === 'MAT') {
+        return { bg: '#f5d0fe', text: '#3b0764', border: '#e879f9', accent: '#c026d3', gradient: 'from-[#fdf4ff] to-[#f5d0fe]' }; // Soft Lilac / Pastel Pink
+    }
+    if (code === 'BIO') {
+        return { bg: '#16a34a', text: '#ffffff', border: '#15803d', accent: '#14532d', gradient: 'from-[#22c55e] to-[#16a34a]' }; // Bright Grass Green
+    }
+    if (code === 'ENG') {
+        return { bg: '#881337', text: '#ffffff', border: '#701a31', accent: '#4c0519', gradient: 'from-[#9f1239] to-[#881337]' }; // Deep Maroon / Crimson Red
+    }
+    if (code === 'CHE') {
+        return { bg: '#d946ef', text: '#ffffff', border: '#c026d3', accent: '#701a75', gradient: 'from-[#e879f9] to-[#d946ef]' }; // Vivid Magenta / Fuchsia
+    }
+    if (code === 'PHY') {
+        return { bg: '#0284c7', text: '#ffffff', border: '#0369a1', accent: '#0c4a6e', gradient: 'from-[#38bdf8] to-[#0284c7]' }; // Sky / Cerulean Blue
+    }
+    if (code === 'GEO') {
+        return { bg: '#84cc16', text: '#14532d', border: '#65a30d', accent: '#3f6212', gradient: 'from-[#a3e635] to-[#84cc16]' }; // Lime / Yellow-Green
+    }
+    if (code === 'HIST') {
+        return { bg: '#1d4ed8', text: '#ffffff', border: '#1e40af', accent: '#172554', gradient: 'from-[#3b82f6] to-[#1d4ed8]' }; // Royal Blue
+    }
+    if (code === 'CRE' || code === 'IRE') {
+        return { bg: '#ea580c', text: '#ffffff', border: '#c2410c', accent: '#7c2d12', gradient: 'from-[#f97316] to-[#ea580c]' }; // Orange
+    }
+    if (code === 'AGR') {
+        return { bg: '#059669', text: '#ffffff', border: '#047857', accent: '#064e3b', gradient: 'from-[#10b981] to-[#059669]' }; // Emerald / Forest Green
+    }
+    if (code === 'BST') {
+        return { bg: '#7c3aed', text: '#ffffff', border: '#6d28d9', accent: '#4c1d95', gradient: 'from-[#8b5cf6] to-[#7c3aed]' }; // Purple / Violet
+    }
+    if (code === 'CS') {
+        return { bg: '#0d9488', text: '#ffffff', border: '#0f766e', accent: '#134e4a', gradient: 'from-[#14b8a6] to-[#0d9488]' }; // Teal
+    }
+    if (code === 'HS') {
+        return { bg: '#e11d48', text: '#ffffff', border: '#be123c', accent: '#881337', gradient: 'from-[#f43f5e] to-[#e11d48]' }; // Rose
+    }
+    if (code === 'FRE' || code === 'GER') {
+        return { bg: '#6366f1', text: '#ffffff', border: '#4f46e5', accent: '#312e81', gradient: 'from-[#818cf8] to-[#6366f1]' }; // Indigo
+    }
+    if (code === 'SST') {
+        return { bg: '#d97706', text: '#ffffff', border: '#b45309', accent: '#78350f', gradient: 'from-[#f59e0b] to-[#d97706]' }; // Amber
+    }
+    if (code === 'CA') {
+        return { bg: '#ec4899', text: '#ffffff', border: '#db2777', accent: '#831843', gradient: 'from-[#f472b6] to-[#ec4899]' }; // Pink
+    }
+    if (code === 'PTS') {
+        return { bg: '#475569', text: '#ffffff', border: '#334155', accent: '#0f172a', gradient: 'from-[#64748b] to-[#475569]' }; // Slate
+    }
+    if (code === 'PE') {
+        return { bg: '#eab308', text: '#713f12', border: '#ca8a04', accent: '#854d0e', gradient: 'from-[#facc15] to-[#eab308]' }; // Golden Yellow
+    }
+    if (code === 'SWIM') {
+        return { bg: '#06b6d4', text: '#ffffff', border: '#0891b2', accent: '#164e63', gradient: 'from-[#22d3ee] to-[#06b6d4]' }; // Cyan Blue
+    }
+
+    // Dynamic deterministic fallback palette for custom school subjects
+    const PALETTE: AscSubjectColor[] = [
+        { bg: '#00c5ff', text: '#0f172a', border: '#00a8dc', accent: '#008bb6', gradient: 'from-[#38bdf8] to-[#00c5ff]' },
+        { bg: '#f5d0fe', text: '#3b0764', border: '#e879f9', accent: '#c026d3', gradient: 'from-[#fdf4ff] to-[#f5d0fe]' },
+        { bg: '#16a34a', text: '#ffffff', border: '#15803d', accent: '#14532d', gradient: 'from-[#22c55e] to-[#16a34a]' },
+        { bg: '#881337', text: '#ffffff', border: '#701a31', accent: '#4c0519', gradient: 'from-[#9f1239] to-[#881337]' },
+        { bg: '#d946ef', text: '#ffffff', border: '#c026d3', accent: '#701a75', gradient: 'from-[#e879f9] to-[#d946ef]' },
+        { bg: '#0284c7', text: '#ffffff', border: '#0369a1', accent: '#0c4a6e', gradient: 'from-[#38bdf8] to-[#0284c7]' },
+        { bg: '#84cc16', text: '#14532d', border: '#65a30d', accent: '#3f6212', gradient: 'from-[#a3e635] to-[#84cc16]' },
+        { bg: '#1d4ed8', text: '#ffffff', border: '#1e40af', accent: '#172554', gradient: 'from-[#3b82f6] to-[#1d4ed8]' },
+        { bg: '#ea580c', text: '#ffffff', border: '#c2410c', accent: '#7c2d12', gradient: 'from-[#f97316] to-[#ea580c]' },
+        { bg: '#059669', text: '#ffffff', border: '#047857', accent: '#064e3b', gradient: 'from-[#10b981] to-[#059669]' },
+        { bg: '#7c3aed', text: '#ffffff', border: '#6d28d9', accent: '#4c1d95', gradient: 'from-[#8b5cf6] to-[#7c3aed]' },
+        { bg: '#0d9488', text: '#ffffff', border: '#0f766e', accent: '#134e4a', gradient: 'from-[#14b8a6] to-[#0d9488]' },
+        { bg: '#e11d48', text: '#ffffff', border: '#be123c', accent: '#881337', gradient: 'from-[#f43f5e] to-[#e11d48]' },
+        { bg: '#6366f1', text: '#ffffff', border: '#4f46e5', accent: '#312e81', gradient: 'from-[#818cf8] to-[#6366f1]' },
+        { bg: '#eab308', text: '#713f12', border: '#ca8a04', accent: '#854d0e', gradient: 'from-[#facc15] to-[#eab308]' },
+        { bg: '#0891b2', text: '#ffffff', border: '#0e7490', accent: '#164e63', gradient: 'from-[#06b6d4] to-[#0891b2]' },
+    ];
+    let hash = 0;
+    const str = (subjectName || subjectId || 'SUBJ');
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+    }
+    return PALETTE[hash % PALETTE.length];
 };
 
 // Helper to derive stable staff code (e.g. teacherCode, code, staffId or formatted numeric index 01, 02...)

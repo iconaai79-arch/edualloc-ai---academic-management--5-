@@ -7,7 +7,7 @@ import {
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
-    FileText, BarChart3, Filter, Pencil, Users
+    FileText, BarChart3, Filter, Pencil, Users, LayoutGrid
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
@@ -22,7 +22,8 @@ import {
     getTeacherCode,
     getClassShortCode,
     getDistinctTimetableClasses,
-    matchAllocationStream
+    matchAllocationStream,
+    getAscSubjectColor
 } from '../utils/remedialReportGenerator';
 
 interface RemedialLessonsManagerProps {
@@ -75,6 +76,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Approved' | 'Paid'>('all');
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
+    const [allocViewMode, setAllocViewMode] = useState<'asc_grid' | 'day_columns'>('asc_grid');
+    const [ascDayScope, setAscDayScope] = useState<'all' | 'weekdays' | 'weekend' | 'Saturday' | 'Sunday'>('all');
+    const [selectedCellAlloc, setSelectedCellAlloc] = useState<RemedialAllocation | null>(null);
+    const [ascClassSearchQuery, setAscClassSearchQuery] = useState('');
     
     // Rates Form State
     const [hourlyRate, setHourlyRate] = useState<number>(1000);
@@ -1235,6 +1240,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setAllocDay('Monday');
         setAllocStartTime(weekdayStartTime || '16:00');
         setAllocEndTime(weekdayEndTime || '18:00');
+        setShowAllocModal(true);
+    };
+
+    // Open Create Allocation Modal pre-filling slot, class, day, and time
+    const handleOpenCreateAllocationForSlot = (targetClass?: string, targetStream?: string, day?: string, startTime?: string, endTime?: string) => {
+        setEditingAlloc(null);
+        const matchingCourse = courses.find(c => (c.name || '').trim() === (targetClass || '').trim() || c.id === targetClass);
+        setAllocCourseId(matchingCourse?.id || targetClass || '');
+        setAllocStream(targetStream && targetStream !== 'All Streams' ? targetStream : 'All Streams');
+        setCustomAllocStream('');
+        setIsJointAlloc(false);
+        setJointStreamsSelected([]);
+        setJointCoursesSelected([]);
+        setCustomJointStream('');
+        setAllocSubjectId('');
+        setAllocTeacherId('');
+        setAllocDay(((day as any) || 'Monday'));
+        const isWeekend = ['Saturday', 'Sunday'].includes(day || '');
+        setAllocStartTime(startTime || (isWeekend ? '08:00' : (weekdayStartTime || '16:00')));
+        setAllocEndTime(endTime || (isWeekend ? '09:00' : (weekdayEndTime || '18:00')));
         setShowAllocModal(true);
     };
 
@@ -2541,8 +2566,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             (a.className === cls.className || a.courseId === cls.className) &&
                             matchAllocationStream(a, cls.stream)
                         );
-                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}`).join('<br/>') || '-';
-                        return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
+                        const cell = matches.map(a => {
+                            const c = getAscSubjectColor(a.subjectName, a.subjectId);
+                            const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                            const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                            return `<div style="background:${c.bg};color:${c.text};border:1px solid ${c.border};border-radius:4px;padding:3px 6px;margin:2px auto;font-weight:900;display:inline-block;min-width:44px;box-shadow:0 1px 2px rgba(0,0,0,0.15);"><div style="font-size:10px;line-height:1;text-transform:uppercase;">${sCode}</div><div style="font-size:8px;line-height:1;opacity:0.85;margin-top:2px;">${tCode}</div></div>`;
+                        }).join('') || '-';
+                        return `<td style="text-align:center;font-weight:600;padding:4px;border:1px solid #334155;">${cell}</td>`;
                     }).join('')}
                 </tr>
             `).join('');
@@ -2569,8 +2599,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             matchAllocationStream(a, cls.stream) &&
                             (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                         );
-                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}`).join('<br/>') || '-';
-                        return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
+                        const cell = matches.map(a => {
+                            const c = getAscSubjectColor(a.subjectName, a.subjectId);
+                            const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                            const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                            return `<div style="background:${c.bg};color:${c.text};border:1px solid ${c.border};border-radius:4px;padding:3px 6px;margin:2px auto;font-weight:900;display:inline-block;min-width:44px;box-shadow:0 1px 2px rgba(0,0,0,0.15);"><div style="font-size:10px;line-height:1;text-transform:uppercase;">${sCode}</div><div style="font-size:8px;line-height:1;opacity:0.85;margin-top:2px;">${tCode}</div></div>`;
+                        }).join('') || '-';
+                        return `<td style="text-align:center;font-weight:600;padding:4px;border:1px solid #334155;">${cell}</td>`;
                     }).join('')}
                 </tr>
             `).join('');
@@ -2594,8 +2629,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             matchAllocationStream(a, cls.stream) &&
                             (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                         );
-                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}`).join('<br/>') || '-';
-                        return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
+                        const cell = matches.map(a => {
+                            const c = getAscSubjectColor(a.subjectName, a.subjectId);
+                            const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                            const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                            return `<div style="background:${c.bg};color:${c.text};border:1px solid ${c.border};border-radius:4px;padding:3px 6px;margin:2px auto;font-weight:900;display:inline-block;min-width:44px;box-shadow:0 1px 2px rgba(0,0,0,0.15);"><div style="font-size:10px;line-height:1;text-transform:uppercase;">${sCode}</div><div style="font-size:8px;line-height:1;opacity:0.85;margin-top:2px;">${tCode}</div></div>`;
+                        }).join('') || '-';
+                        return `<td style="text-align:center;font-weight:600;padding:4px;border:1px solid #334155;">${cell}</td>`;
                     }).join('')}
                 </tr>
             `).join('');
@@ -4041,339 +4081,937 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             )}
 
             {/* TAB: ALLOCATIONS & TIMETABLE */}
-            {activeTab === 'allocations' && (
-                <div className="space-y-6">
-                    {/* Header Controls */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-1 flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-violet-500" /> Remedial Subject Allocations &amp; Weekly Timetable
-                            </h4>
-                            <p className="text-xs text-slate-500">
-                                Assign subjects and teachers manually or auto-generate a weekly remedial timetable respecting weekday/weekend limits.
-                            </p>
-                        </div>
+            {/* TAB: ALLOCATIONS & TIMETABLE (aSc Timetable Grid Suite) */}
+            {activeTab === 'allocations' && (() => {
+                const daysForAscGrid: readonly ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[] = (() => {
+                    if (ascDayScope === 'weekdays') return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
+                    if (ascDayScope === 'weekend') return ['Saturday', 'Sunday'] as const;
+                    if (ascDayScope === 'Saturday') return ['Saturday'] as const;
+                    if (ascDayScope === 'Sunday') return ['Sunday'] as const;
+                    return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+                })();
 
-                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                            <button
-                                onClick={handleAutoGenerateTimetable}
-                                className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-violet-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-                            >
-                                <Sparkles className="w-4 h-4" /> Auto-Generate Timetable
-                            </button>
-                            <button
-                                onClick={handleOpenCreateAllocation}
-                                className="flex-1 md:flex-none px-5 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                            >
-                                <Plus className="w-4 h-4" /> Manual Allocation
-                            </button>
-                        </div>
-                    </div>
+                const allDistinctClasses = getDistinctTimetableClasses(allocations, courses);
+                const filteredClasses = allDistinctClasses.filter(cls => {
+                    const matchCourse = selectedTimetableClass === 'All' || 
+                        cls.className === selectedTimetableClass || 
+                        courses.find(c => c.id === selectedTimetableClass)?.name === cls.className;
+                    const matchStream = selectedTimetableStream === 'All' || 
+                        cls.stream.toLowerCase().trim() === selectedTimetableStream.toLowerCase().trim();
+                    const matchSearch = !ascClassSearchQuery || 
+                        cls.shortCode.toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
+                        cls.className.toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
+                        cls.stream.toLowerCase().includes(ascClassSearchQuery.toLowerCase());
+                    return matchCourse && matchStream && matchSearch;
+                });
 
-                    {/* Filter & Print Bar */}
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
-                        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Class:</span>
-                                <select
-                                    value={selectedTimetableClass}
-                                    onChange={e => {
-                                        setSelectedTimetableClass(e.target.value);
-                                        setSelectedTimetableStream('All');
-                                    }}
-                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                >
-                                    <option value="All">All Classes ({courses.length})</option>
-                                    {courses.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                    ))}
-                                </select>
+                interface AscGridSlot {
+                    periodNum: number;
+                    startTime: string;
+                    endTime: string;
+                    label: string;
+                    isBreak?: boolean;
+                }
+
+                const getAscSlotsForDay = (day: string): AscGridSlot[] => {
+                    const isSaturday = day === 'Saturday';
+                    const isSunday = day === 'Sunday';
+
+                    if (isSaturday) {
+                        const satSlots: AscGridSlot[] = [
+                            { periodNum: 1, startTime: saturdayStartTime || '08:00', endTime: '09:00', label: 'P1 (08-09)' },
+                            { periodNum: 2, startTime: '09:00', endTime: saturdayBreakStartTime || '10:00', label: 'P2 (09-10)' }
+                        ];
+                        if (includeSaturdayBreak) {
+                            satSlots.push({
+                                periodNum: 0,
+                                startTime: saturdayBreakStartTime || '10:00',
+                                endTime: saturdayBreakEndTime || '10:30',
+                                label: 'RECESS',
+                                isBreak: true
+                            });
+                        }
+                        satSlots.push(
+                            { periodNum: 3, startTime: saturdayBreakEndTime || '10:30', endTime: '11:30', label: 'P3 (10:30-11:30)' },
+                            { periodNum: 4, startTime: '11:30', endTime: '12:30', label: 'P4 (11:30-12:30)' },
+                            { periodNum: 5, startTime: '12:30', endTime: saturdayEndTime || '13:30', label: 'P5 (12:30-13:30)' }
+                        );
+
+                        // Check if any allocations have extra start times
+                        allocations.filter(a => a.dayOfWeek === 'Saturday' && a.startTime).forEach(a => {
+                            const match = satSlots.some(s => (!s.isBreak && a.startTime && s.startTime && s.endTime && a.startTime >= s.startTime && a.startTime < s.endTime) || a.startTime === s.startTime);
+                            if (!match && a.startTime) {
+                                satSlots.push({ periodNum: satSlots.length + 1, startTime: a.startTime, endTime: a.endTime || '', label: `P${satSlots.length + 1} (${a.startTime})` });
+                            }
+                        });
+                        return satSlots;
+                    }
+
+                    if (isSunday) {
+                        const sunSlots: AscGridSlot[] = [
+                            { periodNum: 1, startTime: sundayStartTime || '09:00', endTime: '10:00', label: 'P1 (09-10)' },
+                            { periodNum: 2, startTime: '10:00', endTime: sundayBreakStartTime || '11:00', label: 'P2 (10-11)' }
+                        ];
+                        if (includeSundayBreak) {
+                            sunSlots.push({
+                                periodNum: 0,
+                                startTime: sundayBreakStartTime || '11:00',
+                                endTime: sundayBreakEndTime || '11:30',
+                                label: 'RECESS',
+                                isBreak: true
+                            });
+                        }
+                        sunSlots.push(
+                            { periodNum: 3, startTime: sundayBreakEndTime || '11:30', endTime: '12:30', label: 'P3 (11:30-12:30)' },
+                            { periodNum: 4, startTime: '12:30', endTime: sundayEndTime || '13:30', label: 'P4 (12:30-13:30)' }
+                        );
+                        return sunSlots;
+                    }
+
+                    // Weekday slots (Mon - Fri)
+                    const dayTimes = Array.from(new Set(
+                        allocations
+                            .filter(a => a.dayOfWeek === day && a.startTime)
+                            .map(a => a.startTime as string)
+                    )).sort();
+
+                    if (dayTimes.length <= 1) {
+                        return [
+                            { 
+                                periodNum: 1, 
+                                startTime: dayTimes[0] || weekdayStartTime || '16:00', 
+                                endTime: weekdayEndTime || '18:00', 
+                                label: `P1 (${dayTimes[0] || weekdayStartTime || '16:00'})` 
+                            }
+                        ];
+                    }
+
+                    return dayTimes.map((t, idx) => ({
+                        periodNum: idx + 1,
+                        startTime: t,
+                        endTime: '',
+                        label: `P${idx + 1} (${t})`
+                    }));
+                };
+
+                const matchAllocsForCell = (cls: { className: string; stream: string }, day: string, slot: AscGridSlot) => {
+                    if (slot.isBreak) return [];
+                    return allocations.filter(a => {
+                        if (a.dayOfWeek !== day) return false;
+                        const matchCourse = a.courseId === cls.className || a.className === cls.className;
+                        if (!matchCourse) return false;
+                        const matchStream = matchAllocationStream(a, cls.stream);
+                        if (!matchStream) return false;
+
+                        if (slot.startTime && slot.endTime) {
+                            if (a.startTime) {
+                                return a.startTime >= slot.startTime && a.startTime < slot.endTime;
+                            }
+                            return true;
+                        }
+                        if (slot.startTime) {
+                            return (a.startTime || '').startsWith(slot.startTime.slice(0, 4)) || a.startTime === slot.startTime;
+                        }
+                        return true;
+                    });
+                };
+
+                const renderAscGridCell = (cls: { className: string; stream: string; shortCode: string }, day: string, slot: AscGridSlot) => {
+                    if (slot.isBreak) {
+                        return (
+                            <div className="w-full h-full min-h-[56px] bg-amber-100/60 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 flex flex-col items-center justify-center border border-dashed border-amber-300/80 dark:border-amber-800/60 rounded select-none">
+                                <span className="text-[8px] font-black uppercase tracking-widest flex items-center gap-0.5">
+                                    <Coffee className="w-2.5 h-2.5 text-amber-600" /> RECESS
+                                </span>
+                                <span className="text-[7px] font-mono opacity-80">{slot.startTime?.slice(0, 5)}</span>
                             </div>
+                        );
+                    }
 
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Stream:</span>
-                                <select
-                                    value={selectedTimetableStream}
-                                    onChange={e => setSelectedTimetableStream(e.target.value)}
-                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                >
-                                    <option value="All">All Streams</option>
-                                    {distinctTimetableStreams.map(str => (
-                                        <option key={str} value={str}>{str}</option>
-                                    ))}
-                                </select>
+                    const matches = matchAllocsForCell(cls, day, slot);
+
+                    if (matches.length === 0) {
+                        return (
+                            <div 
+                                onClick={() => handleOpenCreateAllocationForSlot(cls.className, cls.stream, day, slot.startTime, slot.endTime)}
+                                className="w-full h-full min-h-[56px] rounded border border-dashed border-slate-200 dark:border-slate-700/60 hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 flex items-center justify-center text-slate-300 dark:text-slate-600 hover:text-indigo-600 cursor-pointer transition-all group select-none"
+                                title={`Click to allocate: ${cls.shortCode} • ${day} • ${slot.startTime || ''}`}
+                            >
+                                <Plus className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
-                        </div>
+                        );
+                    }
 
-                        <button
-                            onClick={handlePrintTimetable}
-                            className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white hover:opacity-90 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm"
-                        >
-                            <Printer className="w-4 h-4" /> Print Timetable Grid
-                        </button>
-                    </div>
+                    if (matches.length === 1) {
+                        const alloc = matches[0];
+                        const color = getAscSubjectColor(alloc.subjectName, alloc.subjectId);
+                        const subCode = getSubjectCode(alloc.subjectName, alloc.subjectId);
+                        const tCode = getTeacherCode(alloc.teacherId, alloc.teacherName, enrichedUsers);
+                        const isJoint = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
 
-                    {/* Weekly Timetable Grid View */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                            {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const).map(day => {
-                                const isWeekend = ['Saturday', 'Sunday'].includes(day);
-                                const dayAllocations = allocations.filter(a => {
-                                    const matchDay = a.dayOfWeek === day;
-                                    const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
-                                    const matchStream = matchAllocationStream(a, selectedTimetableStream);
-                                    return matchDay && matchClass && matchStream;
-                                }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+                        return (
+                            <div
+                                onClick={() => setSelectedCellAlloc(alloc)}
+                                style={{
+                                    backgroundColor: color.bg,
+                                    color: color.text,
+                                    borderColor: color.border,
+                                }}
+                                className="w-full h-full min-h-[56px] rounded p-1 border shadow-xs hover:shadow-lg relative cursor-pointer hover:scale-[1.04] hover:z-20 transition-all flex flex-col justify-between select-none group"
+                                title={`${alloc.subjectName} (${subCode})\nTeacher: ${alloc.teacherName} [Code: ${tCode}]\nClass: ${alloc.className} ${alloc.stream || ''}\nTime: ${alloc.startTime} - ${alloc.endTime}`}
+                            >
+                                {/* Top Gloss Sheen */}
+                                <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/35 to-transparent pointer-events-none rounded-t" />
 
-                                const isSaturday = day === 'Saturday';
-                                const isSunday = day === 'Sunday';
-                                const dayHasBreak = (isSaturday && includeSaturdayBreak) || (isSunday && includeSundayBreak);
-                                const dayBreakStart = isSaturday ? (saturdayBreakStartTime || '10:00') : (sundayBreakStartTime || '11:00');
-                                const dayBreakEnd = isSaturday ? (saturdayBreakEndTime || '10:30') : (sundayBreakEndTime || '11:30');
-                                const dayBreakLabel = isSaturday ? (saturdayBreakLabel || 'Saturday Refreshment Break') : (sundayBreakLabel || 'Sunday Recess Break');
+                                <div className="flex items-start justify-between relative z-10 leading-none">
+                                    <span className="text-[11px] font-black tracking-tight uppercase drop-shadow-xs">
+                                        {subCode}
+                                    </span>
+                                    {isJoint && (
+                                        <span className="text-[6.5px] font-black px-1 rounded bg-black/25 text-white uppercase tracking-tighter" title="Joint Stream Lesson">
+                                            JT
+                                        </span>
+                                    )}
+                                    {alloc.priority === 'High' && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 ring-1 ring-white animate-pulse" title="High Priority" />
+                                    )}
+                                </div>
 
-                                const preBreakAllocations = isWeekend && dayHasBreak 
-                                    ? dayAllocations.filter(a => (a.startTime || '') < dayBreakStart)
-                                    : dayAllocations;
-                                const postBreakAllocations = isWeekend && dayHasBreak 
-                                    ? dayAllocations.filter(a => (a.startTime || '') >= dayBreakStart)
-                                    : [];
+                                <div className="flex items-end justify-between relative z-10 leading-none mt-auto pt-0.5">
+                                    <span className="text-[8.5px] font-black uppercase tracking-tight opacity-90 truncate max-w-[42px]" title={`Teacher Code: ${tCode}`}>
+                                        {tCode}
+                                    </span>
+                                    {alloc.substituteTeacherName && (
+                                        <span className="text-[6.5px] font-bold bg-amber-500 text-white px-0.5 rounded" title={`Sub: ${alloc.substituteTeacherName}`}>
+                                            SUB
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    }
 
-                                const renderAllocCard = (alloc: RemedialAllocation) => (
-                                    <div 
-                                        key={alloc.id}
-                                        className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative group hover:border-indigo-500/50 transition-all space-y-1.5"
-                                    >
-                                        <div className="flex items-start justify-between gap-1">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">{alloc.subjectName}</p>
-                                                {alloc.priority === 'High' && (
-                                                    <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5">
-                                                        <Flame className="w-2.5 h-2.5 text-rose-500" /> High
-                                                    </span>
-                                                )}
-                                                {alloc.priority === 'Medium' && (
-                                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[8px] font-black uppercase tracking-wider">
-                                                        Med
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <button 
-                                                    onClick={() => handleOpenEditAllocation(alloc)}
-                                                    className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                                                    title="Edit allocation"
-                                                >
-                                                    <Pencil className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleDeleteAllocation(alloc.id)}
-                                                    className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/40"
-                                                    title="Delete allocation"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">{alloc.className}</p>
-                                            {alloc.stream && alloc.stream !== 'All Streams' && (
-                                                <span className="px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 text-[8px] font-black uppercase tracking-wider">
-                                                    {alloc.stream}
-                                                </span>
-                                            )}
-                                            {alloc.stream === 'All Streams' && (
-                                                <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-wider">
-                                                    All Streams
-                                                </span>
-                                            )}
-                                            {(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0)) && (
-                                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
-                                                    <Users className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" /> Joint Class
-                                                </span>
-                                            )}
-                                            {alloc.status === 'Substitute Pending' && (
-                                                <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1">
-                                                    <Clock className="w-2.5 h-2.5 text-amber-600 animate-spin" /> Sub Pending ({getRemainingMinutes(alloc.confirmationDeadline)}m)
-                                                </span>
-                                            )}
-                                            {alloc.status === 'Escalated to DOS' && (
-                                                <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1 animate-pulse">
-                                                    <AlertTriangle className="w-2.5 h-2.5 text-rose-500" /> Need DOS Sub
-                                                </span>
-                                            )}
-                                        </div>
+                    if (matches.length === 2) {
+                        const a1 = matches[0];
+                        const a2 = matches[1];
+                        const c1 = getAscSubjectColor(a1.subjectName, a1.subjectId);
+                        const c2 = getAscSubjectColor(a2.subjectName, a2.subjectId);
+                        const code1 = getSubjectCode(a1.subjectName, a1.subjectId);
+                        const code2 = getSubjectCode(a2.subjectName, a2.subjectId);
+                        const tCode1 = getTeacherCode(a1.teacherId, a1.teacherName, enrichedUsers);
+                        const tCode2 = getTeacherCode(a2.teacherId, a2.teacherName, enrichedUsers);
 
-                                        <div className="space-y-0.5">
-                                            <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                                <UserCheck className="w-3 h-3 text-slate-400" /> 
-                                                <span className={alloc.substituteTeacherName ? 'line-through text-slate-400' : ''}>
-                                                    {alloc.teacherName}
-                                                </span>
-                                                {alloc.substituteTeacherName && (
-                                                    <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
-                                                        ↳ {alloc.substituteTeacherName}
-                                                    </span>
-                                                )}
-                                            </p>
-                                            {alloc.cancellationReason && (
-                                                <p className="text-[8px] text-rose-500 italic truncate" title={alloc.cancellationReason}>
-                                                    Note: {alloc.cancellationReason}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {(() => {
-                                            const isJointAllocItem = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
-                                            const jointStreamsList: string[] = Array.isArray(alloc.jointStreams) ? alloc.jointStreams : (Array.isArray(alloc.joint_streams) ? alloc.joint_streams : []);
-
-                                            const streamPrefect = prefectsList.find(p => {
-                                                const cMatch = p.courseId === alloc.courseId || 
-                                                    (p.className && alloc.className && p.className.toLowerCase().trim() === alloc.className.toLowerCase().trim());
-                                                if (!cMatch) return false;
-                                                if (isJointAllocItem && p.stream) {
-                                                    const pStreamLower = p.stream.toLowerCase().trim();
-                                                    return jointStreamsList.some(s => s.toLowerCase().trim() === pStreamLower) ||
-                                                        (alloc.stream && alloc.stream.toLowerCase().includes(pStreamLower));
-                                                }
-                                                if (alloc.stream && alloc.stream !== 'All Streams' && p.stream) {
-                                                    return p.stream.toLowerCase().trim() === alloc.stream.toLowerCase().trim();
-                                                }
-                                                return true;
-                                            });
-                                            if (!streamPrefect) return null;
-                                            return (
-                                                <p className="text-[8.5px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 truncate" title={`Designated Leader: ${streamPrefect.name}`}>
-                                                    <Shield className="w-2.5 h-2.5 shrink-0 text-amber-500" /> Leader: {streamPrefect.name}
-                                                </p>
-                                            );
-                                        })()}
-
-                                        {/* DOS Action Bar on Card */}
-                                        <div className="pt-1.5 flex items-center justify-between gap-1 flex-wrap">
-                                            {alloc.status === 'Substitute Pending' && (
-                                                <div className="flex items-center gap-1 w-full justify-between">
-                                                    <button 
-                                                        onClick={() => handleDosApprovePendingSub(alloc)}
-                                                        className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
-                                                        title="Directly confirm and lock this substitute"
-                                                    >
-                                                        <Check className="w-2.5 h-2.5" /> Confirm
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDosRevertToOriginal(alloc)}
-                                                        className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
-                                                        title="Cancel substitute request and revert to original teacher"
-                                                    >
-                                                        <RotateCcw className="w-2.5 h-2.5" /> Revert
-                                                    </button>
-                                                </div>
-                                            )}
-                                            {alloc.status === 'Escalated to DOS' && (
-                                                <div className="flex items-center gap-1 w-full justify-between">
-                                                    <button 
-                                                        onClick={() => handleDosAutoSubstitute(alloc)}
-                                                        className="px-2 py-0.5 bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
-                                                        title="Run priority engine to auto-assign next substitute"
-                                                    >
-                                                        <Sparkles className="w-2.5 h-2.5" /> Auto-Sub
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
-                                                        className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
-                                                        title="Manually select teacher"
-                                                    >
-                                                        <UserPlus className="w-2.5 h-2.5" /> Manual Pick
-                                                    </button>
-                                                </div>
-                                            )}
-                                            {(!alloc.status || alloc.status === 'Confirmed') && (
-                                                <div className="flex items-center gap-2">
-                                                    <button 
-                                                        onClick={() => handleOpenEditAllocation(alloc)}
-                                                        className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5 transition-colors"
-                                                        title="Edit allocation slot"
-                                                    >
-                                                        <Pencil className="w-2.5 h-2.5" /> Edit
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
-                                                        className="text-[8px] font-bold text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 flex items-center gap-0.5 transition-colors"
-                                                        title="Reassign or replace teacher"
-                                                    >
-                                                        <UserPlus className="w-2.5 h-2.5" /> Reassign
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="pt-1 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
-                                            <span className="text-[9px] font-mono font-bold text-slate-400">
-                                                {alloc.startTime} - {alloc.endTime}
-                                            </span>
-                                            <span className="text-[8px] font-black uppercase text-slate-400">
-                                                {isWeekend ? 'Weekend Tariff' : 'Weekday Tariff'}
-                                            </span>
-                                        </div>
+                        return (
+                            <div
+                                onClick={() => setSelectedCellAlloc(a1)}
+                                style={{
+                                    background: `linear-gradient(135deg, ${c1.bg} 0%, ${c1.bg} 49%, #0f172a 49.5%, #0f172a 50.5%, ${c2.bg} 51%, ${c2.bg} 100%)`,
+                                    borderColor: '#334155'
+                                }}
+                                className="w-full h-full min-h-[56px] rounded p-1 border shadow-xs hover:shadow-lg relative cursor-pointer hover:scale-[1.04] hover:z-20 transition-all flex flex-col justify-between select-none group"
+                                title={`${a1.subjectName} (${code1}) / ${a2.subjectName} (${code2})`}
+                            >
+                                <div className="flex justify-between items-start leading-none">
+                                    <span style={{ color: c1.text }} className="text-[9.5px] font-black uppercase drop-shadow-xs">
+                                        {code1}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-end leading-none mt-auto">
+                                    <span style={{ color: c1.text }} className="text-[7.5px] font-bold opacity-90">
+                                        {tCode1}
+                                    </span>
+                                    <div className="text-right">
+                                        <span style={{ color: c2.text }} className="text-[9.5px] font-black uppercase drop-shadow-xs block">
+                                            {code2}
+                                        </span>
+                                        <span style={{ color: c2.text }} className="text-[7.5px] font-bold opacity-90">
+                                            {tCode2}
+                                        </span>
                                     </div>
-                                );
+                                </div>
+                            </div>
+                        );
+                    }
 
+                    // 3+ subjects (e.g. AGR / HS / CS / BST)
+                    return (
+                        <div 
+                            onClick={() => setSelectedCellAlloc(matches[0])}
+                            className="w-full h-full min-h-[56px] rounded border border-slate-700 shadow-xs hover:shadow-lg overflow-hidden flex flex-col cursor-pointer hover:scale-[1.04] hover:z-20 transition-all"
+                        >
+                            {matches.map((a, idx) => {
+                                const c = getAscSubjectColor(a.subjectName, a.subjectId);
+                                const code = getSubjectCode(a.subjectName, a.subjectId);
                                 return (
                                     <div 
-                                        key={day} 
-                                        className={`rounded-2xl p-4 border transition-all ${
-                                            isWeekend 
-                                                ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30' 
-                                                : 'bg-slate-50/80 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800'
-                                        }`}
+                                        key={idx} 
+                                        style={{ backgroundColor: c.bg, color: c.text }} 
+                                        className="flex-1 px-1 flex items-center justify-between text-[7.5px] font-black leading-none border-b last:border-b-0 border-black/20"
                                     >
-                                        <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2.5 mb-3">
-                                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">{day}</h5>
-                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
-                                                isWeekend ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
-                                            }`}>
-                                                {dayAllocations.length} session{dayAllocations.length === 1 ? '' : 's'}
-                                            </span>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            {/* Pre-break allocations (or all allocations for weekdays) */}
-                                            {preBreakAllocations.length > 0 ? (
-                                                preBreakAllocations.map(renderAllocCard)
-                                            ) : !isWeekend && (
-                                                <p className="text-[10px] text-slate-400 font-medium italic text-center py-6">No lessons scheduled</p>
-                                            )}
-
-                                            {/* Weekend Break Card */}
-                                            {isWeekend && dayHasBreak && (
-                                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 p-3 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700/60 shadow-xs flex flex-col items-center justify-center text-center space-y-1 my-2 print:border-amber-500 print:bg-amber-50">
-                                                    <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-200">
-                                                        <Coffee className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                                        <span className="text-[10px] font-black uppercase tracking-wider">{dayBreakLabel}</span>
-                                                    </div>
-                                                    <p className="text-[9px] font-mono font-black text-amber-700 dark:text-amber-300">
-                                                        {dayBreakStart} – {dayBreakEnd}
-                                                    </p>
-                                                    <span className="text-[7.5px] font-bold uppercase tracking-widest text-amber-600/90 dark:text-amber-400/90">{day} Recess</span>
-                                                </div>
-                                            )}
-
-                                            {/* Post-break allocations (for weekends) */}
-                                            {postBreakAllocations.length > 0 && (
-                                                postBreakAllocations.map(renderAllocCard)
-                                            )}
-
-                                            {isWeekend && dayAllocations.length === 0 && !dayHasBreak && (
-                                                <p className="text-[10px] text-slate-400 font-medium italic text-center py-6">No lessons scheduled</p>
-                                            )}
-                                        </div>
+                                        <span>{code}</span>
+                                        <span className="text-[6.5px] opacity-80">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
                                     </div>
                                 );
                             })}
                         </div>
+                    );
+                };
+
+                const renderAllocCard = (alloc: RemedialAllocation) => {
+                    const color = getAscSubjectColor(alloc.subjectName, alloc.subjectId);
+                    const subCode = getSubjectCode(alloc.subjectName, alloc.subjectId);
+                    const tCode = getTeacherCode(alloc.teacherId, alloc.teacherName, enrichedUsers);
+                    const isJoint = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
+
+                    return (
+                        <div 
+                            key={alloc.id}
+                            style={{ borderLeftColor: color.bg, borderLeftWidth: '4px' }}
+                            className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative group hover:border-indigo-500/50 transition-all space-y-2"
+                        >
+                            <div className="flex items-start justify-between gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {/* aSc Color Subject Badge */}
+                                    <div 
+                                        style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
+                                        className="px-2 py-0.5 rounded border text-[10px] font-black uppercase shadow-2xs select-none"
+                                    >
+                                        {subCode}
+                                    </div>
+                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">{alloc.subjectName}</p>
+                                    {alloc.priority === 'High' && (
+                                        <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-0.5">
+                                            <Flame className="w-2.5 h-2.5 text-rose-500" /> High
+                                        </span>
+                                    )}
+                                    {alloc.priority === 'Medium' && (
+                                        <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[8px] font-black uppercase tracking-wider">
+                                            Med
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button 
+                                        onClick={() => handleOpenEditAllocation(alloc)}
+                                        className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                                        title="Edit allocation"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteAllocation(alloc.id)}
+                                        className="text-slate-400 hover:text-red-500 p-1 rounded-md transition-colors opacity-80 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950/40"
+                                        title="Delete allocation"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">{alloc.className}</p>
+                                {alloc.stream && alloc.stream !== 'All Streams' && (
+                                    <span className="px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 text-[8px] font-black uppercase tracking-wider">
+                                        {alloc.stream}
+                                    </span>
+                                )}
+                                {alloc.stream === 'All Streams' && (
+                                    <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 text-[8px] font-black uppercase tracking-wider">
+                                        All Streams
+                                    </span>
+                                )}
+                                {isJoint && (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                                        <Users className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" /> Joint Class
+                                    </span>
+                                )}
+                                {alloc.status === 'Substitute Pending' && (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1">
+                                        <Clock className="w-2.5 h-2.5 text-amber-600 animate-spin" /> Sub Pending ({getRemainingMinutes(alloc.confirmationDeadline)}m)
+                                    </span>
+                                )}
+                                {alloc.status === 'Escalated to DOS' && (
+                                    <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1 animate-pulse">
+                                        <AlertTriangle className="w-2.5 h-2.5 text-rose-500" /> Need DOS Sub
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="space-y-0.5">
+                                <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                    <UserCheck className="w-3 h-3 text-slate-400 shrink-0" /> 
+                                    <span className={alloc.substituteTeacherName ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200 font-bold'}>
+                                        {alloc.teacherName}
+                                    </span>
+                                    <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono font-bold text-[8.5px]">
+                                        Code: {tCode}
+                                    </span>
+                                    {alloc.substituteTeacherName && (
+                                        <span className="text-amber-600 dark:text-amber-400 font-bold ml-1">
+                                            ↳ {alloc.substituteTeacherName}
+                                        </span>
+                                    )}
+                                </p>
+                                {alloc.cancellationReason && (
+                                    <p className="text-[8px] text-rose-500 italic truncate" title={alloc.cancellationReason}>
+                                        Note: {alloc.cancellationReason}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Action Bar */}
+                            <div className="pt-1.5 flex items-center justify-between gap-1 flex-wrap">
+                                {alloc.status === 'Substitute Pending' && (
+                                    <div className="flex items-center gap-1 w-full justify-between">
+                                        <button 
+                                            onClick={() => handleDosApprovePendingSub(alloc)}
+                                            className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                        >
+                                            <Check className="w-2.5 h-2.5" /> Confirm
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDosRevertToOriginal(alloc)}
+                                            className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                        >
+                                            <RotateCcw className="w-2.5 h-2.5" /> Revert
+                                        </button>
+                                    </div>
+                                )}
+                                {alloc.status === 'Escalated to DOS' && (
+                                    <div className="flex items-center gap-1 w-full justify-between">
+                                        <button 
+                                            onClick={() => handleDosAutoSubstitute(alloc)}
+                                            className="px-2 py-0.5 bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                        >
+                                            <Sparkles className="w-2.5 h-2.5" /> Auto-Sub
+                                        </button>
+                                        <button 
+                                            onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
+                                            className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white rounded text-[8px] font-black uppercase transition-all flex items-center gap-0.5"
+                                        >
+                                            <UserPlus className="w-2.5 h-2.5" /> Manual Pick
+                                        </button>
+                                    </div>
+                                )}
+                                {(!alloc.status || alloc.status === 'Confirmed') && (
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => handleOpenEditAllocation(alloc)}
+                                            className="text-[8px] font-bold text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5 transition-colors"
+                                        >
+                                            <Pencil className="w-2.5 h-2.5" /> Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => { setReassigningAlloc(alloc); setReassignTeacherId(''); }}
+                                            className="text-[8px] font-bold text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 flex items-center gap-0.5 transition-colors"
+                                        >
+                                            <UserPlus className="w-2.5 h-2.5" /> Reassign
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-1 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                                <span className="text-[9px] font-mono font-bold text-slate-400">
+                                    {alloc.startTime} - {alloc.endTime}
+                                </span>
+                                <span className="text-[8px] font-black uppercase text-slate-400">
+                                    {['Saturday', 'Sunday'].includes(alloc.dayOfWeek) ? 'Weekend Tariff' : 'Weekday Tariff'}
+                                </span>
+                            </div>
+                        </div>
+                    );
+                };
+
+                return (
+                    <div className="space-y-6">
+                        {/* Header Controls */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-1 flex items-center gap-2">
+                                    <LayoutGrid className="w-4 h-4 text-violet-500" /> aSc Remedial Subjects &amp; Class Allocation Timetable
+                                </h4>
+                                <p className="text-xs text-slate-500">
+                                    Master Timetable grid arranged by classes and periods with official aSc subject colors, teacher codes, and joint stream sessions.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                <button
+                                    onClick={handleAutoGenerateTimetable}
+                                    className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-violet-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Sparkles className="w-4 h-4" /> Auto-Generate Timetable
+                                </button>
+                                <button
+                                    onClick={handleOpenCreateAllocation}
+                                    className="flex-1 md:flex-none px-5 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" /> Manual Allocation
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* View Switcher, Filter & Search Bar */}
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
+                            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+                                {/* View Mode Toggle */}
+                                <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-700/60">
+                                    <button
+                                        onClick={() => setAllocViewMode('asc_grid')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                                            allocViewMode === 'asc_grid'
+                                                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        <LayoutGrid className="w-3.5 h-3.5" /> aSc Master Grid
+                                    </button>
+                                    <button
+                                        onClick={() => setAllocViewMode('day_columns')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                                            allocViewMode === 'day_columns'
+                                                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        <Calendar className="w-3.5 h-3.5" /> Day Columns
+                                    </button>
+                                </div>
+
+                                {/* Print Timetable */}
+                                <button
+                                    onClick={handlePrintTimetable}
+                                    className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white hover:opacity-90 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm shrink-0"
+                                >
+                                    <Printer className="w-4 h-4" /> Print aSc Timetable Grid
+                                </button>
+                            </div>
+
+                            {/* Filters row */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {/* Class selector */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Class:</span>
+                                        <select
+                                            value={selectedTimetableClass}
+                                            onChange={e => {
+                                                setSelectedTimetableClass(e.target.value);
+                                                setSelectedTimetableStream('All');
+                                            }}
+                                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        >
+                                            <option value="All">All Classes ({courses.length})</option>
+                                            {courses.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Stream selector */}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Stream:</span>
+                                        <select
+                                            value={selectedTimetableStream}
+                                            onChange={e => setSelectedTimetableStream(e.target.value)}
+                                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        >
+                                            <option value="All">All Streams</option>
+                                            {distinctTimetableStreams.map(str => (
+                                                <option key={str} value={str}>{str}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Quick Search */}
+                                    <div className="relative">
+                                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={ascClassSearchQuery}
+                                            onChange={e => setAscClassSearchQuery(e.target.value)}
+                                            placeholder="Search class or stream..."
+                                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs font-medium outline-none focus:border-indigo-600 dark:text-white w-44"
+                                        />
+                                        {ascClassSearchQuery && (
+                                            <button onClick={() => setAscClassSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Day Scope Pills (Grid View) */}
+                                {allocViewMode === 'asc_grid' && (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                        {(['all', 'weekdays', 'weekend', 'Saturday', 'Sunday'] as const).map(scope => {
+                                            const labels: Record<string, string> = {
+                                                all: 'All 7 Days',
+                                                weekdays: 'Mon - Fri',
+                                                weekend: 'Weekend',
+                                                Saturday: 'Sat Only',
+                                                Sunday: 'Sun Only'
+                                            };
+                                            return (
+                                                <button
+                                                    key={scope}
+                                                    onClick={() => setAscDayScope(scope)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                        ascDayScope === scope
+                                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                                            : 'bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                                    }`}
+                                                >
+                                                    {labels[scope]}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* MODE 1: aSc MASTER TIMETABLE GRID (Classes × Periods) */}
+                        {allocViewMode === 'asc_grid' && (
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-700/60 dark:border-slate-700 shadow-2xl overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse text-left">
+                                        {/* HEADER 1: Day Row */}
+                                        <thead>
+                                            <tr className="border-b border-slate-400 dark:border-slate-600 select-none">
+                                                <th className="sticky left-0 z-30 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-black uppercase tracking-wider px-3 py-2.5 border-r-2 border-slate-500 dark:border-slate-600 min-w-[85px] shadow-sm">
+                                                    Class
+                                                </th>
+                                                {daysForAscGrid.map(day => {
+                                                    const slots = getAscSlotsForDay(day);
+                                                    const isWeekend = ['Saturday', 'Sunday'].includes(day);
+                                                    return (
+                                                        <th
+                                                            key={day}
+                                                            colSpan={slots.length}
+                                                            className={`text-center py-2.5 px-2 border-r-2 border-slate-400 dark:border-slate-600 text-xs font-black uppercase tracking-widest ${
+                                                                isWeekend 
+                                                                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200' 
+                                                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white'
+                                                            }`}
+                                                        >
+                                                            {day}
+                                                        </th>
+                                                    );
+                                                })}
+                                            </tr>
+
+                                            {/* HEADER 2: Period Numbers Row */}
+                                            <tr className="border-b-2 border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-850 select-none">
+                                                <th className="sticky left-0 z-30 bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 border-r-2 border-slate-400 dark:border-slate-600">
+                                                    Period
+                                                </th>
+                                                {daysForAscGrid.map(day => {
+                                                    const slots = getAscSlotsForDay(day);
+                                                    return slots.map((slot, sIdx) => {
+                                                        const isBreak = slot.isBreak;
+                                                        return (
+                                                            <th
+                                                                key={`${day}_${sIdx}`}
+                                                                className={`px-1 py-1.5 text-center border-r border-slate-300 dark:border-slate-700/80 min-w-[76px] max-w-[95px] ${
+                                                                    isBreak 
+                                                                        ? 'bg-amber-200/70 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300' 
+                                                                        : 'text-slate-700 dark:text-slate-300'
+                                                                }`}
+                                                            >
+                                                                <div className="text-[11px] font-black leading-none">
+                                                                    {isBreak ? '☕' : slot.periodNum}
+                                                                </div>
+                                                                <div className="text-[7.5px] font-mono opacity-80 mt-0.5">
+                                                                    {slot.startTime?.slice(0, 5)}
+                                                                </div>
+                                                            </th>
+                                                        );
+                                                    });
+                                                })}
+                                            </tr>
+                                        </thead>
+
+                                        {/* TABLE BODY: Rows of Classes */}
+                                        <tbody className="divide-y divide-slate-200 dark:divide-slate-700/60 bg-white dark:bg-slate-900">
+                                            {filteredClasses.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={100} className="p-12 text-center text-slate-400 italic text-xs">
+                                                        No classes match the filter criteria.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                filteredClasses.map((cls, rowIdx) => (
+                                                    <tr 
+                                                        key={cls.sortKey} 
+                                                        className={`hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 transition-colors ${
+                                                            rowIdx % 2 === 1 ? 'bg-slate-50/40 dark:bg-slate-900/40' : ''
+                                                        }`}
+                                                    >
+                                                        {/* Sticky Class Name Column */}
+                                                        <td className="sticky left-0 z-20 bg-slate-100 dark:bg-slate-800 px-3 py-2 border-r-2 border-slate-400 dark:border-slate-600 select-none shadow-xs">
+                                                            <div className="font-mono text-xs font-black text-slate-900 dark:text-white tracking-tight">
+                                                                {cls.shortCode}
+                                                            </div>
+                                                            <div className="text-[8px] font-medium text-slate-500 dark:text-slate-400 truncate max-w-[70px]" title={`${cls.className} • ${cls.stream || 'All Streams'}`}>
+                                                                {cls.stream || 'All'}
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Period Cells across all Days */}
+                                                        {daysForAscGrid.map(day => {
+                                                            const slots = getAscSlotsForDay(day);
+                                                            return slots.map((slot, sIdx) => {
+                                                                const isLastOfSlot = sIdx === slots.length - 1;
+                                                                return (
+                                                                    <td
+                                                                        key={`${day}_${sIdx}`}
+                                                                        className={`p-1 text-center align-middle ${
+                                                                            isLastOfSlot 
+                                                                                ? 'border-r-2 border-slate-400 dark:border-slate-600' 
+                                                                                : 'border-r border-slate-200 dark:border-slate-700/60'
+                                                                        }`}
+                                                                    >
+                                                                        {renderAscGridCell(cls, day, slot)}
+                                                                    </td>
+                                                                );
+                                                            });
+                                                        })}
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* MODE 2: DAY COLUMNS VIEW (Cards) */}
+                        {allocViewMode === 'day_columns' && (
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                                    {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const).map(day => {
+                                        const isWeekend = ['Saturday', 'Sunday'].includes(day);
+                                        const dayAllocations = allocations.filter(a => {
+                                            const matchDay = a.dayOfWeek === day;
+                                            const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
+                                            const matchStream = matchAllocationStream(a, selectedTimetableStream);
+                                            return matchDay && matchClass && matchStream;
+                                        }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+                                        const isSaturday = day === 'Saturday';
+                                        const isSunday = day === 'Sunday';
+                                        const dayHasBreak = (isSaturday && includeSaturdayBreak) || (isSunday && includeSundayBreak);
+                                        const dayBreakStart = isSaturday ? (saturdayBreakStartTime || '10:00') : (sundayBreakStartTime || '11:00');
+                                        const dayBreakEnd = isSaturday ? (saturdayBreakEndTime || '10:30') : (sundayBreakEndTime || '11:30');
+                                        const dayBreakLabel = isSaturday ? (saturdayBreakLabel || 'Saturday Refreshment Break') : (sundayBreakLabel || 'Sunday Recess Break');
+
+                                        const preBreakAllocations = isWeekend && dayHasBreak 
+                                            ? dayAllocations.filter(a => (a.startTime || '') < dayBreakStart)
+                                            : dayAllocations;
+                                        const postBreakAllocations = isWeekend && dayHasBreak 
+                                            ? dayAllocations.filter(a => (a.startTime || '') >= dayBreakStart)
+                                            : [];
+
+                                        return (
+                                            <div 
+                                                key={day} 
+                                                className={`rounded-2xl p-4 border transition-all ${
+                                                    isWeekend 
+                                                        ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30' 
+                                                        : 'bg-slate-50/80 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800 pb-2.5 mb-3">
+                                                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">{day}</h5>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
+                                                        isWeekend ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                                                    }`}>
+                                                        {dayAllocations.length} session{dayAllocations.length === 1 ? '' : 's'}
+                                                    </span>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {preBreakAllocations.length > 0 ? (
+                                                        preBreakAllocations.map(renderAllocCard)
+                                                    ) : !isWeekend && (
+                                                        <p className="text-[10px] text-slate-400 font-medium italic text-center py-6">No lessons scheduled</p>
+                                                    )}
+
+                                                    {/* Weekend Break Card */}
+                                                    {isWeekend && dayHasBreak && (
+                                                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 p-3 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700/60 shadow-xs flex flex-col items-center justify-center text-center space-y-1 my-2 print:border-amber-500 print:bg-amber-50">
+                                                            <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-200">
+                                                                <Coffee className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                                <span className="text-[10px] font-black uppercase tracking-wider">{dayBreakLabel}</span>
+                                                            </div>
+                                                            <p className="text-[9px] font-mono font-black text-amber-700 dark:text-amber-300">
+                                                                {dayBreakStart} – {dayBreakEnd}
+                                                            </p>
+                                                            <span className="text-[7.5px] font-bold uppercase tracking-widest text-amber-600/90 dark:text-amber-400/90">{day} Recess</span>
+                                                        </div>
+                                                    )}
+
+                                                    {postBreakAllocations.length > 0 && (
+                                                        postBreakAllocations.map(renderAllocCard)
+                                                    )}
+
+                                                    {isWeekend && dayAllocations.length === 0 && !dayHasBreak && (
+                                                        <p className="text-[10px] text-slate-400 font-medium italic text-center py-6">No lessons scheduled</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* aSc TIMETABLE SUBJECT COLOR REFERENCE (LEGEND) */}
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h6 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                    <Sparkles className="w-3.5 h-3.5 text-violet-500" /> aSc Timetable Subject Color Reference
+                                </h6>
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                    {effectiveSchoolSubjects.length} Registered Subjects
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {effectiveSchoolSubjects.map(sub => {
+                                    const c = getAscSubjectColor(sub.name, sub.id);
+                                    const code = getSubjectCode(sub.name, sub.id);
+                                    return (
+                                        <div 
+                                            key={sub.id}
+                                            style={{ backgroundColor: c.bg, color: c.text, borderColor: c.border }}
+                                            className="px-2.5 py-1 rounded-lg border text-[10px] font-black flex items-center gap-1.5 shadow-2xs select-none hover:scale-105 transition-transform"
+                                        >
+                                            <span className="px-1 py-0.2 rounded bg-black/20 text-[9px] uppercase font-mono tracking-tight">
+                                                {code}
+                                            </span>
+                                            <span>{sub.name}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* QUICK ACTION MODAL ON aSc CELL CLICK */}
+                        {selectedCellAlloc && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+                                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-700 space-y-4">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3">
+                                            {(() => {
+                                                const c = getAscSubjectColor(selectedCellAlloc.subjectName, selectedCellAlloc.subjectId);
+                                                const code = getSubjectCode(selectedCellAlloc.subjectName, selectedCellAlloc.subjectId);
+                                                return (
+                                                    <div 
+                                                        style={{ backgroundColor: c.bg, color: c.text, borderColor: c.border }} 
+                                                        className="w-12 h-12 rounded-2xl border flex flex-col items-center justify-center shadow-sm select-none"
+                                                    >
+                                                        <span className="text-sm font-black uppercase drop-shadow-xs">{code}</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                            <div>
+                                                <h4 className="text-base font-black text-slate-900 dark:text-white leading-tight">
+                                                    {selectedCellAlloc.subjectName}
+                                                </h4>
+                                                <p className="text-xs text-slate-500 font-medium">
+                                                    {selectedCellAlloc.className} {selectedCellAlloc.stream && selectedCellAlloc.stream !== 'All Streams' ? `• ${selectedCellAlloc.stream}` : ''}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setSelectedCellAlloc(null)}
+                                            className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                                        <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800">
+                                            <span className="text-slate-500 font-medium">Teacher Assigned:</span>
+                                            <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                {selectedCellAlloc.teacherName}
+                                                <span className="px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono font-black text-[10px]">
+                                                    Code: {getTeacherCode(selectedCellAlloc.teacherId, selectedCellAlloc.teacherName, enrichedUsers)}
+                                                </span>
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800">
+                                            <span className="text-slate-500 font-medium">Timetable Slot:</span>
+                                            <span className="font-bold text-slate-900 dark:text-white">
+                                                {selectedCellAlloc.dayOfWeek} • {selectedCellAlloc.startTime} - {selectedCellAlloc.endTime}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800">
+                                            <span className="text-slate-500 font-medium">Subject Priority:</span>
+                                            <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded ${
+                                                selectedCellAlloc.priority === 'High' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                            }`}>
+                                                {selectedCellAlloc.priority || 'Medium'}
+                                            </span>
+                                        </div>
+                                        {selectedCellAlloc.substituteTeacherName && (
+                                            <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800 text-amber-600 dark:text-amber-400">
+                                                <span className="font-medium">Active Substitute:</span>
+                                                <span className="font-bold">↳ {selectedCellAlloc.substituteTeacherName}</span>
+                                            </div>
+                                        )}
+                                        {(selectedCellAlloc.isJoint || selectedCellAlloc.is_joint || (selectedCellAlloc.jointStreams && selectedCellAlloc.jointStreams.length > 0)) && (
+                                            <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800 text-emerald-600 dark:text-emerald-400">
+                                                <span className="font-medium">Joint Stream Session:</span>
+                                                <span className="font-bold">
+                                                    {Array.isArray(selectedCellAlloc.jointStreams) ? selectedCellAlloc.jointStreams.join(', ') : 'Combined Streams'}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2 pt-2">
+                                        <button
+                                            onClick={() => {
+                                                const toEdit = selectedCellAlloc;
+                                                setSelectedCellAlloc(null);
+                                                handleOpenEditAllocation(toEdit);
+                                            }}
+                                            className="py-2.5 px-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" /> Edit
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const toReassign = selectedCellAlloc;
+                                                setSelectedCellAlloc(null);
+                                                setReassigningAlloc(toReassign);
+                                                setReassignTeacherId('');
+                                            }}
+                                            className="py-2.5 px-3 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-600 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <UserPlus className="w-3.5 h-3.5" /> Reassign
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const toDeleteId = selectedCellAlloc.id;
+                                                setSelectedCellAlloc(null);
+                                                handleDeleteAllocation(toDeleteId);
+                                            }}
+                                            className="py-2.5 px-3 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-600 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* TAB: SESSIONS */}
             {activeTab === 'sessions' && (
