@@ -95,7 +95,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Connection verified. Handshake logic follows.
     console.log(`[Integrations] Handling Action: ${action || 'StatusCheck'} Method: ${req.method}`);
-    const recipient = getParam('recipient') || getParam('phone') || getParam('phoneNumber') || getParam('phone_number') || getParam('to');
+    const rawRecip = paramsMap.recipient || paramsMap.recipients || paramsMap.phone || paramsMap.phoneNumber || paramsMap.phone_number || paramsMap.to;
+    const recipient = Array.isArray(rawRecip) ? (rawRecip[0] || '') : (rawRecip || getParam('recipient') || getParam('recipients') || getParam('phone') || getParam('phoneNumber') || getParam('phone_number') || getParam('to'));
     const message = getParam('message');
     const subject = getParam('subject');
     const amountStr = getParam('amount');
@@ -644,25 +645,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
                 authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
-                let query = supabase.from('users').select('*');
                 const method = getParam('method') || 'email';
+                let targetUser: any = null;
 
-                if ((action === 'sendSms' || (action === 'forgotPassword' && method === 'phone')) && recipient) {
-                    // Flexible phone number matching: ignore country code prefixes, spaces, formatting
-                    const digits = recipient.replace(/\D/g, '');
-                    if (digits.length >= 9) {
-                        const last9 = digits.substring(digits.length - 9);
-                        const pattern = '%' + last9.split('').join('%') + '%';
-                        query = query.ilike('phone_number', pattern);
-                    } else {
-                        query = query.eq('phone_number', recipient);
+                if (recipient) {
+                    try {
+                        let query = supabase.from('users').select('*');
+                        if ((action === 'sendSms' || (action === 'forgotPassword' && method === 'phone'))) {
+                            const digits = recipient.replace(/\D/g, '');
+                            if (digits.length >= 9) {
+                                const last9 = digits.substring(digits.length - 9);
+                                const pattern = '%' + last9.split('').join('%') + '%';
+                                query = query.ilike('phone_number', pattern);
+                            } else {
+                                query = query.eq('phone_number', recipient);
+                            }
+                        } else {
+                            query = query.ilike('email', recipient.trim());
+                        }
+                        const { data } = await query.maybeSingle();
+                        targetUser = data;
+                    } catch (lookupErr: any) {
+                        console.warn(`[Auth Bridge] User lookup error for ${action} (${recipient}):`, lookupErr?.message);
                     }
-                } else if (recipient) {
-                    // Case-insensitive email search
-                    query = query.ilike('email', recipient.trim());
                 }
-
-                const { data: targetUser } = await query.maybeSingle();
 
                 if (targetUser) {
                     console.log(`[Auth Bridge] Bypass granted for ${action} to ${recipient} (Match: ${targetUser.id})`);
@@ -677,7 +683,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     authError = null;
                 } else if (isSystemMessage) {
                     // Critical fix: Allow OTPs/Recovery links even if user lookup fails
-                    console.log(`[Auth Bridge] Generic system bypass granted for ${action} to ${recipient}`);
+                    console.log(`[Auth Bridge] Generic system bypass granted for OTP/system ${action} to ${recipient}`);
                     user = {
                         id: 'system',
                         role: 'system',
@@ -2143,106 +2149,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (user.phone_number) {
                 console.log(`[Forgot Password] Dispatching recovery link via SMS to: ${user.phone_number}`);
                 const smsMessage = `Eduai Automation Password Reset: Click the link below to set a new password. Link valid for 1 hour: ${resetLink}`;
-
-                const smsConfig = settings.sms_config;
-                if (smsConfig) {
+                const phone = normalizePhone(user.phone_number);
+                if (phone) {
                     try {
-                        let phone = user.phone_number.replace(/[^\d]/g, '');
-                        if (phone.startsWith('254')) {
-                            const afterPrefix = phone.substring(3);
-                            if (afterPrefix.startsWith('0')) phone = '254' + afterPrefix.substring(1);
-                        } else if (phone.startsWith('0')) {
-                            phone = '254' + phone.substring(1);
-                        } else if (phone.length === 9) {
-                            phone = '254' + phone;
-                        }
-
-                        const provider = smsConfig.provider || 'Zettatel';
-                        const defaultUrls: Record<string, string> = {
-                            'ABMIS': 'https://sms.abmis.co.ke/SMSApi/send',
-                            'Zettatel': 'https://sms.zettatel.com/smsapi/send'
-                        };
-
-                        let smsRes: any;
-                        if (provider === 'Sematime') {
-                            const accId = smsConfig.accountId || smsConfig.userId || smsConfig.apiKey || '';
-                            const authToken = smsConfig.authToken || smsConfig.apiSecret || smsConfig.password || '';
-                            const semaUrl = `https://apis.sematime.com/v1/${accId}/messages/single`;
-
-                            try {
-                                console.log(`[Forgot Password Sematime Request] URL: ${semaUrl}`);
-                                console.log(`[Forgot Password Sematime Request] Headers: ${JSON.stringify({ 'Content-Type': 'application/json', 'AuthToken': authToken ? '***' + authToken.slice(-4) : 'none' })}`);
-                                console.log(`[Forgot Password Sematime Request] Body: ${JSON.stringify({ text: smsMessage, recipients: phone })}`);
-
-                                smsRes = await fetchWithTimeout(semaUrl, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'AuthToken': authToken
-                                    },
-                                    body: JSON.stringify({
-                                        text: smsMessage,
-                                        recipients: phone
-                                    })
-                                }, 15000);
-
-                                const resRaw = await smsRes.text();
-                                console.log(`[Forgot Password Sematime Response] Status: ${smsRes.status} ${smsRes.statusText}`);
-                                console.log(`[Forgot Password Sematime Response] Raw: ${resRaw}`);
-                                // Re-wrap the body so it can be read again downstream
-                                smsRes.text = async () => resRaw;
-                            } catch (fetchErr: any) {
-                                console.error(`[Forgot Password Sematime Exception] ${fetchErr.message}`);
-                                const authKeyLower = (accId || '').toLowerCase();
-                                const isDemoKey = authKeyLower.includes('demo') || authKeyLower.includes('test') || authKeyLower.includes('dummy') || authKeyLower === '';
-                                if (isDemoKey || process.env.NODE_ENV === 'development') {
-                                    console.log(`[Forgot Password Sematime Sandbox] Simulating successful OTP send on fetch failure.`);
-                                    smsRes = {
-                                        ok: true,
-                                        status: 200,
-                                        text: async () => JSON.stringify({ success: true, message: 'Simulated success' })
-                                    } as any;
-                                } else {
-                                    throw fetchErr;
-                                }
-                            }
-
-                            if (smsRes && !smsRes.ok) {
-                                const authKeyLower = (accId || '').toLowerCase();
-                                const isDemoKey = authKeyLower.includes('demo') || authKeyLower.includes('test') || authKeyLower.includes('dummy') || authKeyLower === '';
-                                if (isDemoKey || process.env.NODE_ENV === 'development') {
-                                    console.log(`[Forgot Password Sematime Sandbox] Overriding non-ok response status for demo.`);
-                                    smsRes = {
-                                        ok: true,
-                                        status: 200,
-                                        text: async () => JSON.stringify({ success: true, message: 'Simulated success' })
-                                    } as any;
-                                }
-                            }
-                        } else {
-                            const baseUrl = smsConfig.baseUrl || smsConfig.api_url || defaultUrls[provider] || defaultUrls['Zettatel'];
-
-                            const finalParams: Record<string, string> = {
-                                userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
-                                password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
-                                mobile: phone,
-                                msg: smsMessage,
-                                senderid: smsConfig.fromNumber || provider,
-                                msgType: 'text',
-                                output: 'json'
-                            };
-
-                            const urlParams = new URLSearchParams(finalParams);
-                            const method = smsConfig.method || 'GET';
-                            const dispatchUrl = method === 'GET' ? `${baseUrl}?${urlParams.toString()}` : baseUrl;
-                            const fetchOptions: any = { method, headers: { 'Accept': 'application/json' } };
-                            if (method === 'POST') fetchOptions.body = urlParams.toString();
-
-                            smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 15000);
-                        }
-                        const smsResultText = await smsRes.text();
-                        console.log(`[Forgot Password] SMS Gateway Response: ${smsResultText.substring(0, 100)}`);
-                        smsSuccess = true;
+                        const candidates = buildCandidateGateways(bodyConfig, null, settings.sms_config || settings.smsConfig, true);
+                        const smsDispRes = await dispatchSmsWithCascade(candidates, [phone], smsMessage, true);
+                        smsSuccess = smsDispRes.success;
+                        console.log(`[Forgot Password] SMS Gateway result: ${smsDispRes.provider} (Success: ${smsDispRes.success})`);
                     } catch (e: any) {
                         console.error(`[Forgot Password] SMS Dispatch Failed: ${e.message}`);
                     }
