@@ -3073,20 +3073,9 @@ export const apiService = {
             const data = ls.get('system_settings').find((s: any) => s.id === 1);
             return data ? toCamelCase(data.data) : null;
         }
-        try {
-            const response = await fetch('/api/system?action=getSettings');
-            if (!response.ok) throw new Error('Failed to fetch settings');
-            
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error("Received non-JSON response for settings");
-            }
 
-            const data = await response.json();
-            // Store as cache for handle ERR_NAME_NOT_RESOLVED type failures (safe with auto key eviction)
-            safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
-
-            const rawSettings = toCamelCase(data) || null;
+        const parseAndNormalize = (rawJson: any): CompanyDetails | null => {
+            const rawSettings = toCamelCase(rawJson) || null;
             if (rawSettings) {
                 const ps = rawSettings.portalSettings || (rawSettings as any).portal_settings || {};
                 const feeFlag = ps.alumnaeRegistrationFeeEnabled ?? ps.alumnae_registration_fee_enabled ?? (rawSettings as any).alumnae_registration_fee_enabled;
@@ -3096,27 +3085,54 @@ export const apiService = {
                 };
             }
             return rawSettings;
-        } catch (e) {
-            console.error("[apiService] Error fetching company settings:", e);
-            // Try to recover from cache
-            try {
-                const cachedData = localStorage.getItem('eduai_system_settings_cache');
-                if (cachedData) {
-                    console.warn("[apiService] Recovered system settings from cache after fetch failure");
-                    const rawSettings = toCamelCase(JSON.parse(cachedData));
-                    if (rawSettings) {
-                        const ps = rawSettings.portalSettings || (rawSettings as any).portal_settings || {};
-                        const feeFlag = ps.alumnaeRegistrationFeeEnabled ?? ps.alumnae_registration_fee_enabled ?? (rawSettings as any).alumnae_registration_fee_enabled;
-                        rawSettings.portalSettings = {
-                            ...ps,
-                            alumnaeRegistrationFeeEnabled: feeFlag !== undefined ? (feeFlag === true || feeFlag === 'true' || feeFlag === 1) : true
-                        };
-                    }
-                    return rawSettings;
+        };
+
+        // Tier 1: Fetch from /api/system?action=getSettings (accelerated by Edge Cache)
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const response = await fetch('/api/system?action=getSettings', { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
+                    return parseAndNormalize(data);
                 }
-            } catch (cacheErr) {}
-            return null;
+            }
+        } catch {
+            // Silently proceed to Tier 2 on network/cold-start delays
         }
+
+        // Tier 2: Direct Supabase client query fallback
+        if (_supabase) {
+            try {
+                const { data: dbData, error: dbErr } = await _supabase
+                    .from('system_settings')
+                    .select('data')
+                    .eq('id', 1)
+                    .maybeSingle();
+
+                if (!dbErr && dbData?.data) {
+                    safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(dbData.data));
+                    return parseAndNormalize(dbData.data);
+                }
+            } catch {
+                // Silently proceed to Tier 3
+            }
+        }
+
+        // Tier 3: Seamlessly recover from local storage cache
+        try {
+            const cachedData = localStorage.getItem('eduai_system_settings_cache');
+            if (cachedData) {
+                return parseAndNormalize(JSON.parse(cachedData));
+            }
+        } catch {}
+
+        return null;
     },
     async getSystemSettings(): Promise<{ data: CompanyDetails | null }> {
         const settings = await apiService.fetchCompanySettings();
