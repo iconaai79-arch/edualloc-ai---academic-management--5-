@@ -1248,11 +1248,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const configPayload = req.body?.config || req.body?.data || req.body;
             const targetInstitutionId = configPayload?.institution_id || configPayload?.institutionId || 'global';
 
+            let cleanGatewayUrl = (configPayload.gateway_url || configPayload.gatewayUrl || '').trim();
+            if (cleanGatewayUrl.includes('whatsapp-webhook') || cleanGatewayUrl.endsWith('/api') || cleanGatewayUrl.includes('wa.eduai.platform')) {
+                cleanGatewayUrl = '';
+            }
+
             const cleanPayload: any = {
                 id: configPayload.id || (targetInstitutionId === 'global' ? 'wacfg_global' : `wacfg_${targetInstitutionId}`),
                 institution_id: targetInstitutionId,
                 provider_type: configPayload.provider_type || configPayload.providerType || 'gateway',
-                gateway_url: configPayload.gateway_url || configPayload.gatewayUrl || null,
+                gateway_url: cleanGatewayUrl || null,
                 api_key: configPayload.api_key || configPayload.apiKey || null,
                 instance_name: configPayload.instance_name || configPayload.instanceName || (targetInstitutionId === 'global' ? 'eduai_master' : `eduai_${targetInstitutionId}`),
                 phone_number: configPayload.phone_number || configPayload.phoneNumber || null,
@@ -1509,6 +1514,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 msg += ' — Sandbox mode: Ensure this recipient number (+254...) is added to the allowed "To" phone numbers in Meta Developer Portal.';
                             } else if (metaErr.code === 190) {
                                 msg += ' — Meta Access Token is expired or invalid. Please generate a fresh System User Token in Meta Developer Portal.';
+                            } else if (metaErr.code === 133010) {
+                                msg = 'Meta Account Not Registered (#133010): This business phone number has not completed verification on Meta. In Meta Developer / Business Suite, verify the phone number via 6-digit SMS OTP and set a PIN, or select Meta\'s sandbox test number (+1 555...).';
                             }
                             errorMessage = msg;
                         } else {

@@ -158,12 +158,19 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                         .maybeSingle();
 
                     if (dbConfig) {
-                        const cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
+                        let cleanUrl = (dbConfig.gateway_url || '').includes('wa.eduai.platform') ? '' : (dbConfig.gateway_url || '');
+                        if (cleanUrl.includes('whatsapp-webhook') || cleanUrl.endsWith('/api')) {
+                            cleanUrl = '';
+                        }
+                        const resolvedProvider = (dbConfig.provider_type === 'meta_cloud' || (!cleanUrl && (dbConfig.meta_phone_number_id || dbConfig.meta_access_token)))
+                            ? 'meta_cloud'
+                            : (dbConfig.provider_type || 'gateway');
+
                         setConfig(prev => ({
                             ...prev,
                             ...dbConfig,
                             gateway_url: cleanUrl,
-                            provider_type: dbConfig.provider_type || 'gateway'
+                            provider_type: resolvedProvider
                         }));
                         // Detect if the saved URL matches the platform gateway
                         if (cleanUrl && cleanUrl === PLATFORM_GATEWAY_URL) {
@@ -731,11 +738,42 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                                                 : 'Enter the HTTP(S) address and port of your Evolution API server (e.g. http://123.45.67.89:8080 or https://whatsapp.yourdomain.com)'}
                                         </span>
                                         {config.gateway_url && (config.gateway_url.includes('whatsapp-webhook') || config.gateway_url.endsWith('/api')) && (
-                                            <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
-                                                <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
-                                                <span>
-                                                    <strong>Incorrect URL:</strong> You entered the <em>Webhook Callback endpoint</em> (<code>.../whatsapp-webhook</code>). The Gateway Base URL must be the root address of an active <strong>Evolution API / Baileys</strong> server (e.g. <code>http://YOUR_VPS_IP:8080</code> or <code>https://wa.yourdomain.com</code>). If using official Meta API, select the <strong>Meta Cloud API</strong> tab above.
-                                                </span>
+                                            <div className="mt-2 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2.5 animate-fade-in">
+                                                <div className="flex items-start gap-2">
+                                                    <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
+                                                    <span className="leading-relaxed">
+                                                        <strong>Incorrect URL:</strong> You entered the <em>Webhook Callback endpoint</em> (<code>.../whatsapp-webhook</code>). The Gateway Base URL must be the address of an active <strong>Evolution API / Baileys</strong> server. If you want to use your Meta credentials, click <strong>Auto-Fix</strong> below.
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-500/20">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setConfig(prev => ({
+                                                                ...prev,
+                                                                provider_type: 'meta_cloud',
+                                                                gateway_url: '',
+                                                                meta_phone_number_id: prev.meta_phone_number_id || '399129969952387',
+                                                                meta_waba_id: prev.meta_waba_id || '391067047421179'
+                                                            }));
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[11px] uppercase tracking-wider transition-all shadow-md flex items-center gap-1.5"
+                                                    >
+                                                        <span>⚡ Auto-Fix: Switch to Meta Cloud API</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setConfig(prev => ({
+                                                                ...prev,
+                                                                gateway_url: ''
+                                                            }));
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 font-bold text-[11px] transition-all"
+                                                    >
+                                                        Clear URL
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
