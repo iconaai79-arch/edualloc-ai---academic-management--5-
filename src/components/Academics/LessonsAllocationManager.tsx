@@ -242,14 +242,25 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         return (currentInstitution as any)?.classSubjectAllocations || {};
     });
 
-    useEffect(() => {
+    const reloadClassAllocations = useCallback(() => {
+        try {
+            const instIdKey = currentInstitution?.id || 'default_inst';
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instIdKey}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') {
+                    setClassAllocationsStore(prev => ({ ...prev, ...parsed }));
+                }
+            }
+        } catch(e) {}
+
         if (currentInstitution?.id) {
             apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
                 .then(records => {
                     const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
                     if (match && match.allocations) {
                         setClassAllocationsStore(prev => {
-                            const merged = { ...match.allocations, ...prev };
+                            const merged = { ...prev, ...match.allocations };
                             try {
                                 localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
                             } catch(e) {}
@@ -260,6 +271,17 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 .catch(() => {});
         }
     }, [currentInstitution]);
+
+    useEffect(() => {
+        reloadClassAllocations();
+        const handleSync = (e: any) => {
+            if (e.detail?.type === 'allocations' || !e.detail?.type) {
+                reloadClassAllocations();
+            }
+        };
+        window.addEventListener('eduai_academics_synced', handleSync);
+        return () => window.removeEventListener('eduai_academics_synced', handleSync);
+    }, [reloadClassAllocations]);
 
     // DB & Local Storage Student Registry Store
     const [allRegisteredStudents, setAllRegisteredStudents] = useState<any[]>([]);
@@ -549,12 +571,21 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         if (!clsName) return [];
         const cClean = clsName.trim();
         const cLower = cClean.toLowerCase();
+        const parsed = extractClassAndStream(cClean);
+        const baseClass = (parsed.className || cClean).trim();
+        const baseLower = baseClass.toLowerCase();
 
         let rawList: any[] = [];
+        let hasExplicitStore = false;
 
         // 1. Check persistent per-class allocation store configured in Manage Subjects per Class Stream
-        const storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
-        if (Array.isArray(storedAssignedIds) && storedAssignedIds.length > 0) {
+        let storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
+        if (!storedAssignedIds && baseClass && baseLower !== cLower) {
+            storedAssignedIds = classAllocationsStore[baseClass] ?? classAllocationsStore[baseLower];
+        }
+
+        if (Array.isArray(storedAssignedIds)) {
+            hasExplicitStore = true;
             const set = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));
             rawList = subjects.filter(s => {
                 const sId = (s.id || '').toLowerCase().trim();
@@ -566,10 +597,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             // 2. Check explicit targetClasses / assignedClasses array on subject
             const explicitMatch = subjects.filter(s => {
                 const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
-                if (Array.isArray(targetCls)) {
+                if (Array.isArray(targetCls) && targetCls.length > 0) {
                     return targetCls.some((tc: string) => {
                         const cleanTC = (tc || '').toLowerCase().trim();
-                        return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower);
+                        const parsedTC = extractClassAndStream(cleanTC).className.toLowerCase().trim();
+                        return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower) ||
+                               (parsedTC && (parsedTC === cLower || parsedTC === baseLower));
                     });
                 }
                 return false;
@@ -577,6 +610,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
             if (explicitMatch.length > 0) {
                 rawList = explicitMatch;
+                hasExplicitStore = true;
             } else {
                 // 3. Fallback to standard grade-level applicability rules
                 const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
@@ -586,7 +620,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             }
         }
 
-        if (rawList.length === 0) {
+        if (rawList.length === 0 && !hasExplicitStore) {
             rawList = [
                 { id: 'sub_math', name: 'Mathematics', code: 'MATH 101', periodsPerWeek: 6 },
                 { id: 'sub_eng', name: 'English', code: 'ENGL 101', periodsPerWeek: 6 },
@@ -792,7 +826,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setAllocations(prev => prev.filter(a => a.id !== alloc.id && !(a.className === alloc.className && a.subjectName === alloc.subjectName)));
 
         // Delete from DB subject_allocations table if record exists
-        if (currentInstitution?.id && alloc.id && !alloc.id.startsWith('alloc_') && alloc.id.length > 5) {
+        if (currentInstitution?.id && alloc.id && alloc.id.length > 3) {
             await apiService.deleteModuleRecord('subject_allocations', alloc.id).catch(() => {});
         }
 
@@ -815,6 +849,33 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 await apiService.saveSubject({ ...subjObj, targetClasses: updatedClasses, assignedClasses: updatedClasses } as Subject).catch(() => {});
             }
         }
+
+        // Also clean up from classAllocationsStore if configured
+        const cleanClass = alloc.className.trim();
+        const storedIds = classAllocationsStore[cleanClass] || classAllocationsStore[cleanClass.toLowerCase()];
+        if (Array.isArray(storedIds)) {
+            const subjObjId = subjObj?.id;
+            const updatedIds = storedIds.filter(id => {
+                const idLower = String(id).toLowerCase().trim();
+                return idLower !== alloc.subjectName.toLowerCase().trim() && (!subjObjId || idLower !== subjObjId.toLowerCase().trim());
+            });
+            const updatedStore = { ...classAllocationsStore, [cleanClass]: updatedIds };
+            setClassAllocationsStore(updatedStore);
+            try {
+                localStorage.setItem(`eduai_class_subject_allocations_${instId}`, JSON.stringify(updatedStore));
+            } catch(e) {}
+            if (currentInstitution?.id) {
+                apiService.saveModuleRecord('class_subject_allocations', {
+                    id: `alloc_${currentInstitution.id}`,
+                    institutionId: currentInstitution.id,
+                    allocations: updatedStore
+                }).catch(() => {});
+            }
+        }
+
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId } }));
+        } catch(e) {}
 
         setSaveToast(`Removed ${alloc.subjectName} allocation from ${alloc.className}`);
         setTimeout(() => setSaveToast(null), 3000);
@@ -1018,42 +1079,54 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Selected Class Stream Allocations (dynamically populated based on subjects assigned to activeTargetClassName, deduplicated strictly by subject name)
+    // Selected Class Stream Allocations (strictly driven by subjects configured for activeTargetClassName / selectedClass in Manage Subjects per Class)
     const classAllocations = useMemo(() => {
         if (!selectedClass) return [];
 
         const q = searchQuery.toLowerCase().trim();
         const map = new Map<string, SubjectAllocationRecord>();
 
-        // 1. First add saved DB allocation records for activeTargetClassName
-        const savedForTarget = (allocations || []).filter(a => a.className.toLowerCase().trim() === activeTargetClassName.toLowerCase().trim());
-        savedForTarget.forEach(a => {
-            const key = (a.subjectName || '').toLowerCase().trim();
-            if (key && !map.has(key)) {
-                map.set(key, a);
-            }
-        });
+        // 1. Authoritative: Get applicable subjects for activeTargetClassName (or selectedClass)
+        const applicableSubjects = getApplicableSubjectsForClass(activeTargetClassName || selectedClass);
 
-        // 2. If stream-specific, check if base class has saved allocations to use as inherit baseline
-        if (isStreamSpecific) {
-            const savedForBase = (allocations || []).filter(a => a.className.toLowerCase().trim() === selectedClass.toLowerCase().trim());
-            savedForBase.forEach(ba => {
-                const key = (ba.subjectName || '').toLowerCase().trim();
-                if (key && !map.has(key)) {
-                    map.set(key, {
-                        ...ba,
-                        id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${ba.subjectName.replace(/\s+/g, '_')}`,
+        // Helper to find saved allocation for a subject
+        const findSavedAlloc = (sName: string, sCode?: string) => {
+            const sNameClean = sName.toLowerCase().trim();
+            const sCodeClean = (sCode || '').toLowerCase().trim();
+
+            // Check exact match for activeTargetClassName
+            let match = (allocations || []).find(a => 
+                a.className.toLowerCase().trim() === activeTargetClassName.toLowerCase().trim() &&
+                ((a.subjectName || '').toLowerCase().trim() === sNameClean || (sCodeClean && (a.subjectCode || '').toLowerCase().trim() === sCodeClean))
+            );
+
+            // If stream-specific and not found, check base class allocation to inherit
+            if (!match && isStreamSpecific) {
+                const baseMatch = (allocations || []).find(ba => 
+                    ba.className.toLowerCase().trim() === selectedClass.toLowerCase().trim() &&
+                    ((ba.subjectName || '').toLowerCase().trim() === sNameClean || (sCodeClean && (ba.subjectCode || '').toLowerCase().trim() === sCodeClean))
+                );
+                if (baseMatch) {
+                    match = {
+                        ...baseMatch,
+                        id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${baseMatch.subjectName.replace(/\s+/g, '_')}`,
                         className: activeTargetClassName
-                    });
+                    };
                 }
-            });
-        }
+            }
+            return match;
+        };
 
-        // 3. Add applicable subjects for selectedClass if not already present
-        const applicableSubjects = getApplicableSubjectsForClass(selectedClass);
+        // 2. Hydrate each authoritative subject with its teacher and lesson count
         applicableSubjects.forEach((subj, idx) => {
-            const key = (subj.name || '').toLowerCase().trim();
-            if (key && !map.has(key)) {
+            const sName = subj.name;
+            const key = (sName || '').toLowerCase().trim();
+            if (!key || map.has(key)) return;
+
+            const saved = findSavedAlloc(sName, subj.code);
+            if (saved) {
+                map.set(key, saved);
+            } else {
                 const defaultTeacher = teacherUsers[idx % teacherUsers.length];
                 map.set(key, {
                     id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${subj.id || idx}`,
@@ -1069,7 +1142,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             }
         });
 
-        // 4. Convert to array and filter out deleted/removed keys and search query
+        // 3. Convert to array and filter out deleted/removed keys and search query
         return Array.from(map.values()).filter(a => {
             if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`) || (!isStreamSpecific && removedFromClassKeys.has(`${selectedClass}_${a.subjectName}`))) return false;
             if (!q) return true;
@@ -1079,25 +1152,28 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         });
     }, [selectedClass, activeTargetClassName, isStreamSpecific, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
-    // All allocations dynamically gathered across classOptions + saved DB allocations (deduplicated by className + subjectName)
+    // All allocations dynamically gathered across classOptions strictly matching applicable subjects
     const allAllocations = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
         const map = new Map<string, SubjectAllocationRecord>();
 
-        // 1. First add all DB/state saved allocations
-        (allocations || []).forEach(a => {
-            const key = `${a.className.toLowerCase().trim()}_${a.subjectName.toLowerCase().trim()}`;
-            if (key && !map.has(key)) {
-                map.set(key, a);
-            }
-        });
-
-        // 2. Add dynamically derived class allocations for all classOptions
         (classOptions || []).forEach(cls => {
             const applicable = getApplicableSubjectsForClass(cls);
             applicable.forEach((subj, idx) => {
-                const key = `${cls.toLowerCase().trim()}_${subj.name.toLowerCase().trim()}`;
-                if (!map.has(key)) {
+                const sNameLower = (subj.name || '').toLowerCase().trim();
+                const sCodeLower = (subj.code || '').toLowerCase().trim();
+                const key = `${cls.toLowerCase().trim()}_${sNameLower}`;
+                if (map.has(key)) return;
+
+                const existingAlloc = (allocations || []).find(a => 
+                    a.className.toLowerCase().trim() === cls.toLowerCase().trim() && 
+                    ((a.subjectName || '').toLowerCase().trim() === sNameLower || 
+                     (sCodeLower && (a.subjectCode || '').toLowerCase().trim() === sCodeLower))
+                );
+
+                if (existingAlloc) {
+                    map.set(key, existingAlloc);
+                } else {
                     const defaultTeacher = teacherUsers[idx % teacherUsers.length];
                     map.set(key, {
                         id: `alloc_${cls.replace(/\s+/g, '_')}_${subj.id || idx}`,
@@ -1282,29 +1358,16 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     {/* Class Selector Pills */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
                         {classOptions.map(cls => {
-                            // Build a merged set: DB allocation records first, then applicable subjects
-                            // This mirrors the classAllocations table logic so the count stays in sync
-                            const seenNamesForCount = new Set<string>();
-                            (allocations || []).forEach(a => {
-                                if (a.className.toLowerCase().trim() === cls.toLowerCase().trim()) {
-                                    const k = (a.subjectName || '').toLowerCase().trim();
-                                    if (k && !removedFromClassKeys.has(`${cls}_${a.subjectName}`)) {
-                                        seenNamesForCount.add(k);
-                                    }
-                                }
-                            });
                             const rawApplicable = getApplicableSubjectsForClass(cls);
-                            rawApplicable.forEach(s => {
-                                const k = (s.name || '').toLowerCase().trim();
-                                if (k && !removedFromClassKeys.has(`${cls}_${s.name}`)) {
-                                    seenNamesForCount.add(k);
-                                }
-                            });
-
-                            const count = seenNamesForCount.size;
+                            const count = rawApplicable.length;
                             const classAllocs = (allAllocations || []).filter(a => a.className.toLowerCase().trim() === cls.toLowerCase().trim());
-                            const unassigned = [...seenNamesForCount].filter(name => {
-                                const alloc = classAllocs.find(a => a.subjectName.toLowerCase().trim() === name);
+                            const unassigned = rawApplicable.filter(subj => {
+                                const sNameLower = (subj.name || '').toLowerCase().trim();
+                                const sCodeLower = (subj.code || '').toLowerCase().trim();
+                                const alloc = classAllocs.find(a => 
+                                    (a.subjectName || '').toLowerCase().trim() === sNameLower ||
+                                    (sCodeLower && (a.subjectCode || '').toLowerCase().trim() === sCodeLower)
+                                );
                                 return !alloc || alloc.status === 'unassigned' || !alloc.teacherId;
                             }).length;
 
@@ -1463,9 +1526,14 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 </div>
                                 <p className="text-xs text-slate-500 mt-0.5">Subject teacher assignments and weekly lesson count for {activeTargetClassName}.</p>
                             </div>
-                            <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-3 py-1 rounded-full border border-indigo-100 dark:border-indigo-800">
-                                {classAllocations.reduce((sum, a) => sum + (a.lessonsPerWeek || 0), 0)} Weekly Lessons
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-3 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                    {classAllocations.length} Subjects Offering
+                                </span>
+                                <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-3 py-1 rounded-full border border-indigo-100 dark:border-indigo-800">
+                                    {classAllocations.reduce((sum, a) => sum + (a.lessonsPerWeek || 0), 0)} Weekly Lessons
+                                </span>
+                            </div>
                         </div>
 
                         <div className="overflow-x-auto">
