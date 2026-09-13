@@ -486,12 +486,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (moduleName === 'school_remedial_rate_settings') {
                 let records = Array.isArray(data) ? data : [];
-                if (records.length === 0 && institutionId) {
+                const targetInst = targetInstParam || user?.institutionId;
+                if (records.length === 0 && targetInst) {
                     try {
                         const { data: imsData } = await supabase
                             .from('institution_module_states')
                             .select('data')
-                            .eq('id', `${institutionId}_school_remedial_rate_settings`)
+                            .eq('id', `${targetInst}_school_remedial_rate_settings`)
                             .limit(1);
                         if (imsData && imsData.length > 0 && imsData[0].data) {
                             records = [imsData[0].data];
@@ -2058,14 +2059,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const savedItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
                 const instId = savedItem?.institution_id;
                 if (instId) {
-                    supabase.from('institution_module_states').upsert({
+                    Promise.resolve(supabase.from('institution_module_states').upsert({
                         id: `${instId}_school_remedial_rate_settings`,
                         institution_id: instId,
                         module_id: 'school_remedial_rate_settings',
                         status: 'active',
                         data: savedItem,
                         updated_at: new Date().toISOString()
-                    }, { onConflict: 'id' }).then(() => {}).catch(() => {});
+                    }, { onConflict: 'id' })).catch(() => {});
                 }
             }
 

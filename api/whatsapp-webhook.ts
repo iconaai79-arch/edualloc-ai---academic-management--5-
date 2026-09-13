@@ -114,15 +114,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         if (cfg?.institution_id) institutionId = cfg.institution_id;
                                     }
 
-                                    await supabase.from('whatsapp_logs').insert({
-                                        id: `wamsg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                                        institution_id: institutionId,
-                                        recipient: senderPhone,
-                                        message_type: 'text',
-                                        content: `[INCOMING] ${content}`,
-                                        status: 'delivered',
-                                        created_at: new Date().toISOString()
-                                    }).catch((logErr: any) => console.warn('[Meta WhatsApp Webhook] Failed to log inbound msg:', logErr));
+                                    try {
+                                        await supabase.from('whatsapp_logs').insert({
+                                            id: `wamsg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                                            institution_id: institutionId,
+                                            recipient: senderPhone,
+                                            message_type: 'text',
+                                            content: `[INCOMING] ${content}`,
+                                            status: 'delivered',
+                                            created_at: new Date().toISOString()
+                                        });
+                                    } catch (logErr: any) {
+                                        console.warn('[Meta WhatsApp Webhook] Failed to log inbound msg:', logErr);
+                                    }
                                 }
                             }
                         }
@@ -135,17 +139,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 console.log(`[Meta WhatsApp Webhook] Delivery status for ${recipientId}: ${status}`);
 
                                 if (supabase && (status === 'delivered' || status === 'failed')) {
-                                    // Update recent logs to reflect real-time delivery
-                                    await supabase
-                                        .from('whatsapp_logs')
-                                        .update({ 
-                                            status: status === 'delivered' ? 'delivered' : 'failed',
-                                            error_message: statusItem.errors ? JSON.stringify(statusItem.errors) : undefined
-                                        })
-                                        .eq('recipient', recipientId)
-                                        .order('created_at', { ascending: false })
-                                        .limit(1)
-                                        .catch(() => null);
+                                    try {
+                                        // Update recent logs to reflect real-time delivery
+                                        await supabase
+                                            .from('whatsapp_logs')
+                                            .update({ 
+                                                status: status === 'delivered' ? 'delivered' : 'failed',
+                                                error_message: statusItem.errors ? JSON.stringify(statusItem.errors) : undefined
+                                            })
+                                            .eq('recipient', recipientId)
+                                            .order('created_at', { ascending: false })
+                                            .limit(1);
+                                    } catch (_) {}
                                 }
                             }
                         }
