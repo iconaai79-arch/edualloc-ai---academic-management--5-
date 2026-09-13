@@ -1178,6 +1178,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(200).json({ success: false, message: 'Gateway URL and API Token are required before provisioning.' });
             }
 
+            if (gatewayUrl.includes('whatsapp-webhook') || gatewayUrl.endsWith('/api')) {
+                return res.status(200).json({
+                    success: false,
+                    message: 'Invalid Gateway URL: You entered the webhook receiver endpoint (/api/whatsapp-webhook). Gateway Base URL must be the address of your running Evolution API server (e.g. http://YOUR_VPS_IP:8080 or https://wa.yourdomain.com).'
+                });
+            }
+
             if (gatewayUrl.includes('wa.eduai.platform') || gatewayUrl.includes('example.com')) {
                 return res.status(200).json({
                     success: false,
@@ -1302,14 +1309,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .maybeSingle();
 
             const rawGwUrl = (config?.gateway_url || '').trim();
-            if (!config || !rawGwUrl || rawGwUrl.includes('wa.eduai.platform') || rawGwUrl.includes('example.com')) {
+            if (!config || !rawGwUrl || rawGwUrl.includes('wa.eduai.platform') || rawGwUrl.includes('example.com') || rawGwUrl.includes('whatsapp-webhook')) {
                 return res.status(200).json({
                     success: true,
                     isConnected: false,
                     providerType: config?.provider_type || 'gateway',
-                    message: institutionId === 'global'
-                        ? 'No Super Admin Global WhatsApp Gateway configured. Enter your Gateway URL in Super Admin settings.'
-                        : 'No WhatsApp Gateway configured. Enter your Gateway URL in Settings.'
+                    message: rawGwUrl.includes('whatsapp-webhook')
+                        ? 'Gateway URL is currently set to the webhook endpoint (/api/whatsapp-webhook). Please enter the address of your Evolution API server (e.g. http://YOUR_VPS_IP:8080 or https://wa.yourdomain.com).'
+                        : (institutionId === 'global'
+                            ? 'No Super Admin Global WhatsApp Gateway configured. Enter your Gateway URL in Super Admin settings.'
+                            : 'No WhatsApp Gateway configured. Enter your Gateway URL in Settings.')
                 });
             }
 

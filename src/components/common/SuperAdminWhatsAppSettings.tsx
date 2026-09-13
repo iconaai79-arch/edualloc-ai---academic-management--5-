@@ -198,6 +198,14 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
             return;
         }
 
+        if (baseUrl.includes('whatsapp-webhook') || baseUrl.endsWith('/api')) {
+            setProvisionResult({
+                success: false,
+                message: 'Invalid Gateway URL: You entered the application webhook endpoint (.../whatsapp-webhook). Gateway Base URL must be the address of your running Evolution API server (e.g. http://YOUR_VPS_IP:8080 or https://wa.yourdomain.com).'
+            });
+            return;
+        }
+
         if (baseUrl.includes('wa.eduai.platform') || baseUrl.includes('example.com')) {
             setProvisionResult({
                 success: false,
@@ -720,8 +728,16 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                                         <span className="text-[10px] text-slate-500 mt-1 block">
                                             {usePlatformGateway && Boolean(PLATFORM_GATEWAY_URL)
                                                 ? `Centrally managed platform URL: ${PLATFORM_GATEWAY_URL}`
-                                                : 'Enter the HTTP(S) address and port of your Evolution API server (e.g. http://123.45.67.89:8080)'}
+                                                : 'Enter the HTTP(S) address and port of your Evolution API server (e.g. http://123.45.67.89:8080 or https://whatsapp.yourdomain.com)'}
                                         </span>
+                                        {config.gateway_url && (config.gateway_url.includes('whatsapp-webhook') || config.gateway_url.endsWith('/api')) && (
+                                            <div className="mt-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
+                                                <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400" />
+                                                <span>
+                                                    <strong>Incorrect URL:</strong> You entered the <em>Webhook Callback endpoint</em> (<code>.../whatsapp-webhook</code>). The Gateway Base URL must be the root address of an active <strong>Evolution API / Baileys</strong> server (e.g. <code>http://YOUR_VPS_IP:8080</code> or <code>https://wa.yourdomain.com</code>). If using official Meta API, select the <strong>Meta Cloud API</strong> tab above.
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* ── API Key / Token ── */}
@@ -906,10 +922,12 @@ export const SuperAdminWhatsAppSettings: React.FC<SuperAdminWhatsAppSettingsProp
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center text-slate-400 p-4">
+                                    <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
                                         <SmartphoneIcon className="w-12 h-12 text-slate-300 mb-2 animate-pulse" />
                                         <span className="text-xs font-bold text-slate-600">No Active QR</span>
-                                        <span className="text-[10px] text-slate-400 mt-1">Configure Gateway URL & click 'Sync Gateway' to generate QR</span>
+                                        <span className="text-[10px] text-slate-400 mt-1 max-w-[210px] leading-relaxed">
+                                            {liveStatus?.message || "Configure Gateway URL & click 'Sync Gateway' to generate QR"}
+                                        </span>
                                     </div>
                                 )}
                             </div>
