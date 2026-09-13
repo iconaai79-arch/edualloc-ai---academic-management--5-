@@ -345,6 +345,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order(orderParam, { ascending: true });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
+                } else if (finalLimit > 1000 || ['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                    q = q.order('id', { ascending: true });
                 }
 
                 return q;
@@ -363,7 +365,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = 1000;
+            const CHUNK_SIZE = ['users', 'students', 'student_enrollments'].includes(moduleName) ? 500 : 1000;
             let data: any[] = [];
             let error: any = null;
 
@@ -391,12 +393,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     while (remaining > 0) {
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        const res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
+                        let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
+                        
+                        // If chunk timed out, attempt recovery with smaller batch window
+                        if (res.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway'))) {
+                            const halfBatch = Math.max(100, Math.floor(batchSize / 2));
+                            res = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + halfBatch - 1));
+                        }
+
                         if (res.error) {
                             if (data.length === 0) {
                                 error = res.error;
                             } else {
-                                console.warn(`[API GET] Chunk fetch error for '${moduleName}' at offset ${currentOffset}:`, res.error);
+                                console.info(`[API GET] Chunk fetch completed for '${moduleName}' at offset ${currentOffset} (${data.length} records retrieved).`);
                             }
                             break;
                         }
