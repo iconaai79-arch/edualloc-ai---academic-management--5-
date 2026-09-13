@@ -715,9 +715,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            // For resetPasswordWithToken, we verify the token itself later in the action handler
-            // But we need to set a 'system' user context to pass the auth check
-            if (action === 'resetPasswordWithToken') {
+            // For resetPasswordWithToken and verifyResetOtp, we verify the token or OTP code itself in the action handler
+            // But we need to set a 'system' user context to pass the initial auth gate
+            if (action === 'resetPasswordWithToken' || action === 'verifyResetOtp') {
                 user = { id: 'system', role: 'system' };
                 authError = null;
             }
