@@ -937,6 +937,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } catch (_) {}
             }
 
+            // Verified cPanel platform SMTP credentials
+            const defaultPlatformSmtp = {
+                host: 'mail.eduai.co.ke',
+                port: 465,
+                username: 'support@eduai.co.ke',
+                password: '27065709@Abu',
+                fromEmail: 'support@eduai.co.ke',
+                fromName: brandingOverride?.name || 'EduAi Support'
+            };
+
             const isPlaceholderPass = (pass: any) =>
                 !pass || pass === 'password' || pass === '••••••••' || pass === '********' || pass === 'null' || pass === 'undefined';
 
@@ -945,27 +955,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // 2. instEmailConfig if non-placeholder
             // 3. settings.email_config / settings.emailConfig from system_settings table
             // 4. process.env.SMTP_* variables
-            // 5. Fallback to whatever config is available
+            // 5. defaultPlatformSmtp (verified live cPanel credentials)
             let activeConfig: any = null;
-            if (configOverride?.host && configOverride?.username && !isPlaceholderPass(configOverride.password)) {
+            if (configOverride?.host && configOverride?.username && !isPlaceholderPass(configOverride.password) && configOverride.username !== 'info@eduai.co.ke') {
                 activeConfig = configOverride;
-            } else if (instEmailConfig?.host && instEmailConfig?.username && !isPlaceholderPass(instEmailConfig.password)) {
+            } else if (instEmailConfig?.host && instEmailConfig?.username && !isPlaceholderPass(instEmailConfig.password) && instEmailConfig.username !== 'info@eduai.co.ke') {
                 activeConfig = instEmailConfig;
-            } else if (settings?.email_config?.host && !isPlaceholderPass(settings.email_config.password)) {
+            } else if (settings?.email_config?.host && !isPlaceholderPass(settings.email_config.password) && settings.email_config.username !== 'info@eduai.co.ke') {
                 activeConfig = settings.email_config;
-            } else if (settings?.emailConfig?.host && !isPlaceholderPass(settings.emailConfig.password)) {
+            } else if (settings?.emailConfig?.host && !isPlaceholderPass(settings.emailConfig.password) && settings.emailConfig.username !== 'info@eduai.co.ke') {
                 activeConfig = settings.emailConfig;
             } else if (process.env.SMTP_HOST && (process.env.SMTP_PASS || process.env.SMTP_PASSWORD)) {
                 activeConfig = {
                     host: process.env.SMTP_HOST,
-                    port: Number(process.env.SMTP_PORT || 587),
+                    port: Number(process.env.SMTP_PORT || 465),
                     username: process.env.SMTP_USER || process.env.SMTP_USERNAME,
                     password: process.env.SMTP_PASS || process.env.SMTP_PASSWORD,
                     fromEmail: process.env.SMTP_FROM || process.env.SMTP_USER,
                     fromName: process.env.SMTP_FROM_NAME || brandingOverride?.name
                 };
             } else {
-                activeConfig = configOverride || instEmailConfig || settings?.email_config || settings?.emailConfig || {};
+                activeConfig = defaultPlatformSmtp;
+            }
+
+            // If activeConfig has placeholder password or dummy user, automatically fallback to defaultPlatformSmtp
+            if (isPlaceholderPass(activeConfig?.password) || activeConfig?.username === 'info@eduai.co.ke') {
+                activeConfig = defaultPlatformSmtp;
             }
 
             const host = (activeConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
@@ -1964,52 +1979,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let emailSent = false;
                 if (targetUser.email) {
                     try {
-                        const emailCfg = bodyConfig || settings.email_config || settings.emailConfig;
-                        if (emailCfg && emailCfg.host && emailCfg.username) {
-                            const branding = await getBranding(targetInstId);
-                            const emailSubject = `Your ${branding.name || 'EduAi'} Password Reset Verification Code`;
-                            const host = (emailCfg.host || '').replace(/[^\x20-\x7E]/g, '').trim();
-                            const port = Number(emailCfg.port || 587);
-                            const username = (emailCfg.username || '').replace(/[^\x20-\x7E]/g, '').trim();
-                            let password = typeof emailCfg.password === 'string' ? emailCfg.password.replace(/[\r\n\t]/g, '').trim() : (emailCfg.password || '');
-                            if ((host.toLowerCase().includes('gmail') || host.toLowerCase().includes('google')) && typeof password === 'string') {
-                                const noSpaces = password.replace(/\s+/g, '');
-                                if (noSpaces.length === 16) password = noSpaces;
-                            }
-                            const fromEmail = ((emailCfg.from_email || emailCfg.fromEmail || username) || '').replace(/[^\x20-\x7E]/g, '').trim();
-                            const fromName = (emailCfg.from_name || emailCfg.fromName || branding.name || '').trim();
-
-                            const transporter = nodemailer.createTransport({
-                                host,
-                                port,
-                                secure: port === 465,
-                                auth: { user: username, pass: password },
-                                tls: { rejectUnauthorized: false }
-                            });
-
-                            const htmlMsg = wrapHtml(`
-                                <div style="text-align: center; padding: 20px 0;">
-                                    <h2 style="color: #1e293b; margin-bottom: 8px;">Password Reset Verification Code</h2>
-                                    <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Use the code below to reset your EduAi account password.</p>
-                                    <div style="background-color: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 24px; display: inline-block; margin-bottom: 24px;">
-                                        <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #4f46e5; font-family: monospace;">${otp}</span>
-                                    </div>
-                                    <p style="color: #94a3b8; font-size: 12px;">Sent on ${timestampText}. Valid for 10 minutes. If you did not request this, please ignore.</p>
+                        const branding = await getBranding(targetInstId);
+                        const emailSubject = `Your ${branding.name || 'EduAi'} Password Reset Verification Code`;
+                        const htmlMsg = wrapHtml(`
+                            <div style="text-align: center; padding: 20px 0;">
+                                <h2 style="color: #1e293b; margin-bottom: 8px;">Password Reset Verification Code</h2>
+                                <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">Use the code below to reset your EduAi account password.</p>
+                                <div style="background-color: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 24px; display: inline-block; margin-bottom: 24px;">
+                                    <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #4f46e5; font-family: monospace;">${otp}</span>
                                 </div>
-                            `, branding);
+                                <p style="color: #94a3b8; font-size: 12px;">Sent on ${timestampText}. Valid for 10 minutes. If you did not request this, please ignore.</p>
+                            </div>
+                        `, branding);
 
-                            transporter.sendMail({
-                                from: `"${fromName}" <${fromEmail}>`,
-                                to: targetUser.email,
-                                subject: emailSubject,
-                                text: otpMessage,
-                                html: htmlMsg
-                            }).then(() => {
-                                console.log(`[Forgot Password Dual-Delivery] Email OTP dispatched to ${targetUser.email}`);
-                            }).catch(err => {
-                                console.warn(`[Forgot Password Dual-Delivery] Email OTP failed:`, err.message);
-                            });
+                        const mailOptions = {
+                            from: `"${branding.name} Support" <support@eduai.co.ke>`,
+                            to: targetUser.email,
+                            subject: emailSubject,
+                            text: otpMessage,
+                            html: htmlMsg
+                        };
+
+                        const emailRes = await sendEmailViaSmtp(mailOptions, bodyConfig, targetInstId, branding);
+                        if (emailRes.success) {
+                            console.log(`[Forgot Password Dual-Delivery] Email OTP dispatched to ${targetUser.email}`);
                             emailSent = true;
+                        } else {
+                            console.warn(`[Forgot Password Dual-Delivery] Email OTP failed:`, emailRes.message);
                         }
                     } catch (emailEx: any) {
                         console.warn(`[Forgot Password Dual-Delivery] Exception:`, emailEx.message);

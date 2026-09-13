@@ -29,12 +29,12 @@ export const INITIAL_COMPANY_DETAILS: CompanyDetails = {
     emailConfig: {
         provider: 'smtp',
         host: 'mail.eduai.co.ke',
-        port: 587,
-        username: 'info@eduai.co.ke',
-        password: 'password',
-        encryption: 'tls',
+        port: 465,
+        username: 'support@eduai.co.ke',
+        password: '27065709@Abu',
+        encryption: 'ssl',
         fromName: 'EduAi Support',
-        fromEmail: 'info@eduai.co.ke'
+        fromEmail: 'support@eduai.co.ke'
     },
     smsConfig: {
         provider: 'Zettatel',
