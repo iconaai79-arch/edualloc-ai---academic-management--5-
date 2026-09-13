@@ -1646,6 +1646,28 @@ export const apiService = {
                 item.id = `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             }
 
+            if (module === 'users') {
+                const tCode = item.teacherCode || item.teacher_code || item.code;
+                if (tCode) {
+                    const meta = typeof item.metadata === 'object' && item.metadata !== null ? { ...item.metadata } : {};
+                    meta.teacherCode = tCode;
+                    meta.remedialTeacherCode = tCode;
+                    item.metadata = meta;
+                }
+                delete item.updated_at;
+                delete item.updatedAt;
+                delete item.created_at;
+                delete item.createdAt;
+                delete item.teacherCode;
+                delete item.teacher_code;
+                delete item.code;
+            } else if (module === 'students' || module === 'teachers') {
+                delete item.updated_at;
+                delete item.updatedAt;
+                delete item.created_at;
+                delete item.createdAt;
+            }
+
             if (module === 'sms_logs') {
                 const rVal = item.recipient || item.recipients || item.recipient_phone || item.phone_number;
                 if (rVal) {

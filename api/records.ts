@@ -1766,6 +1766,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (sPhone) {
                         meta.studentPhone = sPhone;
                     }
+                    const tCode = copy.teacherCode || copy.teacher_code || copy.code;
+                    if (tCode) {
+                        meta.teacherCode = tCode;
+                        meta.remedialTeacherCode = tCode;
+                    }
                     copy.metadata = meta;
 
                     delete copy.vehicle_id;
@@ -1790,6 +1795,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.guardianName;
                     delete copy.parent_phone;
                     delete copy.parentPhone;
+                    delete copy.teacherCode;
+                    delete copy.teacher_code;
+                    delete copy.code;
+                    delete copy.updated_at;
+                    delete copy.updatedAt;
+                    delete copy.created_at;
+                    delete copy.createdAt;
 
                     return copy;
                 };
@@ -2433,6 +2445,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (sPhone) {
                         meta.studentPhone = sPhone;
                     }
+                    const tCode = copy.teacherCode || copy.teacher_code || copy.code;
+                    if (tCode) {
+                        meta.teacherCode = tCode;
+                        meta.remedialTeacherCode = tCode;
+                    }
                     copy.metadata = meta;
 
                     delete copy.vehicle_id;
@@ -2457,6 +2474,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.guardianName;
                     delete copy.parent_phone;
                     delete copy.parentPhone;
+                    delete copy.teacherCode;
+                    delete copy.teacher_code;
+                    delete copy.code;
+                    delete copy.updated_at;
+                    delete copy.updatedAt;
+                    delete copy.created_at;
+                    delete copy.createdAt;
 
                     currentUpdateData = copy;
                 }
