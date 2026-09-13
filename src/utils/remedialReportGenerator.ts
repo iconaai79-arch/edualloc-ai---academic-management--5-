@@ -621,16 +621,29 @@ export const getSubjectCode = (subjectName?: string, subjectId?: string): string
     return clean.replace(/[^A-Z]/g, '').slice(0, 4) || clean.slice(0, 4);
 };
 
-// Helper to derive stable staff code (e.g. staffId or numeric index)
+// Helper to derive stable staff code (e.g. teacherCode, code, staffId or formatted numeric index 01, 02...)
 export const getTeacherCode = (teacherId?: string, teacherName?: string, users: any[] = []): string => {
     if (!teacherId && !teacherName) return '';
     const teacher = users.find(t => (teacherId && t.id === teacherId) || (teacherName && t.name === teacherName));
+    if (teacher?.teacherCode) {
+        return String(teacher.teacherCode).trim();
+    }
+    if (teacher?.code) {
+        return String(teacher.code).trim();
+    }
+    if (teacher?.metadata?.teacherCode) {
+        return String(teacher.metadata.teacherCode).trim();
+    }
+    if (teacher?.metadata?.remedialTeacherCode) {
+        return String(teacher.metadata.remedialTeacherCode).trim();
+    }
     if (teacher?.staffId) {
         return String(teacher.staffId).replace(/[^0-9A-Z]/gi, '');
     }
     const idx = users.findIndex(t => (teacherId && t.id === teacherId) || (teacherName && t.name === teacherName));
     if (idx !== -1) {
-        return String(idx + 10);
+        const num = idx + 1;
+        return num < 10 ? `0${num}` : String(num);
     }
     if (teacherName) {
         const parts = teacherName.trim().split(/\s+/);

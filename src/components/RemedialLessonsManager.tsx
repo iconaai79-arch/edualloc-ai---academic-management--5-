@@ -58,7 +58,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [subjects, fetchedSchoolSubjects]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('sessions');
+    const [activeTab, setActiveTab] = useState<'teachers' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
     
     // Remedial Subject Modal / Filter States
     const [showSubjectModal, setShowSubjectModal] = useState(false);
@@ -108,6 +108,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
     const [cancellationCutoffHours, setCancellationCutoffHours] = useState<number>(3);
     const [confirmationTimeoutMinutes, setConfirmationTimeoutMinutes] = useState<number>(45);
+
+    // Teachers Tab Management State
+    const [teacherCodes, setTeacherCodes] = useState<Record<string, string>>({});
+    const [editingTeacherCodeId, setEditingTeacherCodeId] = useState<string | null>(null);
+    const [tempTeacherCode, setTempTeacherCode] = useState<string>('');
+    const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+    const [teacherAllocationFilter, setTeacherAllocationFilter] = useState<'all' | 'allocated' | 'unallocated' | 'weekend'>('all');
 
     // Substitution / Reassignment State
     const [reassigningAlloc, setReassigningAlloc] = useState<RemedialAllocation | null>(null);
@@ -226,6 +233,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setIncludeSundayBreak(sunIncBreak !== false);
         const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
         setTeacherPreferences(loadedTeacherPrefs);
+        const loadedCodes = r.teacherCodes || r.teacher_codes || r.metadata?.teacherCodes || r.metadata?.teacher_codes || {};
+        if (loadedCodes && typeof loadedCodes === 'object' && Object.keys(loadedCodes).length > 0) {
+            setTeacherCodes(prev => ({ ...loadedCodes, ...prev }));
+        }
         setCancellationCutoffHours(r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? r.metadata?.cancellationCutoffHours ?? 3);
         setConfirmationTimeoutMinutes(r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? r.metadata?.confirmationTimeoutMinutes ?? 45);
     };
@@ -239,6 +250,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 if (cachedRates) {
                     const parsed = JSON.parse(cachedRates);
                     if (Array.isArray(parsed) && parsed.length > 0) applyRateSettings(parsed[0]);
+                }
+                const cachedTeacherCodes = safeLocalStorage.getItem(`remedial_teacher_codes_${institutionId}`);
+                if (cachedTeacherCodes) {
+                    const parsed = JSON.parse(cachedTeacherCodes);
+                    if (parsed && typeof parsed === 'object') setTeacherCodes(prev => ({ ...parsed, ...prev }));
                 }
                 const cachedAlloc = safeLocalStorage.getItem(`remedial_allocations_${institutionId}`);
                 if (cachedAlloc) {
@@ -341,10 +357,76 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     }, [institutionId]);
 
+    // Enriched users with active teacherCodes mapped for instant reactivity
+    const enrichedUsers = useMemo(() => {
+        return (users || []).map(u => {
+            const customCode = teacherCodes[u.id];
+            if (customCode) {
+                return {
+                    ...u,
+                    teacherCode: customCode,
+                    code: customCode,
+                    metadata: {
+                        ...(u.metadata || {}),
+                        teacherCode: customCode,
+                        remedialTeacherCode: customCode
+                    }
+                };
+            }
+            return u;
+        });
+    }, [users, teacherCodes]);
+
+    // Sync initial teacher codes from user objects when users load
+    useEffect(() => {
+        if (!users || users.length === 0) return;
+        const newMap: Record<string, string> = {};
+        users.forEach(u => {
+            if (u) {
+                const explicit = u.teacherCode || u.code || u.metadata?.teacherCode || u.metadata?.remedialTeacherCode || u.staffId;
+                if (explicit && !teacherCodes[u.id]) {
+                    newMap[u.id] = String(explicit).trim();
+                }
+            }
+        });
+        if (Object.keys(newMap).length > 0) {
+            setTeacherCodes(prev => ({ ...newMap, ...prev }));
+        }
+    }, [users]);
+
     // Teachers and Prefects Lists
     const teachersList = useMemo(() => {
-        return (users || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer' || (u.role as string) === 'instructor'));
-    }, [users]);
+        return (enrichedUsers || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer' || (u.role as string) === 'instructor' || u.role === 'academics_officer' || (u.roles && (u.roles.includes('teacher') || u.roles.includes('lecturer')))));
+    }, [enrichedUsers]);
+
+    // Filtered teachers for Teachers Tab
+    const filteredTeachers = useMemo(() => {
+        return teachersList.filter(teacher => {
+            const teacherName = (teacher.name || '').toLowerCase();
+            const teacherEmail = (teacher.email || '').toLowerCase();
+            const teacherPhone = (teacher.phoneNumber || '').toLowerCase();
+            const currentCode = (teacherCodes[teacher.id] || getTeacherCode(teacher.id, teacher.name, enrichedUsers)).toLowerCase();
+            const q = teacherSearchQuery.toLowerCase().trim();
+
+            const matchesSearch = !q || teacherName.includes(q) || teacherEmail.includes(q) || teacherPhone.includes(q) || currentCode.includes(q);
+            if (!matchesSearch) return false;
+
+            const teacherAllocs = allocations.filter(a => a.teacherId === teacher.id);
+            if (teacherAllocationFilter === 'allocated') {
+                return teacherAllocs.length > 0;
+            }
+            if (teacherAllocationFilter === 'unallocated') {
+                return teacherAllocs.length === 0;
+            }
+            if (teacherAllocationFilter === 'weekend') {
+                const prefs = teacherPreferences[teacher.id]?.preferredDays || [];
+                const hasWeekendAlloc = teacherAllocs.some(a => a.dayOfWeek === 'Saturday' || a.dayOfWeek === 'Sunday');
+                const hasWeekendPref = prefs.includes('Saturday') || prefs.includes('Sunday');
+                return hasWeekendAlloc || hasWeekendPref;
+            }
+            return true;
+        });
+    }, [teachersList, teacherSearchQuery, teacherAllocationFilter, allocations, teacherCodes, enrichedUsers, teacherPreferences]);
 
     const prefectsList = useMemo(() => {
         const list: any[] = [];
@@ -1156,6 +1238,111 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setShowAllocModal(true);
     };
 
+    // Open Create Allocation Modal pre-filling a specific teacher
+    const handleOpenCreateAllocationForTeacher = (teacherId: string) => {
+        setEditingAlloc(null);
+        setAllocCourseId('');
+        setAllocStream('All Streams');
+        setCustomAllocStream('');
+        setIsJointAlloc(false);
+        setJointStreamsSelected([]);
+        setJointCoursesSelected([]);
+        setCustomJointStream('');
+        setAllocSubjectId('');
+        setAllocTeacherId(teacherId);
+        setAllocDay('Monday');
+        setAllocStartTime(weekdayStartTime || '16:00');
+        setAllocEndTime(weekdayEndTime || '18:00');
+        setShowAllocModal(true);
+    };
+
+    // Save Teacher Code (e.g. 01, 02, TR-01)
+    const handleSaveTeacherCode = async (teacherId: string, newCode: string) => {
+        const trimmed = newCode.trim();
+        if (!trimmed) {
+            setEditingTeacherCodeId(null);
+            return;
+        }
+
+        const nextCodes = { ...teacherCodes, [teacherId]: trimmed };
+        setTeacherCodes(nextCodes);
+        setEditingTeacherCodeId(null);
+
+        if (institutionId) {
+            safeLocalStorage.setItem(`remedial_teacher_codes_${institutionId}`, JSON.stringify(nextCodes));
+        }
+
+        const targetUser = users.find(u => u.id === teacherId);
+        if (targetUser) {
+            const updatedUser: User = {
+                ...targetUser,
+                teacherCode: trimmed,
+                code: trimmed,
+                staffId: targetUser.staffId || trimmed,
+                metadata: {
+                    ...(targetUser.metadata || {}),
+                    teacherCode: trimmed,
+                    remedialTeacherCode: trimmed
+                }
+            };
+            try {
+                await apiService.saveModuleRecord('users', updatedUser);
+            } catch (err) {
+                console.warn('[Remedials] Failed to save teacher code to user table:', err);
+            }
+        }
+
+        if (institutionId) {
+            try {
+                const updatedSetting = {
+                    ...(rateSetting || {}),
+                    id: rateSetting?.id || `rates_${institutionId}`,
+                    institutionId,
+                    metadata: {
+                        ...((rateSetting as any)?.metadata || {}),
+                        teacherCodes: nextCodes
+                    }
+                };
+                setRateSetting(updatedSetting as any);
+                await apiService.saveRemedialRateSetting(updatedSetting as any);
+            } catch (err) {
+                console.warn('[Remedials] Failed to update rateSetting for teacher code:', err);
+            }
+        }
+
+        onLogAction?.(`Updated teacher code for ${targetUser?.name || 'teacher'} to ${trimmed}`);
+    };
+
+    // Auto-number teacher codes sequentially (01, 02, 03...)
+    const handleAutoNumberTeacherCodes = async () => {
+        if (!confirm('Auto-assign two-digit codes (01, 02, 03...) to all teachers? Existing codes will be preserved.')) return;
+        const nextCodes = { ...teacherCodes };
+        let counter = 1;
+        for (const teacher of teachersList) {
+            if (!nextCodes[teacher.id] && !teacher.teacherCode && !teacher.code && !teacher.metadata?.teacherCode) {
+                const code = counter < 10 ? `0${counter}` : String(counter);
+                nextCodes[teacher.id] = code;
+                counter++;
+            }
+        }
+        setTeacherCodes(nextCodes);
+        if (institutionId) {
+            safeLocalStorage.setItem(`remedial_teacher_codes_${institutionId}`, JSON.stringify(nextCodes));
+            const updatedSetting = {
+                ...(rateSetting || {}),
+                id: rateSetting?.id || `rates_${institutionId}`,
+                institutionId,
+                metadata: {
+                    ...((rateSetting as any)?.metadata || {}),
+                    teacherCodes: nextCodes
+                }
+            };
+            setRateSetting(updatedSetting as any);
+            await apiService.saveRemedialRateSetting(updatedSetting as any).catch(() => {});
+        }
+        onLogAction?.('Auto-assigned sequential teacher codes (01, 02...) for remedial master timetable.');
+    };
+
     // Open Edit Allocation Modal
     const handleOpenEditAllocation = (alloc: RemedialAllocation) => {
         setEditingAlloc(alloc);
@@ -1880,7 +2067,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     institution: currentInstitution,
                     allocations,
                     courses,
-                    users,
+                    users: enrichedUsers,
                     rateSetting,
                     termName: timetableTerm,
                     weekName: timetableWeek,
@@ -1938,7 +2125,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     fileName: `${timetableStage ? `${timetableStage}_` : ''}${timetableWeek.replace(/\s+/g, '_')}_${timetableTerm.replace(/\s+/g, '_')}_${timetableYear}_Remedial_Timetable`,
                     allocations,
                     courses,
-                    users,
+                    users: enrichedUsers,
                     termName: timetableTerm,
                     weekName: timetableWeek,
                     yearName: timetableYear,
@@ -2354,7 +2541,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             (a.className === cls.className || a.courseId === cls.className) &&
                             matchAllocationStream(a, cls.stream)
                         );
-                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
+                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}`).join('<br/>') || '-';
                         return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
                     }).join('')}
                 </tr>
@@ -2382,7 +2569,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             matchAllocationStream(a, cls.stream) &&
                             (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                         );
-                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
+                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}`).join('<br/>') || '-';
                         return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
                     }).join('')}
                 </tr>
@@ -2407,7 +2594,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             matchAllocationStream(a, cls.stream) &&
                             (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                         );
-                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
+                        const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}`).join('<br/>') || '-';
                         return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
                     }).join('')}
                 </tr>
@@ -2419,7 +2606,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             allocations.forEach(a => {
                 const sCode = getSubjectCode(a.subjectName, a.subjectId);
                 if (sCode && a.subjectName) subjectMap.set(sCode, a.subjectName);
-                const tCode = getTeacherCode(a.teacherId, a.teacherName, users);
+                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
                 if (tCode && a.teacherName) teacherMap.set(tCode, a.teacherName);
             });
             const subEntries = Array.from(subjectMap.entries());
@@ -3059,6 +3246,35 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             institution={currentInstitution}
                         />
 
+                        {/* TEACHERS TAB (Before Remedial Hours) */}
+                        <button 
+                            onClick={() => setActiveTab('teachers')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'teachers' 
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'teachers' ? 'bg-white/20 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <Users className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Teachers</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'teachers' ? 'text-emerald-100' : 'text-slate-400'}`}>Teacher codes &amp; allocations</p>
+                                </div>
+                            </div>
+                            {teachersList.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                    activeTab === 'teachers' ? 'bg-white text-emerald-700' : 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                                }`}>
+                                    {teachersList.length}
+                                </span>
+                            )}
+                        </button>
+
                         <button 
                             onClick={() => setActiveTab('sessions')}
                             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
@@ -3265,6 +3481,345 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                 {/* Right Main Content Workspace */}
                 <div className="lg:col-span-9 min-w-0">
+
+            {/* TAB: TEACHERS ALLOCATION & CODES (Placed before Remedial Hours) */}
+            {activeTab === 'teachers' && (
+                <div className="space-y-6">
+                    {/* Header Controls */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-emerald-500" /> Teachers Allocation &amp; Timetable Codes
+                                </h4>
+                                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                    DOS Management Hub
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 max-w-2xl">
+                                Assign remedial subjects, manage teacher allocations per class/stream, and customize teacher codes (e.g. 01, 02, TR-01) displayed on the master remedial timetable and reports.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            <button
+                                onClick={handleAutoNumberTeacherCodes}
+                                className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                title="Auto-assign sequential 2-digit codes (01, 02, 03...) to teachers missing a code"
+                            >
+                                <Zap className="w-4 h-4" /> Auto-Number Codes (01, 02...)
+                            </button>
+                            <button
+                                onClick={() => handleOpenCreateAllocation()}
+                                className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Plus className="w-4 h-4" /> Allocate Subject
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('allocations')}
+                                className="flex-1 md:flex-none px-4 py-3 bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                <Calendar className="w-4 h-4" /> Master Timetable Grid
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Stats Overview Grid */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Teachers</span>
+                                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                                    <Users className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{teachersList.length}</p>
+                            <p className="text-[10px] text-slate-400 font-bold">Registered teaching faculty</p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Active Allocations</span>
+                                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {teachersList.filter(t => allocations.some(a => a.teacherId === t.id)).length}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-bold">Teachers with remedial slots</p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Unassigned Faculty</span>
+                                <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
+                                    <UserX className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {teachersList.filter(t => !allocations.some(a => a.teacherId === t.id)).length}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-bold">Available for remedial classes</p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-violet-600 dark:text-violet-400">Weekly Remedial Slots</span>
+                                <div className="p-2 rounded-xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400">
+                                    <Calendar className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{allocations.length}</p>
+                            <p className="text-[10px] text-slate-400 font-bold">Total scheduled lessons / week</p>
+                        </div>
+                    </div>
+
+                    {/* Search & Filter Bar */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-center gap-3">
+                        <div className="relative w-full md:w-80 group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search by teacher name, code (01, 02), email..."
+                                value={teacherSearchQuery}
+                                onChange={e => setTeacherSearchQuery(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full pl-12 pr-6 py-2.5 text-xs font-bold outline-none focus:border-emerald-600 transition-all dark:text-white"
+                            />
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            {(['all', 'allocated', 'unallocated', 'weekend'] as const).map(tabKey => (
+                                <button
+                                    key={tabKey}
+                                    onClick={() => setTeacherAllocationFilter(tabKey)}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        teacherAllocationFilter === tabKey
+                                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    {tabKey === 'all' && `All (${teachersList.length})`}
+                                    {tabKey === 'allocated' && `Allocated (${teachersList.filter(t => allocations.some(a => a.teacherId === t.id)).length})`}
+                                    {tabKey === 'unallocated' && `Unassigned (${teachersList.filter(t => !allocations.some(a => a.teacherId === t.id)).length})`}
+                                    {tabKey === 'weekend' && 'Weekend Staff'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Teacher Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {filteredTeachers.map(teacher => {
+                            const teacherAllocs = allocations.filter(a => a.teacherId === teacher.id);
+                            const currentCode = teacherCodes[teacher.id] || getTeacherCode(teacher.id, teacher.name, enrichedUsers);
+                            const isEditingCode = editingTeacherCodeId === teacher.id;
+                            const completedHours = sessions
+                                .filter(s => s.teacherId === teacher.id && (s.status === 'Approved' || s.status === 'Paid'))
+                                .reduce((sum, s) => sum + (s.durationMinutes || (s as any).duration || 60) / 60, 0);
+                            const pendingHours = sessions
+                                .filter(s => s.teacherId === teacher.id && s.status === 'Prefect Confirmed')
+                                .reduce((sum, s) => sum + (s.durationMinutes || (s as any).duration || 60) / 60, 0);
+
+                            return (
+                                <div
+                                    key={teacher.id}
+                                    className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700/80 shadow-sm p-5 space-y-4 hover:border-emerald-500/40 transition-all flex flex-col justify-between"
+                                >
+                                    {/* Card Header: Teacher Profile & Code Editor */}
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                                                {teacher.name ? teacher.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : 'TR'}
+                                            </div>
+                                            <div>
+                                                <h5 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-1.5">
+                                                    {teacher.name}
+                                                </h5>
+                                                <p className="text-[10px] text-slate-400 font-medium">
+                                                    {teacher.email || teacher.phoneNumber || 'Staff Member'}
+                                                </p>
+                                                {teacher.expertise && teacher.expertise.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {teacher.expertise.slice(0, 3).map((exp, eIdx) => (
+                                                            <span key={eIdx} className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                                                {exp}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Teacher Code Pill / Inline Editor */}
+                                        <div className="flex flex-col items-end shrink-0">
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Teacher Code
+                                            </span>
+                                            {isEditingCode ? (
+                                                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-emerald-500">
+                                                    <input
+                                                        type="text"
+                                                        value={tempTeacherCode}
+                                                        onChange={e => setTempTeacherCode(e.target.value)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === 'Enter') handleSaveTeacherCode(teacher.id, tempTeacherCode);
+                                                            if (e.key === 'Escape') setEditingTeacherCodeId(null);
+                                                        }}
+                                                        placeholder="01, 02..."
+                                                        autoFocus
+                                                        maxLength={10}
+                                                        className="w-16 px-2 py-1 text-xs font-mono font-black uppercase text-center bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg outline-none border border-slate-300 dark:border-slate-700"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSaveTeacherCode(teacher.id, tempTeacherCode)}
+                                                        className="p-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
+                                                        title="Save Code"
+                                                    >
+                                                        <Check className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingTeacherCodeId(null)}
+                                                        className="p-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 transition-colors cursor-pointer"
+                                                        title="Cancel"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setEditingTeacherCodeId(teacher.id);
+                                                        setTempTeacherCode(currentCode);
+                                                    }}
+                                                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono font-black text-xs uppercase bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-all shadow-sm cursor-pointer"
+                                                    title="Click to edit teacher code (e.g. 01, 02, TR-01)"
+                                                >
+                                                    <span>{currentCode || 'NO CODE'}</span>
+                                                    <Pencil className="w-3 h-3 text-emerald-600 dark:text-emerald-400 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Middle Section: Allocated Remedial Subjects & Classes */}
+                                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                <Calendar className="w-3 h-3 text-violet-500" /> Remedial Allocations ({teacherAllocs.length})
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenCreateAllocationForTeacher(teacher.id)}
+                                                className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                            >
+                                                <Plus className="w-3 h-3" /> Add Slot
+                                            </button>
+                                        </div>
+
+                                        {teacherAllocs.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {teacherAllocs.map(alloc => (
+                                                    <div
+                                                        key={alloc.id}
+                                                        className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2 text-xs"
+                                                    >
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[11px]">
+                                                                    {getSubjectCode(alloc.subjectName, alloc.subjectId)}
+                                                                </span>
+                                                                <span className="font-bold text-slate-900 dark:text-white truncate">
+                                                                    {alloc.subjectName}
+                                                                </span>
+                                                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300">
+                                                                    {alloc.className || courses.find(c => c.id === alloc.courseId)?.name || 'Class'}
+                                                                    {alloc.stream && alloc.stream !== 'All Streams' ? ` • ${alloc.stream}` : ''}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-2">
+                                                                <span>{alloc.dayOfWeek}</span>
+                                                                <span>•</span>
+                                                                <span>{alloc.startTime || '16:00'} - {alloc.endTime || '18:00'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditAllocation(alloc)}
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
+                                                                title="Edit allocation"
+                                                            >
+                                                                <Pencil className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteAllocation(alloc.id)}
+                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors cursor-pointer"
+                                                                title="Remove allocation"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="py-4 px-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 text-center bg-slate-50/50 dark:bg-slate-900/30">
+                                                <p className="text-[11px] font-bold text-slate-400">No remedial lessons assigned yet</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenCreateAllocationForTeacher(teacher.id)}
+                                                    className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400 hover:underline uppercase cursor-pointer"
+                                                >
+                                                    <Plus className="w-3 h-3" /> Assign first class
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Card Footer: Teaching Load & Quick Actions */}
+                                    <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+                                        <div className="space-y-0.5">
+                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Hours Taught</span>
+                                            <p className="font-bold text-slate-800 dark:text-slate-200">
+                                                <span className="font-black text-emerald-600 dark:text-emerald-400">{completedHours.toFixed(1)}h</span> approved
+                                                {pendingHours > 0 && <span className="text-amber-500 ml-1">({pendingHours.toFixed(1)}h pending)</span>}
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenCreateAllocationForTeacher(teacher.id)}
+                                            className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 text-white font-black text-[10px] uppercase tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" /> Allocate
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {filteredTeachers.length === 0 && (
+                            <div className="col-span-full bg-white dark:bg-slate-800 p-12 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 text-center space-y-4">
+                                <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto">
+                                    <Users className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">No Teachers Found</h4>
+                                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                                        No teaching staff match your current search or filter criteria. Check your filters or ensure teachers are registered in your institution.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* TAB: REMEDIAL SUBJECTS */}
             {activeTab === 'subjects' && (
@@ -5200,7 +5755,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                             matches.map((a, mIdx) => (
                                                                                 <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
                                                                                     <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
-                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, users)}</span>
+                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
                                                                                 </div>
                                                                             ))
                                                                         )}
@@ -5272,7 +5827,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                             matches.map((a, mIdx) => (
                                                                                 <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
                                                                                     <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
-                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, users)}</span>
+                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
                                                                                 </div>
                                                                             ))
                                                                         )}
@@ -5293,7 +5848,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 Sunday Schedule – Duty {timetableSunDuty}
                                             </h4>
                                             <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
-                                                Weekend Recess: 11:00 – 11:30 (Break)
+                                                Sunday Recess: 11:00 – 11:30 (Break)
                                             </span>
                                         </div>
                                         <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
@@ -5338,7 +5893,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                             matches.map((a, mIdx) => (
                                                                                 <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
                                                                                     <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
-                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, users)}</span>
+                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
                                                                                 </div>
                                                                             ))
                                                                         )}
@@ -5374,7 +5929,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         allocations.forEach(a => {
                                                             const sCode = getSubjectCode(a.subjectName, a.subjectId);
                                                             if (sCode && a.subjectName) subMap.set(sCode, a.subjectName);
-                                                            const tCode = getTeacherCode(a.teacherId, a.teacherName, users);
+                                                            const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
                                                             if (tCode && a.teacherName) teachMap.set(tCode, a.teacherName);
                                                         });
                                                         const subArr = Array.from(subMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));

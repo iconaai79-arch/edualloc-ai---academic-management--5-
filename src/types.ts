@@ -363,6 +363,8 @@ export interface User {
     email: string;
     phoneNumber: string;
     staffId?: string;
+    teacherCode?: string;
+    code?: string;
     pinCode?: string;
     role: Role;
     roles?: Role[];
