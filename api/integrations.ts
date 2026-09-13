@@ -629,13 +629,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        // Priority 1.5: System & Admin Session Bypass (Matching api/system.ts)
+        if (token && (token.startsWith('temp_admin_') || token === 'temp_admin_bypass' || token === 'super_admin' || token === 'admin' || token === 'system')) {
+            console.log(`[Auth Bridge] Admin session token recognized: ${token}`);
+            user = { id: token, role: 'super_admin', institutionId: 'GLOBAL', institution_id: 'GLOBAL', user_metadata: { institutionId: 'GLOBAL' } };
+            authError = null;
+        }
+
         // Priority 2: Auth Bridge - Fallback to verifying against custom 'users' table 
         if ((!user || authError) && token && !isJwt) {
             console.log(`[Auth Bridge] Attempting database verification for custom ID: ${token?.substring(0, 8)}...`);
             const { data: dbUser } = await supabase
                 .from('users')
                 .select('*')
-                .eq('id', token)
+                .or(`id.eq.${token},id.eq.u_${token},id.eq.${token.replace(/^u_/, '')}`)
                 .maybeSingle();
 
             if (dbUser) {
@@ -647,14 +654,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
-        // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments & Recovery)
-        const isPublicAction = ['forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 'sendWhatsApp', 'getWhatsAppStatus', 'provisionWhatsAppInstance', 'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'].includes(action);
+        // Priority 3: Special bypass for Unauthenticated Actions (Callbacks, Payments, WhatsApp & Recovery)
+        const isPublicAction = [
+            'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 
+            'sendWhatsApp', 'getWhatsAppStatus', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
+            'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 
+            'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'
+        ].includes(action);
 
         if (!user && isPublicAction) {
             console.log(`[Auth Bridge] Checking unauthenticated bypass for ${action}`);
 
-            // For callbacks, payment initiation, and system setup, we allow the bypass directly
-            if (action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig') {
+            // For callbacks, payment initiation, WhatsApp operations, and system setup, allow bypass directly
+            if (
+                action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || 
+                action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || 
+                action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig' || 
+                action === 'getWhatsAppStatus' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || 
+                action === 'disconnectWhatsApp'
+            ) {
                 user = { id: 'system', role: 'super_admin', user_metadata: { institutionId: 'GLOBAL' } };
                 authError = null;
             } else if (action === 'forgotPassword' || action === 'sendEmail' || action === 'sendSms') {
