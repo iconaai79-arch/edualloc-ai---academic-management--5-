@@ -1444,9 +1444,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         try {
             const res = await apiService.sendEmail(testRecipient, "Platform Configuration Test", "This is a test email to verify your SMTP relay settings on the EduAi platform.", localEmailConfig);
             if (res.success) alert("Email sent successfully.");
-            else alert("Failed to send email. Please check your SMTP settings.");
-        } catch (e) {
-            alert("SMTP handshake failed.");
+            else alert(res.message || "Failed to send email. Please check your SMTP settings.");
+        } catch (e: any) {
+            alert(`SMTP test failed: ${e.message || 'Connection error'}`);
         } finally {
             setIsTesting(false);
         }

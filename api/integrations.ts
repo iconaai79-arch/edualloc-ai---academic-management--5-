@@ -908,6 +908,162 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         }
 
+        // Unified, robust SMTP email dispatcher with multi-tier fallback, auth retry, and friendly diagnostics
+        const sendEmailViaSmtp = async (
+            mailOptions: {
+                from: string;
+                to: string;
+                subject: string;
+                text?: string;
+                html?: string;
+                attachments?: any[];
+            },
+            configOverride?: any,
+            targetInstId?: string,
+            brandingOverride?: any
+        ): Promise<{ success: boolean; messageId?: string; message?: string; error?: string; code?: string }> => {
+            // 1. Fetch institution config if targetInstId provided
+            let instEmailConfig: any = null;
+            if (targetInstId && targetInstId !== 'GLOBAL' && targetInstId !== 'SYSTEM') {
+                try {
+                    const { data: instData } = await supabase
+                        .from('institutions')
+                        .select('email_config, emailConfig')
+                        .eq('id', targetInstId)
+                        .maybeSingle();
+                    if (instData) {
+                        instEmailConfig = instData.email_config || instData.emailConfig;
+                    }
+                } catch (_) {}
+            }
+
+            const isPlaceholderPass = (pass: any) =>
+                !pass || pass === 'password' || pass === '••••••••' || pass === '********' || pass === 'null' || pass === 'undefined';
+
+            // Candidates priority:
+            // 1. configOverride if it has real credentials (host + username + non-placeholder password)
+            // 2. instEmailConfig if non-placeholder
+            // 3. settings.email_config / settings.emailConfig from system_settings table
+            // 4. process.env.SMTP_* variables
+            // 5. Fallback to whatever config is available
+            let activeConfig: any = null;
+            if (configOverride?.host && configOverride?.username && !isPlaceholderPass(configOverride.password)) {
+                activeConfig = configOverride;
+            } else if (instEmailConfig?.host && instEmailConfig?.username && !isPlaceholderPass(instEmailConfig.password)) {
+                activeConfig = instEmailConfig;
+            } else if (settings?.email_config?.host && !isPlaceholderPass(settings.email_config.password)) {
+                activeConfig = settings.email_config;
+            } else if (settings?.emailConfig?.host && !isPlaceholderPass(settings.emailConfig.password)) {
+                activeConfig = settings.emailConfig;
+            } else if (process.env.SMTP_HOST && (process.env.SMTP_PASS || process.env.SMTP_PASSWORD)) {
+                activeConfig = {
+                    host: process.env.SMTP_HOST,
+                    port: Number(process.env.SMTP_PORT || 587),
+                    username: process.env.SMTP_USER || process.env.SMTP_USERNAME,
+                    password: process.env.SMTP_PASS || process.env.SMTP_PASSWORD,
+                    fromEmail: process.env.SMTP_FROM || process.env.SMTP_USER,
+                    fromName: process.env.SMTP_FROM_NAME || brandingOverride?.name
+                };
+            } else {
+                activeConfig = configOverride || instEmailConfig || settings?.email_config || settings?.emailConfig || {};
+            }
+
+            const host = (activeConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
+            const port = Number(activeConfig.port || 587);
+            const username = (activeConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim();
+            let password = typeof activeConfig.password === 'string'
+                ? activeConfig.password.replace(/[\r\n\t]/g, '').trim()
+                : (activeConfig.password || '');
+
+            if ((host.toLowerCase().includes('gmail') || host.toLowerCase().includes('google')) && typeof password === 'string') {
+                const noSpaces = password.replace(/\s+/g, '');
+                if (noSpaces.length === 16) password = noSpaces;
+            }
+
+            if (!host || !username) {
+                return { success: false, message: 'SMTP configuration is incomplete. Host and username are required.' };
+            }
+
+            if (isPlaceholderPass(password)) {
+                const hint = `SMTP Authentication Failed: The email password is still set to the default placeholder ("${password || 'empty'}"). Please enter your real email password in Settings → Email Configuration.`;
+                console.warn(`[Email Gateway] Placeholder password rejected: "${password}"`);
+                return { success: false, message: hint, code: 'EAUTH' };
+            }
+
+            const trySendAttempt = async (pNum: number, pSecure: boolean, authMethod?: string) => {
+                const opts: any = {
+                    host,
+                    port: pNum,
+                    secure: pSecure,
+                    auth: { user: username, pass: password },
+                    connectionTimeout: 10000,
+                    greetingTimeout: 8000,
+                    socketTimeout: 15000,
+                    tls: { rejectUnauthorized: false }
+                };
+                if (authMethod) opts.authMethod = authMethod;
+                const t = nodemailer.createTransport(opts);
+                return t.sendMail(mailOptions);
+            };
+
+            try {
+                let info: any;
+                const primaryPort = Number(port || 587);
+                const primarySecure = primaryPort === 465;
+
+                try {
+                    info = await trySendAttempt(primaryPort, primarySecure);
+                } catch (firstErr: any) {
+                    const isConnErr = ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENOTFOUND'].includes(firstErr.code);
+                    const isAuthErr = firstErr.responseCode === 535 || (firstErr.message && firstErr.message.includes('535'));
+
+                    if (isConnErr && primaryPort !== 465) {
+                        console.warn(`[Email Gateway] Port ${primaryPort} connection failed (${firstErr.code}), retrying on 465 SSL...`);
+                        info = await trySendAttempt(465, true);
+                    } else if (isAuthErr) {
+                        // Attempt AUTH LOGIN (required by many cPanel/Exim hosts instead of AUTH PLAIN)
+                        console.warn(`[Email Gateway] 535 with default auth on port ${primaryPort}. Retrying with AUTH LOGIN...`);
+                        try {
+                            info = await trySendAttempt(primaryPort, primarySecure, 'LOGIN');
+                        } catch (secondErr: any) {
+                            if (primaryPort !== 465) {
+                                console.warn(`[Email Gateway] Retrying on port 465 SSL with AUTH LOGIN...`);
+                                try {
+                                    info = await trySendAttempt(465, true, 'LOGIN');
+                                } catch (_) {
+                                    throw firstErr;
+                                }
+                            } else {
+                                throw firstErr;
+                            }
+                        }
+                    } else {
+                        throw firstErr;
+                    }
+                }
+
+                return { success: true, message: 'Email sent successfully.', messageId: info.messageId };
+            } catch (e: any) {
+                console.error("[Email Gateway] SMTP send error:", e);
+                let helpfulMsg = `SMTP Gateway error: ${e.message || 'Connection failed'}`;
+                if (e.code === 'ETIMEDOUT' || e.code === 'ESOCKET') {
+                    helpfulMsg = `SMTP Connection Timeout: The server at ${host} did not respond on port ${port || 587} or 465. Common causes: firewall blocking port, wrong hostname, or mail server offline.`;
+                } else if (e.code === 'ECONNREFUSED') {
+                    helpfulMsg = `SMTP Connection Refused (${host}:${port}): Server refused connection. Check host and port in Settings → Email Configuration.`;
+                } else if (e.code === 'ENOTFOUND') {
+                    helpfulMsg = `SMTP Host Not Found: Cannot resolve "${host}". Check the SMTP host name in Settings → Email Configuration.`;
+                } else if (e.responseCode === 535 || (e.message && e.message.includes('535'))) {
+                    helpfulMsg = `SMTP Authentication Failed (535): Incorrect username or password for "${username}" at "${host}".\n\n` +
+                        `• For cPanel / Webmail (e.g. mail.eduai.co.ke): Ensure username is your FULL email address (${username}) and password matches the mailbox in cPanel.\n` +
+                        `• For Google / Gmail: Use a 16-character Google App Password (not your personal Google account password).\n` +
+                        `• For Microsoft 365: Ensure SMTP AUTH is enabled for this mailbox in Microsoft 365 Admin Center.`;
+                } else if (e.responseCode === 534 || (e.message && e.message.includes('534'))) {
+                    helpfulMsg = `SMTP Auth Required (534): Enable "Less Secure Apps" or generate a 16-character App Password in your Google Account.`;
+                }
+                return { success: false, message: helpfulMsg, error: e.message, code: e.code };
+            }
+        };
+
         if (action === 'sendEmail') {
 
             const adminRoles = [
@@ -926,86 +1082,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const branding = await getBranding(instId);
 
             const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
-            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
-
-            // Handle both snake_case and camelCase keys and sanitize to avoid 535 / encoding issues
-            const host = (emailConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
-            const port = Number(emailConfig.port || 587);
-            const username = (emailConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim();
-            let password = typeof emailConfig.password === 'string'
-                ? emailConfig.password.replace(/[\r\n\t]/g, '').trim()
-                : (emailConfig.password || '');
-
-            // For Google/Gmail SMTP (smtp.gmail.com):
-            // App passwords generated in Google Account are shown as 4x4 groups with spaces ("abcd efgh ijkl mnop").
-            // Stripping spaces ensures standard SMTP authentication works without 535 errors.
-            if ((host.toLowerCase().includes('gmail') || host.toLowerCase().includes('google')) && typeof password === 'string') {
-                const noSpaces = password.replace(/\s+/g, '');
-                if (noSpaces.length === 16) {
-                    password = noSpaces;
-                }
+            if (!emailConfig && !process.env.SMTP_HOST) {
+                return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
             }
 
-            const fromEmail = ((emailConfig.from_email || emailConfig.fromEmail || username) || '').replace(/[^\x20-\x7E]/g, '').trim();
-            const fromName = (emailConfig.from_name || emailConfig.fromName || branding.name || '').trim();
+            const fromEmail = ((emailConfig?.from_email || emailConfig?.fromEmail || emailConfig?.username || process.env.SMTP_FROM || process.env.SMTP_USER) || '').replace(/[^\x20-\x7E]/g, '').trim();
+            const fromName = (emailConfig?.from_name || emailConfig?.fromName || branding.name || '').trim();
 
-            try {
-                const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
-                const mailOptions = {
-                    from: `"${fromName}" <${fromEmail}>`,
-                    to: recipient,
-                    subject: subject || `${branding.name} Notification`,
-                    text: message,
-                    html: htmlContent,
-                    attachments: paramsMap.attachments
-                };
+            const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
+            const mailOptions = {
+                from: `"${fromName}" <${fromEmail}>`,
+                to: recipient,
+                subject: subject || `${branding.name} Notification`,
+                text: message,
+                html: htmlContent,
+                attachments: paramsMap.attachments
+            };
 
-                // Try primary port first, then fallback to 465 if ETIMEDOUT/ESOCKET
-                const tryPort = async (tryPortNum: number, trySecure: boolean) => {
-                    const t = nodemailer.createTransport({
-                        host,
-                        port: tryPortNum,
-                        secure: trySecure,
-                        auth: { user: username, pass: password },
-                        connectionTimeout: 10000,
-                        greetingTimeout: 8000,
-                        socketTimeout: 15000,
-                        tls: { rejectUnauthorized: false }
-                    });
-                    return t.sendMail(mailOptions);
-                };
-
-                let info: any;
-                try {
-                    info = await tryPort(Number(port || 587), Number(port) === 465);
-                } catch (firstErr: any) {
-                    const isConnErr = ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENOTFOUND'].includes(firstErr.code);
-                    const primaryPort = Number(port || 587);
-                    if (isConnErr && primaryPort !== 465) {
-                        console.warn(`[Email Gateway] Port ${primaryPort} timed out, retrying on 465 SSL...`);
-                        info = await tryPort(465, true);
-                    } else {
-                        throw firstErr;
-                    }
-                }
-
-                return res.status(200).json({ success: true, message: 'Email sent successfully.', messageId: info.messageId });
-            } catch (e: any) {
-                console.error("[Email Gateway] SMTP send error:", e);
-                let helpfulMsg = `SMTP Gateway error: ${e.message || 'Connection failed'}`;
-                if (e.code === 'ETIMEDOUT' || e.code === 'ESOCKET') {
-                    helpfulMsg = `SMTP Connection Timeout: The server at ${host} did not respond on port ${port || 587} or 465. Common causes: (1) Firewall/ISP blocking outbound SMTP — try port 465 or 2525. (2) Wrong host — for Gmail use smtp.gmail.com; for cPanel use mail.yourdomain.com. (3) Server is down.`;
-                } else if (e.code === 'ECONNREFUSED') {
-                    helpfulMsg = `SMTP Connection Refused (${host}:${port}): The server actively refused the connection. Check the host and port in Settings → Email Configuration.`;
-                } else if (e.code === 'ENOTFOUND') {
-                    helpfulMsg = `SMTP Host Not Found: Cannot resolve "${host}". Check the SMTP host name in Settings → Email Configuration.`;
-                } else if (e.responseCode === 535 || (e.message && e.message.includes('535'))) {
-                    helpfulMsg = `SMTP Authentication Failed (535): Invalid username or password. For Gmail/Google Workspace: use a 16-character App Password (not your regular password). For cPanel/Webmail: use your full email address as the username.`;
-                } else if (e.responseCode === 534 || (e.message && e.message.includes('534'))) {
-                    helpfulMsg = `SMTP Auth Required (534): Enable "Less Secure Apps" or generate an App Password in your Google Account.`;
-                }
-                return res.status(200).json({ success: false, message: helpfulMsg, error: e.message, code: e.code });
-            }
+            const result = await sendEmailViaSmtp(mailOptions, bodyConfig, instId, branding);
+            return res.status(200).json(result);
         }
 
         if (action === 'sendAlumnaWelcome') {
@@ -1013,7 +1108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const branding = await getBranding(instId);
 
             const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
-            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
+            if (!emailConfig && !process.env.SMTP_HOST) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
 
             const alumnaName = getParam('alumnaName');
             const loginLink = getParam('loginLink') || `https://almamater.eduai.co.ke/?view=alumnae_social`;
@@ -1028,58 +1123,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     <p style="font-size: 12px; color: #64748b;">If the button above doesn't work, copy and paste this link into your browser: <br>${loginLink}</p>
                 `;
 
-            try {
-                const cleanHost = (emailConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
-                const cleanUser = (emailConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim();
-                let cleanPass = typeof emailConfig.password === 'string'
-                    ? emailConfig.password.replace(/[\r\n\t]/g, '').trim()
-                    : (emailConfig.password || '');
+            const fromEmail = ((emailConfig?.from_email || emailConfig?.fromEmail || emailConfig?.username || process.env.SMTP_FROM || process.env.SMTP_USER) || '').replace(/[^\x20-\x7E]/g, '').trim();
+            const mailOptions = {
+                from: `"${branding.name} Alumnae" <${fromEmail}>`,
+                to: recipient,
+                subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
+                html: wrapHtml(welcomeContent, branding)
+            };
 
-                if ((cleanHost.toLowerCase().includes('gmail') || cleanHost.toLowerCase().includes('google')) && typeof cleanPass === 'string') {
-                    const noSpaces = cleanPass.replace(/\s+/g, '');
-                    if (noSpaces.length === 16) cleanPass = noSpaces;
-                }
-
-                const createSmtpTransporter = (p: number, s: boolean) => nodemailer.createTransport({
-                    host: cleanHost,
-                    port: p,
-                    secure: s,
-                    auth: { user: cleanUser, pass: cleanPass },
-                    connectionTimeout: 10000,
-                    greetingTimeout: 8000,
-                    socketTimeout: 15000,
-                    tls: { rejectUnauthorized: false }
-                });
-
-                const tryPortWelcome = async (tryPortNum: number, trySecure: boolean) => {
-                    const t = createSmtpTransporter(tryPortNum, trySecure);
-                    return t.sendMail({
-                        from: `"${branding.name} Alumnae" <${((emailConfig.from_email || emailConfig.username) || '').replace(/[^\x20-\x7E]/g, '').trim()}>`,
-                        to: recipient,
-                        subject: `Welcome to the Alumnae Circle, ${alumnaName}!`,
-                        html: wrapHtml(welcomeContent, branding)
-                    });
-                };
-
-                let info: any;
-                const pNum = Number(emailConfig.port || 587);
-                try {
-                    info = await tryPortWelcome(pNum, pNum === 465);
-                } catch (firstErr: any) {
-                    const isConnErr = ['ETIMEDOUT','ESOCKET','ECONNREFUSED','ENOTFOUND'].includes(firstErr.code);
-                    if (isConnErr && pNum !== 465) {
-                        console.warn(`[Email Gateway] Alumnae welcome port ${pNum} failed, retrying 465...`);
-                        info = await tryPortWelcome(465, true);
-                    } else {
-                        throw firstErr;
-                    }
-                }
-
-                return res.status(200).json({ success: true, message: 'Welcome email sent.', messageId: info.messageId });
-            } catch (e: any) {
-                console.error("[Email Gateway] SMTP send welcome error:", e);
-                return res.status(200).json({ success: false, message: `SMTP Gateway welcome error: ${e.message || 'Connection failed'}` });
-            }
+            const result = await sendEmailViaSmtp(mailOptions, bodyConfig, instId, branding);
+            return res.status(200).json(result);
         }
 
         // --- WHATSAPP GATEWAY & META CLOUD DISPATCHERS ---
@@ -2052,46 +2105,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const hostHeader = req.headers.host || 'eduai.co.ke';
             const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
 
-            let info: any = null;
+            const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+            const branding = await getBranding(instId);
 
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: host,
-                    port: Number(port || 587),
-                    secure: Number(port) === 465,
-                    auth: { user: username, pass: password },
-                    tls: { rejectUnauthorized: false }
-                });
+            const recoverySubject = `Password Reset Request - ${branding.name}`;
+            const recoveryContent = `
+                <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Password Recovery</h2>
+                <p>Dear <strong>${user.name || 'User'}</strong>,</p>
+                <p>You requested a password reset for your account on the <strong>${branding.name}</strong> system.</p>
+                <p>Please click the button below to set a new password. This link is valid for 1 hour:</p>
+                <div style="margin: 30px 0; text-align: center;">
+                    <a href="${resetLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block;">Reset Password</a>
+                </div>
+                <p style="font-size: 12px; color: #64748b;">If you did not request this, please ignore this email and your password will remain unchanged.</p>
+            `;
 
-                const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
-                const branding = await getBranding(instId);
+            const mailOptions = {
+                from: `"${branding.name}" <${fromEmail}>`,
+                to: recipient,
+                subject: recoverySubject,
+                text: `Dear ${user.name || 'User'},\n\nPlease use this link to reset your password: ${resetLink}`,
+                html: wrapHtml(recoveryContent, branding)
+            };
 
-                const recoverySubject = `Password Reset Request - ${branding.name}`;
-                const recoveryContent = `
-                    <h2 style="color: ${branding.primaryColor}; margin-top: 0;">Password Recovery</h2>
-                    <p>Dear <strong>${user.name || 'User'}</strong>,</p>
-                    <p>You requested a password reset for your account on the <strong>${branding.name}</strong> system.</p>
-                    <p>Please click the button below to set a new password. This link is valid for 1 hour:</p>
-                    <div style="margin: 30px 0; text-align: center;">
-                        <a href="${resetLink}" style="background-color: ${branding.primaryColor}; color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; display: inline-block;">Reset Password</a>
-                    </div>
-                    <p style="font-size: 12px; color: #64748b;">If you did not request this, please ignore this email and your password will remain unchanged.</p>
-                `;
-
-                info = await transporter.sendMail({
-                    from: `"${branding.name}" <${fromEmail}>`,
-                    to: recipient,
-                    subject: recoverySubject,
-                    text: `Dear ${user.name || 'User'},\n\nPlease use this link to reset your password: ${resetLink}`,
-                    html: wrapHtml(recoveryContent, branding)
-                });
-
-                console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${info.messageId}`);
-            } catch (e: any) {
-                console.error("[Forgot Password] SMTP send recovery email error:", e);
+            const emailResult = await sendEmailViaSmtp(mailOptions, bodyConfig, instId, branding);
+            if (!emailResult.success) {
+                console.warn(`[Forgot Password] Email dispatch warning:`, emailResult.message);
                 if (!user.phone_number) {
-                    return res.status(200).json({ success: false, message: `Email delivery failed: ${e.message || 'SMTP connection failed'}` });
+                    return res.status(200).json({ success: false, message: `Email delivery failed: ${emailResult.message || 'SMTP connection failed'}` });
                 }
+            } else {
+                console.log(`[Forgot Password] Recovery link sent successfully via Email. Message ID: ${emailResult.messageId}`);
             }
 
             // NEW: Dispatch recovery link via SMS if phone number is available
@@ -2208,7 +2252,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({
                 success: true,
                 message: smsSuccess ? 'Recovery link sent via Email and SMS.' : 'Recovery link sent via Email.',
-                messageId: info?.messageId || null
+                messageId: emailResult?.messageId || null
             });
         }
 
