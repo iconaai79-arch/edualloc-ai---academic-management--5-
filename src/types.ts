@@ -6344,6 +6344,10 @@ export interface RemedialSession {
     courseId?: string;
     className?: string;
     stream?: string;
+    isJoint?: boolean;
+    is_joint?: boolean;
+    jointStreams?: string[];
+    joint_streams?: string[];
     prefectId: string;
     prefectName?: string;
     prefectToken: string;
@@ -6361,6 +6365,13 @@ export interface RemedialAllocation {
     courseId: string;
     className?: string;
     stream?: string;
+    isJoint?: boolean;
+    is_joint?: boolean;
+    jointStreams?: string[];
+    joint_streams?: string[];
+    jointCourses?: string[];
+    joint_courses?: string[];
+    jointLabel?: string;
     subjectId: string;
     subjectName?: string;
     teacherId: string;
@@ -6380,6 +6391,7 @@ export interface RemedialAllocation {
     confirmationDeadline?: string;
     declinedTeacherIds?: string[];
     createdAt?: string;
+    updatedAt?: string;
     institutionId: string;
 }
 
@@ -6427,6 +6439,22 @@ export interface RemedialRateSetting {
     weekendBreakEndTime?: string;
     weekendBreakLabel?: string;
     includeWeekendBreak?: boolean;
+    saturdayBreakStartTime?: string;
+    saturdayBreakEndTime?: string;
+    saturdayBreakLabel?: string;
+    includeSaturdayBreak?: boolean;
+    saturday_break_start_time?: string;
+    saturday_break_end_time?: string;
+    saturday_break_label?: string;
+    include_saturday_break?: boolean;
+    sundayBreakStartTime?: string;
+    sundayBreakEndTime?: string;
+    sundayBreakLabel?: string;
+    includeSundayBreak?: boolean;
+    sunday_break_start_time?: string;
+    sunday_break_end_time?: string;
+    sunday_break_label?: string;
+    include_sunday_break?: boolean;
     cancellationCutoffHours?: number;       // default: 3 hours before start
     confirmationTimeoutMinutes?: number;    // default: 45 minutes for substitute to confirm
     feePerStudent: number;

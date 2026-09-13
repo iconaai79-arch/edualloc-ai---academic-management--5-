@@ -785,13 +785,16 @@ export const apiService = {
     async resetPassword(identifier: string, type: 'email' | 'phone' = 'email'): Promise<{ success: boolean; message: string }> {
         if (!_supabase) return { success: false, message: "Server connection required." };
         try {
+            const formattedRecipient = type === 'phone' ? formatPhoneNumber(identifier) : identifier.trim();
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'forgotPassword', 
-                    recipient: identifier,
-                    method: type 
+                    recipient: formattedRecipient,
+                    method: type,
+                    isOtp: true,
+                    isSystemMessage: true
                 })
             });
             const contentType = response.headers.get('content-type');
@@ -3294,6 +3297,9 @@ export const apiService = {
             let headers: any = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
+            const isOtpMsg = isSystemAlert || 
+                /code|otp|verification|verificaiton|password\s*reset|recovery|pin\b/i.test(message);
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
@@ -3303,7 +3309,9 @@ export const apiService = {
                     message, 
                     config, 
                     units, 
-                    institutionId: effectiveInstId 
+                    institutionId: effectiveInstId,
+                    isOtp: isOtpMsg,
+                    isSystemMessage: isOtpMsg
                 })
             });
 

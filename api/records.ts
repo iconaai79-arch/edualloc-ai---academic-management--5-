@@ -554,6 +554,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'school_remedial_allocations' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+                        if (r.course_id && !r.courseId) r.courseId = r.course_id;
+                        if (r.class_name && !r.className) r.className = r.class_name;
+                        if (r.subject_id && !r.subjectId) r.subjectId = r.subject_id;
+                        if (r.subject_name && !r.subjectName) r.subjectName = r.subject_name;
+                        if (r.teacher_id && !r.teacherId) r.teacherId = r.teacher_id;
+                        if (r.teacher_name && !r.teacherName) r.teacherName = r.teacher_name;
+                        if (r.day_of_week && !r.dayOfWeek) r.dayOfWeek = r.day_of_week;
+                        if (r.start_time && !r.startTime) r.startTime = r.start_time;
+                        if (r.end_time && !r.endTime) r.endTime = r.end_time;
+                        if (r.is_weekend !== undefined && r.isWeekend === undefined) r.isWeekend = r.is_weekend;
+
+                        const isJoint = r.is_joint ?? r.isJoint ?? meta.isJoint ?? meta.is_joint ?? false;
+                        r.isJoint = isJoint;
+                        r.is_joint = isJoint;
+
+                        const jointStreams = r.joint_streams ?? r.jointStreams ?? meta.jointStreams ?? meta.joint_streams ?? [];
+                        r.jointStreams = Array.isArray(jointStreams) ? jointStreams : [];
+                        r.joint_streams = r.jointStreams;
+
+                        const jointCourses = r.joint_courses ?? r.jointCourses ?? meta.jointCourses ?? meta.joint_courses ?? [];
+                        r.jointCourses = Array.isArray(jointCourses) ? jointCourses : [];
+                        r.joint_courses = r.jointCourses;
+                    }
+                });
+            }
+
             return res.status(200).json(data || []);
         }
 
@@ -1105,6 +1135,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.weekendBreakEndTime !== undefined && copy.weekend_break_end_time === undefined) copy.weekend_break_end_time = copy.weekendBreakEndTime;
                     if (copy.weekendBreakLabel !== undefined && copy.weekend_break_label === undefined) copy.weekend_break_label = copy.weekendBreakLabel;
                     if (copy.includeWeekendBreak !== undefined && copy.include_weekend_break === undefined) copy.include_weekend_break = copy.includeWeekendBreak;
+
+                    if (copy.saturdayBreakStartTime !== undefined && copy.saturday_break_start_time === undefined) copy.saturday_break_start_time = copy.saturdayBreakStartTime;
+                    if (copy.saturdayBreakEndTime !== undefined && copy.saturday_break_end_time === undefined) copy.saturday_break_end_time = copy.saturdayBreakEndTime;
+                    if (copy.saturdayBreakLabel !== undefined && copy.saturday_break_label === undefined) copy.saturday_break_label = copy.saturdayBreakLabel;
+                    if (copy.includeSaturdayBreak !== undefined && copy.include_saturday_break === undefined) copy.include_saturday_break = copy.includeSaturdayBreak;
+
+                    if (copy.sundayBreakStartTime !== undefined && copy.sunday_break_start_time === undefined) copy.sunday_break_start_time = copy.sundayBreakStartTime;
+                    if (copy.sundayBreakEndTime !== undefined && copy.sunday_break_end_time === undefined) copy.sunday_break_end_time = copy.sundayBreakEndTime;
+                    if (copy.sundayBreakLabel !== undefined && copy.sunday_break_label === undefined) copy.sunday_break_label = copy.sundayBreakLabel;
+                    if (copy.includeSundayBreak !== undefined && copy.include_sunday_break === undefined) copy.include_sunday_break = copy.includeSundayBreak;
+
+                    if (copy.saturday_break_start_time !== undefined) {
+                        meta.saturday_break_start_time = copy.saturday_break_start_time;
+                        meta.saturdayBreakStartTime = copy.saturday_break_start_time;
+                    }
+                    if (copy.saturday_break_end_time !== undefined) {
+                        meta.saturday_break_end_time = copy.saturday_break_end_time;
+                        meta.saturdayBreakEndTime = copy.saturday_break_end_time;
+                    }
+                    if (copy.saturday_break_label !== undefined) {
+                        meta.saturday_break_label = copy.saturday_break_label;
+                        meta.saturdayBreakLabel = copy.saturday_break_label;
+                    }
+                    if (copy.include_saturday_break !== undefined) {
+                        meta.include_saturday_break = copy.include_saturday_break;
+                        meta.includeSaturdayBreak = copy.include_saturday_break;
+                    }
+
+                    if (copy.sunday_break_start_time !== undefined) {
+                        meta.sunday_break_start_time = copy.sunday_break_start_time;
+                        meta.sundayBreakStartTime = copy.sunday_break_start_time;
+                    }
+                    if (copy.sunday_break_end_time !== undefined) {
+                        meta.sunday_break_end_time = copy.sunday_break_end_time;
+                        meta.sundayBreakEndTime = copy.sunday_break_end_time;
+                    }
+                    if (copy.sunday_break_label !== undefined) {
+                        meta.sunday_break_label = copy.sunday_break_label;
+                        meta.sundayBreakLabel = copy.sunday_break_label;
+                    }
+                    if (copy.include_sunday_break !== undefined) {
+                        meta.include_sunday_break = copy.include_sunday_break;
+                        meta.includeSundayBreak = copy.include_sunday_break;
+                    }
+
                     if (copy.weekend_break_start_time !== undefined) {
                         meta.weekend_break_start_time = copy.weekend_break_start_time;
                         meta.weekendBreakStartTime = copy.weekend_break_start_time;
@@ -1147,11 +1222,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.weekendBreakEndTime;
                     delete copy.weekendBreakLabel;
                     delete copy.includeWeekendBreak;
+                    delete copy.saturdayBreakStartTime;
+                    delete copy.saturdayBreakEndTime;
+                    delete copy.saturdayBreakLabel;
+                    delete copy.includeSaturdayBreak;
+                    delete copy.sundayBreakStartTime;
+                    delete copy.sundayBreakEndTime;
+                    delete copy.sundayBreakLabel;
+                    delete copy.includeSundayBreak;
                     delete copy.feePerStudent;
                     delete copy.termFee;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialRateSettings) : cleanRemedialRateSettings(currentPayload);
+            }
+
+            if (moduleName === 'school_remedial_allocations') {
+                const cleanRemedialAllocation = (rec: any) => {
+                    if (!rec || typeof rec !== 'object') return rec;
+                    const copy = { ...rec };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
+                    if (copy.className !== undefined && copy.class_name === undefined) copy.class_name = copy.className;
+                    if (copy.subjectId && !copy.subject_id) copy.subject_id = copy.subjectId;
+                    if (copy.subjectName !== undefined && copy.subject_name === undefined) copy.subject_name = copy.subjectName;
+                    if (copy.teacherId && !copy.teacher_id) copy.teacher_id = copy.teacherId;
+                    if (copy.teacherName !== undefined && copy.teacher_name === undefined) copy.teacher_name = copy.teacherName;
+                    if (copy.dayOfWeek && !copy.day_of_week) copy.day_of_week = copy.dayOfWeek;
+                    if (copy.startTime && !copy.start_time) copy.start_time = copy.startTime;
+                    if (copy.endTime && !copy.end_time) copy.end_time = copy.endTime;
+                    if (copy.isWeekend !== undefined && copy.is_weekend === undefined) copy.is_weekend = copy.isWeekend;
+
+                    if (copy.isJoint !== undefined && copy.is_joint === undefined) copy.is_joint = copy.isJoint;
+                    if (copy.jointStreams !== undefined && copy.joint_streams === undefined) copy.joint_streams = copy.jointStreams;
+                    if (copy.jointCourses !== undefined && copy.joint_courses === undefined) copy.joint_courses = copy.jointCourses;
+
+                    if (copy.substituteTeacherId !== undefined && copy.substitute_teacher_id === undefined) copy.substitute_teacher_id = copy.substituteTeacherId;
+                    if (copy.substituteTeacherName !== undefined && copy.substitute_teacher_name === undefined) copy.substitute_teacher_name = copy.substituteTeacherName;
+                    if (copy.originalTeacherId !== undefined && copy.original_teacher_id === undefined) copy.original_teacher_id = copy.originalTeacherId;
+                    if (copy.originalTeacherName !== undefined && copy.original_teacher_name === undefined) copy.original_teacher_name = copy.originalTeacherName;
+                    if (copy.cancellationReason !== undefined && copy.cancellation_reason === undefined) copy.cancellation_reason = copy.cancellationReason;
+                    if (copy.cancelledAt !== undefined && copy.cancelled_at === undefined) copy.cancelled_at = copy.cancelledAt;
+                    if (copy.confirmationDeadline !== undefined && copy.confirmation_deadline === undefined) copy.confirmation_deadline = copy.confirmationDeadline;
+                    if (copy.declinedTeacherIds !== undefined && copy.declined_teacher_ids === undefined) copy.declined_teacher_ids = copy.declinedTeacherIds;
+
+                    if (copy.is_joint !== undefined) {
+                        meta.isJoint = copy.is_joint;
+                        meta.is_joint = copy.is_joint;
+                    }
+                    if (copy.joint_streams !== undefined) {
+                        meta.jointStreams = copy.joint_streams;
+                        meta.joint_streams = copy.joint_streams;
+                    }
+                    if (copy.joint_courses !== undefined) {
+                        meta.jointCourses = copy.joint_courses;
+                        meta.joint_courses = copy.joint_courses;
+                    }
+
+                    copy.metadata = meta;
+                    delete copy.institutionId;
+                    delete copy.courseId;
+                    delete copy.className;
+                    delete copy.subjectId;
+                    delete copy.subjectName;
+                    delete copy.teacherId;
+                    delete copy.teacherName;
+                    delete copy.dayOfWeek;
+                    delete copy.startTime;
+                    delete copy.endTime;
+                    delete copy.isWeekend;
+                    delete copy.isJoint;
+                    delete copy.jointStreams;
+                    delete copy.jointCourses;
+                    delete copy.substituteTeacherId;
+                    delete copy.substituteTeacherName;
+                    delete copy.originalTeacherId;
+                    delete copy.originalTeacherName;
+                    delete copy.cancellationReason;
+                    delete copy.cancelledAt;
+                    delete copy.confirmationDeadline;
+                    delete copy.declinedTeacherIds;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialAllocation) : cleanRemedialAllocation(currentPayload);
             }
 
             if (moduleName === 'school_authorized_devices') {

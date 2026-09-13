@@ -6,7 +6,7 @@ import { ChurchDenominationProvider } from './church/ChurchDenominationProvider'
 import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
-import { generateAlphanumericCode, slugify } from '../utils/stringUtils';
+import { generateAlphanumericCode, slugify, formatPhoneNumber } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { detectTimetableConflicts } from '../utils/conflictUtils';
 import {
@@ -8760,14 +8760,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                         Promise.all([
                                             u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage, emailCfg, u.id) : Promise.resolve({ success: true }),
-                                            u.phoneNumber ? apiService.sendSms(u.phoneNumber, otpMessage, smsCfg, 1, u.institutionId, u.id) : Promise.resolve({ success: true })
+                                            u.phoneNumber ? apiService.sendSms(formatPhoneNumber(u.phoneNumber), otpMessage, smsCfg, 1, u.institutionId, u.id, true) : Promise.resolve({ success: true })
                                         ]).then((results: any) => {
                                             const smsResult = (results[1] || results[0]);
                                             if (smsResult && smsResult.success === false) {
                                                 console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
                                                 // Alert super admins of gateway failures immediately
                                                 if (u.role === 'super_admin') {
-                                                    toastError(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. Check your gateway settings. (Email OTP should still be sent)`);
+                                                    toastError(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. (Email OTP should still be sent)`);
                                                 }
                                             }
                                         }).catch(err => {
@@ -8828,7 +8828,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                 Promise.all([
                                     otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage, emailCfg, otpPendingUser.id) : Promise.resolve({ success: true }),
-                                    otpPendingUser.phoneNumber ? apiService.sendSms(otpPendingUser.phoneNumber, otpMessage, smsCfg, 1, otpPendingUser.institutionId, otpPendingUser.id) : Promise.resolve({ success: true })
+                                    otpPendingUser.phoneNumber ? apiService.sendSms(formatPhoneNumber(otpPendingUser.phoneNumber), otpMessage, smsCfg, 1, otpPendingUser.institutionId, otpPendingUser.id, true) : Promise.resolve({ success: true })
                                 ]).then(results => {
                                     const smsResult = (results[1] || results[0]) as any;
                                     if (smsResult && smsResult.success === false) {

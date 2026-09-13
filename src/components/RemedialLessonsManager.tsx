@@ -7,7 +7,7 @@ import {
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
-    FileText, BarChart3, Filter, Pencil
+    FileText, BarChart3, Filter, Pencil, Users
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
@@ -21,7 +21,8 @@ import {
     getSubjectCode,
     getTeacherCode,
     getClassShortCode,
-    getDistinctTimetableClasses
+    getDistinctTimetableClasses,
+    matchAllocationStream
 } from '../utils/remedialReportGenerator';
 
 interface RemedialLessonsManagerProps {
@@ -95,6 +96,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [weekendBreakEndTime, setWeekendBreakEndTime] = useState<string>('10:30');
     const [weekendBreakLabel, setWeekendBreakLabel] = useState<string>('Tea & Refreshment Break');
     const [includeWeekendBreak, setIncludeWeekendBreak] = useState<boolean>(true);
+    const [saturdayBreakStartTime, setSaturdayBreakStartTime] = useState<string>('10:00');
+    const [saturdayBreakEndTime, setSaturdayBreakEndTime] = useState<string>('10:30');
+    const [saturdayBreakLabel, setSaturdayBreakLabel] = useState<string>('Saturday Refreshment Break');
+    const [includeSaturdayBreak, setIncludeSaturdayBreak] = useState<boolean>(true);
+    const [sundayBreakStartTime, setSundayBreakStartTime] = useState<string>('11:00');
+    const [sundayBreakEndTime, setSundayBreakEndTime] = useState<string>('11:30');
+    const [sundayBreakLabel, setSundayBreakLabel] = useState<string>('Sunday Recess Break');
+    const [includeSundayBreak, setIncludeSundayBreak] = useState<boolean>(true);
     const [teacherPreferences, setTeacherPreferences] = useState<Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>>({});
     const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
     const [cancellationCutoffHours, setCancellationCutoffHours] = useState<number>(3);
@@ -115,6 +124,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [allocDay, setAllocDay] = useState<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'>('Monday');
     const [allocStartTime, setAllocStartTime] = useState('16:00');
     const [allocEndTime, setAllocEndTime] = useState('18:00');
+    const [isJointAlloc, setIsJointAlloc] = useState<boolean>(false);
+    const [jointStreamsSelected, setJointStreamsSelected] = useState<string[]>([]);
+    const [jointCoursesSelected, setJointCoursesSelected] = useState<string[]>([]);
+    const [customJointStream, setCustomJointStream] = useState<string>('');
 
     // QR Print / Preview State
     const [printingPrefect, setPrintingPrefect] = useState<User | null>(null);
@@ -182,11 +195,35 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setMaxWeekendLessonsPerDay(weekendLimitVal);
         setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
         setTermFee(r.termFee ?? r.term_fee ?? 3000);
-        setWeekendBreakStartTime(r.weekendBreakStartTime || r.weekend_break_start_time || r.metadata?.weekendBreakStartTime || r.metadata?.weekend_break_start_time || '10:00');
-        setWeekendBreakEndTime(r.weekendBreakEndTime || r.weekend_break_end_time || r.metadata?.weekendBreakEndTime || r.metadata?.weekend_break_end_time || '10:30');
-        setWeekendBreakLabel(r.weekendBreakLabel || r.weekend_break_label || r.metadata?.weekendBreakLabel || r.metadata?.weekend_break_label || 'Tea & Refreshment Break');
+        const legBreakStart = r.weekendBreakStartTime || r.weekend_break_start_time || r.metadata?.weekendBreakStartTime || r.metadata?.weekend_break_start_time || '10:00';
+        const legBreakEnd = r.weekendBreakEndTime || r.weekend_break_end_time || r.metadata?.weekendBreakEndTime || r.metadata?.weekend_break_end_time || '10:30';
+        const legBreakLabel = r.weekendBreakLabel || r.weekend_break_label || r.metadata?.weekendBreakLabel || r.metadata?.weekend_break_label || 'Tea & Refreshment Break';
         const loadedIncludeBreak = r.includeWeekendBreak ?? r.include_weekend_break ?? r.metadata?.includeWeekendBreak ?? r.metadata?.include_weekend_break ?? true;
+
+        setWeekendBreakStartTime(legBreakStart);
+        setWeekendBreakEndTime(legBreakEnd);
+        setWeekendBreakLabel(legBreakLabel);
         setIncludeWeekendBreak(loadedIncludeBreak !== false);
+
+        const satBreakStart = r.saturdayBreakStartTime || r.saturday_break_start_time || r.metadata?.saturdayBreakStartTime || r.metadata?.saturday_break_start_time || legBreakStart;
+        const satBreakEnd = r.saturdayBreakEndTime || r.saturday_break_end_time || r.metadata?.saturdayBreakEndTime || r.metadata?.saturday_break_end_time || legBreakEnd;
+        const satBreakLabel = r.saturdayBreakLabel || r.saturday_break_label || r.metadata?.saturdayBreakLabel || r.metadata?.saturday_break_label || 'Saturday Refreshment Break';
+        const satIncBreak = r.includeSaturdayBreak ?? r.include_saturday_break ?? r.metadata?.includeSaturdayBreak ?? r.metadata?.include_saturday_break ?? loadedIncludeBreak;
+
+        setSaturdayBreakStartTime(satBreakStart);
+        setSaturdayBreakEndTime(satBreakEnd);
+        setSaturdayBreakLabel(satBreakLabel);
+        setIncludeSaturdayBreak(satIncBreak !== false);
+
+        const sunBreakStart = r.sundayBreakStartTime || r.sunday_break_start_time || r.metadata?.sundayBreakStartTime || r.metadata?.sunday_break_start_time || '11:00';
+        const sunBreakEnd = r.sundayBreakEndTime || r.sunday_break_end_time || r.metadata?.sundayBreakEndTime || r.metadata?.sunday_break_end_time || '11:30';
+        const sunBreakLabel = r.sundayBreakLabel || r.sunday_break_label || r.metadata?.sundayBreakLabel || r.metadata?.sunday_break_label || 'Sunday Recess Break';
+        const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? r.metadata?.includeSundayBreak ?? r.metadata?.include_sunday_break ?? loadedIncludeBreak;
+
+        setSundayBreakStartTime(sunBreakStart);
+        setSundayBreakEndTime(sunBreakEnd);
+        setSundayBreakLabel(sunBreakLabel);
+        setIncludeSundayBreak(sunIncBreak !== false);
         const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
         setTeacherPreferences(loadedTeacherPrefs);
         setCancellationCutoffHours(r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? r.metadata?.cancellationCutoffHours ?? 3);
@@ -801,14 +838,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 confirmation_timeout_minutes: confirmationTimeoutMinutes,
                 teacherPreferences,
                 teacher_preferences: teacherPreferences,
-                weekendBreakStartTime,
-                weekend_break_start_time: weekendBreakStartTime,
-                weekendBreakEndTime,
-                weekend_break_end_time: weekendBreakEndTime,
-                weekendBreakLabel,
-                weekend_break_label: weekendBreakLabel,
-                includeWeekendBreak,
-                include_weekend_break: includeWeekendBreak,
+                weekendBreakStartTime: saturdayBreakStartTime,
+                weekend_break_start_time: saturdayBreakStartTime,
+                weekendBreakEndTime: saturdayBreakEndTime,
+                weekend_break_end_time: saturdayBreakEndTime,
+                weekendBreakLabel: saturdayBreakLabel,
+                weekend_break_label: saturdayBreakLabel,
+                includeWeekendBreak: includeSaturdayBreak,
+                include_weekend_break: includeSaturdayBreak,
+                includeSaturdayBreak,
+                include_saturday_break: includeSaturdayBreak,
+                saturdayBreakStartTime,
+                saturday_break_start_time: saturdayBreakStartTime,
+                saturdayBreakEndTime,
+                saturday_break_end_time: saturdayBreakEndTime,
+                saturdayBreakLabel,
+                saturday_break_label: saturdayBreakLabel,
+                includeSundayBreak,
+                include_sunday_break: includeSundayBreak,
+                sundayBreakStartTime,
+                sunday_break_start_time: sundayBreakStartTime,
+                sundayBreakEndTime,
+                sunday_break_end_time: sundayBreakEndTime,
+                sundayBreakLabel,
+                sunday_break_label: sundayBreakLabel,
                 metadata: {
                     saturdayStartTime,
                     saturday_start_time: saturdayStartTime,
@@ -824,14 +877,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     cancellation_cutoff_hours: cancellationCutoffHours,
                     confirmationTimeoutMinutes,
                     confirmation_timeout_minutes: confirmationTimeoutMinutes,
-                    weekendBreakStartTime,
-                    weekend_break_start_time: weekendBreakStartTime,
-                    weekendBreakEndTime,
-                    weekend_break_end_time: weekendBreakEndTime,
-                    weekendBreakLabel,
-                    weekend_break_label: weekendBreakLabel,
-                    includeWeekendBreak,
-                    include_weekend_break: includeWeekendBreak,
+                    weekendBreakStartTime: saturdayBreakStartTime,
+                    weekend_break_start_time: saturdayBreakStartTime,
+                    weekendBreakEndTime: saturdayBreakEndTime,
+                    weekend_break_end_time: saturdayBreakEndTime,
+                    weekendBreakLabel: saturdayBreakLabel,
+                    weekend_break_label: saturdayBreakLabel,
+                    includeWeekendBreak: includeSaturdayBreak,
+                    include_weekend_break: includeSaturdayBreak,
+                    includeSaturdayBreak,
+                    include_saturday_break: includeSaturdayBreak,
+                    saturdayBreakStartTime,
+                    saturday_break_start_time: saturdayBreakStartTime,
+                    saturdayBreakEndTime,
+                    saturday_break_end_time: saturdayBreakEndTime,
+                    saturdayBreakLabel,
+                    saturday_break_label: saturdayBreakLabel,
+                    includeSundayBreak,
+                    include_sunday_break: includeSundayBreak,
+                    sundayBreakStartTime,
+                    sunday_break_start_time: sundayBreakStartTime,
+                    sundayBreakEndTime,
+                    sunday_break_end_time: sundayBreakEndTime,
+                    sundayBreakLabel,
+                    sunday_break_label: sundayBreakLabel,
                     teacherPreferences,
                     teacher_preferences: teacherPreferences,
                     ...(rateSetting?.metadata || {})
@@ -1075,6 +1144,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setAllocCourseId('');
         setAllocStream('All Streams');
         setCustomAllocStream('');
+        setIsJointAlloc(false);
+        setJointStreamsSelected([]);
+        setJointCoursesSelected([]);
+        setCustomJointStream('');
         setAllocSubjectId('');
         setAllocTeacherId('');
         setAllocDay('Monday');
@@ -1088,6 +1161,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setEditingAlloc(alloc);
         setAllocCourseId(alloc.courseId || '');
 
+        const isJoint = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
+        setIsJointAlloc(isJoint);
+
+        let initialJointStreams: string[] = [];
+        if (Array.isArray(alloc.jointStreams) && alloc.jointStreams.length > 0) {
+            initialJointStreams = [...alloc.jointStreams];
+        } else if (Array.isArray(alloc.joint_streams) && alloc.joint_streams.length > 0) {
+            initialJointStreams = [...alloc.joint_streams];
+        } else if (alloc.stream && alloc.stream.includes('+')) {
+            initialJointStreams = alloc.stream.replace(/\(Joint\)/gi, '').split('+').map(s => s.trim()).filter(Boolean);
+        }
+        setJointStreamsSelected(initialJointStreams);
+        setJointCoursesSelected(Array.isArray(alloc.jointCourses) ? alloc.jointCourses : (Array.isArray(alloc.joint_courses) ? alloc.joint_courses : []));
+        setCustomJointStream('');
+
         const matchedCourse = courses.find(c => c.id === alloc.courseId);
         const courseStreams = matchedCourse?.streams || [];
         if (!alloc.stream || alloc.stream === 'All Streams') {
@@ -1096,9 +1184,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         } else if (courseStreams.includes(alloc.stream)) {
             setAllocStream(alloc.stream);
             setCustomAllocStream('');
-        } else {
+        } else if (!isJoint) {
             setAllocStream('__custom__');
             setCustomAllocStream(alloc.stream);
+        } else {
+            setAllocStream('All Streams');
+            setCustomAllocStream('');
         }
 
         setAllocSubjectId(alloc.subjectId || '');
@@ -1116,6 +1207,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return alert('Please select class, stream, subject, and teacher.');
         }
 
+        if (isJointAlloc && jointStreamsSelected.length === 0 && !customJointStream.trim()) {
+            return alert('Please select or add at least one stream for this joint class.');
+        }
+
         try {
             const course = courses.find(c => c.id === allocCourseId);
             const remSubMatch = remedialSubjects.find(r => r.subjectId === allocSubjectId || r.id === allocSubjectId);
@@ -1123,9 +1218,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || 'Subject';
             const teacher = users.find(u => u.id === allocTeacherId);
             const isWeekend = ['Saturday', 'Sunday'].includes(allocDay);
-            const effectiveStream = allocStream === '__custom__'
+
+            let effectiveStream = allocStream === '__custom__'
                 ? (customAllocStream.trim() || 'All Streams')
                 : (allocStream || 'All Streams');
+
+            let finalJointStreams: string[] = [];
+            if (isJointAlloc) {
+                finalJointStreams = [...jointStreamsSelected];
+                if (customJointStream.trim() && !finalJointStreams.includes(customJointStream.trim())) {
+                    finalJointStreams.push(customJointStream.trim());
+                }
+                if (finalJointStreams.length > 0) {
+                    effectiveStream = `${finalJointStreams.join(' + ')} (Joint)`;
+                } else {
+                    effectiveStream = 'Joint Streams';
+                }
+            }
 
             const payloadAlloc: RemedialAllocation = {
                 ...(editingAlloc || {}),
@@ -1133,6 +1242,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 courseId: allocCourseId,
                 className: course?.name || editingAlloc?.className || 'Class',
                 stream: effectiveStream,
+                isJoint: isJointAlloc,
+                is_joint: isJointAlloc,
+                jointStreams: isJointAlloc ? finalJointStreams : [],
+                joint_streams: isJointAlloc ? finalJointStreams : [],
+                jointCourses: isJointAlloc ? jointCoursesSelected : [],
+                joint_courses: isJointAlloc ? jointCoursesSelected : [],
                 subjectId: allocSubjectId,
                 subjectName: resolvedSubjectName,
                 teacherId: allocTeacherId,
@@ -1157,6 +1272,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             setEditingAlloc(null);
             setAllocStream('All Streams');
             setCustomAllocStream('');
+            setIsJointAlloc(false);
+            setJointStreamsSelected([]);
+            setJointCoursesSelected([]);
+            setCustomJointStream('');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to save allocation');
@@ -1298,14 +1417,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         
                         let candidateStartTime = weekdayStartTime || '16:00';
                         if (day === 'Saturday') {
-                            if (includeWeekendBreak) {
-                                candidateStartTime = courseDayLessonCount === 0 ? (saturdayStartTime || '08:00') : (weekendBreakEndTime || '10:30');
+                            if (includeSaturdayBreak) {
+                                candidateStartTime = courseDayLessonCount === 0 ? (saturdayStartTime || '08:00') : (saturdayBreakEndTime || '10:30');
                             } else {
                                 candidateStartTime = courseDayLessonCount === 0 ? (saturdayStartTime || '08:00') : '10:00';
                             }
                         } else if (day === 'Sunday') {
-                            if (includeWeekendBreak) {
-                                candidateStartTime = courseDayLessonCount === 0 ? (sundayStartTime || '09:00') : (weekendBreakEndTime || '11:00');
+                            if (includeSundayBreak) {
+                                candidateStartTime = courseDayLessonCount === 0 ? (sundayStartTime || '09:00') : (sundayBreakEndTime || '11:30');
                             } else {
                                 candidateStartTime = courseDayLessonCount === 0 ? (sundayStartTime || '09:00') : '11:00';
                             }
@@ -1359,12 +1478,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     let endTime = weekdayEndTime || '18:00';
 
                     if (selectedDay === 'Saturday') {
-                        if (includeWeekendBreak) {
+                        if (includeSaturdayBreak) {
                             if (courseDayLessonCount === 0) {
                                 startTime = saturdayStartTime || '08:00';
-                                endTime = weekendBreakStartTime || '10:00';
+                                endTime = saturdayBreakStartTime || '10:00';
                             } else {
-                                startTime = weekendBreakEndTime || '10:30';
+                                startTime = saturdayBreakEndTime || '10:30';
                                 endTime = saturdayEndTime || '12:30';
                             }
                         } else {
@@ -1377,12 +1496,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             }
                         }
                     } else if (selectedDay === 'Sunday') {
-                        if (includeWeekendBreak) {
+                        if (includeSundayBreak) {
                             if (courseDayLessonCount === 0) {
                                 startTime = sundayStartTime || '09:00';
-                                endTime = weekendBreakStartTime || '11:00';
+                                endTime = sundayBreakStartTime || '11:00';
                             } else {
-                                startTime = weekendBreakEndTime || '11:30';
+                                startTime = sundayBreakEndTime || '11:30';
                                 endTime = sundayEndTime || '13:30';
                             }
                         } else {
@@ -2233,7 +2352,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const matches = allocations.filter(a =>
                             a.dayOfWeek === day &&
                             (a.className === cls.className || a.courseId === cls.className) &&
-                            (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream)
+                            matchAllocationStream(a, cls.stream)
                         );
                         const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
                         return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
@@ -2260,8 +2379,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const matches = allocations.filter(a =>
                             a.dayOfWeek === 'Saturday' &&
                             (a.className === cls.className || a.courseId === cls.className) &&
-                            (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
-                            (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                            matchAllocationStream(a, cls.stream) &&
+                            (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                         );
                         const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
                         return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
@@ -2285,8 +2404,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const matches = allocations.filter(a =>
                             a.dayOfWeek === 'Sunday' &&
                             (a.className === cls.className || a.courseId === cls.className) &&
-                            (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
-                            (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                            matchAllocationStream(a, cls.stream) &&
+                            (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                         );
                         const cell = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join('<br/>') || '-';
                         return `<td style="text-align:center;font-weight:600;padding:6px;border:1px solid #334155;">${cell}</td>`;
@@ -2460,36 +2579,41 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const dayAllocations = allocations.filter(a => {
                 const matchDay = a.dayOfWeek === day;
                 const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
-                const matchStream = selectedTimetableStream === 'All' 
-                    || a.stream === selectedTimetableStream 
-                    || (!a.stream && selectedTimetableStream === 'All Streams')
-                    || (a.stream === 'All Streams');
+                const matchStream = matchAllocationStream(a, selectedTimetableStream);
                 return matchDay && matchClass && matchStream;
             }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
             let lessonsHtml = '';
 
-            const renderAllocCard = (alloc: RemedialAllocation) => `
+            const renderAllocCard = (alloc: RemedialAllocation) => {
+                const isJoint = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
+                return `
                 <div class="lesson-card ${alloc.priority === 'High' ? 'priority-high' : ''}">
                     <div class="lesson-subject">${alloc.subjectName} ${alloc.priority === 'High' ? '<span class="tag-high">High</span>' : ''}</div>
-                    <div class="lesson-class">${alloc.className} ${alloc.stream && alloc.stream !== 'All Streams' ? `(${alloc.stream})` : ''}</div>
+                    <div class="lesson-class">${alloc.className} ${alloc.stream && alloc.stream !== 'All Streams' ? `(${alloc.stream})` : ''} ${isJoint ? '<span style="display:inline-block;padding:1px 5px;border-radius:4px;background:#d1fae5;color:#065f46;font-size:7.5px;font-weight:bold;margin-left:4px;">Joint Class</span>' : ''}</div>
                     <div class="lesson-teacher">Teacher: ${alloc.teacherName}</div>
                     <div class="lesson-time">${alloc.startTime} - ${alloc.endTime}</div>
                 </div>
             `;
+            };
 
-            if (isWeekend && includeWeekendBreak) {
-                const preBreak = dayAllocations.filter(a => (a.startTime || '') < (weekendBreakStartTime || '10:00'));
-                const postBreak = dayAllocations.filter(a => (a.startTime || '') >= (weekendBreakStartTime || '10:00'));
+            const hasDayBreak = (day === 'Saturday' && includeSaturdayBreak) || (day === 'Sunday' && includeSundayBreak);
+            const dayBreakStart = day === 'Saturday' ? (saturdayBreakStartTime || '10:00') : (sundayBreakStartTime || '11:00');
+            const dayBreakEnd = day === 'Saturday' ? (saturdayBreakEndTime || '10:30') : (sundayBreakEndTime || '11:30');
+            const dayBreakLabel = day === 'Saturday' ? (saturdayBreakLabel || 'Saturday Refreshment Break') : (sundayBreakLabel || 'Sunday Recess Break');
+
+            if (hasDayBreak) {
+                const preBreak = dayAllocations.filter(a => (a.startTime || '') < dayBreakStart);
+                const postBreak = dayAllocations.filter(a => (a.startTime || '') >= dayBreakStart);
 
                 const preBreakHtml = preBreak.length > 0 ? preBreak.map(renderAllocCard).join('') : '<div class="empty-slot">No pre-break sessions</div>';
                 const postBreakHtml = postBreak.length > 0 ? postBreak.map(renderAllocCard).join('') : '<div class="empty-slot">No post-break sessions</div>';
 
                 const breakCardHtml = `
                     <div class="break-card">
-                        <div class="break-title">&#9749; ${weekendBreakLabel || 'Tea & Refreshment Break'}</div>
-                        <div class="break-time">${weekendBreakStartTime} – ${weekendBreakEndTime}</div>
-                        <div class="break-sub">Weekend Recess</div>
+                        <div class="break-title">&#9749; ${dayBreakLabel}</div>
+                        <div class="break-time">${dayBreakStart} – ${dayBreakEnd}</div>
+                        <div class="break-sub">${day} Recess</div>
                     </div>
                 `;
 
@@ -2759,7 +2883,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     <div class="footer">
                         <div>
                             <div><strong>Guidelines:</strong> Weekday tuition starts at ${weekdayStartTime} to ${weekdayEndTime}.</div>
-                            <div>Weekend tuition window: Saturday ${saturdayStartTime} to ${saturdayEndTime} | Sunday ${sundayStartTime} to ${sundayEndTime}. ${includeWeekendBreak ? `Weekend break interval observed: ${weekendBreakStartTime} – ${weekendBreakEndTime} (${weekendBreakLabel}).` : ''}</div>
+                            <div>Weekend tuition window: Saturday ${saturdayStartTime} to ${saturdayEndTime} ${includeSaturdayBreak ? `(Break: ${saturdayBreakStartTime}–${saturdayBreakEndTime} ${saturdayBreakLabel})` : '(No Break)'} | Sunday ${sundayStartTime} to ${sundayEndTime} ${includeSundayBreak ? `(Break: ${sundayBreakStartTime}–${sundayBreakEndTime} ${sundayBreakLabel})` : '(No Break)'}.</div>
                             <div style="margin-top: 3px; font-size: 8.5px; color: #94a3b8;">All remedial sessions require prefect QR authentication upon session initiation and conclusion.</div>
                         </div>
                         <div style="display: flex; gap: 32px;">
@@ -3442,18 +3566,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 const dayAllocations = allocations.filter(a => {
                                     const matchDay = a.dayOfWeek === day;
                                     const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
-                                    const matchStream = selectedTimetableStream === 'All' 
-                                        || a.stream === selectedTimetableStream 
-                                        || (!a.stream && selectedTimetableStream === 'All Streams')
-                                        || (a.stream === 'All Streams');
+                                    const matchStream = matchAllocationStream(a, selectedTimetableStream);
                                     return matchDay && matchClass && matchStream;
                                 }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 
-                                const preBreakAllocations = isWeekend && includeWeekendBreak 
-                                    ? dayAllocations.filter(a => (a.startTime || '') < (weekendBreakStartTime || '10:00'))
+                                const isSaturday = day === 'Saturday';
+                                const isSunday = day === 'Sunday';
+                                const dayHasBreak = (isSaturday && includeSaturdayBreak) || (isSunday && includeSundayBreak);
+                                const dayBreakStart = isSaturday ? (saturdayBreakStartTime || '10:00') : (sundayBreakStartTime || '11:00');
+                                const dayBreakEnd = isSaturday ? (saturdayBreakEndTime || '10:30') : (sundayBreakEndTime || '11:30');
+                                const dayBreakLabel = isSaturday ? (saturdayBreakLabel || 'Saturday Refreshment Break') : (sundayBreakLabel || 'Sunday Recess Break');
+
+                                const preBreakAllocations = isWeekend && dayHasBreak 
+                                    ? dayAllocations.filter(a => (a.startTime || '') < dayBreakStart)
                                     : dayAllocations;
-                                const postBreakAllocations = isWeekend && includeWeekendBreak 
-                                    ? dayAllocations.filter(a => (a.startTime || '') >= (weekendBreakStartTime || '10:00'))
+                                const postBreakAllocations = isWeekend && dayHasBreak 
+                                    ? dayAllocations.filter(a => (a.startTime || '') >= dayBreakStart)
                                     : [];
 
                                 const renderAllocCard = (alloc: RemedialAllocation) => (
@@ -3504,6 +3632,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     All Streams
                                                 </span>
                                             )}
+                                            {(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0)) && (
+                                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                                                    <Users className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" /> Joint Class
+                                                </span>
+                                            )}
                                             {alloc.status === 'Substitute Pending' && (
                                                 <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[7.5px] font-black uppercase tracking-wider flex items-center gap-1">
                                                     <Clock className="w-2.5 h-2.5 text-amber-600 animate-spin" /> Sub Pending ({getRemainingMinutes(alloc.confirmationDeadline)}m)
@@ -3536,10 +3669,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         </div>
 
                                         {(() => {
+                                            const isJointAllocItem = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
+                                            const jointStreamsList: string[] = Array.isArray(alloc.jointStreams) ? alloc.jointStreams : (Array.isArray(alloc.joint_streams) ? alloc.joint_streams : []);
+
                                             const streamPrefect = prefectsList.find(p => {
                                                 const cMatch = p.courseId === alloc.courseId || 
                                                     (p.className && alloc.className && p.className.toLowerCase().trim() === alloc.className.toLowerCase().trim());
                                                 if (!cMatch) return false;
+                                                if (isJointAllocItem && p.stream) {
+                                                    const pStreamLower = p.stream.toLowerCase().trim();
+                                                    return jointStreamsList.some(s => s.toLowerCase().trim() === pStreamLower) ||
+                                                        (alloc.stream && alloc.stream.toLowerCase().includes(pStreamLower));
+                                                }
                                                 if (alloc.stream && alloc.stream !== 'All Streams' && p.stream) {
                                                     return p.stream.toLowerCase().trim() === alloc.stream.toLowerCase().trim();
                                                 }
@@ -3649,16 +3790,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             )}
 
                                             {/* Weekend Break Card */}
-                                            {isWeekend && includeWeekendBreak && (
+                                            {isWeekend && dayHasBreak && (
                                                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 p-3 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700/60 shadow-xs flex flex-col items-center justify-center text-center space-y-1 my-2 print:border-amber-500 print:bg-amber-50">
                                                     <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-200">
                                                         <Coffee className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                                        <span className="text-[10px] font-black uppercase tracking-wider">{weekendBreakLabel || 'Tea & Refreshment Break'}</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-wider">{dayBreakLabel}</span>
                                                     </div>
                                                     <p className="text-[9px] font-mono font-black text-amber-700 dark:text-amber-300">
-                                                        {weekendBreakStartTime} – {weekendBreakEndTime}
+                                                        {dayBreakStart} – {dayBreakEnd}
                                                     </p>
-                                                    <span className="text-[7.5px] font-bold uppercase tracking-widest text-amber-600/90 dark:text-amber-400/90">Official Weekend Recess</span>
+                                                    <span className="text-[7.5px] font-bold uppercase tracking-widest text-amber-600/90 dark:text-amber-400/90">{day} Recess</span>
                                                 </div>
                                             )}
 
@@ -3667,7 +3808,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 postBreakAllocations.map(renderAllocCard)
                                             )}
 
-                                            {isWeekend && dayAllocations.length === 0 && !includeWeekendBreak && (
+                                            {isWeekend && dayAllocations.length === 0 && !dayHasBreak && (
                                                 <p className="text-[10px] text-slate-400 font-medium italic text-center py-6">No lessons scheduled</p>
                                             )}
                                         </div>
@@ -4084,63 +4225,137 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* Weekend Break Configuration */}
+                                    {/* Saturday Break Configuration */}
                                     <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2.5">
                                         <div className="flex items-center justify-between">
                                             <label className="flex items-center gap-2 cursor-pointer select-none">
                                                 <input 
                                                     type="checkbox"
-                                                    checked={includeWeekendBreak}
-                                                    onChange={e => setIncludeWeekendBreak(e.target.checked)}
+                                                    checked={includeSaturdayBreak}
+                                                    onChange={e => {
+                                                        setIncludeSaturdayBreak(e.target.checked);
+                                                        setIncludeWeekendBreak(e.target.checked);
+                                                    }}
                                                     className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-700"
                                                 />
                                                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
                                                     <Coffee className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                                    Include Weekend Break on Timetable &amp; Prints
+                                                    Include Saturday Break on Timetable &amp; Prints
                                                 </span>
                                             </label>
                                             <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
-                                                includeWeekendBreak 
+                                                includeSaturdayBreak 
                                                     ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300' 
                                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                                             }`}>
-                                                {includeWeekendBreak ? 'Printable & Active' : 'Disabled'}
+                                                {includeSaturdayBreak ? 'Printable & Active' : 'Disabled'}
                                             </span>
                                         </div>
 
-                                        {includeWeekendBreak && (
+                                        {includeSaturdayBreak && (
                                             <div className="bg-amber-50/70 dark:bg-amber-950/30 p-3.5 rounded-xl border border-amber-200/80 dark:border-amber-800/50 space-y-3">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     <div>
-                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1">Break Time Window (Start – End)</label>
+                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1">Saturday Break Window (Start – End)</label>
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <input 
                                                                 type="time"
-                                                                value={weekendBreakStartTime}
-                                                                onChange={e => setWeekendBreakStartTime(e.target.value)}
+                                                                value={saturdayBreakStartTime}
+                                                                onChange={e => {
+                                                                    setSaturdayBreakStartTime(e.target.value);
+                                                                    setWeekendBreakStartTime(e.target.value);
+                                                                }}
                                                                 className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
                                                             />
                                                             <input 
                                                                 type="time"
-                                                                value={weekendBreakEndTime}
-                                                                onChange={e => setWeekendBreakEndTime(e.target.value)}
+                                                                value={saturdayBreakEndTime}
+                                                                onChange={e => {
+                                                                    setSaturdayBreakEndTime(e.target.value);
+                                                                    setWeekendBreakEndTime(e.target.value);
+                                                                }}
                                                                 className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
                                                             />
                                                         </div>
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1">Break Label / Description</label>
+                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1">Saturday Break Label</label>
                                                         <input 
                                                             type="text"
-                                                            value={weekendBreakLabel}
-                                                            onChange={e => setWeekendBreakLabel(e.target.value)}
-                                                            placeholder="e.g. Tea & Refreshment Break"
+                                                            value={saturdayBreakLabel}
+                                                            onChange={e => {
+                                                                setSaturdayBreakLabel(e.target.value);
+                                                                setWeekendBreakLabel(e.target.value);
+                                                            }}
+                                                            placeholder="e.g. Saturday Refreshment Break"
                                                             className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                                         />
                                                     </div>
                                                 </div>
                                                 <p className="text-[9px] text-amber-700 dark:text-amber-300/80 font-medium flex items-center gap-1">
-                                                    <span>☕</span> This break interval will be displayed and printable on weekend timetable columns, separating morning and afternoon sessions.
+                                                    <span>☕</span> Saturday break interval separating morning and afternoon Saturday sessions.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Sunday Break Configuration */}
+                                    <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={includeSundayBreak}
+                                                    onChange={e => setIncludeSundayBreak(e.target.checked)}
+                                                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-700"
+                                                />
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                                                    <Coffee className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                                    Include Sunday Break on Timetable &amp; Prints
+                                                </span>
+                                            </label>
+                                            <span className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
+                                                includeSundayBreak 
+                                                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300' 
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                            }`}>
+                                                {includeSundayBreak ? 'Printable & Active' : 'Disabled'}
+                                            </span>
+                                        </div>
+
+                                        {includeSundayBreak && (
+                                            <div className="bg-amber-50/70 dark:bg-amber-950/30 p-3.5 rounded-xl border border-amber-200/80 dark:border-amber-800/50 space-y-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1">Sunday Break Window (Start – End)</label>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <input 
+                                                                type="time"
+                                                                value={sundayBreakStartTime}
+                                                                onChange={e => setSundayBreakStartTime(e.target.value)}
+                                                                className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
+                                                            />
+                                                            <input 
+                                                                type="time"
+                                                                value={sundayBreakEndTime}
+                                                                onChange={e => setSundayBreakEndTime(e.target.value)}
+                                                                className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 mb-1">Sunday Break Label</label>
+                                                        <input 
+                                                            type="text"
+                                                            value={sundayBreakLabel}
+                                                            onChange={e => setSundayBreakLabel(e.target.value)}
+                                                            placeholder="e.g. Sunday Recess Break"
+                                                            className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <p className="text-[9px] text-amber-700 dark:text-amber-300/80 font-medium flex items-center gap-1">
+                                                    <span>☕</span> Sunday break interval separating morning and afternoon Sunday sessions.
                                                 </p>
                                             </div>
                                         )}
@@ -4975,7 +5190,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 const matches = allocations.filter(a =>
                                                                     a.dayOfWeek === day &&
                                                                     (a.className === cls.className || a.courseId === cls.className) &&
-                                                                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream)
+                                                                    matchAllocationStream(a, cls.stream)
                                                                 );
                                                                 return (
                                                                     <td key={day} className={`py-2 px-2 text-[11px] font-bold ${dIdx < 4 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
@@ -5046,8 +5261,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 const matches = allocations.filter(a =>
                                                                     a.dayOfWeek === 'Saturday' &&
                                                                     (a.className === cls.className || a.courseId === cls.className) &&
-                                                                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
-                                                                    (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                                                                    matchAllocationStream(a, cls.stream) &&
+                                                                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                                                                 );
                                                                 return (
                                                                     <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < 5 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
@@ -5112,8 +5327,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 const matches = allocations.filter(a =>
                                                                     a.dayOfWeek === 'Sunday' &&
                                                                     (a.className === cls.className || a.courseId === cls.className) &&
-                                                                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
-                                                                    (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                                                                    matchAllocationStream(a, cls.stream) &&
+                                                                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                                                                 );
                                                                 return (
                                                                     <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < 2 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
@@ -5773,62 +5988,275 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                     {/* Modal Form */}
                     <form onSubmit={handleCreateManualAllocation} className="p-7 space-y-5">
-                        {/* Class & Stream Selection */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Class / Grade</label>
-                                <select
-                                    value={allocCourseId}
-                                    onChange={e => {
-                                        setAllocCourseId(e.target.value);
-                                        setAllocStream('All Streams');
-                                        setCustomAllocStream('');
-                                    }}
-                                    required
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                >
-                                    <option value="">-- Select Class --</option>
-                                    {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                        {/* Class & Stream Selection with Joint Class Support */}
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        {isJointAlloc ? 'Primary Class / Grade' : 'Class / Grade'}
+                                    </label>
+                                    <select
+                                        value={allocCourseId}
+                                        onChange={e => {
+                                            setAllocCourseId(e.target.value);
+                                            setAllocStream('All Streams');
+                                            setCustomAllocStream('');
+                                            setJointStreamsSelected([]);
+                                        }}
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    >
+                                        <option value="">-- Select Class --</option>
+                                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+
+                                {!isJointAlloc ? (
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                                            <span>Stream</span>
+                                            {allocStream && allocStream !== 'All Streams' && allocStream !== '__custom__' && (
+                                                <span className="text-indigo-600 dark:text-indigo-400 font-bold lowercase text-[9px]">(specific)</span>
+                                            )}
+                                        </label>
+                                        <select
+                                            value={allocStream}
+                                            onChange={e => setAllocStream(e.target.value)}
+                                            disabled={!allocCourseId}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white disabled:opacity-50"
+                                        >
+                                            <option value="All Streams">All Streams (Whole Class)</option>
+                                            {availableStreamsForAlloc.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                            <option value="__custom__">+ Custom / Specific Stream...</option>
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1.5 flex items-center justify-between">
+                                            <span>Joint Mode</span>
+                                            <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full">Active</span>
+                                        </label>
+                                        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xl px-3.5 py-2.5 text-xs text-emerald-800 dark:text-emerald-300 font-bold flex items-center gap-2">
+                                            <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                            <span>Multiple Streams Combined</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
-                                    <span>Stream</span>
-                                    {allocStream && allocStream !== 'All Streams' && allocStream !== '__custom__' && (
-                                        <span className="text-indigo-600 dark:text-indigo-400 font-bold lowercase text-[9px]">(specific)</span>
-                                    )}
-                                </label>
-                                <select
-                                    value={allocStream}
-                                    onChange={e => setAllocStream(e.target.value)}
-                                    disabled={!allocCourseId}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white disabled:opacity-50"
-                                >
-                                    <option value="All Streams">All Streams (Whole Class)</option>
-                                    {availableStreamsForAlloc.map(s => (
-                                        <option key={s} value={s}>{s}</option>
-                                    ))}
-                                    <option value="__custom__">+ Custom / Specific Stream...</option>
-                                </select>
+                            {/* Joint Class Toggle Banner */}
+                            <div className={`p-3.5 rounded-2xl border transition-all ${
+                                isJointAlloc 
+                                    ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/80 shadow-xs' 
+                                    : 'bg-slate-50/90 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-700/60'
+                            }`}>
+                                <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={isJointAlloc}
+                                            onChange={e => {
+                                                const next = e.target.checked;
+                                                setIsJointAlloc(next);
+                                                if (next && jointStreamsSelected.length === 0 && availableStreamsForAlloc.length > 0) {
+                                                    setJointStreamsSelected(availableStreamsForAlloc.slice(0, 2));
+                                                }
+                                            }}
+                                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700"
+                                        />
+                                        <div>
+                                            <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white flex items-center gap-1.5">
+                                                <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                Joint Class / Multi-Stream Allocation
+                                            </span>
+                                            <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                                Enable when one teacher teaches a subject (e.g. CRE, IRE, Electives) for multiple streams at once.
+                                            </p>
+                                        </div>
+                                    </label>
+                                    <span className={`text-[8.5px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full ${
+                                        isJointAlloc 
+                                            ? 'bg-emerald-600 text-white shadow-xs' 
+                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                    }`}>
+                                        {isJointAlloc ? 'Joint Enabled' : 'Single Stream'}
+                                    </span>
+                                </div>
+
+                                {/* Joint Streams Selection Panel */}
+                                {isJointAlloc && (
+                                    <div className="mt-3 pt-3 border-t border-emerald-200/60 dark:border-emerald-800/40 space-y-3 animate-fade-in">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-200 flex items-center gap-1">
+                                                Select Streams taking this lesson jointly:
+                                            </span>
+                                            {availableStreamsForAlloc.length > 0 && (
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setJointStreamsSelected([...availableStreamsForAlloc])}
+                                                        className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                                                    >
+                                                        Select All
+                                                    </button>
+                                                    <span className="text-emerald-300 dark:text-emerald-700">•</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setJointStreamsSelected([])}
+                                                        className="text-[9px] font-bold text-slate-500 hover:underline"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {availableStreamsForAlloc.length > 0 ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {availableStreamsForAlloc.map(s => {
+                                                    const isChecked = jointStreamsSelected.includes(s);
+                                                    return (
+                                                        <button
+                                                            key={s}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (isChecked) {
+                                                                    setJointStreamsSelected(prev => prev.filter(x => x !== s));
+                                                                } else {
+                                                                    setJointStreamsSelected(prev => [...prev, s]);
+                                                                }
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                                                isChecked
+                                                                    ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/30'
+                                                                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-emerald-400'
+                                                            }`}
+                                                        >
+                                                            {isChecked ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5 text-slate-400" />}
+                                                            Stream {s}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[9.5px] text-amber-600 dark:text-amber-400 italic">
+                                                No predefined streams detected for this class. You can add stream names below:
+                                            </p>
+                                        )}
+
+                                        {/* Additional / Custom Stream Adder */}
+                                        <div className="flex items-center gap-2 pt-1">
+                                            <input
+                                                type="text"
+                                                placeholder="Add custom stream (e.g. East, West, North, Red)..."
+                                                value={customJointStream}
+                                                onChange={e => setCustomJointStream(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        if (customJointStream.trim() && !jointStreamsSelected.includes(customJointStream.trim())) {
+                                                            setJointStreamsSelected(prev => [...prev, customJointStream.trim()]);
+                                                            setCustomJointStream('');
+                                                        }
+                                                    }
+                                                }}
+                                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-emerald-500 dark:text-white"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (customJointStream.trim() && !jointStreamsSelected.includes(customJointStream.trim())) {
+                                                        setJointStreamsSelected(prev => [...prev, customJointStream.trim()]);
+                                                        setCustomJointStream('');
+                                                    }
+                                                }}
+                                                disabled={!customJointStream.trim()}
+                                                className="px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-40 hover:bg-emerald-700 transition-all shadow-xs"
+                                            >
+                                                + Add Stream
+                                            </button>
+                                        </div>
+
+                                        {/* Optional Cross-Class Joining */}
+                                        <details className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 cursor-pointer">
+                                            <summary className="font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 select-none flex items-center gap-1">
+                                                <span>🤝</span> Optional: Combine with another Class / Level
+                                            </summary>
+                                            <div className="mt-2 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                                                <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">
+                                                    Select other classes that attend this joint lesson at the same time:
+                                                </p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {courses.filter(c => c.id !== allocCourseId).map(c => {
+                                                        const isChecked = jointCoursesSelected.includes(c.id);
+                                                        return (
+                                                            <button
+                                                                key={c.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (isChecked) {
+                                                                        setJointCoursesSelected(prev => prev.filter(x => x !== c.id));
+                                                                    } else {
+                                                                        setJointCoursesSelected(prev => [...prev, c.id]);
+                                                                    }
+                                                                }}
+                                                                className={`px-2.5 py-1 rounded-lg text-[9.5px] font-bold transition-all ${
+                                                                    isChecked
+                                                                        ? 'bg-indigo-600 text-white'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                                                                }`}
+                                                            >
+                                                                {c.name}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </details>
+
+                                        {/* Selected Summary Preview */}
+                                        <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-base">🤝</span>
+                                                <div>
+                                                    <p className="text-[10.5px] font-black uppercase text-emerald-900 dark:text-emerald-200">
+                                                        {jointStreamsSelected.length > 0 
+                                                            ? `Joint Streams: ${jointStreamsSelected.join(' + ')}` 
+                                                            : 'Please pick or add at least 2 streams above'}
+                                                    </p>
+                                                    <p className="text-[9px] text-slate-400 font-medium">
+                                                        Lesson will show up for each stream's timetable and can be signed off by either stream prefect.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {jointStreamsSelected.length > 0 && (
+                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                                                    {jointStreamsSelected.length} Streams
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {!isJointAlloc && allocStream === '__custom__' && (
+                                <div className="animate-fade-in-up">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Custom Stream Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. East, West, North, Red, Stream A..."
+                                        value={customAllocStream}
+                                        onChange={e => setCustomAllocStream(e.target.value)}
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                </div>
+                            )}
                         </div>
-
-                        {allocStream === '__custom__' && (
-                            <div className="animate-fade-in-up">
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                    Custom Stream Name
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. East, West, North, Red, Stream A..."
-                                    value={customAllocStream}
-                                    onChange={e => setCustomAllocStream(e.target.value)}
-                                    required
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                />
-                            </div>
-                        )}
 
                         {/* Subject */}
                         <div>
@@ -5878,10 +6306,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 setAllocDay(fullDay);
                                                 if (fullDay === 'Saturday') {
                                                     setAllocStartTime(saturdayStartTime || '08:00');
-                                                    setAllocEndTime(includeWeekendBreak ? (weekendBreakStartTime || '10:00') : (saturdayEndTime || '12:00'));
+                                                    setAllocEndTime(includeSaturdayBreak ? (saturdayBreakStartTime || '10:00') : (saturdayEndTime || '12:00'));
                                                 } else if (fullDay === 'Sunday') {
                                                     setAllocStartTime(sundayStartTime || '09:00');
-                                                    setAllocEndTime(sundayEndTime || '13:00');
+                                                    setAllocEndTime(includeSundayBreak ? (sundayBreakStartTime || '11:00') : (sundayEndTime || '13:00'));
                                                 } else {
                                                     setAllocStartTime(weekdayStartTime || '16:00');
                                                     setAllocEndTime(weekdayEndTime || '18:00');
@@ -5925,7 +6353,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
 
-                            {allocDay === 'Saturday' && includeWeekendBreak && (
+                            {allocDay === 'Saturday' && includeSaturdayBreak && (
                                 <div className="flex items-center gap-2 flex-wrap pt-1">
                                     <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                         <Coffee className="w-3 h-3" /> Saturday Break Slots:
@@ -5934,26 +6362,72 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         type="button"
                                         onClick={() => {
                                             setAllocStartTime(saturdayStartTime || '08:00');
-                                            setAllocEndTime(weekendBreakStartTime || '10:00');
+                                            setAllocEndTime(saturdayBreakStartTime || '10:00');
                                         }}
                                         className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
                                     >
-                                        Pre-Break ({saturdayStartTime || '08:00'} - {weekendBreakStartTime || '10:00'})
+                                        Pre-Break ({saturdayStartTime || '08:00'} - {saturdayBreakStartTime || '10:00'})
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setAllocStartTime(weekendBreakEndTime || '10:30');
+                                            setAllocStartTime(saturdayBreakEndTime || '10:30');
                                             setAllocEndTime(saturdayEndTime || '12:30');
                                         }}
                                         className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
                                     >
-                                        Post-Break ({weekendBreakEndTime || '10:30'} - {saturdayEndTime || '12:30'})
+                                        Post-Break ({saturdayBreakEndTime || '10:30'} - {saturdayEndTime || '12:30'})
                                     </button>
                                 </div>
                             )}
 
-                            {allocDay === 'Sunday' && (
+                            {allocDay === 'Saturday' && !includeSaturdayBreak && (
+                                <div className="flex items-center gap-2 flex-wrap pt-1">
+                                    <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" /> Saturday Window:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAllocStartTime(saturdayStartTime || '08:00');
+                                            setAllocEndTime(saturdayEndTime || '12:30');
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
+                                    >
+                                        Full Window ({saturdayStartTime || '08:00'} - {saturdayEndTime || '12:30'})
+                                    </button>
+                                </div>
+                            )}
+
+                            {allocDay === 'Sunday' && includeSundayBreak && (
+                                <div className="flex items-center gap-2 flex-wrap pt-1">
+                                    <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <Coffee className="w-3 h-3" /> Sunday Break Slots:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAllocStartTime(sundayStartTime || '09:00');
+                                            setAllocEndTime(sundayBreakStartTime || '11:00');
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
+                                    >
+                                        Pre-Break ({sundayStartTime || '09:00'} - {sundayBreakStartTime || '11:00'})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAllocStartTime(sundayBreakEndTime || '11:30');
+                                            setAllocEndTime(sundayEndTime || '13:30');
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 text-[9px] font-bold transition-all"
+                                    >
+                                        Post-Break ({sundayBreakEndTime || '11:30'} - {sundayEndTime || '13:30'})
+                                    </button>
+                                </div>
+                            )}
+
+                            {allocDay === 'Sunday' && !includeSundayBreak && (
                                 <div className="flex items-center gap-2 flex-wrap pt-1">
                                     <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                         <Clock className="w-3 h-3" /> Sunday Window:

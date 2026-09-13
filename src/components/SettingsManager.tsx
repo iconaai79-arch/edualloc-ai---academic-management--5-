@@ -855,6 +855,27 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim()
             };
 
+            // Sanitize Email Credentials before saving to prevent invisible character 535 auth errors
+            const rawEmailHost = (localEmailConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
+            let rawEmailPass = typeof localEmailConfig.password === 'string'
+                ? localEmailConfig.password.replace(/[\r\n\t]/g, '').trim()
+                : (localEmailConfig.password || '');
+            if ((rawEmailHost.toLowerCase().includes('gmail') || rawEmailHost.toLowerCase().includes('google')) && typeof rawEmailPass === 'string') {
+                const noSpaces = rawEmailPass.replace(/\s+/g, '');
+                if (noSpaces.length === 16) rawEmailPass = noSpaces;
+            }
+
+            const sanitizedEmail: EmailConfig = {
+                ...localEmailConfig,
+                host: rawEmailHost,
+                port: Number(localEmailConfig.port || 587),
+                username: (localEmailConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                password: rawEmailPass,
+                fromName: (localEmailConfig.fromName || '').trim(),
+                fromEmail: (localEmailConfig.fromEmail || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                resendApiKey: (localEmailConfig.resendApiKey || '').replace(/[^\x20-\x7E]/g, '').trim()
+            };
+
             const isFeeEnabled = (localCompanyInfo as any).alumnaeRegistrationFeeEnabled !== undefined
                 ? (localCompanyInfo as any).alumnaeRegistrationFeeEnabled
                 : (Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0);
@@ -874,7 +895,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                     alumnaeRegistrationFeeEnabled: isFeeEnabled && Number((localCompanyInfo as any).alumnaeJoiningFee || 0) > 0
                 },
                 smsConfig: localSmsConfig,
-                emailConfig: localEmailConfig,
+                emailConfig: sanitizedEmail,
                 mpesaConfig: localMpesaConfig,
                 ncbaConfig: sanitizedNcba,
                 subscriptionConfig: localSubConfig,
@@ -1582,7 +1603,15 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Port</label><input type="number" value={localEmailConfig.port || 587} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalEmailConfig({ ...localEmailConfig, port: Number(e.target.value) })} className="form-input" /></div>
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Encryption</label><select value={localEmailConfig.encryption || 'tls'} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setLocalEmailConfig({ ...localEmailConfig, encryption: e.target.value as any })} className="form-select"><option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option></select></div>
                                         <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Username</label><input type="text" value={localEmailConfig.username || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalEmailConfig({ ...localEmailConfig, username: e.target.value })} className="form-input" /></div>
-                                        <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Password</label><input type="password" value={localEmailConfig.password || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalEmailConfig({ ...localEmailConfig, password: e.target.value })} className="form-input" /></div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Password</label>
+                                            <input type="password" value={localEmailConfig.password || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalEmailConfig({ ...localEmailConfig, password: e.target.value })} className="form-input" />
+                                            <p className="text-[9px] text-slate-400 mt-1 ml-1 leading-tight font-medium">
+                                                {localEmailConfig.host?.toLowerCase().includes('gmail')
+                                                    ? '⚠️ Gmail requires a 16-char App Password (from Google Account > Security > App Passwords).'
+                                                    : 'For cPanel/Webmail, ensure Username is your full email address.'}
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
 

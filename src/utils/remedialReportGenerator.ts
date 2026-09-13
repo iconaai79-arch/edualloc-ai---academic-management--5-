@@ -650,6 +650,28 @@ export const getClassShortCode = (className?: string, stream?: string): string =
     return streamPart ? `${classPart} ${streamPart}` : classPart;
 };
 
+// Check whether an allocation matches a requested stream, taking into account joint classes
+export const matchAllocationStream = (allocation: any, targetStream?: string): boolean => {
+    if (!targetStream || targetStream === 'All Streams' || targetStream === 'All') return true;
+    if (!allocation) return false;
+    if (!allocation.stream || allocation.stream === 'All Streams') return true;
+    if (allocation.stream.toLowerCase().trim() === targetStream.toLowerCase().trim()) return true;
+
+    const isJoint = !!(allocation.isJoint || allocation.is_joint || (allocation.jointStreams && allocation.jointStreams.length > 0));
+    if (isJoint) {
+        const jointStreams = Array.isArray(allocation.jointStreams)
+            ? allocation.jointStreams
+            : (Array.isArray(allocation.joint_streams) ? allocation.joint_streams : []);
+        if (jointStreams.some((s: string) => String(s).toLowerCase().trim() === targetStream.toLowerCase().trim())) {
+            return true;
+        }
+        if (allocation.stream && allocation.stream.toLowerCase().includes(targetStream.toLowerCase().trim())) {
+            return true;
+        }
+    }
+    return false;
+};
+
 // Extract distinct sorted classes and streams
 export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) => {
     const classMap = new Map<string, { className: string; stream: string; shortCode: string; sortKey: string }>();
@@ -671,6 +693,21 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) 
 
     allocations.forEach(a => {
         const cName = a.className || 'Class';
+        const isJoint = !!(a.isJoint || a.is_joint || (a.jointStreams && a.jointStreams.length > 0));
+        if (isJoint) {
+            const jointStreams = Array.isArray(a.jointStreams) ? a.jointStreams : (Array.isArray(a.joint_streams) ? a.joint_streams : []);
+            if (jointStreams.length > 0) {
+                jointStreams.forEach((st: any) => {
+                    const sName = String(st).trim();
+                    const key = `${cName}_${sName}`;
+                    if (!classMap.has(key)) {
+                        const code = getClassShortCode(cName, sName);
+                        classMap.set(key, { className: cName, stream: sName, shortCode: code, sortKey: key });
+                    }
+                });
+                return;
+            }
+        }
         const sName = a.stream && a.stream !== 'All Streams' ? a.stream : '';
         const key = `${cName}_${sName}`;
         if (!classMap.has(key)) {
@@ -753,7 +790,7 @@ export const generateRemedialMasterTimetablePdf = async ({
             const matches = allocations.filter(a =>
                 a.dayOfWeek === day &&
                 (a.className === cls.className || a.courseId === cls.className) &&
-                (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream)
+                matchAllocationStream(a, cls.stream)
             );
             const cellText = matches.map(a => {
                 const sub = getSubjectCode(a.subjectName, a.subjectId);
@@ -828,7 +865,7 @@ export const generateRemedialMasterTimetablePdf = async ({
             const matches = allocations.filter(a =>
                 a.dayOfWeek === 'Saturday' &&
                 (a.className === cls.className || a.courseId === cls.className) &&
-                (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
+                matchAllocationStream(a, cls.stream) &&
                 (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
             );
             const cellText = matches.map(a => {
@@ -907,7 +944,7 @@ export const generateRemedialMasterTimetablePdf = async ({
             const matches = allocations.filter(a =>
                 a.dayOfWeek === 'Sunday' &&
                 (a.className === cls.className || a.courseId === cls.className) &&
-                (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
+                matchAllocationStream(a, cls.stream) &&
                 (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
             );
             const cellText = matches.map(a => {
@@ -1063,7 +1100,7 @@ export const exportRemedialMasterTimetableToExcel = ({
                 const matches = allocations.filter(a =>
                     a.dayOfWeek === day &&
                     (a.className === cls.className || a.courseId === cls.className) &&
-                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream)
+                    matchAllocationStream(a, cls.stream)
                 );
                 rowObj[day.toUpperCase()] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });
@@ -1091,8 +1128,8 @@ export const exportRemedialMasterTimetableToExcel = ({
                 const matches = allocations.filter(a =>
                     a.dayOfWeek === 'Saturday' &&
                     (a.className === cls.className || a.courseId === cls.className) &&
-                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
-                    (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                    matchAllocationStream(a, cls.stream) &&
+                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                 );
                 rowObj[slot.label] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });
@@ -1117,8 +1154,8 @@ export const exportRemedialMasterTimetableToExcel = ({
                 const matches = allocations.filter(a =>
                     a.dayOfWeek === 'Sunday' &&
                     (a.className === cls.className || a.courseId === cls.className) &&
-                    (!cls.stream || a.stream === cls.stream || a.stream === 'All Streams' || !a.stream) &&
-                    (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                    matchAllocationStream(a, cls.stream) &&
+                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
                 );
                 rowObj[slot.label] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });

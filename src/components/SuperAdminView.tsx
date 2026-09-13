@@ -1076,6 +1076,25 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const handleSaveGlobalConfigs = async () => {
         setIsSavingConfigs(true);
         try {
+            const rawEmailHost = (localEmailConfig.host || '').replace(/[^\x20-\x7E]/g, '').trim();
+            let rawEmailPass = typeof localEmailConfig.password === 'string'
+                ? localEmailConfig.password.replace(/[\r\n\t]/g, '').trim()
+                : (localEmailConfig.password || '');
+            if ((rawEmailHost.toLowerCase().includes('gmail') || rawEmailHost.toLowerCase().includes('google')) && typeof rawEmailPass === 'string') {
+                const noSpaces = rawEmailPass.replace(/\s+/g, '');
+                if (noSpaces.length === 16) rawEmailPass = noSpaces;
+            }
+
+            const sanitizedEmail: EmailConfig = {
+                ...localEmailConfig,
+                host: rawEmailHost,
+                port: Number(localEmailConfig.port || 587),
+                username: (localEmailConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                password: rawEmailPass,
+                fromName: (localEmailConfig.fromName || '').trim(),
+                fromEmail: (localEmailConfig.fromEmail || '').replace(/[^\x20-\x7E]/g, '').trim()
+            };
+
             if (props.onUpdateCompanyDetails) {
                 await props.onUpdateCompanyDetails({
                     ...companyDetails,
@@ -1083,7 +1102,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     enabledGateways: localCompanyInfo.enabledGateways,
                     showcaseConfig: localCompanyInfo.showcaseConfig,
                     smsConfig: localSmsConfig,
-                    emailConfig: localEmailConfig,
+                    emailConfig: sanitizedEmail,
                     mpesaConfig: localMpesaConfig,
                     subscriptionConfig: localSubConfig,
                     kcbConfig: localKcbConfig,
