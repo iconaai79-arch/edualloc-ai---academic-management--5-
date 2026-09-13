@@ -353,7 +353,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments'].includes(moduleName)
                     ? 100000
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : 10000)
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : (moduleName === 'app_notifications' ? 100 : 10000))
             );
             if (isNaN(finalLimit)) finalLimit = 100000;
             if (finalLimit > 100000) {
@@ -367,7 +367,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = 12000): Promise<any> => {
+            const queryTimeout = (moduleName === 'app_notifications' || moduleName === 'activity_log') ? 4000 : 12000;
+            const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
                     timer = setTimeout(() => reject(new Error('statement timeout')), timeoutMs);
@@ -452,10 +453,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).json([]);
                 }
                 const isTimeout = error.code === '57014' || 
-                                  error.message?.includes('statement timeout') ||
-                                  error.message?.includes('timeout') ||
+                                  error.message?.toLowerCase().includes('statement timeout') ||
+                                  error.message?.toLowerCase().includes('timeout') ||
+                                  error.message?.toLowerCase().includes('gateway') ||
                                   error.message?.includes('canceling statement');
                 if (isTimeout) {
+                    if (moduleName === 'app_notifications') {
+                        console.warn(`[API GET Timeout] Query timed out for 'app_notifications'. Returning empty list fallback.`);
+                        return res.status(200).json([]);
+                    }
                     console.warn(`[API GET Timeout] Query timed out for '${moduleName}' (code: 57014). Attempting fallback retry with limited window...`);
                     try {
                         let retryQ = supabase.from(moduleName).select(getStrParam(select) || '*');

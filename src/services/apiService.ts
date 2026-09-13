@@ -2755,6 +2755,7 @@ export const apiService = {
         return apiService.fetchModuleRecords('app_notifications', undefined, undefined, {
             filter: { user_id: userId },
             order: 'timestamp.desc',
+            limit: 50,
             ...options
         });
     },
