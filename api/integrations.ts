@@ -16,6 +16,19 @@ const getSupabase = () => {
     });
 };
 
+// Verified cPanel platform SMTP credentials (support@eduai.co.ke on mail.eduai.co.ke:465)
+export const DEFAULT_PLATFORM_SMTP = {
+    host: 'mail.eduai.co.ke',
+    port: 465,
+    username: 'support@eduai.co.ke',
+    password: '27065709@Abu',
+    fromEmail: 'support@eduai.co.ke',
+    fromName: 'EduAi Support'
+};
+
+export const isPlaceholderPass = (pass: any) =>
+    !pass || pass === 'password' || pass === '••••••••' || pass === '********' || pass === 'null' || pass === 'undefined';
+
 const resolveKcbResultCode = (data: any): string => {
     if (!data) return '';
     const directCode = 
@@ -943,18 +956,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } catch (_) {}
             }
 
-            // Verified cPanel platform SMTP credentials
             const defaultPlatformSmtp = {
-                host: 'mail.eduai.co.ke',
-                port: 465,
-                username: 'support@eduai.co.ke',
-                password: '27065709@Abu',
-                fromEmail: 'support@eduai.co.ke',
-                fromName: brandingOverride?.name || 'EduAi Support'
+                ...DEFAULT_PLATFORM_SMTP,
+                fromName: brandingOverride?.name || DEFAULT_PLATFORM_SMTP.fromName
             };
-
-            const isPlaceholderPass = (pass: any) =>
-                !pass || pass === 'password' || pass === '••••••••' || pass === '********' || pass === 'null' || pass === 'undefined';
 
             // Candidates priority:
             // 1. configOverride if it has real credentials (host + username + non-placeholder password)
@@ -1106,13 +1111,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const instId = institutionIdOverride || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
             const branding = await getBranding(instId);
 
-            const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
-            if (!emailConfig && !process.env.SMTP_HOST) {
-                return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
-            }
+            const rawConfig = bodyConfig || settings.email_config || settings.emailConfig;
+            const emailConfig = (rawConfig && rawConfig.host && rawConfig.username && !isPlaceholderPass(rawConfig.password) && rawConfig.username !== 'info@eduai.co.ke')
+                ? rawConfig
+                : DEFAULT_PLATFORM_SMTP;
 
-            const fromEmail = ((emailConfig?.from_email || emailConfig?.fromEmail || emailConfig?.username || process.env.SMTP_FROM || process.env.SMTP_USER) || '').replace(/[^\x20-\x7E]/g, '').trim();
-            const fromName = (emailConfig?.from_name || emailConfig?.fromName || branding.name || '').trim();
+            const fromEmail = ((emailConfig?.from_email || emailConfig?.fromEmail || emailConfig?.username || process.env.SMTP_FROM || process.env.SMTP_USER) || DEFAULT_PLATFORM_SMTP.fromEmail).replace(/[^\x20-\x7E]/g, '').trim();
+            const fromName = (emailConfig?.from_name || emailConfig?.fromName || branding.name || DEFAULT_PLATFORM_SMTP.fromName).trim();
 
             const htmlContent = wrapHtml((message || '').replace(/\n/g, '<br>'), branding);
             const mailOptions = {
@@ -1132,8 +1137,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const instId = institutionIdOverride || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
             const branding = await getBranding(instId);
 
-            const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
-            if (!emailConfig && !process.env.SMTP_HOST) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
+            const rawAlumnaConfig = bodyConfig || settings.email_config || settings.emailConfig;
+            const emailConfig = (rawAlumnaConfig && rawAlumnaConfig.host && rawAlumnaConfig.username && !isPlaceholderPass(rawAlumnaConfig.password) && rawAlumnaConfig.username !== 'info@eduai.co.ke')
+                ? rawAlumnaConfig
+                : DEFAULT_PLATFORM_SMTP;
 
             const alumnaName = getParam('alumnaName');
             const loginLink = getParam('loginLink') || `https://almamater.eduai.co.ke/?view=alumnae_social`;
@@ -2072,8 +2079,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Default Email Recovery
-            const emailConfig = bodyConfig || settings.email_config || settings.emailConfig;
-            if (!emailConfig) return res.status(400).json({ success: false, message: 'Email configuration is missing.' });
+            const rawEmailConfig = bodyConfig || settings.email_config || settings.emailConfig;
+            const emailConfig = (rawEmailConfig && rawEmailConfig.host && rawEmailConfig.username && !isPlaceholderPass(rawEmailConfig.password) && rawEmailConfig.username !== 'info@eduai.co.ke')
+                ? rawEmailConfig
+                : DEFAULT_PLATFORM_SMTP;
 
             // We use the 'user' object populated during the auth phase
             if (!user || user.id === 'system' && !user.email) return res.status(404).json({ success: false, message: 'Account not found.' });
@@ -2093,17 +2102,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(500).json({ success: false, message: 'Failed to initiate recovery. System storage error.', details: updateError.message });
             }
 
-            // Handle both snake_case and camelCase keys
-            const host = emailConfig.host;
-            const port = emailConfig.port;
-            const username = emailConfig.username;
-            const password = emailConfig.password;
-            const fromEmail = emailConfig.from_email || emailConfig.fromEmail || username;
+            // Handle both snake_case and camelCase keys with verified defaults
+            const host = emailConfig.host || DEFAULT_PLATFORM_SMTP.host;
+            const port = emailConfig.port || DEFAULT_PLATFORM_SMTP.port;
+            const username = emailConfig.username || DEFAULT_PLATFORM_SMTP.username;
+            const password = emailConfig.password || DEFAULT_PLATFORM_SMTP.password;
+            const fromEmail = emailConfig.from_email || emailConfig.fromEmail || DEFAULT_PLATFORM_SMTP.fromEmail;
             const fromName = emailConfig.from_name || emailConfig.fromName || 'EduAi Notification';
-
-            if (!host || !username || !password) {
-                return res.status(400).json({ success: false, message: 'Email gateway configuration is incomplete. Host, username, and password are required.' });
-            }
 
             console.log(`[Forgot Password] Dispatching recovery link to: ${recipient} using ${host}:${port}`);
 
