@@ -842,7 +842,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
 
         const handleSubmit = (e: React.FormEvent) => {
             e.preventDefault();
-            onSave(course.id, { ...formData, curriculumType: formData.curriculumType as '8-4-4' | 'CBC' | 'Other' });
+            onSave(course.id, { ...formData, curriculumType: formData.curriculumType as Course['curriculumType'] });
         };
 
         return (
@@ -870,6 +870,10 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                     <select name="curriculumType" value={formData.curriculumType} onChange={handleChange} className="form-select">
                                         <option value="8-4-4">8-4-4 System</option>
                                         <option value="CBC">CBC System</option>
+                                        <option value="British & Montessori">British & Montessori</option>
+                                        <option value="British">British / EYFS</option>
+                                        <option value="Montessori">Montessori</option>
+                                        <option value="IGCSE">Cambridge / IGCSE</option>
                                         <option value="Other">Other</option>
                                     </select>
                                 </div>
@@ -928,7 +932,7 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
         const [name, setName] = useState('');
         const [code, setCode] = useState('');
         const [shortName, setShortName] = useState('');
-        const [curriculumType, setCurriculumType] = useState<'8-4-4' | 'CBC' | 'Other'>('8-4-4');
+        const [curriculumType, setCurriculumType] = useState<Course['curriculumType']>('8-4-4');
         const [scheduleProfileId, setScheduleProfileId] = useState('');
         const [departmentId, setDepartmentId] = useState(isRestricted ? currentUser.departmentId! : (departments || [])[0]?.id || '');
         const [academicLevelId, setAcademicLevelId] = useState((academicLevels || [])[0]?.id || '');
@@ -1055,8 +1059,12 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Curriculum Type</label>
                             <select value={curriculumType} onChange={e => setCurriculumType(e.target.value as any)} className="form-select">
-                                <option value="8-4-4">8-4-4</option>
-                                <option value="CBC">CBC</option>
+                                <option value="8-4-4">8-4-4 System</option>
+                                <option value="CBC">CBC System</option>
+                                <option value="British & Montessori">British & Montessori</option>
+                                <option value="British">British / EYFS</option>
+                                <option value="Montessori">Montessori</option>
+                                <option value="IGCSE">Cambridge / IGCSE</option>
                                 <option value="Other">Other</option>
                             </select>
                         </div>
@@ -1411,7 +1419,13 @@ export const CourseManager: React.FC<CourseManagerProps> = ({
                                             <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-widest">{course.code}</span>
                                         </td>
                                         <td className="px-8 py-5 whitespace-nowrap">
-                                            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${course.curriculumType === 'CBC' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                                                course.curriculumType === 'CBC' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                course.curriculumType === 'British & Montessori' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                                course.curriculumType === 'British' || course.curriculumType === 'Montessori' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' :
+                                                course.curriculumType === 'IGCSE' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                            }`}>
                                                 {course.curriculumType || '8-4-4'}
                                             </span>
                                         </td>

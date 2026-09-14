@@ -880,8 +880,58 @@ export interface Course {
     levels: CourseLevel[];
     streams?: string[];
     shortName?: string;
-    curriculumType?: '8-4-4' | 'CBC' | 'Other';
+    curriculumType?: '8-4-4' | 'CBC' | 'British' | 'Montessori' | 'British & Montessori' | 'IGCSE' | 'Other';
     scheduleProfileId?: string;
+}
+
+export type MontessoriMilestoneRating = 'M' | 'P' | 'L' | 'F' | 'NI';
+
+export interface MontessoriMilestone {
+    id: string;
+    description: string;
+    rating?: MontessoriMilestoneRating;
+}
+
+export interface MontessoriDomainAssessment {
+    domainName: string;
+    milestones: MontessoriMilestone[];
+}
+
+export interface MontessoriTermActivities {
+    expressiveArtsAndDesign?: string;
+    celebrations?: string;
+    languages?: string;
+    sports?: string;
+    experiments?: string;
+    swimming?: string;
+    otherActivities?: string;
+}
+
+export interface MontessoriAssessmentRecord {
+    id: string;
+    institutionId: string;
+    studentId: string;
+    studentName?: string;
+    admissionNumber?: string;
+    dateOfBirth?: string;
+    age?: string;
+    className?: string;
+    reportDate?: string;
+    term?: string;
+    academicYear?: string;
+    homeroomTutors?: string;
+    domains: {
+        cognitive: MontessoriDomainAssessment;
+        emotional: MontessoriDomainAssessment;
+        social: MontessoriDomainAssessment;
+        physical: MontessoriDomainAssessment;
+        languageAndLiteracy: MontessoriDomainAssessment;
+        mathematics: MontessoriDomainAssessment;
+    };
+    activities: MontessoriTermActivities;
+    summaryNarrative: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface AcademicLevel {

@@ -48,6 +48,7 @@ import { RevisionMarketplaceManager } from './Academics/RevisionMarketplaceManag
 import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
 import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
 import { LeavingCertificateManager } from './Academics/LeavingCertificateManager';
+import { MontessoriAssessmentManager } from './Academics/MontessoriAssessmentManager';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
 
 interface AcademicsOfficerViewProps {
@@ -182,7 +183,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans' | 'tools'>('home');
     const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace' | 'leaving_certificates'>('lesson_plans');
-    const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio'>('summative');
+    const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio' | 'montessori'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
     const [bulkType, setBulkType] = useState<'students' | 'teachers'>('students');
     const [isLoading, setIsLoading] = useState(false);
@@ -474,6 +475,19 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                 <span className="font-black text-sm uppercase tracking-tight">Alumnae Portal</span>
                                 <p className="text-[10px] opacity-80 uppercase mt-1">Connect with Graduates</p>
                             </button>
+                            <button
+                                onClick={() => {
+                                    setActiveTab('exam_units');
+                                    setExamViewSubTab('montessori');
+                                }}
+                                className="flex flex-col items-start p-6 bg-teal-600 text-white rounded-3xl shadow-xl shadow-teal-200 hover:shadow-teal-300 transition-all group text-left hover:-translate-y-1"
+                            >
+                                <div className="p-3 bg-white/20 rounded-2xl mb-4 group-hover:scale-110 transition-transform text-lg">
+                                    👶
+                                </div>
+                                <span className="font-black text-sm uppercase tracking-tight">Montessori Checklist</span>
+                                <p className="text-[10px] opacity-80 uppercase mt-1">British & EYFS Rubrics</p>
+                            </button>
                         </div>
                     </section>
 
@@ -629,6 +643,16 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             >
                                 📸 Learner CBE e-Portfolio Vault (SBA)
                             </button>
+                            <button
+                                onClick={() => setExamViewSubTab('montessori')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+                                    examViewSubTab === 'montessori'
+                                        ? 'bg-teal-600 text-white shadow-md shadow-teal-500/20'
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                👶 British & Montessori Checklist (EYFS)
+                            </button>
                         </div>
                     </div>
 
@@ -654,6 +678,15 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         />
                     ) : examViewSubTab === 'cbe_competencies' ? (
                         <CbeCoreCompetenciesManager
+                            currentInstitution={currentInstitution}
+                            users={users}
+                            courses={courses}
+                            academicLevels={academicLevels}
+                            currentUser={currentUser}
+                            onLogAction={onLogAction}
+                        />
+                    ) : examViewSubTab === 'montessori' ? (
+                        <MontessoriAssessmentManager
                             currentInstitution={currentInstitution}
                             users={users}
                             courses={courses}

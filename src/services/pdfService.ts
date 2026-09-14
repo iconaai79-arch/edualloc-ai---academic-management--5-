@@ -1,5 +1,5 @@
 
-import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, PMInspection, PMDepositRefund, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord, Expense } from '../types';
+import type { Requisition, Supplier, Invoice, Receipt, MpesaTransaction, Institution, CompanyDetails, EmailConfig, TimetableEntry, Subject, User, Role, Room, LetterheadConfig, RoomConflict, Course, CourseLevel, Internship, Department, LessonStructure, LecturerContract, Building, AcademicLevel, Semester, ExamTimetableEntry, TimetableSettings, StockTransaction, InventoryItem, LeaveOutRequest, LeaveOutWithDetails, LibraryTransaction, LibraryFine, CarWashAccount, CarWashJournalEntry, CarWashJournalLine, CarWashExpense, CarWashPayroll, CarWashJob, CarWashPackage, CarWashFeedback, CarWashCustomer, CarWashAddOn, PMTenant, PMLandlord, PMPayment, PMLease, PMUnit, PMProperty, PMInvoice, PMNoticeLetter, PMExpenseVoucher, PMInspection, PMDepositRefund, RetailSale, RetailStore, RetailInventoryItem, RetailCommissionLedger, CoopFarmer, CoopRider, HISPharmacyInventory, HISPharmacyBatch, PharmacyStaff, PharmacySale, PharmacySaleItem, PharmacySettings, CarListing, CarInvoice, CarPayment, Assessment, AssessmentMark, Visitor, HISPatient, PayrollRecord, Expense, MontessoriAssessmentRecord } from '../types';
 
 import { timeToMinutes, minutesToTime, generatePeriodLabels, generateDisplaySlots } from '../utils/timeUtils';
 
@@ -12816,5 +12816,493 @@ export const generateSpecimenBarcodePdf = async (
     doc.text(data.collectionTime || new Date().toLocaleDateString(), 30, 23);
 
     return doc.output('datauristring');
+};
+
+export const generateMontessoriAssessmentReportPdfDataUri = async (
+    data: MontessoriAssessmentRecord,
+    institution?: Institution
+): Promise<string> => {
+    const jsPdfObj = getJsPdf();
+    if (!jsPdfObj) throw new Error("jsPDF library not initialized");
+    const { jsPDF } = jsPdfObj;
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth(); // 210
+    const pageHeight = doc.internal.pageSize.getHeight(); // 297
+    const margin = 12;
+    const contentWidth = pageWidth - (margin * 2); // 186
+
+    const schoolName = (institution?.name || 'BUSY BUMBLES NURSERY SCHOOL').toUpperCase();
+    const logoImg = await loadImage(institution?.logoUrl);
+
+    // Color definitions
+    const primaryGreen: [number, number, number] = [20, 83, 45]; // Emerald/Forest green
+    const darkNavy: [number, number, number] = [15, 23, 42]; // Slate 900
+    const mintBg: [number, number, number] = [240, 253, 244]; // Emerald 50
+    const cardBorder: [number, number, number] = [203, 213, 225]; // Slate 300
+    const slateMuted: [number, number, number] = [100, 116, 139]; // Slate 500
+
+    const ratingColors: Record<string, { bg: [number, number, number]; fg: [number, number, number]; text: string }> = {
+        M: { bg: [209, 250, 229], fg: [6, 95, 70], text: 'M - Mastered' },
+        P: { bg: [219, 234, 254], fg: [30, 64, 175], text: 'P - Practicing' },
+        L: { bg: [254, 243, 199], fg: [146, 64, 14], text: 'L - Learning' },
+        F: { bg: [238, 242, 255], fg: [67, 56, 202], text: 'F - First Noticed' },
+        NI: { bg: [241, 245, 249], fg: [71, 85, 105], text: 'NI - Not Intro' },
+    };
+
+    const drawHeader = (isFirstPage: boolean, pageNum: number, totalPages: number = 4) => {
+        if (isFirstPage) {
+            // Elegant top decorative bar
+            doc.setFillColor(...primaryGreen);
+            doc.rect(0, 0, pageWidth, 6, 'F');
+
+            // Logo and School Title
+            let textStartX = margin;
+            if (logoImg) {
+                try {
+                    doc.addImage(logoImg, 'PNG', margin, 10, 20, 20);
+                    textStartX = margin + 24;
+                } catch (e) {
+                    textStartX = margin;
+                }
+            }
+
+            doc.setTextColor(...primaryGreen);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text(schoolName, textStartX, 16);
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(...darkNavy);
+            doc.text("BRITISH AND MONTESSORI CURRICULUM", textStartX, 22);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8.5);
+            doc.setTextColor(...slateMuted);
+            doc.text("SUMMARY ASSESSMENT REPORT CHECKLIST • EARLY YEARS FOUNDATION", textStartX, 27);
+
+            // Divider line
+            doc.setDrawColor(...cardBorder);
+            doc.setLineWidth(0.4);
+            doc.line(margin, 32, pageWidth - margin, 32);
+        } else {
+            // Compact Header for pages 2, 3, 4
+            doc.setFillColor(...primaryGreen);
+            doc.rect(0, 0, pageWidth, 4, 'F');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.setTextColor(...primaryGreen);
+            doc.text(schoolName, margin, 11);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(...slateMuted);
+            doc.text("British & Montessori Curriculum Assessment • " + (data.studentName || 'Student Report'), pageWidth - margin, 11, { align: 'right' });
+
+            doc.setDrawColor(...cardBorder);
+            doc.setLineWidth(0.3);
+            doc.line(margin, 14, pageWidth - margin, 14);
+        }
+
+        // Page Footer
+        doc.setDrawColor(...cardBorder);
+        doc.setLineWidth(0.3);
+        doc.line(margin, pageHeight - 11, pageWidth - margin, pageHeight - 11);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...slateMuted);
+        doc.text("Official British & Montessori Early Years Progress Checklist", margin, pageHeight - 7);
+        doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
+    };
+
+    const drawStudentInfoAndLegend = (startY: number): number => {
+        let y = startY;
+
+        // Student Info Card
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(...cardBorder);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...primaryGreen);
+
+        const col1 = margin + 4;
+        const col2 = margin + 70;
+        const col3 = margin + 130;
+
+        // Row 1
+        doc.text("PUPIL'S NAME:", col1, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkNavy);
+        doc.text(data.studentName || '—', col1 + 24, y + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryGreen);
+        doc.text("CLASS / LEVEL:", col2, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkNavy);
+        doc.text(data.className || 'Early Years', col2 + 25, y + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryGreen);
+        doc.text("REPORT DATE:", col3, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkNavy);
+        doc.text(data.reportDate || new Date().toISOString().split('T')[0], col3 + 24, y + 6);
+
+        // Row 2
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryGreen);
+        doc.text("TERM / SESSION:", col1, y + 13);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkNavy);
+        doc.text(data.term || 'Term 1', col1 + 26, y + 13);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryGreen);
+        doc.text("ACADEMIC YEAR:", col2, y + 13);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkNavy);
+        doc.text(data.academicYear || String(new Date().getFullYear()), col2 + 27, y + 13);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...primaryGreen);
+        doc.text("HOMEROOM TUTORS:", col1, y + 20);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...darkNavy);
+        doc.text(data.homeroomTutors || 'Class Teachers', col1 + 32, y + 20);
+
+        y += 28;
+
+        // Rating Key Legend Box
+        doc.setFillColor(...mintBg);
+        doc.setDrawColor(167, 243, 208); // Emerald 200
+        doc.roundedRect(margin, y, contentWidth, 14, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...primaryGreen);
+        doc.text("RATING KEY:", margin + 4, y + 5);
+
+        const keys = [
+            { code: 'M', label: 'Mastered' },
+            { code: 'P', label: 'Practicing' },
+            { code: 'L', label: 'Learning' },
+            { code: 'F', label: 'First Noticed' },
+            { code: 'NI', label: 'Not Introduced' },
+        ];
+
+        let keyX = margin + 26;
+        keys.forEach(k => {
+            const rStyle = ratingColors[k.code];
+            doc.setFillColor(...rStyle.bg);
+            doc.roundedRect(keyX, y + 1.5, 6.5, 5, 1, 1, 'F');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(...rStyle.fg);
+            doc.text(k.code, keyX + 1.6, y + 5);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...darkNavy);
+            doc.text(`= ${k.label}`, keyX + 8, y + 5);
+
+            keyX += 31;
+        });
+
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(...slateMuted);
+        doc.text("M: Consistent & independent • P: Minimal support • L: Regular guidance • F: Initial observation • NI: Future term focus", margin + 4, y + 11.5);
+
+        return y + 18;
+    };
+
+    const drawDomainTable = (
+        domainTitle: string,
+        domainNumber: number,
+        milestones: Array<{ id: string; description: string; rating?: string }>,
+        startY: number
+    ): number => {
+        let y = startY;
+
+        // Domain Section Header
+        doc.setFillColor(...primaryGreen);
+        doc.roundedRect(margin, y, contentWidth, 7, 1.5, 1.5, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${domainNumber}. ${domainTitle.toUpperCase()}`, margin + 4, y + 5);
+
+        // Table Header
+        y += 7.5;
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, y, contentWidth, 5.5, 'F');
+        doc.setDrawColor(...cardBorder);
+        doc.setLineWidth(0.2);
+        doc.rect(margin, y, contentWidth, 5.5, 'S');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...darkNavy);
+        doc.text("DEVELOPMENTAL MILESTONE / COMPETENCY", margin + 4, y + 3.8);
+        doc.text("PROGRESS / RATING", margin + contentWidth - 36, y + 3.8);
+
+        y += 5.5;
+
+        // Table Rows
+        milestones.forEach((m, idx) => {
+            const rowHeight = 7.5;
+            const isEven = idx % 2 === 0;
+
+            if (isEven) {
+                doc.setFillColor(255, 255, 255);
+            } else {
+                doc.setFillColor(248, 250, 252);
+            }
+            doc.rect(margin, y, contentWidth, rowHeight, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(margin, y, contentWidth, rowHeight, 'S');
+
+            // Milestone text
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.2);
+            doc.setTextColor(...darkNavy);
+            const desc = `${idx + 1}. ${m.description}`;
+            doc.text(desc, margin + 4, y + 5);
+
+            // Rating Pill
+            const rating = (m.rating || 'P').toUpperCase();
+            const rInfo = ratingColors[rating] || ratingColors['P'];
+
+            const pillWidth = 32;
+            const pillHeight = 5;
+            const pillX = margin + contentWidth - pillWidth - 3;
+            const pillY = y + 1.2;
+
+            doc.setFillColor(...rInfo.bg);
+            doc.roundedRect(pillX, pillY, pillWidth, pillHeight, 1.2, 1.2, 'F');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(6.8);
+            doc.setTextColor(...rInfo.fg);
+            doc.text(rInfo.text, pillX + (pillWidth / 2), pillY + 3.6, { align: 'center' });
+
+            y += rowHeight;
+        });
+
+        return y + 5;
+    };
+
+    // ================= PAGE 1 =================
+    drawHeader(true, 1, 4);
+    let curY = 35;
+    curY = drawStudentInfoAndLegend(curY);
+
+    // Domain 1: Cognitive Development
+    const cogMilestones = data.domains?.cognitive?.milestones || [];
+    curY = drawDomainTable("Cognitive Development", 1, cogMilestones, curY);
+
+    // Domain 2: Emotional Development
+    const emoMilestones = data.domains?.emotional?.milestones || [];
+    drawDomainTable("Emotional Development", 2, emoMilestones, curY);
+
+    // ================= PAGE 2 =================
+    doc.addPage();
+    drawHeader(false, 2, 4);
+    curY = 18;
+
+    // Domain 3: Social Development
+    const socMilestones = data.domains?.social?.milestones || [];
+    curY = drawDomainTable("Social Development", 3, socMilestones, curY);
+
+    // Domain 4: Physical Development
+    const phyMilestones = data.domains?.physical?.milestones || [];
+    drawDomainTable("Physical Development", 4, phyMilestones, curY);
+
+    // ================= PAGE 3 =================
+    doc.addPage();
+    drawHeader(false, 3, 4);
+    curY = 18;
+
+    // Domain 5: Language and Literacy Development
+    const langMilestones = data.domains?.languageAndLiteracy?.milestones || [];
+    curY = drawDomainTable("Language and Literacy Development", 5, langMilestones, curY);
+
+    // Domain 6: Mathematics
+    const mathMilestones = data.domains?.mathematics?.milestones || [];
+    drawDomainTable("Mathematics", 6, mathMilestones, curY);
+
+    // ================= PAGE 4 =================
+    doc.addPage();
+    drawHeader(false, 4, 4);
+    curY = 18;
+
+    // Section Title: Activities for the Term
+    doc.setFillColor(...primaryGreen);
+    doc.roundedRect(margin, curY, contentWidth, 7, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("CO-CURRICULAR ACTIVITIES & EXPERIENTIAL LEARNING", margin + 4, curY + 5);
+
+    curY += 10;
+
+    // Activities Grid (2 columns x 3 rows)
+    const acts = [
+        { label: 'Expressive Arts and Design', desc: data.activities?.expressiveArtsAndDesign || 'Creative expression through painting, finger crafts, tactile textures, modeling with playdough, and collage making.' },
+        { label: 'Celebrations & Cultural Themes', desc: data.activities?.celebrations || 'Active participation in cultural awareness days, holiday concerts, costume days, and community milestone assemblies.' },
+        { label: 'Languages (Kiswahili & French)', desc: data.activities?.languages || 'Introductory greetings, songs, rhyme recitation, counting, and simple conversational vocabulary in foreign tongues.' },
+        { label: 'Sports & Movement (Ballet / P.E)', desc: data.activities?.sports || 'Gross motor agility, coordination obstacle courses, rhythm dance, ballet movement, and energetic ball games.' },
+        { label: 'Sensory & Science Discoveries', desc: data.activities?.experiments || 'Hands-on scientific exploration: sink and float, botanical germination, bubble investigations, and sensory water play.' },
+        { label: 'Swimming & Water Confidence', desc: data.activities?.swimming || 'Water safety awareness, assisted floating, bubble blowing, splashing games, and water confidence development.' },
+    ];
+
+    const colWidth = (contentWidth - 6) / 2;
+    const cardHeight = 26;
+
+    acts.forEach((act, idx) => {
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const cardX = margin + (col * (colWidth + 6));
+        const cardY = curY + (row * (cardHeight + 4));
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(...cardBorder);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(cardX, cardY, colWidth, cardHeight, 1.5, 1.5, 'FD');
+
+        doc.setFillColor(...mintBg);
+        doc.rect(cardX, cardY, colWidth, 6, 'F');
+        doc.setDrawColor(167, 243, 208);
+        doc.line(cardX, cardY + 6, cardX + colWidth, cardY + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...primaryGreen);
+        doc.text(act.label, cardX + 3, cardY + 4.2);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.8);
+        doc.setTextColor(...darkNavy);
+        const lines = doc.splitTextToSize(act.desc, colWidth - 6);
+        doc.text(lines, cardX + 3, cardY + 10);
+    });
+
+    curY += (3 * (cardHeight + 4)) + 4;
+
+    // Summary Narrative Box
+    doc.setFillColor(...primaryGreen);
+    doc.roundedRect(margin, curY, contentWidth, 7, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("HOMEROOM TEACHER'S SUMMARY NARRATIVE & REMARKS", margin + 4, curY + 5);
+
+    curY += 9;
+
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(...cardBorder);
+    doc.setLineWidth(0.3);
+    const narrativeHeight = 36;
+    doc.roundedRect(margin, curY, contentWidth, narrativeHeight, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...darkNavy);
+    const narrativeLines = doc.splitTextToSize(
+        data.summaryNarrative || 'Pupil continues to demonstrate cheerful enthusiasm and steady developmental milestone progress across all foundational areas.',
+        contentWidth - 8
+    );
+    doc.text(narrativeLines, margin + 4, curY + 6);
+
+    curY += narrativeHeight + 7;
+
+    // Signatures & Endorsements
+    const sigBoxWidth = (contentWidth - 6) / 2;
+    const sigHeight = 24;
+
+    // Teacher Sig Box
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(...cardBorder);
+    doc.roundedRect(margin, curY, sigBoxWidth, sigHeight, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...primaryGreen);
+    doc.text("HOMEROOM TEACHER'S SIGNATURE & DATE", margin + 3, curY + 5);
+
+    doc.setDrawColor(...cardBorder);
+    doc.setLineWidth(0.3);
+    doc.line(margin + 4, curY + 16, margin + sigBoxWidth - 4, curY + 16);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...slateMuted);
+    doc.text(data.homeroomTutors || 'Class Lead Teacher', margin + 4, curY + 20);
+
+    // Head of School / Principal Sig Box
+    const headX = margin + sigBoxWidth + 6;
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(...cardBorder);
+    doc.roundedRect(headX, curY, sigBoxWidth, sigHeight, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...primaryGreen);
+    doc.text("HEAD OF EARLY YEARS / PRINCIPAL & OFFICIAL STAMP", headX + 3, curY + 5);
+
+    doc.setDrawColor(...cardBorder);
+    doc.setLineWidth(0.3);
+    doc.line(headX + 4, curY + 16, headX + sigBoxWidth - 4, curY + 16);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...slateMuted);
+    doc.text("Head of Early Years • Seal of Excellence", headX + 4, curY + 20);
+
+    curY += sigHeight + 6;
+
+    // Footer Motto & Contact Info
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...primaryGreen);
+    doc.text('"LEARN TO PLAY - PLAY TO LEARN"', pageWidth / 2, curY + 4, { align: 'center' });
+
+    const contactStr = [
+        institution?.address,
+        institution?.phoneNumber ? `Tel: ${institution.phoneNumber}` : null,
+        institution?.email ? `Email: ${institution.email}` : null
+    ].filter(Boolean).join(' • ');
+
+    if (contactStr) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...slateMuted);
+        doc.text(contactStr, pageWidth / 2, curY + 8, { align: 'center' });
+    }
+
+    return doc.output('datauristring');
+};
+
+export const downloadMontessoriAssessmentReportPdf = async (
+    data: MontessoriAssessmentRecord,
+    institution?: Institution
+): Promise<void> => {
+    const dataUri = await generateMontessoriAssessmentReportPdfDataUri(data, institution);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    const sanitizedStudentName = (data.studentName || 'Student').replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `Montessori_Assessment_${sanitizedStudentName}_${data.term || 'Term'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 
