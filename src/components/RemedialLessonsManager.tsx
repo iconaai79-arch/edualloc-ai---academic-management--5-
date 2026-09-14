@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment } from '../types';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
@@ -4929,9 +4930,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             )}
 
             {/* MODAL: ASSIGN / APPOINT CLASS PREFECT OR SECRETARY */}
-            {isAssignLeaderModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {isAssignLeaderModalOpen && typeof document !== 'undefined' && createPortal(
+                <div 
+                    className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsAssignLeaderModalOpen(false);
+                    }}
+                >
+                    <div 
+                        className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         {/* Modal Header */}
                         <div className="p-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white flex justify-between items-center">
                             <div>
@@ -5160,7 +5169,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* TAB: REMEDIAL SUBJECTS */}
@@ -6201,9 +6211,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </div>
 
                         {/* QUICK ACTION MODAL ON aSc CELL CLICK */}
-                        {selectedCellAlloc && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-                                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-700 space-y-4">
+                        {selectedCellAlloc && typeof document !== 'undefined' && createPortal(
+                            <div 
+                                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in overflow-y-auto"
+                                onClick={() => setSelectedCellAlloc(null)}
+                            >
+                                <div 
+                                    className="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-700 space-y-4 relative my-auto animate-in zoom-in-95 duration-150"
+                                    onClick={e => e.stopPropagation()}
+                                >
                                     <div className="flex items-start justify-between">
                                         <div className="flex items-center gap-3">
                                             {(() => {
@@ -6309,7 +6325,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         </button>
                                     </div>
                                 </div>
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </div>
                 );
@@ -8184,13 +8201,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         </div>
 
             {/* PREFECT QR CARD INTERACTIVE SCREEN PREVIEW MODAL */}
-            {printingPrefect && (
+            {printingPrefect && typeof document !== 'undefined' && createPortal(
                 <div 
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in no-print" 
+                    className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in no-print overflow-y-auto" 
                     onClick={() => setPrintingPrefect(null)}
                 >
                     <div 
-                        className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200" 
+                        className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200 relative my-auto" 
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal Header */}
@@ -8289,7 +8306,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* DOM Print Sheet for Native Browser Print Preview (Includes .print-only to override body visibility:hidden) */}
