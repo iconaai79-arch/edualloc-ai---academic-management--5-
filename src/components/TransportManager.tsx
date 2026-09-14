@@ -11,13 +11,14 @@ import { XIcon } from './icons/XIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
 
-import type { TransportVehicle, User, Institution, UserUpdateData, StudentEnrollment } from '../types';
+import type { TransportVehicle, User, Institution, UserUpdateData, StudentEnrollment, Course } from '../types';
 import { apiService } from '../services/apiService';
 
 interface TransportManagerProps {
     vehicles: TransportVehicle[];
     users: User[];
     currentInstitution: Institution;
+    courses?: Course[];
     onAddVehicle: (vehicle: Omit<TransportVehicle, 'id'>) => Promise<void>;
     onUpdateVehicle: (id: string, updates: Partial<TransportVehicle>) => Promise<void>;
     onDeleteVehicle: (id: string) => Promise<void>;
@@ -26,7 +27,7 @@ interface TransportManagerProps {
 }
 
 export const TransportManager: React.FC<TransportManagerProps> = ({
-    vehicles, users, currentInstitution,
+    vehicles, users, currentInstitution, courses: initialCourses = [],
     onAddVehicle, onUpdateVehicle, onDeleteVehicle,
     onAddUser, onEditUser
 }) => {
@@ -45,8 +46,9 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const [classFilter, setClassFilter] = useState('all');
     const [streamFilter, setStreamFilter] = useState('all');
 
-    // Enrollment data for admission numbers, class & stream
+    // Enrollment and courses data for admission numbers, class & stream
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
+    const [loadedCourses, setLoadedCourses] = useState<Course[]>(initialCourses);
 
     // Form data for Vehicle
     const [formData, setFormData] = useState<Omit<TransportVehicle, 'id' | 'institutionId'>>({
@@ -84,47 +86,131 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         [users]
     );
 
-    // Merge enrollment data (admissionNumber, class, stream) onto each student
+    // Merge enrollment and course data (admissionNumber, class, stream) onto each student
     const enrichedStudents = useMemo(() => {
         return students.map(s => {
-            const enr = enrollments.find(e => e.userId === s.id);
-            const adm = enr?.admissionNumber || (enr as any)?.admission_number ||
+            const enr = enrollments.find(e => e.userId === s.id || e.id === s.id || (e.metadata as any)?.userId === s.id);
+            const matchedCourse = loadedCourses.find(c => 
+                c.id === enr?.courseId || 
+                c.id === (s as any).courseId || 
+                c.id === s.metadata?.courseId ||
+                (c.name && enr?.metadata?.gradeLevel && c.name.trim().toLowerCase() === String(enr.metadata.gradeLevel).trim().toLowerCase())
+            );
+            const adm = enr?.admissionNumber || (enr as any)?.admission_number || enr?.metadata?.admissionNumber ||
                 s.admissionNumber || s.admission_number ||
                 s.metadata?.admissionNumber || s.metadata?.admission_number || '';
-            const gradeLevel = enr?.metadata?.gradeLevel || s.metadata?.gradeLevel || '';
-            const stream = enr?.metadata?.stream || s.metadata?.stream || '';
-            return { ...s, admissionNumber: adm, admission_number: adm, gradeLevel, stream };
+            const gradeLevel = (
+                matchedCourse?.name ||
+                enr?.metadata?.gradeLevel ||
+                enr?.metadata?.className ||
+                (s as any).studentClass ||
+                (s as any).className ||
+                s.metadata?.studentClass ||
+                s.metadata?.className ||
+                s.metadata?.gradeLevel ||
+                (s as any).gradeLevel ||
+                ''
+            ).trim();
+            const stream = (
+                enr?.metadata?.stream ||
+                enr?.metadata?.streamName ||
+                (s as any).stream ||
+                s.metadata?.stream ||
+                s.metadata?.streamName ||
+                ''
+            ).trim();
+            return { 
+                ...s, 
+                admissionNumber: adm, 
+                admission_number: adm, 
+                gradeLevel, 
+                stream,
+                courseId: matchedCourse?.id || enr?.courseId || (s as any).courseId || '' 
+            };
         });
-    }, [students, enrollments]);
+    }, [students, enrollments, loadedCourses]);
 
-    // Unique class & stream options for filter dropdowns
-    const classOptions = useMemo(() =>
-        [...new Set(enrichedStudents.map(s => (s as any).gradeLevel).filter(Boolean))].sort(),
-        [enrichedStudents]
-    );
-    const streamOptions = useMemo(() =>
-        [...new Set(enrichedStudents.map(s => (s as any).stream).filter(Boolean))].sort(),
-        [enrichedStudents]
-    );
+    // Unique class & stream options for filter dropdowns combining registered courses & student assignments
+    const classOptions = useMemo(() => {
+        const set = new Set<string>();
+        loadedCourses.forEach(c => {
+            if (c.name && c.name.trim()) set.add(c.name.trim());
+        });
+        enrollments.forEach(e => {
+            const g = e.metadata?.gradeLevel || e.metadata?.className;
+            if (g && String(g).trim()) set.add(String(g).trim());
+        });
+        enrichedStudents.forEach(s => {
+            if ((s as any).gradeLevel && String((s as any).gradeLevel).trim()) {
+                set.add(String((s as any).gradeLevel).trim());
+            }
+        });
+        return Array.from(set).sort();
+    }, [loadedCourses, enrollments, enrichedStudents]);
+
+    const streamOptions = useMemo(() => {
+        const set = new Set<string>();
+        loadedCourses.forEach(c => {
+            if (Array.isArray(c.streams)) {
+                c.streams.forEach(s => s && set.add(String(s).trim()));
+            }
+            if (Array.isArray((c as any).metadata?.streams)) {
+                (c as any).metadata.streams.forEach((s: any) => s && set.add(String(s).trim()));
+            }
+        });
+        enrollments.forEach(e => {
+            const st = e.metadata?.stream || e.metadata?.streamName;
+            if (st && String(st).trim()) set.add(String(st).trim());
+        });
+        enrichedStudents.forEach(s => {
+            if ((s as any).stream && String((s as any).stream).trim()) {
+                set.add(String((s as any).stream).trim());
+            }
+        });
+        return Array.from(set).sort();
+    }, [loadedCourses, enrollments, enrichedStudents]);
 
     const filteredStudents = useMemo(() => {
         return enrichedStudents.filter(s => {
-            const adm = s.admissionNumber || '';
+            const adm = (s as any).admissionNumber || '';
             const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 adm.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (s.staffId || '').toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesClass = classFilter === 'all' || (s as any).gradeLevel === classFilter;
-            const matchesStream = streamFilter === 'all' || (s as any).stream === streamFilter;
+                (s.staffId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                ((s as any).gradeLevel || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                ((s as any).stream || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesClass = classFilter === 'all' || 
+                (s as any).gradeLevel?.toLowerCase() === classFilter.toLowerCase() ||
+                (s as any).courseId === classFilter;
+            const matchesStream = streamFilter === 'all' || 
+                (s as any).stream?.toLowerCase() === streamFilter.toLowerCase();
             return matchesSearch && matchesClass && matchesStream;
         });
     }, [enrichedStudents, searchTerm, classFilter, streamFilter]);
 
-    // Fetch student enrollments to get admission numbers, class and stream
+    // Fetch student enrollments and courses to get admission numbers, class and stream
     useEffect(() => {
+        if (!currentInstitution?.id) return;
+
+        // Load enrollments
         apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', currentInstitution.id)
             .then(data => setEnrollments(data || []))
             .catch(e => console.warn('Could not load enrollments for transport:', e));
-    }, [currentInstitution.id]);
+
+        // Load courses if not passed via props
+        if (!initialCourses || initialCourses.length === 0) {
+            apiService.fetchCourses(currentInstitution.id)
+                .then(data => {
+                    if (data && data.length > 0) setLoadedCourses(data);
+                })
+                .catch(e => console.warn('Could not load courses for transport manager:', e));
+        }
+    }, [currentInstitution.id, initialCourses]);
+
+    useEffect(() => {
+        if (initialCourses && initialCourses.length > 0) {
+            setLoadedCourses(initialCourses);
+        }
+    }, [initialCourses]);
 
     useEffect(() => {
         if (showQrId) {

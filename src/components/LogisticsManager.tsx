@@ -44,7 +44,7 @@ import {
     Briefcase
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Institution, User as UserType } from '../types';
+import type { Institution, User as UserType, Course, StudentEnrollment } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
@@ -74,9 +74,10 @@ interface Shipment {
 interface LogisticsManagerProps {
     currentInstitution: Institution;
     users: UserType[];
+    courses?: Course[];
 }
 
-export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users }) => {
+export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users, courses: initialCourses = [] }) => {
     const isShuttle = currentInstitution.category === 'Staff Shuttle' || currentInstitution.category === 'Corporate Shuttle';
     const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
     // Actually, based on user request, let's explicitly detect Public Transport
@@ -90,6 +91,36 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [reportSubTab, setReportSubTab] = useState<'billing' | 'routes' | 'fleet' | 'trips' | 'alerts'>('billing');
     const [reportSearch, setReportSearch] = useState('');
     const [reportStatusFilter, setReportStatusFilter] = useState('ALL');
+
+    // Courses and Enrollments state for comprehensive class & stream resolving
+    const [loadedCourses, setLoadedCourses] = useState<Course[]>(initialCourses);
+    const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
+
+    useEffect(() => {
+        if (!currentInstitution?.id) return;
+
+        // Fetch courses if initialCourses is empty
+        if (!initialCourses || initialCourses.length === 0) {
+            apiService.fetchCourses(currentInstitution.id)
+                .then(data => {
+                    if (data && data.length > 0) setLoadedCourses(data);
+                })
+                .catch(e => console.warn('Could not load courses for logistics:', e));
+        }
+
+        // Fetch student enrollments
+        apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', currentInstitution.id)
+            .then(data => {
+                if (data && Array.isArray(data)) setEnrollments(data);
+            })
+            .catch(e => console.warn('Could not load student enrollments for logistics:', e));
+    }, [currentInstitution?.id, initialCourses]);
+
+    useEffect(() => {
+        if (initialCourses && initialCourses.length > 0) {
+            setLoadedCourses(initialCourses);
+        }
+    }, [initialCourses]);
 
     // Vehicles state & API operations for Vehicle Registration tab & fleet selections
     const [dbVehicles, setDbVehicles] = useState<any[]>(() => {
@@ -578,46 +609,55 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [newRouteDriver, setNewRouteDriver] = useState('');
     const [newRouteAttendant, setNewRouteAttendant] = useState('');
 
-    const getStudentResolvedStream = (u: any): string => {
-        if (!u) return '';
+    const getStudentResolvedStream = (u: any, enr?: any): string => {
+        if (!u && !enr) return '';
         const stream = (
-            u.stream ||
-            u.stream_name ||
-            u.metadata?.stream ||
-            u.metadata?.streamName ||
-            u.metadata?.stream_name ||
-            u.metadata?.stream_title ||
-            u.metadata?.section ||
-            u.metadata?.arm ||
+            enr?.metadata?.stream ||
+            enr?.metadata?.streamName ||
+            enr?.metadata?.stream_name ||
+            enr?.metadata?.section ||
+            enr?.metadata?.arm ||
+            (enr as any)?.stream ||
+            u?.stream ||
+            u?.stream_name ||
+            u?.metadata?.stream ||
+            u?.metadata?.streamName ||
+            u?.metadata?.stream_name ||
+            u?.metadata?.stream_title ||
+            u?.metadata?.section ||
+            u?.metadata?.arm ||
             ''
         );
         return String(stream).trim();
     };
 
-    const getStudentBaseClass = (u: any): string => {
-        if (!u) return 'Unassigned';
+    const getStudentBaseClass = (u: any, enr?: any, matchedCourse?: Course): string => {
+        if (matchedCourse?.name) return matchedCourse.name.trim();
         const rawClass = (
-            u.studentClass ||
-            u.supervisedClass ||
-            u.metadata?.studentClass ||
-            u.metadata?.className ||
-            u.metadata?.gradeLevel ||
-            u.metadata?.class_level ||
-            u.metadata?.grade_level ||
-            u.metadata?.grade ||
-            u.metadata?.class ||
-            u.metadata?.class_name ||
-            u.metadata?.courseLevel ||
-            u.metadata?.academicLevel ||
-            u.metadata?.form ||
-            u.metadata?.level ||
-            u.className ||
-            u.gradeLevel ||
-            u.grade ||
-            u.class ||
+            enr?.metadata?.gradeLevel ||
+            enr?.metadata?.className ||
+            enr?.metadata?.class ||
+            u?.studentClass ||
+            u?.supervisedClass ||
+            u?.metadata?.studentClass ||
+            u?.metadata?.className ||
+            u?.metadata?.gradeLevel ||
+            u?.metadata?.class_level ||
+            u?.metadata?.grade_level ||
+            u?.metadata?.grade ||
+            u?.metadata?.class ||
+            u?.metadata?.class_name ||
+            u?.metadata?.courseLevel ||
+            u?.metadata?.academicLevel ||
+            u?.metadata?.form ||
+            u?.metadata?.level ||
+            u?.className ||
+            u?.gradeLevel ||
+            u?.grade ||
+            u?.class ||
             ''
         );
-        const stream = getStudentResolvedStream(u);
+        const stream = getStudentResolvedStream(u, enr);
         let classStr = String(rawClass).trim();
         if (stream && classStr.toLowerCase().endsWith(stream.toLowerCase())) {
             classStr = classStr.substring(0, classStr.length - stream.length).trim();
@@ -853,10 +893,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         ] : []);
 
         return rawStudents.map(s => {
-            const resolvedAdm = getStudentResolvedAdm(s, true);
-            const resolvedClass = getStudentResolvedClass(s) || 'Unassigned Class';
-            const baseClass = getStudentBaseClass(s);
-            const stream = getStudentResolvedStream(s) || (s.metadata?.stream || (s as any).stream || '');
+            const enr = enrollments.find(e => e.userId === s.id || e.id === s.id || (e.metadata as any)?.userId === s.id);
+            const matchedCourse = loadedCourses.find(c => 
+                c.id === enr?.courseId || 
+                c.id === (s as any).courseId || 
+                c.id === s.metadata?.courseId ||
+                (c.name && enr?.metadata?.gradeLevel && c.name.trim().toLowerCase() === String(enr.metadata.gradeLevel).trim().toLowerCase())
+            );
+            const resolvedAdm = enr?.admissionNumber || (enr as any)?.admission_number || enr?.metadata?.admissionNumber || getStudentResolvedAdm(s, true);
+            const baseClass = getStudentBaseClass(s, enr, matchedCourse);
+            const stream = getStudentResolvedStream(s, enr);
+            const resolvedClass = matchedCourse?.name || (stream ? `${baseClass} ${stream}` : baseClass);
 
             return {
                 ...s,
@@ -865,32 +912,58 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 admissionNumber: resolvedAdm,
                 studentClass: resolvedClass,
                 baseClass: baseClass || 'Unassigned',
-                stream: stream || ''
+                stream: stream || '',
+                courseId: matchedCourse?.id || enr?.courseId || (s as any).courseId || ''
             };
         });
-    }, [students, currentInstitution?.id]);
+    }, [students, enrollments, loadedCourses, currentInstitution?.id]);
 
     // Dynamic list of unique classes for filtering
     const availableClasses = useMemo(() => {
         const set = new Set<string>();
+        // 1. From registered school courses/classes
+        loadedCourses.forEach(c => {
+            if (c.name && c.name.trim()) set.add(c.name.trim());
+        });
+        // 2. From student enrollments
+        enrollments.forEach(e => {
+            const g = e.metadata?.gradeLevel || e.metadata?.className;
+            if (g && String(g).trim()) set.add(String(g).trim());
+        });
+        // 3. From students
         displayStudents.forEach(s => {
             if (s.baseClass && s.baseClass !== 'Unassigned') {
-                set.add(s.baseClass);
+                set.add(s.baseClass.trim());
             }
         });
         return Array.from(set).sort();
-    }, [displayStudents]);
+    }, [loadedCourses, enrollments, displayStudents]);
 
     // Dynamic list of unique streams for filtering
     const availableStreams = useMemo(() => {
         const set = new Set<string>();
+        // 1. From registered school courses/classes
+        loadedCourses.forEach(c => {
+            if (Array.isArray(c.streams)) {
+                c.streams.forEach(s => s && set.add(String(s).trim()));
+            }
+            if (Array.isArray((c as any).metadata?.streams)) {
+                (c as any).metadata.streams.forEach((s: any) => s && set.add(String(s).trim()));
+            }
+        });
+        // 2. From student enrollments
+        enrollments.forEach(e => {
+            const st = e.metadata?.stream || e.metadata?.streamName || (e as any).stream;
+            if (st && String(st).trim()) set.add(String(st).trim());
+        });
+        // 3. From students
         displayStudents.forEach(s => {
-            if (s.stream) {
-                set.add(s.stream);
+            if (s.stream && String(s.stream).trim()) {
+                set.add(String(s.stream).trim());
             }
         });
         return Array.from(set).sort();
-    }, [displayStudents]);
+    }, [loadedCourses, enrollments, displayStudents]);
 
     const filteredStudents = useMemo(() => {
         return displayStudents.filter(s => {
@@ -904,7 +977,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const matchesClass = 
                 selectedClassFilter === 'ALL' || 
                 s.baseClass.toLowerCase() === selectedClassFilter.toLowerCase() ||
-                s.studentClass.toLowerCase().includes(selectedClassFilter.toLowerCase());
+                s.studentClass.toLowerCase().includes(selectedClassFilter.toLowerCase()) ||
+                (s as any).courseId === selectedClassFilter;
 
             const matchesStream = 
                 selectedStreamFilter === 'ALL' || 
@@ -3202,6 +3276,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 currentInstitution={currentInstitution}
                                 vehicles={dbVehicles}
                                 users={users}
+                                courses={loadedCourses}
                                 onAddVehicle={handleAddVehicle}
                                 onUpdateVehicle={handleUpdateVehicle}
                                 onDeleteVehicle={handleDeleteVehicle}

@@ -3270,6 +3270,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             currentInstitution={props.currentInstitution!}
                             vehicles={props.vehicles || []}
                             users={props.users || []}
+                            courses={props.courses || []}
                             onAddVehicle={props.onAddVehicle!}
                             onUpdateVehicle={props.onUpdateVehicle!}
                             onDeleteVehicle={props.onDeleteVehicle!}
@@ -3288,6 +3289,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 currentInstitution={props.currentInstitution!}
                                 vehicles={props.vehicles || []}
                                 users={props.users || []}
+                                courses={props.courses || []}
                                 onAddVehicle={props.onAddVehicle!}
                                 onUpdateVehicle={props.onUpdateVehicle!}
                                 onDeleteVehicle={props.onDeleteVehicle!}
@@ -3772,6 +3774,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     <LogisticsManager 
                         currentInstitution={props.currentInstitution!}
                         users={props.users || []}
+                        courses={props.courses || []}
                     />
                 )}
                 {activeTab === 'fiscal_guard' && (
