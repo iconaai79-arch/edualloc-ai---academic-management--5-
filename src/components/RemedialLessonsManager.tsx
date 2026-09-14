@@ -456,7 +456,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         // 1. Existing user-level prefects
         (users || []).forEach(u => {
             if (u && ((u.role as string) === 'prefect' || (u.metadata as any)?.isPrefect)) {
-                const leadPos = (u.metadata as any)?.leadershipPosition || (u.role === 'prefect' ? 'Class Prefect' : 'Class Leader');
+                const leadPos = (u.metadata as any)?.leadershipPosition || ((u.role as string) === 'prefect' ? 'Class Prefect' : 'Class Leader');
                 const uCourse = courses.find(c => c.id === u.courseId || (u.metadata as any)?.courseId || (c.name && (u as any).studentClass && c.name.trim().toLowerCase() === String((u as any).studentClass).trim().toLowerCase()));
                 const stream = (u.metadata as any)?.stream || (u as any).stream || '';
                 list.push({
@@ -582,7 +582,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Students eligible to be appointed as class prefects or secretaries
     const eligibleStudents = useMemo(() => {
         return (users || [])
-            .filter(u => u.role === 'student' || !u.role || u.role === 'prefect')
+            .filter(u => u.role === 'student' || !u.role || (u.role as string) === 'prefect')
             .map(u => {
                 const enr = (enrollments || []).find(e => e.userId === u.id);
                 const course = courses.find(c => c.id === enr?.courseId || c.id === u.courseId);
@@ -839,7 +839,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (targetUser) {
                 const updatedUser: User = {
                     ...targetUser,
-                    role: targetUser.role === 'prefect' ? 'student' as any : targetUser.role,
+                    role: (targetUser.role as string) === 'prefect' ? 'student' : targetUser.role,
                     metadata: {
                         ...(targetUser.metadata || {}),
                         leadershipPosition: '',
