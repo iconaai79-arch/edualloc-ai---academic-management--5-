@@ -5393,7 +5393,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             )}
 
             {/* TAB: ALLOCATIONS & TIMETABLE */}
-            {/* TAB: ALLOCATIONS & TIMETABLE (aSc Timetable Grid Suite) */}
+            {/* TAB: ALLOCATIONS & TIMETABLE (Master Timetable Grid Suite) */}
             {activeTab === 'allocations' && (() => {
                 const daysForAscGrid: readonly ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[] = (() => {
                     if (ascDayScope === 'weekdays') return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
@@ -5683,7 +5683,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         >
                             <div className="flex items-start justify-between gap-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                    {/* aSc Color Subject Badge */}
+                                    {/* Color Subject Badge */}
                                     <div 
                                         style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
                                         className="px-2 py-0.5 rounded border text-[10px] font-black uppercase shadow-2xs select-none"
@@ -5841,10 +5841,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div>
                                 <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-1 flex items-center gap-2">
-                                    <LayoutGrid className="w-4 h-4 text-violet-500" /> aSc Remedial Subjects &amp; Class Allocation Timetable
+                                    <LayoutGrid className="w-4 h-4 text-violet-500" /> Remedial Subjects &amp; Class Allocation Timetable
                                 </h4>
                                 <p className="text-xs text-slate-500">
-                                    Master Timetable grid arranged by classes and periods with official aSc subject colors, teacher codes, and joint stream sessions.
+                                    Master Timetable grid arranged by classes and periods with subject colors, teacher codes, and joint stream sessions.
                                 </p>
                             </div>
 
@@ -5877,7 +5877,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                                         }`}
                                     >
-                                        <LayoutGrid className="w-3.5 h-3.5" /> aSc Master Grid
+                                        <LayoutGrid className="w-3.5 h-3.5" /> Master Grid
                                     </button>
                                     <button
                                         onClick={() => setAllocViewMode('day_columns')}
@@ -5896,7 +5896,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     onClick={handlePrintTimetable}
                                     className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white hover:opacity-90 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm shrink-0"
                                 >
-                                    <Printer className="w-4 h-4" /> Print aSc Timetable Grid
+                                    <Printer className="w-4 h-4" /> Print Timetable Grid
                                 </button>
                             </div>
 
@@ -5984,7 +5984,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
-                        {/* MODE 1: aSc MASTER TIMETABLE GRID (Classes × Periods) */}
+                        {/* MODE 1: MASTER TIMETABLE GRID (Classes × Periods) */}
                         {allocViewMode === 'asc_grid' && (
                             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-700/60 dark:border-slate-700 shadow-2xl overflow-hidden">
                                 <div className="overflow-x-auto">
@@ -6180,11 +6180,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         )}
 
-                        {/* aSc TIMETABLE SUBJECT COLOR REFERENCE (LEGEND) */}
+                        {/* TIMETABLE SUBJECT COLOR REFERENCE (LEGEND) */}
                         <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
                             <div className="flex items-center justify-between">
                                 <h6 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                    <Sparkles className="w-3.5 h-3.5 text-violet-500" /> aSc Timetable Subject Color Reference
+                                    <Sparkles className="w-3.5 h-3.5 text-violet-500" /> Timetable Subject Color Reference
                                 </h6>
                                 <span className="text-[10px] text-slate-400 font-medium">
                                     {effectiveSchoolSubjects.length} Registered Subjects
@@ -6210,7 +6210,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
-                        {/* QUICK ACTION MODAL ON aSc CELL CLICK */}
+                        {/* QUICK ACTION MODAL ON TIMETABLE CELL CLICK */}
                         {selectedCellAlloc && typeof document !== 'undefined' && createPortal(
                             <div 
                                 className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in overflow-y-auto"
