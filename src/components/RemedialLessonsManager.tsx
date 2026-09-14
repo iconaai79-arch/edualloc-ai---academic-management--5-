@@ -1207,6 +1207,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // Handler to view / disperse notice memo to teachers
+    const handleDisperseNoticeToTeachers = () => {
+        setIsDisperseModalOpen(true);
+    };
+
     // Auto-select matching prefect when class or stream changes in manual logging
     useEffect(() => {
         if (!manualCourseId) return;
