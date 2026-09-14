@@ -6427,6 +6427,25 @@ export interface TeacherDayPreference {
     notes?: string;
 }
 
+export interface RemedialTimetableApproval {
+    status: 'draft' | 'pending_headteacher' | 'approved_dispersed' | 'revision_requested';
+    forwardedBy?: string;
+    forwardedById?: string;
+    forwardedAt?: string;
+    forwardingNotes?: string;
+    targetHeadteacherId?: string;
+    targetHeadteacherName?: string;
+    approvedBy?: string;
+    approvedById?: string;
+    approvedAt?: string;
+    approvalNotes?: string;
+    revisionNotes?: string;
+    revisionRequestedAt?: string;
+    dispersedAt?: string;
+    dispersedBy?: string;
+    notificationSentCount?: number;
+}
+
 export interface RemedialRateSetting {
     id: string;
     hourlyRate: number;

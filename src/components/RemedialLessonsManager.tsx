@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval } from '../types';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
@@ -8,7 +8,8 @@ import {
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
-    FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap
+    FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
+    Send, Megaphone, Share2, CheckSquare
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
@@ -97,6 +98,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [ascDayScope, setAscDayScope] = useState<'all' | 'weekdays' | 'weekend' | 'Saturday' | 'Sunday'>('all');
     const [selectedCellAlloc, setSelectedCellAlloc] = useState<RemedialAllocation | null>(null);
     const [ascClassSearchQuery, setAscClassSearchQuery] = useState('');
+    
+    // Remedial Timetable Workflow: DOS -> Headteacher Approval -> Dispersed to Teachers
+    const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
+    const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+    const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+    const [isDisperseModalOpen, setIsDisperseModalOpen] = useState(false);
+    const [workflowNotes, setWorkflowNotes] = useState('');
+    const [isSubmittingWorkflow, setIsSubmittingWorkflow] = useState(false);
+    const [targetHeadteacherId, setTargetHeadteacherId] = useState('');
     
     // Rates Form State
     const [hourlyRate, setHourlyRate] = useState<number>(1000);
@@ -934,6 +944,267 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             </html>
         `);
         printWindow.document.close();
+    };
+
+    // User Role Detection for Remedial Workflows
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isHeadteacherUser = [
+        'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'admin', 'super_admin'
+    ].includes(userRole);
+    const isDosUser = [
+        'dos', 'director_of_studies', 'academic_officer', 'deputy', 'deputy_principal', 'deputy_headteacher', 'admin', 'super_admin'
+    ].includes(userRole);
+    const isTeacherUser = userRole === 'teacher';
+
+    // Extracted Headteachers / Principals directory
+    const headteachersList = useMemo(() => {
+        return users.filter(u => {
+            const r = (u.role || '').toLowerCase();
+            return ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'admin', 'super_admin'].includes(r);
+        });
+    }, [users]);
+
+    // Current Timetable Approval State from rateSetting.metadata.timetableApproval
+    const timetableApproval: RemedialTimetableApproval = useMemo(() => {
+        const existing = (rateSetting?.metadata as any)?.timetableApproval;
+        if (existing && existing.status) {
+            return existing;
+        }
+        return {
+            status: allocations.length > 0 ? 'draft' : 'draft',
+            forwardedBy: '',
+            forwardedAt: '',
+            approvedBy: '',
+            approvedAt: '',
+            approvalNotes: '',
+            revisionNotes: '',
+            forwardingNotes: ''
+        };
+    }, [rateSetting, allocations.length]);
+
+    // Distinct teachers in allocations for dispersal & stats
+    const distinctTeachersInAllocations = useMemo(() => {
+        const map = new Map<string, { teacherId: string; teacherName: string; slotsCount: number; classes: Set<string>; subjects: Set<string> }>();
+        allocations.forEach(a => {
+            if (!a.teacherId) return;
+            const existing = map.get(a.teacherId) || {
+                teacherId: a.teacherId,
+                teacherName: a.teacherName || 'Teacher',
+                slotsCount: 0,
+                classes: new Set<string>(),
+                subjects: new Set<string>()
+            };
+            existing.slotsCount += 1;
+            if (a.className) existing.classes.add(a.className);
+            if (a.subjectName) existing.subjects.add(a.subjectName);
+            map.set(a.teacherId, existing);
+        });
+        return Array.from(map.values()).map(v => ({
+            ...v,
+            classes: Array.from(v.classes),
+            subjects: Array.from(v.subjects)
+        }));
+    }, [allocations]);
+
+    // Helper to persist updated timetable approval status in rateSetting.metadata
+    const updateTimetableApproval = async (approvalData: Partial<RemedialTimetableApproval>) => {
+        try {
+            const currentApproval = (rateSetting?.metadata as any)?.timetableApproval || {};
+            const updatedApproval: RemedialTimetableApproval = {
+                ...currentApproval,
+                ...approvalData
+            };
+            const updatedMetadata = {
+                ...((rateSetting as any)?.metadata || {}),
+                timetableApproval: updatedApproval
+            };
+            const updatedRateSetting = {
+                ...(rateSetting || {}),
+                id: rateSetting?.id || `rates_${institutionId}`,
+                institutionId,
+                hourlyRate: rateSetting?.hourlyRate || hourlyRate,
+                weekdayHourlyRate: rateSetting?.weekdayHourlyRate || weekdayHourlyRate,
+                weekendHourlyRate: rateSetting?.weekendHourlyRate || weekendHourlyRate,
+                weekdayStartTime: rateSetting?.weekdayStartTime || weekdayStartTime,
+                weekdayEndTime: rateSetting?.weekdayEndTime || weekdayEndTime,
+                weekendStartTime: rateSetting?.weekendStartTime || weekendStartTime,
+                weekendEndTime: rateSetting?.weekendEndTime || weekendEndTime,
+                saturdayStartTime: rateSetting?.saturdayStartTime || saturdayStartTime,
+                saturdayEndTime: rateSetting?.saturdayEndTime || saturdayEndTime,
+                sundayStartTime: rateSetting?.sundayStartTime || sundayStartTime,
+                sundayEndTime: rateSetting?.sundayEndTime || sundayEndTime,
+                feePerStudent: rateSetting?.feePerStudent || feePerStudent,
+                termFee: rateSetting?.termFee || termFee,
+                metadata: updatedMetadata,
+                updatedAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('school_remedial_rate_settings', updatedRateSetting);
+            setRateSetting(updatedRateSetting as any);
+            return updatedApproval;
+        } catch (err: any) {
+            console.error('Failed to update timetable approval status:', err);
+            throw err;
+        }
+    };
+
+    // Handler to open forward modal
+    const handleOpenForwardModal = () => {
+        if (allocations.length === 0) {
+            alert('No remedial timetable allocations found. Please auto-generate or create allocations first before forwarding.');
+            return;
+        }
+        setWorkflowNotes(
+            timetableApproval.forwardingNotes || 
+            `Compiled Remedial Timetable with ${allocations.length} sessions across ${courses.length} classes for Term review. Forwarded for official approval and teacher dispersal.`
+        );
+        setTargetHeadteacherId(headteachersList[0]?.id || '');
+        setIsForwardModalOpen(true);
+    };
+
+    // Handler to confirm forward to Headteacher
+    const handleConfirmForwardToHeadteacher = async () => {
+        setIsSubmittingWorkflow(true);
+        try {
+            const targetHead = headteachersList.find(h => h.id === targetHeadteacherId);
+            await updateTimetableApproval({
+                status: 'pending_headteacher',
+                forwardedBy: currentUser?.name || 'Director of Studies (DOS)',
+                forwardedById: currentUser?.id || '',
+                forwardedAt: new Date().toISOString(),
+                forwardingNotes: workflowNotes.trim(),
+                targetHeadteacherId: targetHead?.id || '',
+                targetHeadteacherName: targetHead?.name || 'Headteacher / Principal',
+                revisionNotes: ''
+            });
+
+            // Disperse communication record to school communications
+            try {
+                await apiService.saveModuleRecord('school_communications', {
+                    id: `comm_remedial_approval_${Date.now()}`,
+                    institutionId,
+                    type: 'notification',
+                    title: 'Remedial Timetable Awaiting Approval',
+                    content: `Director of Studies (${currentUser?.name || 'DOS'}) has compiled and submitted the Remedial Timetable (${allocations.length} sessions, ${distinctTeachersInAllocations.length} teachers) for your review and dispersal sign-off.`,
+                    senderId: currentUser?.id,
+                    senderName: currentUser?.name || 'Director of Studies',
+                    targetRole: 'headteacher',
+                    priority: 'high',
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
+            } catch (commErr) {
+                console.warn('Could not post communication notification:', commErr);
+            }
+
+            onLogAction?.(`Forwarded Remedial Timetable (${allocations.length} sessions) to Headteacher for approval.`);
+            setIsForwardModalOpen(false);
+            alert('Remedial Timetable successfully forwarded to the Headteacher for approval.');
+        } catch (err: any) {
+            alert(err.message || 'Failed to forward timetable.');
+        } finally {
+            setIsSubmittingWorkflow(false);
+        }
+    };
+
+    // Handler to open approve modal
+    const handleOpenApproveModal = () => {
+        setWorkflowNotes(
+            timetableApproval.approvalNotes || 
+            `Approved by the Principal / Headteacher for immediate implementation. All allocated subject teachers are authorized to conduct sessions as scheduled.`
+        );
+        setIsApproveModalOpen(true);
+    };
+
+    // Handler to confirm approve and disperse
+    const handleConfirmApproveAndDisperse = async () => {
+        setIsSubmittingWorkflow(true);
+        try {
+            const teacherCount = distinctTeachersInAllocations.length;
+            await updateTimetableApproval({
+                status: 'approved_dispersed',
+                approvedBy: currentUser?.name || 'Headteacher / Principal',
+                approvedById: currentUser?.id || '',
+                approvedAt: new Date().toISOString(),
+                approvalNotes: workflowNotes.trim(),
+                dispersedAt: new Date().toISOString(),
+                dispersedBy: currentUser?.name || 'Headteacher',
+                notificationSentCount: teacherCount
+            });
+
+            // Disperse individual notifications to allocated teachers
+            for (const t of distinctTeachersInAllocations) {
+                try {
+                    await apiService.saveModuleRecord('school_communications', {
+                        id: `comm_remedial_dispersed_${t.teacherId}_${Date.now()}`,
+                        institutionId,
+                        type: 'notification',
+                        title: 'Official Remedial Timetable Dispersed',
+                        content: `Dear ${t.teacherName}, your remedial timetable has been approved by the Headteacher (${currentUser?.name || 'Headteacher'}). You are allocated ${t.slotsCount} remedial sessions for ${t.subjects.join(', ')} across ${t.classes.join(', ')}.`,
+                        senderId: currentUser?.id,
+                        senderName: currentUser?.name || 'Headteacher',
+                        recipientId: t.teacherId,
+                        recipientName: t.teacherName,
+                        status: 'sent',
+                        createdAt: new Date().toISOString()
+                    });
+                } catch (commErr) {
+                    // Best-effort notification
+                }
+            }
+
+            onLogAction?.(`Headteacher approved and dispersed remedial timetable to ${teacherCount} teachers.`);
+            setIsApproveModalOpen(false);
+            alert(`Remedial Timetable Approved & Dispersed!\n\nThe master timetable has been officially signed off by the Headteacher and dispersed to ${teacherCount} subject teachers.`);
+        } catch (err: any) {
+            alert(err.message || 'Failed to approve and disperse timetable.');
+        } finally {
+            setIsSubmittingWorkflow(false);
+        }
+    };
+
+    // Handler to open revision modal
+    const handleOpenRevisionModal = () => {
+        setWorkflowNotes('');
+        setIsRevisionModalOpen(true);
+    };
+
+    // Handler to confirm return for revision
+    const handleConfirmRequestRevision = async () => {
+        if (!workflowNotes.trim()) {
+            alert('Please specify the revision notes or changes requested for the DOS.');
+            return;
+        }
+        setIsSubmittingWorkflow(true);
+        try {
+            await updateTimetableApproval({
+                status: 'revision_requested',
+                revisionNotes: workflowNotes.trim(),
+                revisionRequestedAt: new Date().toISOString()
+            });
+
+            onLogAction?.(`Headteacher requested revisions on remedial timetable: "${workflowNotes.trim().slice(0, 60)}..."`);
+            setIsRevisionModalOpen(false);
+            alert('Timetable returned to the Director of Studies (DOS) for revision with your feedback remarks.');
+        } catch (err: any) {
+            alert(err.message || 'Failed to return timetable for revision.');
+        } finally {
+            setIsSubmittingWorkflow(false);
+        }
+    };
+
+    // Handler to reopen draft
+    const handleResetToDraft = async () => {
+        if (!window.confirm('Reopen timetable as Draft? This allows editing slots before re-forwarding to the Headteacher.')) return;
+        try {
+            await updateTimetableApproval({
+                status: 'draft',
+                revisionNotes: ''
+            });
+            alert('Timetable status reset to Draft for revisions.');
+        } catch (err: any) {
+            alert(err.message || 'Failed to reset status.');
+        }
     };
 
     // Auto-select matching prefect when class or stream changes in manual logging
@@ -2212,6 +2483,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
             }
 
+            // Reset timetable approval workflow state to Draft for DOS review & forwarding
+            await updateTimetableApproval({
+                status: 'draft',
+                forwardedBy: '',
+                forwardedAt: '',
+                forwardingNotes: '',
+                approvedBy: '',
+                approvedAt: '',
+                approvalNotes: '',
+                revisionNotes: '',
+                dispersedAt: '',
+                notificationSentCount: 0
+            });
+
             const matchPct = newAllocations.length > 0 ? Math.round((totalPreferredDayMatches / newAllocations.length) * 100) : 0;
             onLogAction?.(`Smart auto-generated ${newAllocations.length} remedial allocations across ${courses.length} classes. ${totalHighAllocated} high-priority slots scheduled, ${matchPct}% matched teacher preferred days.`);
             alert(
@@ -2219,7 +2504,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 `• Total Scheduled Sessions: ${newAllocations.length}\n` +
                 `• High-Priority Sessions (e.g. Mathematics/Sciences 2×/wk): ${totalHighAllocated}\n` +
                 `• Teacher Preferred Day Match Rate: ${matchPct}%\n` +
-                `• Spaced Occurrences & Daily Limits: Enforced (${maxLessonsPerDay}/day Mon-Fri, ${maxWeekendLessonsPerDay}/day Sat-Sun).`
+                `• Spaced Occurrences & Daily Limits: Enforced (${maxLessonsPerDay}/day Mon-Fri, ${maxWeekendLessonsPerDay}/day Sat-Sun).\n\n` +
+                `STATUS: DRAFT (Pending Review)\nNext Step: Review the timetable below, then click "Forward to Headteacher for Approval" so the Headteacher can authorize and disperse it to teachers.`
             );
             loadData();
         } catch (err: any) {
@@ -5864,6 +6150,258 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
+                        {/* TIMETABLE WORKFLOW APPROVAL & DISPERSAL BANNER */}
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-700 shadow-md p-5 sm:p-6 space-y-4 overflow-hidden relative">
+                            {/* Workflow Stepper Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/60 pb-4">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-2 rounded-xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400">
+                                        <Layers className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                            Institutional Timetable Workflow
+                                        </h5>
+                                        <p className="text-[10px] text-slate-500 font-medium">
+                                            Stage 1: DOS Preparation &bull; Stage 2: Headteacher Review &bull; Stage 3: Dispersal to Teachers
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Current Status Pill */}
+                                <div>
+                                    {timetableApproval.status === 'approved_dispersed' ? (
+                                        <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5 shadow-2xs">
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Approved &amp; Dispersed
+                                        </span>
+                                    ) : timetableApproval.status === 'pending_headteacher' ? (
+                                        <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1.5 shadow-2xs">
+                                            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> Pending Headteacher Approval
+                                        </span>
+                                    ) : timetableApproval.status === 'revision_requested' ? (
+                                        <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1.5 shadow-2xs">
+                                            <RotateCcw className="w-3.5 h-3.5 text-rose-600" /> Revision Requested
+                                        </span>
+                                    ) : (
+                                        <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 flex items-center gap-1.5 shadow-2xs">
+                                            <Pencil className="w-3.5 h-3.5 text-slate-500" /> Draft (DOS Preparation)
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 3-Step Visual Progress Indicator */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {/* Step 1: DOS Generation */}
+                                <div className={`p-3.5 rounded-2xl border transition-all flex items-center gap-3 ${
+                                    timetableApproval.status === 'draft' || timetableApproval.status === 'revision_requested'
+                                        ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-400 dark:border-blue-700'
+                                        : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                                }`}>
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                                        timetableApproval.status !== 'draft' && timetableApproval.status !== 'revision_requested'
+                                            ? 'bg-emerald-500 text-white'
+                                            : 'bg-blue-600 text-white'
+                                    }`}>
+                                        {timetableApproval.status !== 'draft' && timetableApproval.status !== 'revision_requested' ? (
+                                            <Check className="w-4 h-4" />
+                                        ) : (
+                                            '1'
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 1: DOS</p>
+                                        <h6 className="text-xs font-black text-slate-800 dark:text-white truncate">Timetable Draft &amp; Slots</h6>
+                                        <p className="text-[9px] text-slate-500 truncate">
+                                            {allocations.length} sessions across {courses.length} classes
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Step 2: Headteacher Review */}
+                                <div className={`p-3.5 rounded-2xl border transition-all flex items-center gap-3 ${
+                                    timetableApproval.status === 'pending_headteacher'
+                                        ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 shadow-sm'
+                                        : timetableApproval.status === 'approved_dispersed'
+                                            ? 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800'
+                                            : 'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 opacity-70'
+                                }`}>
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                                        timetableApproval.status === 'approved_dispersed'
+                                            ? 'bg-emerald-500 text-white'
+                                            : timetableApproval.status === 'pending_headteacher'
+                                                ? 'bg-amber-500 text-white'
+                                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}>
+                                        {timetableApproval.status === 'approved_dispersed' ? (
+                                            <Check className="w-4 h-4" />
+                                        ) : (
+                                            '2'
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 2: Headteacher</p>
+                                        <h6 className="text-xs font-black text-slate-800 dark:text-white truncate">Official Review &amp; Sign-off</h6>
+                                        <p className="text-[9px] text-slate-500 truncate">
+                                            {timetableApproval.approvedBy ? `Signed by ${timetableApproval.approvedBy}` : 'Awaiting authorization'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Step 3: Dispersal */}
+                                <div className={`p-3.5 rounded-2xl border transition-all flex items-center gap-3 ${
+                                    timetableApproval.status === 'approved_dispersed'
+                                        ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700 shadow-sm'
+                                        : 'bg-slate-50/50 dark:bg-slate-900/20 border-dashed border-slate-200 dark:border-slate-800 opacity-70'
+                                }`}>
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                                        timetableApproval.status === 'approved_dispersed'
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                    }`}>
+                                        {timetableApproval.status === 'approved_dispersed' ? (
+                                            <Megaphone className="w-4 h-4" />
+                                        ) : (
+                                            '3'
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 3: Teachers</p>
+                                        <h6 className="text-xs font-black text-slate-800 dark:text-white truncate">Dispersed &amp; Active</h6>
+                                        <p className="text-[9px] text-slate-500 truncate">
+                                            {timetableApproval.status === 'approved_dispersed' 
+                                                ? `Published to ${distinctTeachersInAllocations.length} teachers` 
+                                                : 'Awaiting headteacher approval'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Active Status Context & Action Controls */}
+                            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                <div className="space-y-1 max-w-2xl">
+                                    {timetableApproval.status === 'draft' && (
+                                        <>
+                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase flex items-center gap-1.5">
+                                                <AlertCircle className="w-4 h-4 text-blue-600 shrink-0" /> Timetable Ready for Headteacher Review
+                                            </p>
+                                            <p className="text-xs text-slate-500 leading-relaxed">
+                                                Director of Studies (DOS) has compiled the allocations. Click <strong className="text-slate-700 dark:text-slate-300">Forward to Headteacher</strong> so the Headteacher / Principal can review and authorize dispersal to teachers.
+                                            </p>
+                                        </>
+                                    )}
+                                    {timetableApproval.status === 'pending_headteacher' && (
+                                        <>
+                                            <p className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase flex items-center gap-1.5">
+                                                <Clock className="w-4 h-4 text-amber-600 shrink-0" /> Awaiting Headteacher Review &amp; Dispersal Signature
+                                            </p>
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                Forwarded by <strong className="text-slate-800 dark:text-white">{timetableApproval.forwardedBy || 'Director of Studies (DOS)'}</strong>
+                                                {timetableApproval.forwardedAt ? ` on ${new Date(timetableApproval.forwardedAt).toLocaleDateString()} at ${new Date(timetableApproval.forwardedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}.
+                                                {timetableApproval.forwardingNotes && (
+                                                    <span className="block mt-1 italic text-[11px] text-slate-500">
+                                                        &ldquo;{timetableApproval.forwardingNotes}&rdquo;
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </>
+                                    )}
+                                    {timetableApproval.status === 'revision_requested' && (
+                                        <>
+                                            <p className="text-xs font-black text-rose-700 dark:text-rose-400 uppercase flex items-center gap-1.5">
+                                                <RotateCcw className="w-4 h-4 text-rose-600 shrink-0" /> Revision Requested by Headteacher
+                                            </p>
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                The Headteacher has requested revisions. Please update allocations and re-submit for approval.
+                                                {timetableApproval.revisionNotes && (
+                                                    <span className="block mt-1 font-bold text-rose-600 dark:text-rose-300 text-xs">
+                                                        Headteacher Notes: &ldquo;{timetableApproval.revisionNotes}&rdquo;
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </>
+                                    )}
+                                    {timetableApproval.status === 'approved_dispersed' && (
+                                        <>
+                                            <p className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase flex items-center gap-1.5">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> Officially Approved &amp; Dispersed
+                                            </p>
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                Authorized by <strong className="text-slate-800 dark:text-white">{timetableApproval.approvedBy || 'Principal / Headteacher'}</strong>
+                                                {timetableApproval.approvedAt ? ` on ${new Date(timetableApproval.approvedAt).toLocaleDateString()}` : ''}.
+                                                Active across <strong className="text-slate-800 dark:text-white">{distinctTeachersInAllocations.length} teachers</strong>.
+                                                {timetableApproval.approvalNotes && (
+                                                    <span className="block mt-1 italic text-[11px] text-slate-500">
+                                                        &ldquo;{timetableApproval.approvalNotes}&rdquo;
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full md:w-auto">
+                                    {(timetableApproval.status === 'draft' || timetableApproval.status === 'revision_requested') && (
+                                        <button
+                                            onClick={handleOpenForwardModal}
+                                            className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                            <Send className="w-4 h-4" /> Forward to Headteacher for Approval
+                                        </button>
+                                    )}
+
+                                    {timetableApproval.status === 'pending_headteacher' && (
+                                        <>
+                                            {isHeadteacherUser ? (
+                                                <>
+                                                    <button
+                                                        onClick={handleOpenRevisionModal}
+                                                        className="px-4 py-2.5 bg-white dark:bg-slate-800 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                                                    >
+                                                        <RotateCcw className="w-3.5 h-3.5" /> Return for Revision
+                                                    </button>
+                                                    <button
+                                                        onClick={handleOpenApproveModal}
+                                                        className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                                                    >
+                                                        <CheckSquare className="w-4 h-4" /> Approve &amp; Disperse to Teachers
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    onClick={handleOpenApproveModal}
+                                                    className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+                                                >
+                                                    <CheckSquare className="w-4 h-4" /> Headteacher Sign-off &amp; Disperse
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {timetableApproval.status === 'approved_dispersed' && (
+                                        <>
+                                            <button
+                                                onClick={handleDisperseNoticeToTeachers}
+                                                className="px-4 py-2.5 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                            >
+                                                <Megaphone className="w-4 h-4" /> Disperse Notice / Memo
+                                            </button>
+                                            {(isDosUser || isHeadteacherUser) && (
+                                                <button
+                                                    onClick={handleResetToDraft}
+                                                    className="px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white uppercase tracking-wider transition-colors cursor-pointer"
+                                                    title="Reopen timetable as Draft to modify slots for new term or adjustments"
+                                                >
+                                                    Reopen as Draft
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
                         {/* View Switcher, Filter & Search Bar */}
                         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-3">
                             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
@@ -9211,6 +9749,467 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </form>
                 </div>
             </div>
+        )}
+
+        {/* MODAL 1: FORWARD TIMETABLE TO HEADTEACHER FOR APPROVAL */}
+        {isForwardModalOpen && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSubmittingWorkflow) setIsForwardModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-white/20 rounded-xl">
+                                <Send className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Forward for Headteacher Approval
+                                </h3>
+                                <p className="text-[11px] text-blue-100 font-medium">
+                                    Director of Studies (DOS) Submission Workflow
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsForwardModalOpen(false)}
+                            disabled={isSubmittingWorkflow}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Form Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        {/* Timetable Overview Stats */}
+                        <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Total Lessons</p>
+                                <p className="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">{allocations.length}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Classes</p>
+                                <p className="text-base font-black text-slate-800 dark:text-slate-200 mt-0.5">{courses.length}</p>
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Teachers</p>
+                                <p className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{distinctTeachersInAllocations.length}</p>
+                            </div>
+                        </div>
+
+                        {/* Approver Selection */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Select Principal / Headteacher Approver
+                            </label>
+                            <select
+                                value={targetHeadteacherId}
+                                onChange={e => setTargetHeadteacherId(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                            >
+                                <option value="">-- School Headteacher / Principal --</option>
+                                {headteachersList.map(h => (
+                                    <option key={h.id} value={h.id}>
+                                        {h.name} ({h.role ? h.role.toUpperCase() : 'Principal'})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* DOS Submission Notes */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Remarks / Notes for Headteacher
+                            </label>
+                            <textarea
+                                rows={3}
+                                value={workflowNotes}
+                                onChange={e => setWorkflowNotes(e.target.value)}
+                                placeholder="Add submission comments, term notes, or specific scheduling guidelines..."
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-medium outline-none focus:border-blue-500 dark:text-white"
+                            />
+                        </div>
+
+                        <div className="p-3 bg-blue-50/80 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed">
+                            Once forwarded, the timetable status transitions to <strong>Pending Headteacher Approval</strong>. The Headteacher will review the schedule before it is officially dispersed to teachers.
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsForwardModalOpen(false)}
+                            disabled={isSubmittingWorkflow}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isSubmittingWorkflow}
+                            onClick={handleConfirmForwardToHeadteacher}
+                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSubmittingWorkflow ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Submitting...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="w-4 h-4" />
+                                    <span>Confirm &amp; Forward</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 2: HEADTEACHER APPROVE & DISPERSE TO TEACHERS */}
+        {isApproveModalOpen && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSubmittingWorkflow) setIsApproveModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-white/20 rounded-xl">
+                                <CheckSquare className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Authorize &amp; Disperse Timetable
+                                </h3>
+                                <p className="text-[11px] text-emerald-100 font-medium">
+                                    Principal / Headteacher Official Approval
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsApproveModalOpen(false)}
+                            disabled={isSubmittingWorkflow}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-2">
+                            <p className="text-xs font-black text-emerald-900 dark:text-emerald-200 uppercase flex items-center gap-1.5">
+                                <Award className="w-4 h-4 text-emerald-600" /> Executive Endorsement &amp; Rollout
+                            </p>
+                            <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                                By approving, you officially endorse the schedule containing <strong>{allocations.length} remedial lessons</strong>. It will be <strong>dispersed to {distinctTeachersInAllocations.length} subject teachers</strong>, and session verification via prefect scan cards will be activated.
+                            </p>
+                        </div>
+
+                        {/* Headteacher Endorsement Remarks */}
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Headteacher Endorsement Remarks
+                            </label>
+                            <textarea
+                                rows={3}
+                                value={workflowNotes}
+                                onChange={e => setWorkflowNotes(e.target.value)}
+                                placeholder="e.g. Approved for immediate rollout across all classes. Teachers must adhere strictly to scheduled remedial hours."
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-medium outline-none focus:border-emerald-500 dark:text-white"
+                            />
+                        </div>
+
+                        {/* Summary List of Teachers Receiving Schedules */}
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                                <span>Subject Teachers to Receive Timetable</span>
+                                <span className="font-bold text-emerald-600">{distinctTeachersInAllocations.length} Teachers</span>
+                            </p>
+                            <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 custom-scrollbar">
+                                {distinctTeachersInAllocations.map(t => (
+                                    <div key={t.teacherId} className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between text-xs">
+                                        <div>
+                                            <p className="font-black text-slate-800 dark:text-white uppercase leading-none">{t.teacherName}</p>
+                                            <p className="text-[10px] text-slate-400 mt-0.5">
+                                                {t.subjects.join(', ')} &bull; {t.classes.join(', ')}
+                                            </p>
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black shrink-0">
+                                            {t.slotsCount} lessons
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsApproveModalOpen(false)}
+                            disabled={isSubmittingWorkflow}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isSubmittingWorkflow}
+                            onClick={handleConfirmApproveAndDisperse}
+                            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSubmittingWorkflow ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Authorizing &amp; Dispersing...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <CheckSquare className="w-4 h-4" />
+                                    <span>Approve &amp; Disperse Now</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 3: RETURN TIMETABLE TO DOS FOR REVISION */}
+        {isRevisionModalOpen && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSubmittingWorkflow) setIsRevisionModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-rose-600 to-amber-600 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-white/20 rounded-xl">
+                                <RotateCcw className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Return for Revision
+                                </h3>
+                                <p className="text-[11px] text-rose-100 font-medium">
+                                    Send Timetable Back to Director of Studies (DOS)
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsRevisionModalOpen(false)}
+                            disabled={isSubmittingWorkflow}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Feedback &amp; Revision Notes for DOS *
+                            </label>
+                            <textarea
+                                rows={4}
+                                value={workflowNotes}
+                                onChange={e => setWorkflowNotes(e.target.value)}
+                                placeholder="Explain the specific changes required (e.g., adjust Form 3 Science slots, reduce Friday afternoon sessions, reassign Teacher X)..."
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-medium outline-none focus:border-rose-500 dark:text-white"
+                            />
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                            The Director of Studies will be prompted with these feedback notes to adjust allocations and resubmit the revised schedule.
+                        </p>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsRevisionModalOpen(false)}
+                            disabled={isSubmittingWorkflow}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isSubmittingWorkflow}
+                            onClick={handleConfirmRequestRevision}
+                            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSubmittingWorkflow ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Returning...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <RotateCcw className="w-4 h-4" />
+                                    <span>Return to DOS</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 4: DISPERSAL MEMO & BROADCAST SHARE */}
+        {isDisperseModalOpen && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) setIsDisperseModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-2xl w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400">
+                                <Megaphone className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Official Timetable Dispersal Memo
+                                </h3>
+                                <p className="text-[11px] text-slate-300 font-medium">
+                                    Approved by {timetableApproval.approvedBy || 'Principal / Headteacher'}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsDisperseModalOpen(false)}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Memo Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        {/* Letterhead Banner */}
+                        <div className="text-center pb-4 border-b border-slate-200 dark:border-slate-700 space-y-1">
+                            <h2 className="text-base font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                {currentInstitution?.name || 'SCHOOL REMEDIAL PROGRAM'}
+                            </h2>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                                Office of the Director of Studies &bull; Academic Intervention Timetable
+                            </p>
+                            <div className="flex items-center justify-center gap-2 pt-1">
+                                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                                    OFFICIALLY DISPERSED
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                    {new Date(timetableApproval.approvedAt || Date.now()).toLocaleDateString()}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Endorsement Note */}
+                        {timetableApproval.approvalNotes && (
+                            <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs italic text-slate-600 dark:text-slate-300">
+                                &ldquo;{timetableApproval.approvalNotes}&rdquo;
+                            </div>
+                        )}
+
+                        {/* Teacher Allocations Summary Table */}
+                        <div className="space-y-2">
+                            <h5 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                Dispersed Teacher Allocations ({distinctTeachersInAllocations.length} Staff)
+                            </h5>
+                            <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                        <tr>
+                                            <th className="p-3">Teacher</th>
+                                            <th className="p-3">Subjects</th>
+                                            <th className="p-3">Classes</th>
+                                            <th className="p-3 text-right">Lessons</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {distinctTeachersInAllocations.map(t => (
+                                            <tr key={t.teacherId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                                <td className="p-3 font-bold text-slate-900 dark:text-white uppercase">{t.teacherName}</td>
+                                                <td className="p-3 text-slate-600 dark:text-slate-300">{t.subjects.join(', ')}</td>
+                                                <td className="p-3 text-slate-600 dark:text-slate-300">{t.classes.join(', ')}</td>
+                                                <td className="p-3 text-right font-black text-emerald-600">{t.slotsCount}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex flex-wrap justify-between items-center gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const text = `*OFFICIAL REMEDIAL TIMETABLE DISPERSAL NOTICE*\nSchool: ${currentInstitution?.name || 'School'}\nApproved by: ${timetableApproval.approvedBy || 'Principal'}\nDate: ${new Date(timetableApproval.approvedAt || Date.now()).toLocaleDateString()}\n\nTeacher Allocations:\n${distinctTeachersInAllocations.map(t => `• ${t.teacherName}: ${t.subjects.join(', ')} (${t.classes.join(', ')}) - ${t.slotsCount} sessions`).join('\n')}\n\nAll allocated teachers are advised to adhere to their schedules.`;
+                                navigator.clipboard.writeText(text);
+                                alert('Dispersal notice text copied to clipboard! You can paste into WhatsApp or SMS staff groups.');
+                            }}
+                            className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 cursor-pointer transition-all"
+                        >
+                            <Copy className="w-3.5 h-3.5" /> Copy Notice Text
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={handlePrintTimetable}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md transition-all"
+                            >
+                                <Printer className="w-3.5 h-3.5" /> Print Grid
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsDisperseModalOpen(false)}
+                                className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-300 transition-colors cursor-pointer"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>,
+            document.body
         )}
         </>
     );
