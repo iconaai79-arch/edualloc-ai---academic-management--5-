@@ -5386,12 +5386,12 @@ export const apiService = {
     },
 
     async fetchSchoolAuthorizedDevices(institutionId: string): Promise<SchoolAuthorizedDevice[]> {
-        const records = await apiService.getModuleRecords('school_authorized_devices', institutionId);
+        const records = await apiService.fetchModuleRecords<SchoolAuthorizedDevice>('school_authorized_devices', institutionId);
         return Array.isArray(records) ? records : [];
     },
 
     async saveSchoolAuthorizedDevice(device: Partial<SchoolAuthorizedDevice>): Promise<SchoolAuthorizedDevice> {
-        return await apiService.saveModuleRecord('school_authorized_devices', device);
+        return (await apiService.saveModuleRecord('school_authorized_devices', device)) as SchoolAuthorizedDevice;
     },
 
     async deleteSchoolAuthorizedDevice(id: string): Promise<void> {
@@ -5399,12 +5399,12 @@ export const apiService = {
     },
 
     async fetchSchoolRouterProfiles(institutionId: string): Promise<SchoolRouterProfile[]> {
-        const records = await apiService.getModuleRecords('school_router_profiles', institutionId);
+        const records = await apiService.fetchModuleRecords<SchoolRouterProfile>('school_router_profiles', institutionId);
         return Array.isArray(records) ? records : [];
     },
 
     async saveSchoolRouterProfile(profile: Partial<SchoolRouterProfile>): Promise<SchoolRouterProfile> {
-        return await apiService.saveModuleRecord('school_router_profiles', profile);
+        return (await apiService.saveModuleRecord('school_router_profiles', profile)) as SchoolRouterProfile;
     },
 
     async deleteSchoolRouterProfile(id: string): Promise<void> {
