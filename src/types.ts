@@ -421,6 +421,8 @@ export interface StudentEnrollment {
     id: string;
     institutionId: string;
     userId: string;
+    courseId?: string;
+    classId?: string;
     enrollmentType: 'academic' | 'driving_school';
     admissionNumber?: string;
     assessmentNo?: string;
@@ -876,6 +878,7 @@ export interface Course {
     institutionId: string;
     academicLevelId: string;
     levels: CourseLevel[];
+    streams?: string[];
     shortName?: string;
     curriculumType?: '8-4-4' | 'CBC' | 'Other';
     scheduleProfileId?: string;
@@ -1792,6 +1795,7 @@ export interface Invoice {
     taxRate?: number;
     taxAmount?: number;
     totalAmount: number;
+    amount?: number;
     status: 'paid' | 'pending' | 'overdue' | 'quote' | 'partial' | 'cancelled';
     studentId?: string;
     className?: string;
@@ -6356,6 +6360,10 @@ export interface RemedialSession {
     startTime: string;
     endTime?: string;
     hours?: number;
+    durationMinutes?: number;
+    date?: string;
+    qrToken?: string;
+    verifiedAt?: string;
     status: 'In Progress' | 'Prefect Confirmed' | 'Approved' | 'Paid';
     createdAt: string;
     institutionId: string;
@@ -6408,12 +6416,13 @@ export interface RemedialSubject {
     preferredDayType?: 'any' | 'weekdays' | 'weekends';
     metadata?: any;
     createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface TeacherDayPreference {
-    teacherId: string;
+    teacherId?: string;
     teacherName?: string;
-    preferredDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];
+    preferredDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | string)[];
     maxLessonsPerWeek?: number;
     notes?: string;
 }

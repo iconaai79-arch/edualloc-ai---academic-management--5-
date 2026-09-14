@@ -97,7 +97,7 @@ export function rankSubstituteCandidates(params: {
     candidates: User[];
     allAllocations: RemedialAllocation[];
     declinedTeacherIds?: string[];
-    teacherPreferences?: Record<string, TeacherDayPreference> | TeacherDayPreference[];
+    teacherPreferences?: Record<string, TeacherDayPreference | any> | TeacherDayPreference[];
     classSubjectAllocations?: any;
     maxLessonsPerDay?: number;
     maxWeekendLessonsPerDay?: number;
@@ -118,7 +118,7 @@ export function rankSubstituteCandidates(params: {
 
     // Normalize teacher preferences map
     const prefsMap: Record<string, TeacherDayPreference> = Array.isArray(teacherPreferences)
-        ? teacherPreferences.reduce((acc, p) => ({ ...acc, [p.teacherId]: p }), {})
+        ? teacherPreferences.reduce((acc, p) => ({ ...acc, [p.teacherId || '']: p }), {})
         : teacherPreferences;
 
     // Filter out:

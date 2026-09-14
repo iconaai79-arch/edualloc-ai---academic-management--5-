@@ -7,7 +7,7 @@ import {
     DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
-    FileText, BarChart3, Filter, Pencil, Users, LayoutGrid
+    FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
@@ -59,7 +59,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [subjects, fetchedSchoolSubjects]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'teachers' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+    const [activeTab, setActiveTab] = useState<'teachers' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+
+    // Tab: Prefects & Class Secretaries Management States
+    const [prefectSearchQuery, setPrefectSearchQuery] = useState('');
+    const [prefectClassFilter, setPrefectClassFilter] = useState('All');
+    const [prefectRoleFilter, setPrefectRoleFilter] = useState<'All' | 'prefect' | 'secretary' | 'other'>('All');
+    const [prefectViewMode, setPrefectViewMode] = useState<'matrix' | 'list'>('matrix');
+    const [isAssignLeaderModalOpen, setIsAssignLeaderModalOpen] = useState(false);
+    const [leaderModalTargetCourseId, setLeaderModalTargetCourseId] = useState('');
+    const [leaderModalTargetStream, setLeaderModalTargetStream] = useState('');
+    const [leaderModalCustomStream, setLeaderModalCustomStream] = useState('');
+    const [leaderModalRole, setLeaderModalRole] = useState<string>('Class Prefect');
+    const [leaderModalCustomRole, setLeaderModalCustomRole] = useState('');
+    const [leaderModalSelectedStudentId, setLeaderModalSelectedStudentId] = useState('');
+    const [leaderModalContactPhone, setLeaderModalContactPhone] = useState('');
+    const [leaderModalStudentSearch, setLeaderModalStudentSearch] = useState('');
+    const [isSavingLeader, setIsSavingLeader] = useState(false);
     
     // Remedial Subject Modal / Filter States
     const [showSubjectModal, setShowSubjectModal] = useState(false);
@@ -440,7 +456,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         // 1. Existing user-level prefects
         (users || []).forEach(u => {
             if (u && ((u.role as string) === 'prefect' || (u.metadata as any)?.isPrefect)) {
-                list.push(u);
+                const leadPos = (u.metadata as any)?.leadershipPosition || (u.role === 'prefect' ? 'Class Prefect' : 'Class Leader');
+                const uCourse = courses.find(c => c.id === u.courseId || (u.metadata as any)?.courseId || (c.name && (u as any).studentClass && c.name.trim().toLowerCase() === String((u as any).studentClass).trim().toLowerCase()));
+                const stream = (u.metadata as any)?.stream || (u as any).stream || '';
+                list.push({
+                    ...u,
+                    id: u.id,
+                    name: `${u.name} (${leadPos})`,
+                    rawName: u.name,
+                    role: 'prefect',
+                    leadershipPosition: leadPos,
+                    admissionNumber: (u as any).admissionNumber || (u.metadata as any)?.admissionNumber || '',
+                    courseId: uCourse?.id || u.courseId || (u.metadata as any)?.courseId || '',
+                    className: uCourse?.name || (u.metadata as any)?.className || (u as any).studentClass || '',
+                    stream,
+                    email: u.email,
+                    phoneNumber: u.phoneNumber || (u.metadata as any)?.phoneNumber || '',
+                    metadata: {
+                        ...(u.metadata || {}),
+                        isPrefect: true,
+                        leadershipPosition: leadPos,
+                        className: uCourse?.name || (u.metadata as any)?.className || (u as any).studentClass || '',
+                        stream
+                    }
+                });
                 addedIds.add(u.id);
             }
         });
@@ -467,15 +506,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             list.push({
                 id: rawId,
                 name: `${studentName} (${leadPos})`,
+                rawName: studentName,
                 role: 'prefect',
                 institutionId: enr.institutionId || institutionId,
                 courseId: matchedCourse?.id || enr.courseId || '',
                 className: matchedCourse?.name || grade || '',
                 stream: stream || '',
                 leadershipPosition: leadPos,
+                admissionNumber: enr.admissionNumber || enr.metadata?.admissionNumber || (studentUser as any)?.admissionNumber || '',
                 enrollmentId: enr.id,
                 email: studentUser?.email,
-                phoneNumber: studentUser?.phoneNumber,
+                phoneNumber: studentUser?.phoneNumber || enr.metadata?.phoneNumber || enr.metadata?.parentPhone || '',
                 metadata: {
                     ...(studentUser?.metadata || {}),
                     isPrefect: true,
@@ -489,6 +530,410 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         return list;
     }, [users, enrollments, courses, institutionId]);
+
+    // Helper to get distinct streams for a class
+    const getClassStreams = (course: Course): string[] => {
+        const streamSet = new Set<string>();
+        if (Array.isArray(course.streams) && course.streams.length > 0) {
+            course.streams.forEach(s => s && streamSet.add(String(s).trim()));
+        }
+        if (Array.isArray(course.levels)) {
+            course.levels.forEach(lvl => {
+                const name = String(lvl.name || '').trim();
+                if (name) streamSet.add(name);
+            });
+        }
+        (enrollments || []).forEach(enr => {
+            const isMatch = enr.courseId === course.id || 
+                (enr.metadata?.gradeLevel && course.name && enr.metadata.gradeLevel.trim().toLowerCase() === course.name.trim().toLowerCase());
+            if (isMatch) {
+                const str = (enr.metadata?.stream || (enr as any).stream || '').trim();
+                if (str && str !== 'All Streams') streamSet.add(str);
+            }
+        });
+        (users || []).forEach(u => {
+            if (u.role === 'student' && (u.courseId === course.id || (u as any).studentClass === course.name)) {
+                const str = ((u.metadata as any)?.stream || (u as any).stream || '').trim();
+                if (str && str !== 'All Streams') streamSet.add(str);
+            }
+        });
+        allocations.forEach(a => {
+            if (a.courseId === course.id || a.className === course.name) {
+                if (a.stream && a.stream !== 'All Streams' && !a.stream.includes('+')) {
+                    streamSet.add(a.stream.trim());
+                }
+            }
+        });
+        if (streamSet.size === 0) {
+            const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
+            if (Array.isArray(instStreams) && instStreams.length > 0) {
+                instStreams.forEach(s => {
+                    const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
+                    if (sName) streamSet.add(sName);
+                });
+            }
+        }
+        if (streamSet.size === 0) {
+            return ['General'];
+        }
+        return Array.from(streamSet).sort();
+    };
+
+    // Students eligible to be appointed as class prefects or secretaries
+    const eligibleStudents = useMemo(() => {
+        return (users || [])
+            .filter(u => u.role === 'student' || !u.role || u.role === 'prefect')
+            .map(u => {
+                const enr = (enrollments || []).find(e => e.userId === u.id);
+                const course = courses.find(c => c.id === enr?.courseId || c.id === u.courseId);
+                const grade = enr?.metadata?.gradeLevel || (u as any).studentClass || course?.name || '';
+                const stream = enr?.metadata?.stream || (u as any).stream || '';
+                const admNo = enr?.admissionNumber || enr?.metadata?.admissionNumber || (u as any).admissionNumber || '';
+                const currentLeadership = enr?.leadershipPosition || enr?.metadata?.leadershipPosition || (u.metadata as any)?.leadershipPosition || '';
+                return {
+                    id: u.id,
+                    name: u.name,
+                    admissionNumber: admNo,
+                    courseId: course?.id || enr?.courseId || u.courseId || '',
+                    className: course?.name || grade,
+                    stream: stream,
+                    phoneNumber: u.phoneNumber || enr?.metadata?.parentPhone || '',
+                    currentLeadership,
+                    enrollmentId: enr?.id
+                };
+            });
+    }, [users, enrollments, courses]);
+
+    // Modal filtered students list for assigning a leader
+    const modalFilteredStudents = useMemo(() => {
+        let list = eligibleStudents;
+        if (leaderModalTargetCourseId) {
+            const targetCourse = courses.find(c => c.id === leaderModalTargetCourseId);
+            const courseName = targetCourse?.name?.toLowerCase().trim() || '';
+            const classMatches = list.filter(st => {
+                const matchesClass = st.courseId === leaderModalTargetCourseId || 
+                    (st.className && courseName && st.className.toLowerCase().trim() === courseName);
+                if (leaderModalTargetStream && leaderModalTargetStream !== '__custom__' && leaderModalTargetStream !== 'All Streams' && st.stream) {
+                    return matchesClass && st.stream.toLowerCase().trim() === leaderModalTargetStream.toLowerCase().trim();
+                }
+                return matchesClass;
+            });
+            if (classMatches.length > 0) {
+                list = classMatches;
+            } else {
+                const broaderMatches = list.filter(st => 
+                    st.courseId === leaderModalTargetCourseId || 
+                    (st.className && courseName && st.className.toLowerCase().trim() === courseName)
+                );
+                if (broaderMatches.length > 0) list = broaderMatches;
+            }
+        }
+
+        if (leaderModalStudentSearch.trim()) {
+            const q = leaderModalStudentSearch.toLowerCase().trim();
+            list = eligibleStudents.filter(st => 
+                (st.name || '').toLowerCase().includes(q) ||
+                (st.admissionNumber || '').toLowerCase().includes(q) ||
+                (st.className || '').toLowerCase().includes(q) ||
+                (st.stream || '').toLowerCase().includes(q)
+            );
+        }
+
+        return list;
+    }, [eligibleStudents, leaderModalTargetCourseId, leaderModalTargetStream, leaderModalStudentSearch, courses]);
+
+    // Filtered prefects & secretaries list
+    const filteredPrefectsList = useMemo(() => {
+        return prefectsList.filter(p => {
+            const course = courses.find(c => c.id === p.courseId);
+            const className = course?.name || p.className || '';
+            const role = (p.leadershipPosition || '').toLowerCase();
+            const isSecretary = role.includes('secretary');
+            const isPrefect = role.includes('prefect') || role.includes('captain') || role.includes('head');
+
+            if (prefectClassFilter !== 'All' && p.courseId !== prefectClassFilter && className !== prefectClassFilter) {
+                return false;
+            }
+
+            if (prefectRoleFilter === 'prefect' && !isPrefect) return false;
+            if (prefectRoleFilter === 'secretary' && !isSecretary) return false;
+            if (prefectRoleFilter === 'other' && (isPrefect || isSecretary)) return false;
+
+            if (prefectSearchQuery.trim()) {
+                const q = prefectSearchQuery.toLowerCase().trim();
+                const matchName = (p.rawName || p.name || '').toLowerCase().includes(q);
+                const matchAdm = (p.admissionNumber || '').toLowerCase().includes(q);
+                const matchClass = className.toLowerCase().includes(q);
+                const matchStream = (p.stream || '').toLowerCase().includes(q);
+                const matchRole = (p.leadershipPosition || '').toLowerCase().includes(q);
+                const matchPhone = (p.phoneNumber || '').toLowerCase().includes(q);
+                return matchName || matchAdm || matchClass || matchStream || matchRole || matchPhone;
+            }
+
+            return true;
+        });
+    }, [prefectsList, prefectClassFilter, prefectRoleFilter, prefectSearchQuery, courses]);
+
+    // Statistics for Prefects & Secretaries Tab
+    const prefectStats = useMemo(() => {
+        const total = prefectsList.length;
+        let prefectsCount = 0;
+        let secretariesCount = 0;
+        let otherCount = 0;
+        const coveredClasses = new Set<string>();
+        const coveredStreams = new Set<string>();
+
+        prefectsList.forEach(p => {
+            const role = (p.leadershipPosition || '').toLowerCase();
+            if (role.includes('secretary')) secretariesCount++;
+            else if (role.includes('prefect') || role.includes('captain')) prefectsCount++;
+            else otherCount++;
+
+            if (p.courseId || p.className) coveredClasses.add(p.courseId || p.className);
+            if ((p.courseId || p.className) && p.stream) {
+                coveredStreams.add(`${p.courseId || p.className}_${p.stream}`);
+            }
+        });
+
+        return {
+            total,
+            prefectsCount,
+            secretariesCount,
+            otherCount,
+            classesCovered: coveredClasses.size,
+            totalClasses: courses.length,
+            streamsCovered: coveredStreams.size
+        };
+    }, [prefectsList, courses]);
+
+    // Handler to open assign leader modal
+    const handleOpenAssignLeaderModal = (prefillCourseId?: string, prefillStream?: string, prefillRole?: string) => {
+        setLeaderModalTargetCourseId(prefillCourseId || (courses[0]?.id || ''));
+        setLeaderModalTargetStream(prefillStream || '');
+        setLeaderModalCustomStream('');
+        setLeaderModalRole(prefillRole || 'Class Prefect');
+        setLeaderModalCustomRole('');
+        setLeaderModalSelectedStudentId('');
+        setLeaderModalContactPhone('');
+        setLeaderModalStudentSearch('');
+        setIsAssignLeaderModalOpen(true);
+    };
+
+    // Handler to save leader appointment
+    const handleSaveLeaderAssignment = async () => {
+        if (!leaderModalSelectedStudentId) {
+            alert('Please select a student to appoint as leader.');
+            return;
+        }
+        if (!leaderModalTargetCourseId) {
+            alert('Please select a class.');
+            return;
+        }
+
+        const finalRole = (leaderModalRole === '__custom__' ? leaderModalCustomRole.trim() : leaderModalRole) || 'Class Prefect';
+        const finalStream = (leaderModalTargetStream === '__custom__' ? leaderModalCustomStream.trim() : leaderModalTargetStream) || '';
+        const targetCourse = courses.find(c => c.id === leaderModalTargetCourseId);
+        const targetStudent = users.find(u => u.id === leaderModalSelectedStudentId);
+
+        try {
+            setIsSavingLeader(true);
+
+            // 1. Update or create student enrollment
+            let existingEnr = (enrollments || []).find(e => e.userId === leaderModalSelectedStudentId);
+            if (existingEnr) {
+                const updatedEnr: StudentEnrollment = {
+                    ...existingEnr,
+                    courseId: leaderModalTargetCourseId,
+                    leadershipPosition: finalRole,
+                    metadata: {
+                        ...(existingEnr.metadata || {}),
+                        leadershipPosition: finalRole,
+                        isPrefect: true,
+                        gradeLevel: targetCourse?.name || existingEnr.metadata?.gradeLevel || '',
+                        stream: finalStream || existingEnr.metadata?.stream || '',
+                        phoneNumber: leaderModalContactPhone || existingEnr.metadata?.phoneNumber || targetStudent?.phoneNumber || ''
+                    },
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('student_enrollments', updatedEnr);
+                setEnrollments(prev => prev.map(item => item.id === updatedEnr.id ? updatedEnr : item));
+            } else {
+                const newEnr: StudentEnrollment = {
+                    id: `enr_lead_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    institutionId,
+                    userId: leaderModalSelectedStudentId,
+                    courseId: leaderModalTargetCourseId,
+                    enrollmentType: 'academic',
+                    status: 'Enrolled',
+                    enrollmentDate: new Date().toISOString().split('T')[0],
+                    leadershipPosition: finalRole,
+                    metadata: {
+                        leadershipPosition: finalRole,
+                        isPrefect: true,
+                        gradeLevel: targetCourse?.name || '',
+                        stream: finalStream,
+                        studentName: targetStudent?.name || 'Student',
+                        phoneNumber: leaderModalContactPhone || targetStudent?.phoneNumber || ''
+                    },
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('student_enrollments', newEnr);
+                setEnrollments(prev => [...prev, newEnr]);
+            }
+
+            // 2. Update user record
+            if (targetStudent) {
+                const updatedUser: User = {
+                    ...targetStudent,
+                    courseId: leaderModalTargetCourseId,
+                    phoneNumber: leaderModalContactPhone || targetStudent.phoneNumber,
+                    metadata: {
+                        ...(targetStudent.metadata || {}),
+                        leadershipPosition: finalRole,
+                        isPrefect: true,
+                        studentClass: targetCourse?.name || '',
+                        stream: finalStream || (targetStudent.metadata as any)?.stream || ''
+                    }
+                };
+                await apiService.saveModuleRecord('users', updatedUser);
+            }
+
+            setIsAssignLeaderModalOpen(false);
+            alert(`Appointed ${targetStudent?.name || 'Student'} as ${finalRole} for ${targetCourse?.name || 'Class'}${finalStream ? ` (${finalStream})` : ''} successfully.`);
+        } catch (err: any) {
+            console.error('Failed to assign leader:', err);
+            alert(err.message || 'Failed to save leader assignment.');
+        } finally {
+            setIsSavingLeader(false);
+        }
+    };
+
+    // Handler to revoke a leader appointment
+    const handleRevokeLeader = async (leader: any) => {
+        const leadName = leader.rawName || leader.name || 'Student';
+        const roleName = leader.leadershipPosition || 'Class Leader';
+        if (!window.confirm(`Revoke ${roleName} appointment for ${leadName}? They will no longer hold this class leadership position.`)) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const enr = (enrollments || []).find(e => e.id === leader.enrollmentId || e.userId === leader.id);
+            if (enr) {
+                const updatedEnr: StudentEnrollment = {
+                    ...enr,
+                    leadershipPosition: '',
+                    metadata: {
+                        ...(enr.metadata || {}),
+                        leadershipPosition: '',
+                        isPrefect: false
+                    },
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveModuleRecord('student_enrollments', updatedEnr);
+                setEnrollments(prev => prev.map(item => item.id === updatedEnr.id ? updatedEnr : item));
+            }
+
+            const targetUser = users.find(u => u.id === leader.id);
+            if (targetUser) {
+                const updatedUser: User = {
+                    ...targetUser,
+                    role: targetUser.role === 'prefect' ? 'student' as any : targetUser.role,
+                    metadata: {
+                        ...(targetUser.metadata || {}),
+                        leadershipPosition: '',
+                        isPrefect: false
+                    }
+                };
+                await apiService.saveModuleRecord('users', updatedUser);
+            }
+
+            alert(`Revoked ${roleName} status for ${leadName}.`);
+        } catch (err: any) {
+            console.error('Failed to revoke leader:', err);
+            alert(err.message || 'Failed to revoke leadership position.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Handler to bulk print all class leader QR badges
+    const handlePrintAllPrefectsCards = () => {
+        if (prefectsList.length === 0) {
+            alert('No prefects or class secretaries currently configured to print.');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank', 'width=900,height=900');
+        if (!printWindow) return;
+
+        const schoolName = String(currentInstitution?.name || 'School Remedial Program').toUpperCase();
+
+        const cardsHtml = prefectsList.map(p => {
+            const course = courses.find(c => c.id === p.courseId);
+            const className = course?.name || p.className || 'Class';
+            const stream = p.stream || 'All Streams';
+            const role = p.leadershipPosition || 'Class Leader';
+            const isSecretary = role.toLowerCase().includes('secretary');
+            const token = `prefect_remedial_token_class_${p.courseId || 'general'}${p.stream ? `_${encodeURIComponent(p.stream)}` : ''}`;
+            const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(token)}`;
+
+            return `
+                <div style="border:2px solid ${isSecretary ? '#7c3aed' : '#2563eb'};border-radius:16px;padding:16px;background:#ffffff;text-align:center;page-break-inside:avoid;box-shadow:0 2px 4px rgba(0,0,0,0.05);display:flex;flex-direction:column;justify-content:space-between;height:290px;">
+                    <div>
+                        <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#64748b;letter-spacing:0.5px;margin-bottom:2px;">${schoolName}</div>
+                        <div style="font-size:12px;font-weight:900;color:#0f172a;text-transform:uppercase;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:6px;">REMEDIAL VERIFICATION BADGE</div>
+                        <div style="font-size:14px;font-weight:900;color:${isSecretary ? '#6d28d9' : '#1d4ed8'};margin-bottom:2px;">${p.rawName || p.name}</div>
+                        <div style="display:inline-block;background:${isSecretary ? '#f5f3ff' : '#eff6ff'};color:${isSecretary ? '#7c3aed' : '#2563eb'};border:1px solid ${isSecretary ? '#ddd6fe' : '#bfdbfe'};padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800;text-transform:uppercase;margin-bottom:6px;">
+                            ${role}
+                        </div>
+                        <div style="font-size:11px;font-weight:700;color:#334155;">${className} &bull; Stream: ${stream}</div>
+                        ${p.admissionNumber ? `<div style="font-size:9px;font-weight:600;color:#64748b;">Adm No: ${p.admissionNumber}</div>` : ''}
+                    </div>
+                    <div style="margin:6px 0;">
+                        <img src="${qrSrc}" width="90" height="90" style="display:inline-block;border:1px solid #cbd5e1;border-radius:8px;padding:3px;background:#fff;" alt="QR Code" />
+                    </div>
+                    <div>
+                        <div style="font-family:monospace;font-size:8px;font-weight:bold;color:#64748b;letter-spacing:0.5px;background:#f8fafc;padding:3px 6px;border-radius:4px;border:1px dashed #cbd5e1;">${token}</div>
+                        <div style="font-size:8px;color:#94a3b8;margin-top:3px;">Scan to Verify Remedial Session Attendance</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8" />
+                <title>${schoolName} - Class Leaders QR Badges</title>
+                <style>
+                    @page { size: A4 portrait; margin: 10mm; }
+                    * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 10px; background: #fff; }
+                    .header { text-align: center; margin-bottom: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 8px; }
+                    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2 style="margin:0;font-size:18px;font-weight:900;text-transform:uppercase;color:#0f172a;">${schoolName}</h2>
+                    <h4 style="margin:4px 0 0;font-size:12px;font-weight:800;color:#475569;text-transform:uppercase;letter-spacing:1px;">Remedial Class Prefects &amp; Class Secretaries QR Directory</h4>
+                </div>
+                <div class="grid">
+                    ${cardsHtml}
+                </div>
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() { window.print(); }, 500);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
 
     // Auto-select matching prefect when class or stream changes in manual logging
     useEffect(() => {
@@ -3315,6 +3760,35 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             )}
                         </button>
 
+                        {/* PREFECTS & SECRETARIES TAB (Directly after Teachers) */}
+                        <button 
+                            onClick={() => setActiveTab('prefects')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'prefects' 
+                                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'prefects' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <ShieldCheck className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Prefects &amp; Secretaries</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'prefects' ? 'text-blue-100' : 'text-slate-400'}`}>Class &amp; stream leaders</p>
+                                </div>
+                            </div>
+                            {prefectsList.length > 0 && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                    activeTab === 'prefects' ? 'bg-white text-blue-700' : 'bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                                }`}>
+                                    {prefectsList.length}
+                                </span>
+                            )}
+                        </button>
+
                         <button 
                             onClick={() => setActiveTab('sessions')}
                             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
@@ -3857,6 +4331,834 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: PREFECTS & CLASS SECRETARIES PER CLASS AND STREAM */}
+            {activeTab === 'prefects' && (
+                <div className="space-y-6">
+                    {/* Header Controls Banner */}
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <ShieldCheck className="w-4 h-4 text-blue-500" /> Prefects &amp; Class Secretaries Hub
+                                </h4>
+                                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                                    Class &amp; Stream Leaders
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 max-w-2xl">
+                                Appoint and manage student leaders (Class Prefects, Class Secretaries, Assistant Prefects) per class and stream. These leaders hold QR verification cards to validate and authorize teachers' remedial sessions.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                            {/* View Mode Toggle */}
+                            <div className="bg-slate-100 dark:bg-slate-900/60 p-1 rounded-2xl flex items-center border border-slate-200/60 dark:border-slate-800">
+                                <button
+                                    onClick={() => setPrefectViewMode('matrix')}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                        prefectViewMode === 'matrix' 
+                                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' 
+                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                    title="Class & Stream Matrix View"
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" /> Matrix View
+                                </button>
+                                <button
+                                    onClick={() => setPrefectViewMode('list')}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                        prefectViewMode === 'list' 
+                                            ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' 
+                                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                    }`}
+                                    title="Directory List View"
+                                >
+                                    <FileText className="w-3.5 h-3.5" /> Directory
+                                </button>
+                            </div>
+
+                            {/* Print All Cards */}
+                            <button
+                                onClick={handlePrintAllPrefectsCards}
+                                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/60 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                                title="Bulk Print All Prefect & Secretary QR Badges"
+                            >
+                                <Printer className="w-4 h-4" />
+                                <span>Print All QR Badges</span>
+                            </button>
+
+                            {/* Assign Leader Button */}
+                            <button
+                                onClick={() => handleOpenAssignLeaderModal()}
+                                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                <span>Appoint Leader</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Quick Stats Banner */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                                <ShieldCheck className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Appointed</p>
+                                <h4 className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{prefectStats.total}</h4>
+                                <p className="text-[9px] font-bold text-slate-500">Student leaders active</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                <Award className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Class Prefects</p>
+                                <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{prefectStats.prefectsCount}</h4>
+                                <p className="text-[9px] font-bold text-slate-500">Lead verifiers</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Class Secretaries</p>
+                                <h4 className="text-xl font-black text-purple-600 dark:text-purple-400 mt-0.5">{prefectStats.secretariesCount}</h4>
+                                <p className="text-[9px] font-bold text-slate-500">Attendance records</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/80 shadow-xs flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-2xl bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                                <LayoutGrid className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Classes Covered</p>
+                                <h4 className="text-xl font-black text-cyan-600 dark:text-cyan-400 mt-0.5">
+                                    {prefectStats.classesCovered} / {courses.length || 1}
+                                </h4>
+                                <p className="text-[9px] font-bold text-slate-500">{prefectStats.streamsCovered} streams with leaders</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/80 shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
+                        {/* Search Input */}
+                        <div className="relative w-full md:w-80">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input
+                                type="text"
+                                placeholder="Search by student, class, stream, or adm no..."
+                                value={prefectSearchQuery}
+                                onChange={e => setPrefectSearchQuery(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                            />
+                            {prefectSearchQuery && (
+                                <button
+                                    onClick={() => setPrefectSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            {/* Class Filter */}
+                            <select
+                                value={prefectClassFilter}
+                                onChange={e => setPrefectClassFilter(e.target.value)}
+                                className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                            >
+                                <option value="All">All Classes</option>
+                                {courses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+
+                            {/* Role Filter Pills */}
+                            <div className="bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl flex items-center border border-slate-200/60 dark:border-slate-800">
+                                <button
+                                    onClick={() => setPrefectRoleFilter('All')}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        prefectRoleFilter === 'All' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    All Roles
+                                </button>
+                                <button
+                                    onClick={() => setPrefectRoleFilter('prefect')}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        prefectRoleFilter === 'prefect' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    Prefects
+                                </button>
+                                <button
+                                    onClick={() => setPrefectRoleFilter('secretary')}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        prefectRoleFilter === 'secretary' ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-xs' : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    Secretaries
+                                </button>
+                                <button
+                                    onClick={() => setPrefectRoleFilter('other')}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        prefectRoleFilter === 'other' ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    Other
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* VIEW MODE 1: MATRIX VIEW (Organized Per Class and Stream) */}
+                    {prefectViewMode === 'matrix' && (
+                        <div className="space-y-8">
+                            {courses
+                                .filter(course => prefectClassFilter === 'All' || course.id === prefectClassFilter)
+                                .map(course => {
+                                    const classStreams = getClassStreams(course);
+                                    const classLeaders = prefectsList.filter(p => p.courseId === course.id || (p.className && p.className.trim().toLowerCase() === course.name.trim().toLowerCase()));
+
+                                    return (
+                                        <div key={course.id} className="bg-white dark:bg-slate-800/90 rounded-[2.5rem] border border-slate-200/80 dark:border-slate-700 shadow-sm overflow-hidden">
+                                            {/* Class Header Banner */}
+                                            <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-blue-50/40 dark:from-slate-900 dark:to-blue-950/20 border-b border-slate-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-500/30">
+                                                        <GraduationCap className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                                {course.name}
+                                                            </h3>
+                                                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                                                                {classStreams.length} {classStreams.length === 1 ? 'Stream' : 'Streams'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                            {classLeaders.length} appointed {classLeaders.length === 1 ? 'leader' : 'leaders'} for this class
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => handleOpenAssignLeaderModal(course.id)}
+                                                    className="px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/80 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" /> + Appoint For {course.name}
+                                                </button>
+                                            </div>
+
+                                            {/* Streams Grid */}
+                                            <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                                {classStreams.map(streamName => {
+                                                    // Find appointed leaders for this class & stream
+                                                    const streamLeaders = classLeaders.filter(p => {
+                                                        const pStream = (p.stream || '').trim().toLowerCase();
+                                                        const sName = streamName.trim().toLowerCase();
+                                                        if (sName === 'general') return !p.stream || pStream === 'general' || pStream === 'all streams';
+                                                        return pStream === sName;
+                                                    });
+
+                                                    const prefect = streamLeaders.find(p => {
+                                                        const r = (p.leadershipPosition || '').toLowerCase();
+                                                        return r.includes('prefect') || r.includes('captain') || r.includes('head');
+                                                    });
+
+                                                    const secretary = streamLeaders.find(p => {
+                                                        const r = (p.leadershipPosition || '').toLowerCase();
+                                                        return r.includes('secretary');
+                                                    });
+
+                                                    const otherLeaders = streamLeaders.filter(p => p !== prefect && p !== secretary);
+
+                                                    return (
+                                                        <div 
+                                                            key={`${course.id}_${streamName}`}
+                                                            className="bg-slate-50/70 dark:bg-slate-900/50 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4 hover:border-blue-300 dark:hover:border-blue-700/60 transition-all flex flex-col justify-between"
+                                                        >
+                                                            {/* Stream Title Bar */}
+                                                            <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                                                        Stream: <span className="text-blue-600 dark:text-blue-400">{streamName}</span>
+                                                                    </h4>
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-slate-400">
+                                                                    {course.name} • {streamName}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Two Slots: Class Prefect & Class Secretary */}
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                                                {/* 1. CLASS PREFECT SLOT */}
+                                                                <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between min-h-[160px] ${
+                                                                    prefect 
+                                                                        ? 'bg-white dark:bg-slate-800 border-blue-200 dark:border-blue-900/60 shadow-xs' 
+                                                                        : 'bg-white/40 dark:bg-slate-800/30 border-dashed border-slate-300 dark:border-slate-700'
+                                                                }`}>
+                                                                    <div>
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                                                                <Award className="w-3 h-3" /> Class Prefect
+                                                                            </span>
+                                                                            {prefect && (
+                                                                                <span className="text-[9px] font-mono font-bold text-slate-400">
+                                                                                    {prefect.admissionNumber ? `ADM: ${prefect.admissionNumber}` : 'Appointed'}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {prefect ? (
+                                                                            <div className="space-y-1">
+                                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight line-clamp-1" title={prefect.rawName || prefect.name}>
+                                                                                    {prefect.rawName || prefect.name}
+                                                                                </p>
+                                                                                <p className="text-[10px] font-bold text-slate-400">
+                                                                                    {prefect.phoneNumber || 'No phone registered'}
+                                                                                </p>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="py-2 text-center">
+                                                                                <p className="text-[11px] font-bold text-slate-400">No Prefect Appointed</p>
+                                                                                <p className="text-[9px] text-slate-400/80 mt-0.5">Required for remedial session QR scanning</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-1">
+                                                                        {prefect ? (
+                                                                            <>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <button
+                                                                                        onClick={() => printPrefectCard(prefect, false)}
+                                                                                        className="px-2 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                                                                        title="Preview QR Card"
+                                                                                    >
+                                                                                        <Eye className="w-3 h-3" /> Preview
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => printPrefectCard(prefect, true)}
+                                                                                        className="p-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[9px] transition-all"
+                                                                                        title="Print QR Badge"
+                                                                                    >
+                                                                                        <Printer className="w-3 h-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <button
+                                                                                        onClick={() => handleOpenAssignLeaderModal(course.id, streamName, 'Class Prefect')}
+                                                                                        className="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
+                                                                                        title="Change Prefect"
+                                                                                    >
+                                                                                        <Pencil className="w-3 h-3" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleRevokeLeader(prefect)}
+                                                                                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                                                                                        title="Revoke Prefect Role"
+                                                                                    >
+                                                                                        <Trash2 className="w-3 h-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => handleOpenAssignLeaderModal(course.id, streamName, 'Class Prefect')}
+                                                                                className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                                                            >
+                                                                                <Plus className="w-3 h-3" /> Appoint Prefect
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* 2. CLASS SECRETARY SLOT */}
+                                                                <div className={`p-4 rounded-2xl border transition-all flex flex-col justify-between min-h-[160px] ${
+                                                                    secretary 
+                                                                        ? 'bg-white dark:bg-slate-800 border-purple-200 dark:border-purple-900/60 shadow-xs' 
+                                                                        : 'bg-white/40 dark:bg-slate-800/30 border-dashed border-slate-300 dark:border-slate-700'
+                                                                }`}>
+                                                                    <div>
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                                                                                <FileText className="w-3 h-3" /> Class Secretary
+                                                                            </span>
+                                                                            {secretary && (
+                                                                                <span className="text-[9px] font-mono font-bold text-slate-400">
+                                                                                    {secretary.admissionNumber ? `ADM: ${secretary.admissionNumber}` : 'Appointed'}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {secretary ? (
+                                                                            <div className="space-y-1">
+                                                                                <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight line-clamp-1" title={secretary.rawName || secretary.name}>
+                                                                                    {secretary.rawName || secretary.name}
+                                                                                </p>
+                                                                                <p className="text-[10px] font-bold text-slate-400">
+                                                                                    {secretary.phoneNumber || 'No phone registered'}
+                                                                                </p>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="py-2 text-center">
+                                                                                <p className="text-[11px] font-bold text-slate-400">No Secretary Appointed</p>
+                                                                                <p className="text-[9px] text-slate-400/80 mt-0.5">Assists with attendance ledger</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-1">
+                                                                        {secretary ? (
+                                                                            <>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <button
+                                                                                        onClick={() => printPrefectCard(secretary, false)}
+                                                                                        className="px-2 py-1 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 hover:bg-purple-600 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                                                                        title="Preview QR Card"
+                                                                                    >
+                                                                                        <Eye className="w-3 h-3" /> Preview
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => printPrefectCard(secretary, true)}
+                                                                                        className="p-1.5 bg-slate-100 hover:bg-purple-600 hover:text-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-[9px] transition-all"
+                                                                                        title="Print QR Badge"
+                                                                                    >
+                                                                                        <Printer className="w-3 h-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <button
+                                                                                        onClick={() => handleOpenAssignLeaderModal(course.id, streamName, 'Class Secretary')}
+                                                                                        className="p-1.5 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
+                                                                                        title="Change Secretary"
+                                                                                    >
+                                                                                        <Pencil className="w-3 h-3" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleRevokeLeader(secretary)}
+                                                                                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                                                                                        title="Revoke Secretary Role"
+                                                                                    >
+                                                                                        <Trash2 className="w-3 h-3" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => handleOpenAssignLeaderModal(course.id, streamName, 'Class Secretary')}
+                                                                                className="w-full py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                                                            >
+                                                                                <Plus className="w-3 h-3" /> Appoint Secretary
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Other Leaders Row (if any) */}
+                                                            {otherLeaders.length > 0 && (
+                                                                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1.5">
+                                                                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Other Stream Leaders:</p>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        {otherLeaders.map(other => (
+                                                                            <div key={other.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-xl text-[9px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                                                <span>{other.rawName || other.name} ({other.leadershipPosition})</span>
+                                                                                <button
+                                                                                    onClick={() => printPrefectCard(other, false)}
+                                                                                    className="text-blue-500 hover:text-blue-700"
+                                                                                    title="Preview QR Card"
+                                                                                >
+                                                                                    <Eye className="w-3 h-3" />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleRevokeLeader(other)}
+                                                                                    className="text-slate-400 hover:text-rose-500"
+                                                                                    title="Revoke"
+                                                                                >
+                                                                                    <X className="w-3 h-3" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    )}
+
+                    {/* VIEW MODE 2: DIRECTORY LIST VIEW */}
+                    {prefectViewMode === 'list' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                        <tr>
+                                            <th className="py-3.5 px-6">Leader Name</th>
+                                            <th className="py-3.5 px-6">Class &amp; Stream</th>
+                                            <th className="py-3.5 px-6">Appointed Role</th>
+                                            <th className="py-3.5 px-6">Adm No / Contact</th>
+                                            <th className="py-3.5 px-6">Remedial QR Token</th>
+                                            <th className="py-3.5 px-6 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-bold">
+                                        {filteredPrefectsList.map(leader => {
+                                            const course = courses.find(c => c.id === leader.courseId);
+                                            const className = course?.name || leader.className || 'General';
+                                            const role = leader.leadershipPosition || 'Class Leader';
+                                            const isSecretary = role.toLowerCase().includes('secretary');
+                                            const isPrefect = role.toLowerCase().includes('prefect') || role.toLowerCase().includes('captain');
+                                            const tokenId = `prefect_remedial_token_class_${leader.courseId || 'general'}${leader.stream ? `_${encodeURIComponent(leader.stream)}` : ''}`;
+
+                                            return (
+                                                <tr key={leader.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                                                isSecretary 
+                                                                    ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300' 
+                                                                    : (isPrefect ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300')
+                                                            }`}>
+                                                                {isSecretary ? <FileText className="w-4 h-4" /> : <Award className="w-4 h-4" />}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-slate-900 dark:text-white uppercase">{leader.rawName || leader.name}</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium">{leader.email || 'Student Leader'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                            {className} &bull; {leader.stream || 'All Streams'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                            isSecretary 
+                                                                ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300' 
+                                                                : (isPrefect ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300' : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300')
+                                                        }`}>
+                                                            {role}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <p className="text-slate-900 dark:text-white font-mono text-[11px]">{leader.admissionNumber || '-'}</p>
+                                                        <p className="text-[10px] text-slate-400 font-medium">{leader.phoneNumber || '-'}</p>
+                                                    </td>
+                                                    <td className="py-4 px-6">
+                                                        <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-lg font-mono text-[9px] text-slate-600 dark:text-slate-400 w-fit">
+                                                            <QrCode className="w-3 h-3 text-blue-500 shrink-0" />
+                                                            <span className="truncate max-w-[140px]">{tokenId}</span>
+                                                            <button
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(tokenId);
+                                                                    alert(`Copied token: ${tokenId}`);
+                                                                }}
+                                                                className="text-slate-400 hover:text-blue-500"
+                                                                title="Copy Token"
+                                                            >
+                                                                <Copy className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-6 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => printPrefectCard(leader, false)}
+                                                                className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"
+                                                                title="Preview Card"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" /> Preview
+                                                            </button>
+                                                            <button
+                                                                onClick={() => printPrefectCard(leader, true)}
+                                                                className="p-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-all"
+                                                                title="Print QR Badge"
+                                                            >
+                                                                <Printer className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleRevokeLeader(leader)}
+                                                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                                                                title="Revoke Appointment"
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {filteredPrefectsList.length === 0 && (
+                                            <tr>
+                                                <td colSpan={6} className="py-12 text-center text-slate-400">
+                                                    No student leaders match your current filters. Click "Appoint Leader" to assign class prefects and secretaries.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* MODAL: ASSIGN / APPOINT CLASS PREFECT OR SECRETARY */}
+            {isAssignLeaderModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        {/* Modal Header */}
+                        <div className="p-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight flex items-center gap-2">
+                                    <ShieldCheck className="w-5 h-5" /> Appoint Class Leader / Secretary
+                                </h3>
+                                <p className="text-[11px] text-blue-100 font-medium mt-0.5">
+                                    Assign a student to hold the remedial verification QR card for this class and stream
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsAssignLeaderModalOpen(false)}
+                                className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Form Content */}
+                        <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+                            {/* Class & Stream Selectors */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Class / Grade *
+                                    </label>
+                                    <select
+                                        value={leaderModalTargetCourseId}
+                                        onChange={e => {
+                                            setLeaderModalTargetCourseId(e.target.value);
+                                            setLeaderModalTargetStream('');
+                                            setLeaderModalSelectedStudentId('');
+                                        }}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                                    >
+                                        <option value="">-- Select Class --</option>
+                                        {courses.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Stream *
+                                    </label>
+                                    {(() => {
+                                        const selectedCourse = courses.find(c => c.id === leaderModalTargetCourseId);
+                                        const streams = selectedCourse ? getClassStreams(selectedCourse) : [];
+                                        return (
+                                            <select
+                                                value={leaderModalTargetStream}
+                                                onChange={e => {
+                                                    setLeaderModalTargetStream(e.target.value);
+                                                    setLeaderModalSelectedStudentId('');
+                                                }}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                                            >
+                                                <option value="">All Streams (Whole Class)</option>
+                                                {streams.map(s => (
+                                                    <option key={s} value={s}>{s}</option>
+                                                ))}
+                                                <option value="__custom__">+ Custom Stream...</option>
+                                            </select>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* Custom Stream Input if selected */}
+                            {leaderModalTargetStream === '__custom__' && (
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Enter Custom Stream Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. West, Alpha, Yellow..."
+                                        value={leaderModalCustomStream}
+                                        onChange={e => setLeaderModalCustomStream(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Leadership Role / Title */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Appointed Role / Title *
+                                </label>
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    {['Class Prefect', 'Class Secretary', 'Assistant Class Prefect', 'Academic Secretary'].map(r => (
+                                        <button
+                                            key={r}
+                                            type="button"
+                                            onClick={() => {
+                                                setLeaderModalRole(r);
+                                                setLeaderModalCustomRole('');
+                                            }}
+                                            className={`p-2.5 rounded-xl border text-xs font-black uppercase tracking-tight text-left transition-all flex items-center justify-between ${
+                                                leaderModalRole === r 
+                                                    ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-500 text-blue-700 dark:text-blue-300 shadow-xs' 
+                                                    : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <span>{r}</span>
+                                            {leaderModalRole === r && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Or type custom title (e.g. Remedial Coordinator)..."
+                                        value={leaderModalCustomRole}
+                                        onChange={e => {
+                                            setLeaderModalCustomRole(e.target.value);
+                                            setLeaderModalRole('__custom__');
+                                        }}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Student Search & Picker */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                                    <span>Select Student to Appoint *</span>
+                                    <span className="text-slate-400 lowercase font-medium">({modalFilteredStudents.length} candidates)</span>
+                                </label>
+
+                                <div className="relative mb-2">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search student by name or adm number..."
+                                        value={leaderModalStudentSearch}
+                                        onChange={e => setLeaderModalStudentSearch(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                                    />
+                                </div>
+
+                                <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 custom-scrollbar">
+                                    {modalFilteredStudents.map(student => {
+                                        const isSelected = leaderModalSelectedStudentId === student.id;
+                                        return (
+                                            <div
+                                                key={student.id}
+                                                onClick={() => {
+                                                    setLeaderModalSelectedStudentId(student.id);
+                                                    if (student.phoneNumber) setLeaderModalContactPhone(student.phoneNumber);
+                                                }}
+                                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                                                    isSelected 
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20' 
+                                                        : 'bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-blue-300'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] ${
+                                                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                                    }`}>
+                                                        {student.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-black uppercase leading-none">{student.name}</p>
+                                                        <p className={`text-[10px] mt-1 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                                                            {student.admissionNumber ? `Adm: ${student.admissionNumber}` : ''} {student.stream ? `• Stream: ${student.stream}` : ''}
+                                                            {student.currentLeadership ? ` • Currently: ${student.currentLeadership}` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {isSelected && <Check className="w-4 h-4 text-white shrink-0" />}
+                                            </div>
+                                        );
+                                    })}
+                                    {modalFilteredStudents.length === 0 && (
+                                        <p className="text-center py-6 text-xs text-slate-400">
+                                            No students found. Try changing your search query or class selection.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Contact Phone (Optional) */}
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Contact Phone Number (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="e.g. +254 712 345 678"
+                                    value={leaderModalContactPhone}
+                                    onChange={e => setLeaderModalContactPhone(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setIsAssignLeaderModalOpen(false)}
+                                className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSavingLeader}
+                                onClick={handleSaveLeaderAssignment}
+                                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                            >
+                                {isSavingLeader ? (
+                                    <>
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Saving...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        <span>Confirm &amp; Appoint</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
