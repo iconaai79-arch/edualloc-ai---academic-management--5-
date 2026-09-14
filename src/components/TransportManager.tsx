@@ -71,26 +71,68 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const [showQrId, setShowQrId] = useState<string | null>(null);
     const [qrUrl, setQrUrl] = useState<string>('');
 
+    // Strictly scope users to current institution to prevent cross-institution data bleed
+    const institutionUsers = useMemo(() => {
+        if (!currentInstitution?.id) return users;
+        return users.filter(u => {
+            const instId = u.institutionId || (u as any).institution_id || (u as any).schoolId;
+            return instId === currentInstitution.id;
+        });
+    }, [users, currentInstitution?.id]);
+
     const drivers = useMemo(() =>
-        users.filter(u => u.role === 'driver' || u.roles?.includes('driver')),
-        [users]
+        institutionUsers.filter(u => u.role === 'driver' || u.roles?.includes('driver')),
+        [institutionUsers]
     );
 
     const assistants = useMemo(() =>
-        users.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant')),
-        [users]
+        institutionUsers.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant')),
+        [institutionUsers]
     );
 
     const students = useMemo(() =>
-        users.filter(u => u.role === 'student'),
-        [users]
+        institutionUsers.filter(u => u.role === 'student'),
+        [institutionUsers]
     );
+
+    // Strictly scope courses and enrollments to current institution
+    const institutionCourses = useMemo(() => {
+        if (!currentInstitution?.id) return loadedCourses;
+        return loadedCourses.filter(c => {
+            const instId = c.institutionId || (c as any).institution_id || (c as any).schoolId;
+            return !instId || instId === currentInstitution.id;
+        });
+    }, [loadedCourses, currentInstitution?.id]);
+
+    const institutionEnrollments = useMemo(() => {
+        if (!currentInstitution?.id) return enrollments;
+        return enrollments.filter(e => {
+            const instId = e.institutionId || (e as any).institution_id || (e as any).schoolId;
+            return !instId || instId === currentInstitution.id;
+        });
+    }, [enrollments, currentInstitution?.id]);
+
+    // Helper to format class name cleanly in Title Case / clean capitalization matching school standards
+    const normalizeClassName = (raw: string, registeredCourses: Course[]): string => {
+        const trimmed = raw.trim();
+        if (!trimmed || trimmed.toLowerCase() === 'unassigned') return '';
+        // If there is an exact case-insensitive match in registered courses, use official course name!
+        const matchedCourse = registeredCourses.find(c => c.name && c.name.trim().toLowerCase() === trimmed.toLowerCase());
+        if (matchedCourse?.name) {
+            return matchedCourse.name.trim();
+        }
+        // Normalize "FORM 3" -> "Form 3", "GRADE 4" -> "Grade 4"
+        return trimmed.replace(/\b([a-z])([a-z]+)?\b/gi, (match, p1, p2) => {
+            if (/^(pp|cbc|ecd|dpt|kg)\d*$/i.test(match)) return match.toUpperCase();
+            return p1.toUpperCase() + (p2 ? p2.toLowerCase() : '');
+        });
+    };
 
     // Merge enrollment and course data (admissionNumber, class, stream) onto each student
     const enrichedStudents = useMemo(() => {
         return students.map(s => {
-            const enr = enrollments.find(e => e.userId === s.id || e.id === s.id || (e.metadata as any)?.userId === s.id);
-            const matchedCourse = loadedCourses.find(c => 
+            const enr = institutionEnrollments.find(e => e.userId === s.id || e.id === s.id || (e.metadata as any)?.userId === s.id);
+            const matchedCourse = institutionCourses.find(c => 
                 c.id === enr?.courseId || 
                 c.id === (s as any).courseId || 
                 c.id === s.metadata?.courseId ||
@@ -99,7 +141,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
             const adm = enr?.admissionNumber || (enr as any)?.admission_number || enr?.metadata?.admissionNumber ||
                 s.admissionNumber || s.admission_number ||
                 s.metadata?.admissionNumber || s.metadata?.admission_number || '';
-            const gradeLevel = (
+            const rawGrade = (
                 matchedCourse?.name ||
                 enr?.metadata?.gradeLevel ||
                 enr?.metadata?.className ||
@@ -111,6 +153,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                 (s as any).gradeLevel ||
                 ''
             ).trim();
+            const gradeLevel = normalizeClassName(rawGrade, institutionCourses);
             const stream = (
                 enr?.metadata?.stream ||
                 enr?.metadata?.streamName ||
@@ -128,47 +171,86 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                 courseId: matchedCourse?.id || enr?.courseId || (s as any).courseId || '' 
             };
         });
-    }, [students, enrollments, loadedCourses]);
+    }, [students, institutionEnrollments, institutionCourses]);
 
-    // Unique class & stream options for filter dropdowns combining registered courses & student assignments
+    // Unique class & stream options for filter dropdowns strictly for this institution
     const classOptions = useMemo(() => {
-        const set = new Set<string>();
-        loadedCourses.forEach(c => {
-            if (c.name && c.name.trim()) set.add(c.name.trim());
-        });
-        enrollments.forEach(e => {
-            const g = e.metadata?.gradeLevel || e.metadata?.className;
-            if (g && String(g).trim()) set.add(String(g).trim());
-        });
-        enrichedStudents.forEach(s => {
-            if ((s as any).gradeLevel && String((s as any).gradeLevel).trim()) {
-                set.add(String((s as any).gradeLevel).trim());
+        const map = new Map<string, string>(); // lowerCaseKey -> displayValue
+
+        // 1. Registered school courses are the primary authority
+        institutionCourses.forEach(c => {
+            if (c.name && c.name.trim()) {
+                const norm = c.name.trim();
+                map.set(norm.toLowerCase(), norm);
             }
         });
-        return Array.from(set).sort();
-    }, [loadedCourses, enrollments, enrichedStudents]);
+
+        // 2. Add from enrollments only if valid and not already mapped
+        institutionEnrollments.forEach(e => {
+            const g = e.metadata?.gradeLevel || e.metadata?.className;
+            if (g && String(g).trim()) {
+                const norm = normalizeClassName(String(g), institutionCourses);
+                if (norm && !map.has(norm.toLowerCase())) {
+                    map.set(norm.toLowerCase(), norm);
+                }
+            }
+        });
+
+        // 3. Add from enrolled students in this institution
+        enrichedStudents.forEach(s => {
+            const g = (s as any).gradeLevel;
+            if (g && String(g).trim()) {
+                const norm = normalizeClassName(String(g), institutionCourses);
+                if (norm && !map.has(norm.toLowerCase())) {
+                    map.set(norm.toLowerCase(), norm);
+                }
+            }
+        });
+
+        // Sort classes naturally (e.g. Form 1, Form 2, Form 3, Form 4)
+        return Array.from(map.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [institutionCourses, institutionEnrollments, enrichedStudents]);
 
     const streamOptions = useMemo(() => {
-        const set = new Set<string>();
-        loadedCourses.forEach(c => {
+        const map = new Map<string, string>(); // lowerCaseKey -> displayValue
+
+        institutionCourses.forEach(c => {
             if (Array.isArray(c.streams)) {
-                c.streams.forEach(s => s && set.add(String(s).trim()));
+                c.streams.forEach(s => {
+                    if (s && String(s).trim()) {
+                        const trimmed = String(s).trim();
+                        map.set(trimmed.toLowerCase(), trimmed);
+                    }
+                });
             }
             if (Array.isArray((c as any).metadata?.streams)) {
-                (c as any).metadata.streams.forEach((s: any) => s && set.add(String(s).trim()));
+                (c as any).metadata.streams.forEach((s: any) => {
+                    if (s && String(s).trim()) {
+                        const trimmed = String(s).trim();
+                        map.set(trimmed.toLowerCase(), trimmed);
+                    }
+                });
             }
         });
-        enrollments.forEach(e => {
+
+        institutionEnrollments.forEach(e => {
             const st = e.metadata?.stream || e.metadata?.streamName;
-            if (st && String(st).trim()) set.add(String(st).trim());
-        });
-        enrichedStudents.forEach(s => {
-            if ((s as any).stream && String((s as any).stream).trim()) {
-                set.add(String((s as any).stream).trim());
+            if (st && String(st).trim()) {
+                const trimmed = String(st).trim();
+                map.set(trimmed.toLowerCase(), trimmed);
             }
         });
-        return Array.from(set).sort();
-    }, [loadedCourses, enrollments, enrichedStudents]);
+
+        enrichedStudents.forEach(s => {
+            const st = (s as any).stream;
+            if (st && String(st).trim()) {
+                const trimmed = String(st).trim();
+                map.set(trimmed.toLowerCase(), trimmed);
+            }
+        });
+
+        return Array.from(map.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [institutionCourses, institutionEnrollments, enrichedStudents]);
 
     const filteredStudents = useMemo(() => {
         return enrichedStudents.filter(s => {
