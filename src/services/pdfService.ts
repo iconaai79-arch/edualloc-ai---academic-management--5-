@@ -241,13 +241,16 @@ const createPdfWithLetterhead = (
         doc.setDrawColor(180, 180, 180);
         doc.line(margin, lineY, pageWidth - margin, lineY);
 
-        // Draw Document Title
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(20);
-        doc.setTextColor(0, 0, 0);
-        doc.text(title, margin, lineY + 15);
+        // Draw Document Title if provided
+        if (title && title.trim()) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(20);
+            doc.setTextColor(0, 0, 0);
+            doc.text(title, margin, lineY + 15);
+            return lineY + 25;
+        }
 
-        return lineY + 25;
+        return lineY + 4;
     }
 
     // Draw Logo
@@ -268,13 +271,16 @@ const createPdfWithLetterhead = (
     doc.text(`Email: ${institution.email}`, pageWidth - margin, margin + 11, { align: 'right' });
     doc.text(`Phone: ${institution.phoneNumber}`, pageWidth - margin, margin + 15, { align: 'right' });
 
-    // Draw Document Title
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.setTextColor(0, 0, 0);
-    doc.text(title, margin, margin + 40);
+    // Draw Document Title if provided
+    if (title && title.trim()) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(24);
+        doc.setTextColor(0, 0, 0);
+        doc.text(title, margin, margin + 40);
+        return margin + 50;
+    }
 
-    return margin + 80;
+    return margin + 25;
 };
 
 // Standard Pastel Generator for PDF use (RGB)
@@ -5735,10 +5741,10 @@ export const generateParentInKindLpoPdf = async (
         institutionAddress: institution?.address || ''
     } as any;
 
-    // Header & Letterhead
-    const tableStartY = createPdfWithLetterhead(
+    // Header & Letterhead (Pass empty title so createPdfWithLetterhead draws branding without overlapping title)
+    const headerBottomY = createPdfWithLetterhead(
         doc,
-        'PARENT IN-KIND PURCHASE ORDER',
+        '',
         activeCompanyDetails,
         institution,
         logoImg,
@@ -5759,31 +5765,58 @@ export const generateParentInKindLpoPdf = async (
         }
     }
 
-    // Dynamic start Y for metadata box depending on whether letterhead banner is present
-    const metaBoxWidth = 85;
+    // Dynamic start Y below letterhead divider line
+    const startMetaY = headerBottomY + 2;
+
+    // LEFT: Document Title & Badges (Cleanly separated from right metadata)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(15, 23, 42);
+    doc.text('PARENT IN-KIND PURCHASE ORDER', margin, startMetaY + 4.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('OFFICIAL IN-KIND COMMODITY & FEE OFFSET CONTRACT', margin, startMetaY + 9);
+
+    // Status Pill
+    doc.setFillColor(240, 253, 244);
+    doc.setDrawColor(167, 243, 208);
+    doc.roundedRect(margin, startMetaY + 12, 60, 5.5, 1, 1, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(5, 150, 105);
+    doc.text('● VERIFIED & COMMITTED IN-KIND LPO', margin + 3, startMetaY + 15.8);
+
+    // RIGHT: Dedicated Metadata Box
+    const metaBoxWidth = 84;
     const metaX = pageWidth - margin - metaBoxWidth;
-    const startMetaY = headerImg ? (tableStartY - 18) : (margin + 52);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(metaX, startMetaY, metaBoxWidth, 22, 1.5, 1.5, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.text('LPO NUMBER:', metaX, startMetaY);
-    doc.text('ISSUE DATE:', metaX, startMetaY + 5);
-    doc.text('DELIVERY DUE:', metaX, startMetaY + 10);
-    doc.text('SETTLEMENT:', metaX, startMetaY + 15);
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('LPO NUMBER:', metaX + 4, startMetaY + 4.8);
+    doc.text('ISSUE DATE:', metaX + 4, startMetaY + 9.5);
+    doc.text('DELIVERY DUE:', metaX + 4, startMetaY + 14.2);
+    doc.text('SETTLEMENT:', metaX + 4, startMetaY + 18.9);
 
     doc.setFont('helvetica', 'normal');
     const lpoNum = proposal.lpoNumber || proposal.lpo_number || `LPO-PIK-${String(proposal.id || '').slice(-6).toUpperCase()}`;
-    doc.text(lpoNum, pageWidth - margin, startMetaY, { align: 'right' });
+    doc.setTextColor(15, 23, 42);
+    doc.text(lpoNum, pageWidth - margin - 4, startMetaY + 4.8, { align: 'right' });
     const issueDate = proposal.createdAt ? new Date(proposal.createdAt).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
-    doc.text(issueDate, pageWidth - margin, startMetaY + 5, { align: 'right' });
-    doc.text(dueDate, pageWidth - margin, startMetaY + 10, { align: 'right' });
+    doc.text(issueDate, pageWidth - margin - 4, startMetaY + 9.5, { align: 'right' });
+    doc.text(dueDate, pageWidth - margin - 4, startMetaY + 14.2, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(16, 185, 129);
-    doc.text('Fee Offset (In-Kind)', pageWidth - margin, startMetaY + 15, { align: 'right' });
+    doc.text('Fee Offset (In-Kind)', pageWidth - margin - 4, startMetaY + 18.9, { align: 'right' });
     doc.setTextColor(0, 0, 0);
 
     // Parent & Student Details
-    let nextY = headerImg ? (tableStartY + 5) : (margin + 76);
+    let nextY = startMetaY + 26;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('PARENT / SUPPLIER (PARTY A):', margin, nextY);
@@ -12873,7 +12906,28 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
     const contentWidth = pageWidth - (margin * 2); // 186
 
     const schoolName = (institution?.name || 'BUSY BUMBLES NURSERY SCHOOL').toUpperCase();
-    const logoImg = await loadImage(institution?.logoUrl);
+    
+    // Resolve institutional branding (Letterhead banner, logo, footer image, official stamp)
+    const letterConfig = institution?.letterheadConfig;
+    const letterheadUrl = letterConfig?.headerImageUrl 
+        || (institution as any)?.letterheadUrl 
+        || (institution as any)?.letterhead_url 
+        || null;
+    const footerUrl = letterConfig?.footerImageUrl 
+        || (institution as any)?.footerImageUrl 
+        || (institution as any)?.footer_image_url 
+        || null;
+    const stampUrl = letterConfig?.stampImageUrl 
+        || (institution as any)?.stampImageUrl 
+        || (institution as any)?.stamp_image_url 
+        || null;
+
+    const [logoImg, headerImg, footerImg, stampImg] = await Promise.all([
+        loadImage(institution?.logoUrl || (institution as any)?.logo_url || null),
+        loadImage(letterheadUrl),
+        loadImage(footerUrl),
+        loadImage(stampUrl)
+    ]);
 
     // Color definitions
     const primaryGreen: [number, number, number] = [20, 83, 45]; // Emerald/Forest green
@@ -12890,72 +12944,130 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
         NI: { bg: [241, 245, 249], fg: [71, 85, 105], text: 'NI - Not Intro' },
     };
 
-    const drawHeader = (isFirstPage: boolean, pageNum: number, totalPages: number = 4) => {
+    const drawHeader = (isFirstPage: boolean, pageNum: number, totalPages: number = 4): number => {
+        let nextY = 16;
         if (isFirstPage) {
-            // Elegant top decorative bar
-            doc.setFillColor(...primaryGreen);
-            doc.rect(0, 0, pageWidth, 6, 'F');
+            if (headerImg) {
+                // Official Uploaded Graphical Letterhead Banner
+                const imgWidth = contentWidth;
+                const imgHeight = (headerImg.height * imgWidth) / headerImg.width;
+                const maxHeight = 34;
+                const finalHeight = Math.min(imgHeight, maxHeight);
+                doc.addImage(headerImg, 'PNG', margin, 5, imgWidth, finalHeight);
 
-            // Logo and School Title
-            let textStartX = margin;
-            if (logoImg) {
-                try {
-                    doc.addImage(logoImg, 'PNG', margin, 10, 20, 20);
-                    textStartX = margin + 24;
-                } catch (e) {
-                    textStartX = margin;
+                const bannerBottom = 5 + finalHeight + 2;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(...darkNavy);
+                doc.text("BRITISH & MONTESSORI EARLY YEARS FOUNDATION STAGE (EYFS)", pageWidth / 2, bannerBottom + 3, { align: 'center' });
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7.5);
+                doc.setTextColor(...slateMuted);
+                doc.text("SUMMARY ASSESSMENT REPORT & DEVELOPMENTAL MILESTONE CHECKLIST", pageWidth / 2, bannerBottom + 6.8, { align: 'center' });
+
+                doc.setDrawColor(...cardBorder);
+                doc.setLineWidth(0.4);
+                doc.line(margin, bannerBottom + 9, pageWidth - margin, bannerBottom + 9);
+                nextY = bannerBottom + 12;
+            } else {
+                // Formal Institutional Letterhead with Logo & Full Details
+                doc.setFillColor(...primaryGreen);
+                doc.rect(0, 0, pageWidth, 5, 'F');
+
+                let textStartX = margin;
+                if (logoImg) {
+                    try {
+                        doc.addImage(logoImg, 'PNG', margin, 8, 20, 20);
+                        textStartX = margin + 24;
+                    } catch (e) {
+                        textStartX = margin;
+                    }
                 }
+
+                doc.setTextColor(...primaryGreen);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(15);
+                doc.text(schoolName, textStartX, 14);
+
+                const contactDetails = [
+                    institution?.address,
+                    institution?.phoneNumber ? `Tel: ${institution.phoneNumber}` : null,
+                    institution?.email ? `Email: ${institution.email}` : null
+                ].filter(Boolean).join(' • ');
+
+                if (contactDetails) {
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(7.5);
+                    doc.setTextColor(...slateMuted);
+                    doc.text(contactDetails, textStartX, 19);
+                }
+
+                const subHeaderY = contactDetails ? 24 : 20;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9.5);
+                doc.setTextColor(...darkNavy);
+                doc.text("BRITISH AND MONTESSORI CURRICULUM", textStartX, subHeaderY);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7.5);
+                doc.setTextColor(...slateMuted);
+                doc.text("SUMMARY ASSESSMENT REPORT CHECKLIST • EARLY YEARS FOUNDATION (EYFS)", textStartX, subHeaderY + 4.5);
+
+                // Divider line
+                const lineY = subHeaderY + 8;
+                doc.setDrawColor(...cardBorder);
+                doc.setLineWidth(0.4);
+                doc.line(margin, lineY, pageWidth - margin, lineY);
+                nextY = lineY + 3;
             }
-
-            doc.setTextColor(...primaryGreen);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(16);
-            doc.text(schoolName, textStartX, 16);
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(...darkNavy);
-            doc.text("BRITISH AND MONTESSORI CURRICULUM", textStartX, 22);
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8.5);
-            doc.setTextColor(...slateMuted);
-            doc.text("SUMMARY ASSESSMENT REPORT CHECKLIST • EARLY YEARS FOUNDATION", textStartX, 27);
-
-            // Divider line
-            doc.setDrawColor(...cardBorder);
-            doc.setLineWidth(0.4);
-            doc.line(margin, 32, pageWidth - margin, 32);
         } else {
-            // Compact Header for pages 2, 3, 4
+            // Running Compact Header for pages 2, 3, 4
             doc.setFillColor(...primaryGreen);
-            doc.rect(0, 0, pageWidth, 4, 'F');
+            doc.rect(0, 0, pageWidth, 3.5, 'F');
 
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
+            doc.setFontSize(8.5);
             doc.setTextColor(...primaryGreen);
-            doc.text(schoolName, margin, 11);
+            doc.text(schoolName, margin, 9);
 
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
+            doc.setFontSize(7.5);
             doc.setTextColor(...slateMuted);
-            doc.text("British & Montessori Curriculum Assessment • " + (data.studentName || 'Student Report'), pageWidth - margin, 11, { align: 'right' });
+            doc.text("British & Montessori Curriculum Assessment • " + (data.studentName || 'Student Report'), pageWidth - margin, 9, { align: 'right' });
 
             doc.setDrawColor(...cardBorder);
             doc.setLineWidth(0.3);
-            doc.line(margin, 14, pageWidth - margin, 14);
+            doc.line(margin, 12, pageWidth - margin, 12);
+            nextY = 15;
         }
 
-        // Page Footer
+        // Institutional Page Footer
+        let footerLineY = pageHeight - 11;
+        if (footerImg) {
+            const footerWidth = contentWidth;
+            const footerMaxHeight = 11;
+            const footerHeight = Math.min((footerImg.height * footerWidth) / footerImg.width, footerMaxHeight);
+            const footerY = pageHeight - footerHeight - 7;
+            try {
+                doc.addImage(footerImg, 'PNG', margin, footerY, footerWidth, footerHeight);
+                footerLineY = footerY - 2;
+            } catch (e) {
+                footerLineY = pageHeight - 11;
+            }
+        }
+
         doc.setDrawColor(...cardBorder);
         doc.setLineWidth(0.3);
-        doc.line(margin, pageHeight - 11, pageWidth - margin, pageHeight - 11);
+        doc.line(margin, footerLineY, pageWidth - margin, footerLineY);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7.2);
         doc.setTextColor(...slateMuted);
-        doc.text("Official British & Montessori Early Years Progress Checklist", margin, pageHeight - 7);
-        doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
+        const footerLabel = letterConfig?.footerText || `Official British & Montessori Early Years Progress Checklist • ${institution?.name || 'School'}`;
+        doc.text(footerLabel, margin, pageHeight - 6.5);
+        doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin, pageHeight - 6.5, { align: 'right' });
+
+        return nextY;
     };
 
     const drawStudentInfoAndLegend = (startY: number): number => {
@@ -13142,8 +13254,7 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
     };
 
     // ================= PAGE 1 =================
-    drawHeader(true, 1, 4);
-    let curY = 35;
+    let curY = drawHeader(true, 1, 4);
     curY = drawStudentInfoAndLegend(curY);
 
     // Domain 1: Cognitive Development
@@ -13156,8 +13267,7 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
 
     // ================= PAGE 2 =================
     doc.addPage();
-    drawHeader(false, 2, 4);
-    curY = 18;
+    curY = drawHeader(false, 2, 4);
 
     // Domain 3: Social Development
     const socMilestones = data.domains?.social?.milestones || [];
@@ -13169,8 +13279,7 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
 
     // ================= PAGE 3 =================
     doc.addPage();
-    drawHeader(false, 3, 4);
-    curY = 18;
+    curY = drawHeader(false, 3, 4);
 
     // Domain 5: Language and Literacy Development
     const langMilestones = data.domains?.languageAndLiteracy?.milestones || [];
@@ -13182,8 +13291,7 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
 
     // ================= PAGE 4 =================
     doc.addPage();
-    drawHeader(false, 4, 4);
-    curY = 18;
+    curY = drawHeader(false, 4, 4);
 
     // Section Title: Activities for the Term
     doc.setFillColor(...primaryGreen);
@@ -13308,18 +13416,29 @@ export const generateMontessoriAssessmentReportPdfDataUri = async (
     doc.setTextColor(...slateMuted);
     doc.text("Head of Early Years • Seal of Excellence", headX + 4, curY + 20);
 
+    // Render Official Institution Stamp if available
+    if (stampImg) {
+        try {
+            const stampW = 22;
+            const stampH = (stampImg.height * stampW) / stampImg.width;
+            doc.addImage(stampImg, 'PNG', headX + sigBoxWidth - stampW - 3, curY + 2, stampW, Math.min(stampH, 20));
+        } catch (e) {}
+    }
+
     curY += sigHeight + 6;
 
     // Footer Motto & Contact Info
+    const schoolMotto = institution?.motto ? `"${institution.motto.toUpperCase()}"` : '"LEARN TO PLAY - PLAY TO LEARN"';
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(...primaryGreen);
-    doc.text('"LEARN TO PLAY - PLAY TO LEARN"', pageWidth / 2, curY + 4, { align: 'center' });
+    doc.text(schoolMotto, pageWidth / 2, curY + 4, { align: 'center' });
 
     const contactStr = [
         institution?.address,
         institution?.phoneNumber ? `Tel: ${institution.phoneNumber}` : null,
-        institution?.email ? `Email: ${institution.email}` : null
+        institution?.email ? `Email: ${institution.email}` : null,
+        institution?.website ? `Web: ${institution.website}` : null
     ].filter(Boolean).join(' • ');
 
     if (contactStr) {
