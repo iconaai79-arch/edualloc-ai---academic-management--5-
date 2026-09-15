@@ -12618,9 +12618,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* ── Modal: Issue Parent Supply LPO ── */}
                         {isIssueLpoModalOpen && (
-                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-                                <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6 text-left my-8">
-                                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+                                <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 text-left flex flex-col max-h-[92vh] overflow-hidden my-auto">
+                                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 p-5 sm:p-6 shrink-0 bg-white dark:bg-slate-900">
                                         <div>
                                             <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Official Procurement In-Kind</span>
                                             <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Issue Parent Supply LPO</h3>
@@ -12628,13 +12628,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                         <button
                                             onClick={() => setIsIssueLpoModalOpen(false)}
-                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                                         >
                                             <XIcon className="w-5 h-5" />
                                         </button>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
                                         {/* Student Selection */}
                                         <div>
                                             <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">Select Student Beneficiary *</label>
@@ -12896,18 +12896,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    {/* Sticky Always-Visible Action Buttons */}
+                                    <div className="flex justify-between sm:justify-end items-center gap-3 p-4 sm:px-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur shrink-0 sticky bottom-0 z-30 shadow-lg">
                                         <button
                                             type="button"
                                             onClick={() => setIsIssueLpoModalOpen(false)}
-                                            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                                            className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer rounded-xl hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleSaveAndIssueLpo}
-                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-indigo-600/20 active:scale-95 cursor-pointer flex items-center gap-2 transition-all"
                                         >
                                             <CheckIcon className="w-4 h-4" />
                                             <span>Issue LPO &amp; Generate Order</span>
@@ -12919,9 +12920,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                         {/* ── Modal: Direct Delivery & Fee Credit (GRN) ── */}
                         {isDirectReceiveModalOpen && selectedProposalForAction && (
-                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-                                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-6 text-left my-8">
-                                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
+                            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+                                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 text-left flex flex-col max-h-[92vh] overflow-hidden my-auto">
+                                    <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 p-5 sm:p-6 shrink-0 bg-white dark:bg-slate-900">
                                         <div>
                                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Direct Delivery Receipt</span>
                                             <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Confirm Goods Receipt &amp; Credit</h3>
@@ -12929,13 +12930,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                         <button
                                             onClick={() => setIsDirectReceiveModalOpen(false)}
-                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                                         >
                                             <XIcon className="w-5 h-5" />
                                         </button>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
                                         {/* Order Reference Box */}
                                         <div className="p-3.5 bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1">
                                             <div className="flex justify-between items-center text-xs">
@@ -13017,18 +13018,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    {/* Sticky Always-Visible Action Buttons */}
+                                    <div className="flex justify-between sm:justify-end items-center gap-3 p-4 sm:px-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur shrink-0 sticky bottom-0 z-30 shadow-lg">
                                         <button
                                             type="button"
                                             onClick={() => setIsDirectReceiveModalOpen(false)}
-                                            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                                            className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer rounded-xl hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-colors"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleConfirmDirectReceive}
-                                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+                                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer flex items-center gap-2 transition-all"
                                         >
                                             <CheckIcon className="w-4 h-4" />
                                             <span>Confirm Delivery &amp; Issue Receipt</span>
