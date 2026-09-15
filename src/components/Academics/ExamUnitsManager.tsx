@@ -55,6 +55,7 @@ interface ExamUnitsManagerProps {
     currentInstitution?: Institution | null;
     subjects?: Subject[];
     users?: User[];
+    students?: any[];
     assessments?: Assessment[];
     marks?: AssessmentMark[];
     courses?: Course[];
@@ -67,6 +68,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     currentInstitution,
     subjects = [],
     users = [],
+    students: propStudents,
     assessments = [],
     marks = [],
     courses = [],
@@ -75,6 +77,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Storage Key Helper
     const instId = currentInstitution?.id || 'default_inst';
     const examUnitsStorageKey = `eduai_exam_units_${instId}`;
+
+    // Safely resolved students list from prop or users array
+    const resolvedStudents = useMemo(() => {
+        if (Array.isArray(propStudents) && propStudents.length > 0) return propStudents;
+        return (users || []).filter((u: any) => u && (u.role === 'student' || u.studentClass || u.admissionNumber));
+    }, [propStudents, users]);
 
     // List of Exams State (Persisted in localStorage & DB)
     const [exams, setExams] = useState<ExamUnitRecord[]>(() => {
@@ -584,7 +592,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // 4. Student Enrollments / Students of this class
-        const classStudents = (students || []).filter((st: any) => {
+        const classStudents = (resolvedStudents || []).filter((st: any) => {
             const stCls = (st.class || st.studentClass || st.currentClass || '').toLowerCase().trim();
             return stCls === tcLower || stCls === tcNoStream || stCls === baseClassLower ||
                    normalize(stCls) === tcNorm || normalize(stCls) === tcNoStreamNorm || normalize(stCls) === baseNorm;
@@ -651,7 +659,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return ['Mathematics', 'English', 'Kiswahili', 'Integrated Science', 'Social Studies', 'Pre-Technical & Computer Studies', 'Agriculture & Nutrition', 'Creative Arts & Sports', 'Religious Education (CRE/IRE)'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
         }
         return ['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics', 'History & Government', 'Geography'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
-    }, [currentInstitution, instId, classAllocationsStore, subjects, courses, students]);
+    }, [currentInstitution, instId, classAllocationsStore, subjects, courses, resolvedStudents]);
 
     // Import Enrolled Class Subjects from Student Subject Enrollment Registry & Course Configurations
     const handleImportEnrolledSubjects = useCallback(() => {

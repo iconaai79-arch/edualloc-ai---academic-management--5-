@@ -661,6 +661,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             currentInstitution={currentInstitution}
                             subjects={subjects}
                             users={users}
+                            students={users ? users.filter(u => u.role === 'student') : []}
                             assessments={assessments}
                             marks={marks}
                             courses={courses}
