@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
+import { extractClassAndStream } from '../../utils/academicUtils';
 import { extractStreamOnly } from './BroadsheetReportView';
 import { PlusIcon } from '../icons/PlusIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
@@ -368,15 +369,34 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return {};
     });
 
+    // Persistent Class Subject Allocations Store (configured in Manage Subjects per Class Stream / Lessons & Allocation)
+    const [classAllocationsStore, setClassAllocationsStore] = useState<Record<string, string[]>>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') return parsed;
+            }
+        } catch (e) { }
+        return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
+    });
+
     // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
     useEffect(() => {
-        const handleSync = () => {
+        const handleSync = (e?: any) => {
             setSyncedVersion(prev => prev + 1);
             try {
                 const savedEx = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
                 if (savedEx) {
                     const parsed = JSON.parse(savedEx);
                     if (parsed && typeof parsed === 'object') setStudentSubjectExemptions(parsed);
+                }
+            } catch (e) { }
+            try {
+                const savedAlloc = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (savedAlloc) {
+                    const parsed = JSON.parse(savedAlloc);
+                    if (parsed && typeof parsed === 'object') setClassAllocationsStore(parsed);
                 }
             } catch (e) { }
         };
@@ -397,10 +417,243 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     }
                 })
                 .catch(() => { });
+
+            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
+                .then(records => {
+                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
+                    if (match && match.allocations) {
+                        setClassAllocationsStore(prev => {
+                            const merged = { ...match.allocations, ...prev };
+                            try {
+                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                            } catch (e) { }
+                            return merged;
+                        });
+                    }
+                })
+                .catch(() => { });
         }
     }, [currentInstitution]);
 
-    // Import Enrolled Class Subjects from Student Subject Enrollment Registry
+    // Authoritative resolver for registered subjects for any class stream
+    const getRegisteredSubjectsForClass = useCallback((targetClass: string): { subject: string; paperName?: string; maxScore?: number }[] => {
+        if (!targetClass || !targetClass.trim()) return [];
+        const cleanTC = targetClass.trim();
+        const tcLower = cleanTC.toLowerCase();
+        const parsedClass = extractClassAndStream(cleanTC);
+        const baseClass = parsedClass.className || cleanTC;
+        const baseClassLower = baseClass.toLowerCase().trim();
+        const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
+        const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const tcNorm = normalize(cleanTC);
+        const tcNoStreamNorm = normalize(tcNoStream);
+        const baseNorm = normalize(baseClass);
+
+        // 1. Saved Exam Papers Configurations (classExamConfigs)
+        let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
+        if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
+            try {
+                const savedLocalInst = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
+                if (savedLocalInst) {
+                    const parsed = JSON.parse(savedLocalInst);
+                    if (Array.isArray(parsed) && parsed.length > 0) savedConfigs = parsed;
+                }
+            } catch (e) { }
+        }
+
+        if (savedConfigs && Array.isArray(savedConfigs) && savedConfigs.length > 0) {
+            const matchedConfig = savedConfigs.find((c: any) => {
+                if (!c) return false;
+                const cName = (c.className || c.name || '').toLowerCase().trim();
+                const cId = (c.classId || c.id || '').toLowerCase().trim();
+                const cnNorm = normalize(cName);
+                const cIdNorm = normalize(cId);
+                return cName === tcLower || cName === tcNoStream || cName === baseClassLower ||
+                       cId === tcLower || cId === tcNoStream || cId === baseClassLower ||
+                       (cnNorm && cnNorm === tcNorm) || (cIdNorm && cIdNorm === tcNorm) ||
+                       (cnNorm && cnNorm === tcNoStreamNorm) || (cIdNorm && cIdNorm === tcNoStreamNorm) ||
+                       (cnNorm && cnNorm === baseNorm) || (cIdNorm && cIdNorm === baseNorm);
+            });
+            if (matchedConfig && Array.isArray(matchedConfig.subjects) && matchedConfig.subjects.length > 0) {
+                const results: { subject: string; paperName?: string; maxScore?: number }[] = [];
+                matchedConfig.subjects.forEach((s: any) => {
+                    const sName = s.subjectName || s.subjectId || s.name;
+                    if (!sName) return;
+                    if (Array.isArray(s.papers) && s.papers.length > 0) {
+                        s.papers.forEach((p: any) => {
+                            const pName = typeof p === 'string' ? p : (p.name || 'Paper 1');
+                            const max = typeof p === 'object' ? p.maxScore : 100;
+                            results.push({ subject: String(sName).trim(), paperName: String(pName), maxScore: max });
+                        });
+                    } else {
+                        results.push({ subject: String(sName).trim(), paperName: 'Paper 1', maxScore: 100 });
+                    }
+                });
+                if (results.length > 0) return results;
+            }
+        }
+
+        // 2. Class Subject Allocations Store (Manage Subjects per Class Stream / Lessons & Allocation)
+        const allocKeys = Object.keys(classAllocationsStore || {});
+        let allocatedIds: string[] = [];
+
+        // Exact matches first
+        if (Array.isArray(classAllocationsStore[cleanTC]) && classAllocationsStore[cleanTC].length > 0) {
+            allocatedIds = classAllocationsStore[cleanTC];
+        } else if (Array.isArray(classAllocationsStore[tcLower]) && classAllocationsStore[tcLower].length > 0) {
+            allocatedIds = classAllocationsStore[tcLower];
+        } else if (Array.isArray(classAllocationsStore[tcNoStream]) && classAllocationsStore[tcNoStream].length > 0) {
+            allocatedIds = classAllocationsStore[tcNoStream];
+        } else if (Array.isArray(classAllocationsStore[baseClass]) && classAllocationsStore[baseClass].length > 0) {
+            allocatedIds = classAllocationsStore[baseClass];
+        } else if (Array.isArray(classAllocationsStore[baseClassLower]) && classAllocationsStore[baseClassLower].length > 0) {
+            allocatedIds = classAllocationsStore[baseClassLower];
+        } else {
+            // Normalized search
+            const matchedKey = allocKeys.find(k => {
+                const kLower = k.toLowerCase().trim();
+                const kNorm = normalize(kLower);
+                return kLower === tcLower || kLower === tcNoStream || kLower === baseClassLower ||
+                       kNorm === tcNorm || kNorm === tcNoStreamNorm || kNorm === baseNorm;
+            });
+            if (matchedKey && Array.isArray(classAllocationsStore[matchedKey]) && classAllocationsStore[matchedKey].length > 0) {
+                allocatedIds = classAllocationsStore[matchedKey];
+            } else {
+                // If cleanTC is a grade (e.g. "Grade 9"), union stream allocations (e.g. "Grade 9 East", "Grade 9 West")
+                const streamKeys = allocKeys.filter(k => {
+                    const kNorm = normalize(k);
+                    return (tcNoStreamNorm.length > 2 && kNorm.startsWith(tcNoStreamNorm)) ||
+                           (baseNorm.length > 2 && kNorm.startsWith(baseNorm));
+                });
+                if (streamKeys.length > 0) {
+                    const set = new Set<string>();
+                    streamKeys.forEach(sk => {
+                        const arr = classAllocationsStore[sk];
+                        if (Array.isArray(arr)) arr.forEach(id => set.add(id));
+                    });
+                    allocatedIds = Array.from(set);
+                }
+            }
+        }
+
+        if (allocatedIds.length > 0) {
+            const allocSet = new Set(allocatedIds.map(id => String(id).toLowerCase().trim()));
+            const matchedSubjects = (subjects || []).filter(s => {
+                const sId = (s.id || '').toLowerCase().trim();
+                const sName = (s.name || '').toLowerCase().trim();
+                const sCode = (s.code || '').toLowerCase().trim();
+                return allocSet.has(sId) || allocSet.has(sName) || (sCode && allocSet.has(sCode));
+            });
+
+            if (matchedSubjects.length > 0) {
+                return matchedSubjects.map(s => ({
+                    subject: s.name || (s as any).title || 'Subject',
+                    paperName: 'Paper 1',
+                    maxScore: 100
+                }));
+            }
+        }
+
+        // 3. Courses curriculum levels
+        if (courses && Array.isArray(courses) && courses.length > 0) {
+            const courseIds = new Set<string>();
+            courses.forEach(c => {
+                if (Array.isArray(c.levels)) {
+                    c.levels.forEach((lvl: any) => {
+                        const lvlName = (lvl.name || c.name || '').toLowerCase().trim();
+                        const lvlNorm = normalize(lvlName);
+                        if (lvlName === tcLower || lvlName === tcNoStream || lvlName === baseClassLower ||
+                            lvlNorm === tcNorm || lvlNorm === tcNoStreamNorm || lvlNorm === baseNorm) {
+                            const ids = lvl.subjectIds || lvl.subject_ids || [];
+                            if (Array.isArray(ids)) ids.forEach((id: any) => courseIds.add(String(id).toLowerCase().trim()));
+                        }
+                    });
+                }
+            });
+            if (courseIds.size > 0) {
+                const matched = (subjects || []).filter(s => {
+                    const sId = (s.id || '').toLowerCase().trim();
+                    const sName = (s.name || '').toLowerCase().trim();
+                    const sCode = (s.code || '').toLowerCase().trim();
+                    return courseIds.has(sId) || courseIds.has(sName) || (sCode && courseIds.has(sCode));
+                });
+                if (matched.length > 0) {
+                    return matched.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1', maxScore: 100 }));
+                }
+            }
+        }
+
+        // 4. Student Enrollments / Students of this class
+        const classStudents = (students || []).filter((st: any) => {
+            const stCls = (st.class || st.studentClass || st.currentClass || '').toLowerCase().trim();
+            return stCls === tcLower || stCls === tcNoStream || stCls === baseClassLower ||
+                   normalize(stCls) === tcNorm || normalize(stCls) === tcNoStreamNorm || normalize(stCls) === baseNorm;
+        });
+        const enrolledIdsFromStudents = new Set<string>();
+        classStudents.forEach((st: any) => {
+            const eIds = st.enrolledSubjectIds || st.subjectIds || [];
+            if (Array.isArray(eIds)) eIds.forEach((id: any) => enrolledIdsFromStudents.add(String(id).toLowerCase().trim()));
+        });
+        if (enrolledIdsFromStudents.size > 0) {
+            const matched = (subjects || []).filter(s => {
+                const sId = (s.id || '').toLowerCase().trim();
+                const sName = (s.name || '').toLowerCase().trim();
+                const sCode = (s.code || '').toLowerCase().trim();
+                return enrolledIdsFromStudents.has(sId) || enrolledIdsFromStudents.has(sName) || (sCode && enrolledIdsFromStudents.has(sCode));
+            });
+            if (matched.length > 0) {
+                return matched.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1', maxScore: 100 }));
+            }
+        }
+
+        // 5. Explicit targetClasses on subjects
+        if (subjects && Array.isArray(subjects) && subjects.length > 0) {
+            const explicit = subjects.filter(s => {
+                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+                if (Array.isArray(targetCls) && targetCls.length > 0) {
+                    return targetCls.some((tc: string) => {
+                        const cleanC = (tc || '').toLowerCase().trim();
+                        return cleanC === tcLower || cleanC === tcNoStream || cleanC === baseClassLower ||
+                               normalize(cleanC) === tcNorm || normalize(cleanC) === tcNoStreamNorm || normalize(cleanC) === baseNorm;
+                    });
+                }
+                return false;
+            });
+            if (explicit.length > 0) {
+                return explicit.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1', maxScore: 100 }));
+            }
+        }
+
+        // 6. Filter subjects strictly applicable to this class
+        if (subjects && Array.isArray(subjects) && subjects.length > 0) {
+            const applicable = subjects.filter(s => isSubjectApplicableToClass({ name: s.name || (s as any).title, code: s.code }, cleanTC));
+            if (applicable.length > 0) {
+                return applicable.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1', maxScore: 100 }));
+            }
+        }
+
+        // 7. CBC Curriculum Standards per Level
+        const isPP = /\b(pp1|pp2|playgroup|nursery|kg)\b/i.test(cleanTC) || tcLower.includes('preprimary') || tcLower.includes('pre-primary');
+        const isLP = /\b(grade|std|class)\s*[1-3]\b/i.test(cleanTC) || tcLower.includes('lower primary');
+        const isUP = /\b(grade|std|class)\s*[4-6]\b/i.test(cleanTC) || tcLower.includes('upper primary');
+        const isJSS = /\b(grade|std|class)\s*[7-9]\b/i.test(cleanTC) || tcLower.includes('jss') || tcLower.includes('junior');
+
+        if (isPP) {
+            return ['Language Activities', 'Mathematical Activities', 'Environmental Activities', 'Psychomotor & Creative Activities', 'Religious Education Activities'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
+        }
+        if (isLP) {
+            return ['Mathematics Activities', 'English Language Activities', 'Kiswahili Language Activities', 'Environmental Activities', 'Hygiene & Nutrition Activities', 'Movement & Creative Activities', 'Religious Education Activities'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
+        }
+        if (isUP) {
+            return ['Mathematics', 'English', 'Kiswahili', 'Science & Technology', 'Social Studies', 'Agriculture & Nutrition', 'Creative Arts', 'Religious Education (CRE/IRE)', 'Physical & Health Education (PHE)'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
+        }
+        if (isJSS) {
+            return ['Mathematics', 'English', 'Kiswahili', 'Integrated Science', 'Social Studies', 'Pre-Technical & Computer Studies', 'Agriculture & Nutrition', 'Creative Arts & Sports', 'Religious Education (CRE/IRE)'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
+        }
+        return ['Mathematics', 'English', 'Kiswahili', 'Biology', 'Chemistry', 'Physics', 'History & Government', 'Geography'].map(s => ({ subject: s, paperName: 'Paper 1', maxScore: 100 }));
+    }, [currentInstitution, instId, classAllocationsStore, subjects, courses, students]);
+
+    // Import Enrolled Class Subjects from Student Subject Enrollment Registry & Course Configurations
     const handleImportEnrolledSubjects = useCallback(() => {
         const targetClasses = isAddExamModalOpen
             ? selectedClasses
@@ -411,48 +664,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
-        const enrolledSubjectsSet = new Set<string>();
-
-        // 1. Gather allocated class subjects
-        const activeClassAllocationsStore: Record<string, string[]> = (() => {
-            try {
-                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
-                if (saved) return JSON.parse(saved) || {};
-            } catch (e) { }
-            return (currentInstitution as any)?.classSubjectAllocations || {};
-        })();
-
+        const enrolledMap = new Map<string, { subject: string; paperName: string; maxScore: number }>();
         targetClasses.forEach(tc => {
-            const cleanTC = tc.trim();
-            const tcLower = cleanTC.toLowerCase();
-            const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower];
-
-            if (Array.isArray(storeEntry) && storeEntry.length > 0) {
-                storeEntry.forEach(sNameOrId => {
-                    const matchedSub = (subjects || []).find(s => s && (s.id === sNameOrId || (s.name && s.name.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim()) || (s.code && s.code.toLowerCase().trim() === String(sNameOrId).toLowerCase().trim())));
-                    if (matchedSub && matchedSub.name) {
-                        enrolledSubjectsSet.add(matchedSub.name);
-                    } else if (typeof sNameOrId === 'string' && sNameOrId.length > 1) {
-                        enrolledSubjectsSet.add(sNameOrId);
-                    }
-                });
-            } else if (subjects && subjects.length > 0) {
-                const applicable = subjects.filter(s => s && isSubjectApplicableToClass({ name: s.name || '', code: s.code || '' }, tc));
-                applicable.forEach(s => {
-                    if (s && s.name) enrolledSubjectsSet.add(s.name);
-                });
-            }
+            const classSubjects = getRegisteredSubjectsForClass(tc);
+            classSubjects.forEach(cs => {
+                const key = `${cs.subject.toLowerCase().trim()}__${(cs.paperName || 'Paper 1').toLowerCase().trim()}`;
+                if (!enrolledMap.has(key)) {
+                    enrolledMap.set(key, {
+                        subject: cs.subject,
+                        paperName: cs.paperName || 'Paper 1',
+                        maxScore: cs.maxScore || 100
+                    });
+                }
+            });
         });
 
-        if (enrolledSubjectsSet.size === 0) {
-            ['Mathematics', 'English', 'Kiswahili', 'Integrated Science', 'Social Studies', 'Religious Education'].forEach(s => enrolledSubjectsSet.add(s));
-        }
-
-        const importedPapers: TestedPaperConfig[] = Array.from(enrolledSubjectsSet).map((subName, idx) => ({
-            id: `enr_tp_${subName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${idx}`,
-            subject: subName,
-            paperName: 'Paper 1',
-            maxInputScore: 100,
+        const importedPapers: TestedPaperConfig[] = Array.from(enrolledMap.values()).map((item, idx) => ({
+            id: `enr_tp_${item.subject.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${idx}`,
+            subject: item.subject,
+            paperName: item.paperName,
+            maxInputScore: item.maxScore,
             convertToHundred: true,
             enabled: true
         }));
@@ -461,12 +692,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setTestedPaperConfigs(deduplicated);
 
         try {
-            localStorage.setItem(`eduai_tested_papers_${instId}`, JSON.stringify(deduplicated));
+            if (activeExam?.id) {
+                localStorage.setItem(`eduai_tested_papers_${instId}_${activeExam.id}`, JSON.stringify(deduplicated));
+            }
         } catch (e) { }
 
-        setSaveToastMessage(`Imported ${deduplicated.length} enrolled subject(s) from Student Registry`);
+        setSaveToastMessage(`✨ Loaded ${deduplicated.length} registered subject(s) for ${targetClasses.join(', ')}`);
         setTimeout(() => setSaveToastMessage(null), 3000);
-    }, [isAddExamModalOpen, selectedClasses, activeExam, selectedClassFilter, instId, currentInstitution, subjects, deduplicatePapers]);
+    }, [isAddExamModalOpen, selectedClasses, activeExam, selectedClassFilter, instId, getRegisteredSubjectsForClass, deduplicatePapers]);
 
     // Sync tested paper configurations ALWAYS matching Manage Subjects per Class Stream (Lessons & Allocation)
     useEffect(() => {
@@ -479,8 +712,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
 
-        // 0. Retrieve any previously saved tested paper configs for this exam or institution
+        // 0. Retrieve any previously saved tested paper configs for this specific exam
         const existingExamPapers: TestedPaperConfig[] | null = (() => {
+            // When adding a new exam, never inherit papers from old exams or global storage
+            if (isAddExamModalOpen && !isEditingExam) {
+                return null;
+            }
             if (activeExam?.testedPaperConfigs && Array.isArray(activeExam.testedPaperConfigs) && activeExam.testedPaperConfigs.length > 0) {
                 return activeExam.testedPaperConfigs;
             }
@@ -492,319 +729,85 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
                     }
                 }
-                const globalSaved = localStorage.getItem(`eduai_tested_papers_${instId}`);
-                if (globalSaved) {
-                    const parsed = JSON.parse(globalSaved);
-                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-                }
             } catch (e) { }
             return null;
         })();
 
-        const getExistingConfig = (subName: string, paperName?: string) => {
-            if (!existingExamPapers || !Array.isArray(existingExamPapers) || existingExamPapers.length === 0) return null;
-            const sNorm = subName.trim().toLowerCase();
-            const pNorm = (paperName || 'Paper 1').trim().toLowerCase();
-            return existingExamPapers.find((p: TestedPaperConfig) => 
-                p.subject.trim().toLowerCase() === sNorm && 
-                (p.paperName || 'Paper 1').trim().toLowerCase() === pNorm
-            ) || existingExamPapers.find((p: TestedPaperConfig) => 
-                p.subject.trim().toLowerCase() === sNorm
-            );
-        };
-
-        const applyExistingConfigs = (list: TestedPaperConfig[]) => {
-            const mapped = list.map(item => {
-                const existing = getExistingConfig(item.subject, item.paperName);
-                if (existing) {
-                    return {
-                        ...item,
-                        id: existing.id || item.id,
-                        maxInputScore: existing.maxInputScore ?? item.maxInputScore,
-                        convertToHundred: existing.convertToHundred ?? item.convertToHundred,
-                        enabled: existing.enabled
-                    };
-                }
-                return item;
-            });
-
-            if (existingExamPapers && Array.isArray(existingExamPapers)) {
-                existingExamPapers.forEach(p => {
-                    const already = mapped.some(m => 
-                        m.subject.trim().toLowerCase() === p.subject.trim().toLowerCase() &&
-                        (m.paperName || 'Paper 1').trim().toLowerCase() === (p.paperName || 'Paper 1').trim().toLowerCase()
-                    );
-                    if (!already) {
-                        mapped.push(p);
-                    }
-                });
-            }
-
-            return deduplicatePapers(mapped);
-        };
-
-        // 1. Exam Papers Settings Configurations (currentInstitution.classExamConfigs / class_exam_configs)
-        let savedConfigs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
-        if (!savedConfigs || !Array.isArray(savedConfigs) || savedConfigs.length === 0) {
-            try {
-                const savedLocalInst = localStorage.getItem(`eduai_class_exam_configs_${instId}`);
-                if (savedLocalInst) {
-                    const parsed = JSON.parse(savedLocalInst);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        savedConfigs = parsed;
-                    }
-                }
-            } catch (e) { }
-        }
-
-        // 2. PRIMARY Authority: Persistent Per-Class Allocations Store (configured in Manage Subjects per Class Stream / Lessons & Allocation)
-        const activeClassAllocationsStore: Record<string, string[]> = (() => {
-            try {
-                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
-                if (saved) return JSON.parse(saved) || {};
-            } catch (e) { }
-            return (currentInstitution as any)?.classSubjectAllocations || {};
-        })();
-
-        if (targetClasses.length > 0) {
-            const allocatedSubjectIds = new Set<string>();
-            let hasClassStoreEntry = false;
-
-            targetClasses.forEach(tc => {
-                const cleanTC = tc.trim();
-                const tcLower = cleanTC.toLowerCase();
-                const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
-
-                const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
-                if (Array.isArray(storeEntry) && storeEntry.length > 0) {
-                    hasClassStoreEntry = true;
-                    storeEntry.forEach(id => allocatedSubjectIds.add(String(id).toLowerCase().trim()));
-                }
-            });
-
-            if (hasClassStoreEntry) {
-                if (allocatedSubjectIds.size === 0) {
-                    setTestedPaperConfigs([]);
-                    return;
-                }
-
-                // Filter subjects matching allocated IDs / names from Lessons & Allocation
-                const matchedSubjects = subjects.filter(s => {
-                    const sId = (s.id || '').toLowerCase().trim();
-                    const sName = (s.name || '').toLowerCase().trim();
-                    const sCode = (s.code || '').toLowerCase().trim();
-                    return allocatedSubjectIds.has(sId) || allocatedSubjectIds.has(sName) || (sCode && allocatedSubjectIds.has(sCode));
-                });
-
-                if (matchedSubjects.length > 0) {
-                    const paperList: TestedPaperConfig[] = [];
-                    matchedSubjects.forEach((sub, idx) => {
-                        if (!sub) return;
-                        const subName = sub.name || '';
-                        const subCode = sub.code || '';
-                        const subConfig = (savedConfigs || []).flatMap((c: any) => c.subjects || []).find((s: any) => 
-                            (s && s.subjectId && s.subjectId === sub.id) || 
-                            (s && s.subjectName && subName && s.subjectName.toLowerCase().trim() === subName.toLowerCase().trim()) || 
-                            (s && s.subjectCode && subCode && s.subjectCode.toLowerCase().trim() === subCode.toLowerCase().trim())
-                        );
-
-                        if (subConfig && Array.isArray(subConfig.papers) && subConfig.papers.length > 0) {
-                            subConfig.papers.forEach((p: any, pIdx: number) => {
-                                paperList.push({
-                                    id: `alloc_tp_${sub.id}_${p.id || pIdx}`,
-                                    subject: sub.name,
-                                    paperName: p.name || (subConfig.papers.length > 1 ? `Paper ${pIdx + 1}` : 'Paper 1'),
-                                    maxInputScore: p.maxScore || 100,
-                                    convertToHundred: true,
-                                    enabled: true
-                                });
-                            });
-                        } else if ((sub as any).papers && Array.isArray((sub as any).papers) && (sub as any).papers.length > 0) {
-                            (sub as any).papers.forEach((p: any, pIdx: number) => {
-                                paperList.push({
-                                    id: `alloc_tp_${sub.id}_${p.id || pIdx}`,
-                                    subject: sub.name,
-                                    paperName: p.name || `Paper ${pIdx + 1}`,
-                                    maxInputScore: p.maxScore || 100,
-                                    convertToHundred: true,
-                                    enabled: true
-                                });
-                            });
-                        } else {
-                            paperList.push({
-                                id: `alloc_tp_${sub.id}_0`,
-                                subject: sub.name,
-                                paperName: 'Paper 1',
-                                maxInputScore: 100,
-                                convertToHundred: true,
-                                enabled: true
-                            });
-                        }
+        // 1. Gather all registered subjects across sitting classes
+        const registeredMap = new Map<string, { subject: string; paperName: string; maxScore: number }>();
+        targetClasses.forEach(tc => {
+            const classItems = getRegisteredSubjectsForClass(tc);
+            classItems.forEach(ci => {
+                const key = `${ci.subject.toLowerCase().trim()}__${(ci.paperName || 'Paper 1').toLowerCase().trim()}`;
+                if (!registeredMap.has(key)) {
+                    registeredMap.set(key, {
+                        subject: ci.subject,
+                        paperName: ci.paperName || 'Paper 1',
+                        maxScore: ci.maxScore || 100
                     });
-                    setTestedPaperConfigs(applyExistingConfigs(paperList));
-                    return;
                 }
-            }
+            });
+        });
+
+        const registeredPaperList: TestedPaperConfig[] = Array.from(registeredMap.values()).map((item, idx) => ({
+            id: `tp_${item.subject.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${idx}`,
+            subject: item.subject,
+            paperName: item.paperName,
+            maxInputScore: item.maxScore,
+            convertToHundred: true,
+            enabled: true
+        }));
+
+        if (!existingExamPapers || existingExamPapers.length === 0) {
+            setTestedPaperConfigs(deduplicatePapers(registeredPaperList));
+            return;
         }
 
-        const matchClassConfig = (c: any, targets: string[]) => {
-            if (!c) return false;
-            const cName = (c.className || c.name || '').toLowerCase().trim();
-            const rawClassId = (c.classId || c.id || '').toLowerCase().trim();
-            const cIdClean = rawClassId.replace(/^cls_/, '').replace(/_/g, ' ');
+        // 2. If existing exam papers exist, inherit user customizations (maxScore, convertToHundred, enabled)
+        // for subjects that are registered for the sitting classes!
+        const existingMap = new Map<string, TestedPaperConfig>();
+        existingExamPapers.forEach(p => {
+            if (!p || !p.subject) return;
+            const key = `${p.subject.toLowerCase().trim()}__${(p.paperName || 'Paper 1').toLowerCase().trim()}`;
+            existingMap.set(key, p);
+            if (!existingMap.has(p.subject.toLowerCase().trim())) {
+                existingMap.set(p.subject.toLowerCase().trim(), p);
+            }
+        });
 
-            const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const merged: TestedPaperConfig[] = registeredPaperList.map(item => {
+            const key = `${item.subject.toLowerCase().trim()}__${(item.paperName || 'Paper 1').toLowerCase().trim()}`;
+            const existing = existingMap.get(key) || existingMap.get(item.subject.toLowerCase().trim());
+            if (existing) {
+                return {
+                    ...item,
+                    id: existing.id || item.id,
+                    maxInputScore: existing.maxInputScore ?? item.maxInputScore,
+                    convertToHundred: existing.convertToHundred ?? item.convertToHundred,
+                    enabled: existing.enabled
+                };
+            }
+            return item;
+        });
 
-            const cnNorm = normalize(cName);
-            const cIdNorm = normalize(cIdClean);
-
-            return targets.some(tc => {
-                if (!tc) return false;
-                const tcClean = tc.toLowerCase().trim();
-                const tcNorm = normalize(tcClean);
-                const tcNoStream = tcClean.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim();
-                const tcNoStreamNorm = normalize(tcNoStream);
-
-                if (tcClean === cName || tcClean === cIdClean) return true;
-                if (tcNorm === cnNorm || tcNorm === cIdNorm) return true;
-                if (tcNoStreamNorm && (tcNoStreamNorm === cnNorm || tcNoStreamNorm === cIdNorm)) return true;
-
-                if (cnNorm && tcNorm.startsWith(cnNorm)) return true;
-                if (cIdNorm && tcNorm.startsWith(cIdNorm)) return true;
-                if (cnNorm && cnNorm.startsWith(tcNoStreamNorm)) return true;
-                if (cIdNorm && cIdNorm.startsWith(tcNoStreamNorm)) return true;
-
-                const isPg = (str: string) => str.includes('pg') || str.includes('playgroup') || str.includes('play');
-                if ((isPg(tcNorm) || isPg(tcNoStreamNorm)) && (isPg(cnNorm) || isPg(cIdNorm))) return true;
-
-                const isPp1 = (str: string) => /\bpp\s*1\b/i.test(str) || str.includes('pp1') || str.includes('preprimary1');
-                if ((isPp1(tcNorm) || isPp1(tcNoStreamNorm)) && (isPp1(cnNorm) || isPp1(cIdNorm))) return true;
-
-                const isPp2 = (str: string) => /\bpp\s*2\b/i.test(str) || str.includes('pp2') || str.includes('preprimary2');
-                if ((isPp2(tcNorm) || isPp2(tcNoStreamNorm)) && (isPp2(cnNorm) || isPp2(cIdNorm))) return true;
-
-                return false;
-            });
-        };
-
-        if (savedConfigs && Array.isArray(savedConfigs) && savedConfigs.length > 0) {
-            const paperList: TestedPaperConfig[] = [];
-            const seenKey = new Set<string>();
-
-            const activeConfigs = (targetClasses && targetClasses.length > 0)
-                ? savedConfigs.filter(c => matchClassConfig(c, targetClasses))
-                : [];
-
-            if (activeConfigs.length > 0) {
-                activeConfigs.forEach(cConfig => {
-                    if (!cConfig) return;
-                    if (cConfig.subjects && Array.isArray(cConfig.subjects)) {
-                        cConfig.subjects.forEach((sConfig: any) => {
-                            if (!sConfig) return;
-                            const sName = sConfig.subjectName || sConfig.subjectId || sConfig.name;
-                            if (!sName || typeof sName !== 'string') return;
-                            if (sConfig.papers && Array.isArray(sConfig.papers)) {
-                                sConfig.papers.forEach((p: any) => {
-                                    if (!p) return;
-                                    const pName = typeof p === 'string' ? p : (p.name || 'Paper 1');
-                                    const key = `${sName.trim().toLowerCase()}__${String(pName).trim().toLowerCase()}`;
-                                    if (!seenKey.has(key)) {
-                                        seenKey.add(key);
-                                        paperList.push({
-                                            id: (typeof p === 'object' && p?.id) ? p.id : `tp_${sName.trim()}_${pName}`,
-                                            subject: sName.trim(),
-                                            paperName: String(pName),
-                                            maxInputScore: (typeof p === 'object' && p?.maxScore !== undefined) ? p.maxScore : 100,
-                                            convertToHundred: true,
-                                            enabled: true
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                    }
-                });
-
-                if (paperList.length > 0) {
-                    setTestedPaperConfigs(applyExistingConfigs(paperList));
-                    return;
+        // When editing an existing exam, also preserve any custom user-added papers if applicable
+        if (isEditingExam) {
+            existingExamPapers.forEach(p => {
+                if (!p || !p.subject) return;
+                const isApplicable = targetClasses.some(tc => isSubjectApplicableToClass({ name: p.subject }, tc));
+                if (!isApplicable) return;
+                const already = merged.some(m =>
+                    m.subject.trim().toLowerCase() === p.subject.trim().toLowerCase() &&
+                    (m.paperName || 'Paper 1').trim().toLowerCase() === (p.paperName || 'Paper 1').trim().toLowerCase()
+                );
+                if (!already) {
+                    merged.push(p);
                 }
-            }
-        }
-
-        // 2. Secondary Source: Generate paper components from subjects prop, filtered by class applicability
-        if (subjects && Array.isArray(subjects) && subjects.length > 0) {
-            const applicableSubjects = subjects.filter(sub => {
-                if (!sub) return false;
-                const subName = sub.name || (sub as any).title || '';
-                const subCode = sub.code || '';
-                return targetClasses.some(tc => isSubjectApplicableToClass({ name: subName, code: subCode }, tc));
             });
-
-            if (applicableSubjects.length > 0) {
-                const paperList: TestedPaperConfig[] = applicableSubjects.map((sub, idx) => ({
-                    id: `sub_tp_${sub?.id || idx}`,
-                    subject: sub?.name || (sub as any)?.title || 'Subject',
-                    paperName: 'Paper 1',
-                    maxInputScore: 100,
-                    convertToHundred: true,
-                    enabled: true
-                }));
-                setTestedPaperConfigs(applyExistingConfigs(paperList));
-                return;
-            }
         }
 
-        // 3. Default fallback: Primary vs Secondary curriculum defaults based on target class level
-        const hasPrePrimaryTarget = targetClasses.some(tc => /\b(pp1|pp2|playgroup|nursery|kg)\b/i.test(tc) || tc.toLowerCase().includes('pp1') || tc.toLowerCase().includes('pp2') || tc.toLowerCase().includes('preprimary') || tc.toLowerCase().includes('pre-primary'));
-        const hasLowerPrimaryTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[1-3]\b/i.test(tc) || tc.toLowerCase().includes('lower primary') || tc.toLowerCase().includes('grade 1') || tc.toLowerCase().includes('grade 2') || tc.toLowerCase().includes('grade 3'));
-        const hasUpperPrimaryTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[4-6]\b/i.test(tc) || tc.toLowerCase().includes('upper primary'));
-        const hasJSSTarget = targetClasses.some(tc => /\b(grade|std|standard|class)\s*[7-9]\b/i.test(tc) || tc.toLowerCase().includes('jss') || tc.toLowerCase().includes('junior'));
-
-        if (hasPrePrimaryTarget) {
-            setTestedPaperConfigs(applyExistingConfigs([
-                { id: 'cbe_pp_1', subject: 'Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_pp_2', subject: 'Mathematical Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_pp_3', subject: 'Environmental Activities', paperName: 'Paper 1 (Environment & Nature)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_pp_4', subject: 'Psychomotor & Creative Activities', paperName: 'Paper 1 (Art, Craft & Play)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_pp_5', subject: 'Religious Education Activities', paperName: 'Paper 1 (Spiritual & Values)', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]));
-        } else if (hasLowerPrimaryTarget) {
-            setTestedPaperConfigs(applyExistingConfigs([
-                { id: 'cbe_lp_1', subject: 'Mathematics Activities', paperName: 'Paper 1 (Numeracy & Logic)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_lp_2', subject: 'English Language Activities', paperName: 'Paper 1 (Language & Literacy)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_lp_3', subject: 'Kiswahili Language Activities', paperName: 'Karatasi ya 1 (Lugha na Kusoma)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_lp_4', subject: 'Environmental Activities', paperName: 'Paper 1 (Environment & Nature)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_lp_5', subject: 'Hygiene & Nutrition Activities', paperName: 'Paper 1 (Health & Hygiene)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_lp_6', subject: 'Movement & Creative Activities', paperName: 'Paper 1 (Art, Craft & PE)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_lp_7', subject: 'Religious Education Activities', paperName: 'Paper 1 (CRE / IRE / HRE)', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]));
-        } else if (hasUpperPrimaryTarget || isPrimarySchool) {
-            setTestedPaperConfigs(applyExistingConfigs([
-                { id: 'cbe_up_1', subject: 'Mathematics', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_2', subject: 'English', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_3', subject: 'Kiswahili', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_4', subject: 'Science & Technology', paperName: 'Paper 1 (Theory & Practical)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_5', subject: 'Social Studies', paperName: 'Paper 1 (Citizenship & Society)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_6', subject: 'Agriculture & Nutrition', paperName: 'Paper 1 (Farming & Home Science)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_7', subject: 'Creative Arts', paperName: 'Paper 1 (Art, Craft & Music)', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_8', subject: 'Religious Education (CRE/IRE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'cbe_up_9', subject: 'Physical & Health Education (PHE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]));
-        } else if (hasJSSTarget) {
-            setTestedPaperConfigs(applyExistingConfigs([
-                { id: 'jss_1', subject: 'Mathematics', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_2', subject: 'English', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_3', subject: 'Kiswahili', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_4', subject: 'Integrated Science', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_5', subject: 'Social Studies', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_6', subject: 'Pre-Technical & Computer Studies', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_7', subject: 'Agriculture & Nutrition', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_8', subject: 'Creative Arts & Sports', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true },
-                { id: 'jss_9', subject: 'Religious Education (CRE/IRE)', paperName: 'Paper 1', maxInputScore: 100, convertToHundred: true, enabled: true }
-            ]));
-        }
-    }, [currentInstitution, subjects, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam?.id, activeExam?.classes, isAddExamModalOpen, syncedVersion]);
+        setTestedPaperConfigs(deduplicatePapers(merged));
+    }, [currentInstitution, subjects, courses, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam?.id, activeExam?.classes, isAddExamModalOpen, isEditingExam, syncedVersion, getRegisteredSubjectsForClass, deduplicatePapers]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
     const [customRankingCriteria, setCustomRankingCriteria] = useState<'Points' | 'Total Marks' | 'Mean Score'>('Points');
@@ -2407,78 +2410,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             const classEnrollment = targetStudents.length;
 
-            // Source A: Exact configured papers for cName in Exam Papers Settings (savedConfigs)
-            const cConfig = (savedConfigs && Array.isArray(savedConfigs))
-                ? savedConfigs.find(c => {
-                    if (!c) return false;
-                    const cn = (c.className || c.name || '').toLowerCase().trim();
-                    const cid = (c.classId || c.id || '').toLowerCase().trim();
-                    return cn === tcLower || cn === tcNoStream || cid === tcLower || cid === tcNoStream || tcLower.startsWith(cn);
-                })
-                : null;
+            // Resolve strictly registered subjects for this specific class
+            const registeredItems = getRegisteredSubjectsForClass(cName);
+            const regSubjectNormSet = new Set(registeredItems.map(r => r.subject.toLowerCase().trim()));
+            const regPaperKeySet = new Set(registeredItems.map(r => `${r.subject.toLowerCase().trim()}__${(r.paperName || 'Paper 1').toLowerCase().trim()}`));
 
             let classPaperItems: { subject: string; paperName: string }[] = [];
 
-            if (cConfig && cConfig.subjects && Array.isArray(cConfig.subjects) && cConfig.subjects.length > 0) {
-                cConfig.subjects.forEach((sConfig: any) => {
-                    const sName = sConfig.subjectName || sConfig.subjectId || sConfig.name;
-                    if (!sName) return;
-                    if (sConfig.papers && Array.isArray(sConfig.papers) && sConfig.papers.length > 0) {
-                        sConfig.papers.forEach((p: any) => {
-                            const pName = typeof p === 'string' ? p : (p.name || 'Paper 1');
-                            classPaperItems.push({ subject: String(sName).trim(), paperName: String(pName) });
-                        });
-                    } else {
-                        classPaperItems.push({ subject: String(sName).trim(), paperName: 'Paper 1' });
-                    }
-                });
-            }
-
-            // Source B: Ground Truth Manage Subjects per Class Stream (classAllocationsStore)
-            if (classPaperItems.length === 0) {
-                const storeEntry = activeClassAllocationsStore[cleanTC] ?? activeClassAllocationsStore[tcLower] ?? activeClassAllocationsStore[tcNoStream];
-                if (Array.isArray(storeEntry) && storeEntry.length > 0) {
-                    const allocatedSet = new Set(storeEntry.map(id => String(id).toLowerCase().trim()));
-                    const matched = subjects.filter(s => {
-                        const sId = (s.id || '').toLowerCase().trim();
-                        const sName = (s.name || '').toLowerCase().trim();
-                        const sCode = (s.code || '').toLowerCase().trim();
-                        return allocatedSet.has(sId) || allocatedSet.has(sName) || (sCode && allocatedSet.has(sCode));
-                    });
-
-                    if (matched.length > 0) {
-                        classPaperItems = matched.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1' }));
-                    }
-                }
-            }
-
-            // Source C: Fallback to testedPaperConfigs or subjects matching cName level
-            if (classPaperItems.length === 0) {
-                const activeSubjects = testedPaperConfigs.filter(p => p.enabled);
-                if (activeSubjects.length > 0) {
-                    classPaperItems = activeSubjects.map(p => ({ subject: p.subject, paperName: p.paperName }));
-                } else if (subjects && subjects.length > 0) {
-                    const filtered = subjects.filter(s => isSubjectApplicableToClass({ name: s.name || (s as any).title, code: s.code }, cName));
-                    const targetList = filtered.length > 0 ? filtered : subjects;
-                    classPaperItems = targetList.map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1' }));
-                }
-            }
-
-            // Ground Truth: If testedPaperConfigs has configured papers, filter classPaperItems so only ENABLED papers/subjects remain
             const activeEnabledPapers = testedPaperConfigs.filter(p => p && p.enabled);
-            if (activeEnabledPapers.length > 0) {
-                const enabledSubjectSet = new Set(activeEnabledPapers.map(p => p.subject.toLowerCase().trim()));
-                const enabledPaperKeySet = new Set(activeEnabledPapers.map(p => `${p.subject.toLowerCase().trim()}__${(p.paperName || 'Paper 1').toLowerCase().trim()}`));
-
-                if (classPaperItems.length > 0) {
-                    const filtered = classPaperItems.filter(item => {
-                        const key = `${item.subject.toLowerCase().trim()}__${(item.paperName || 'Paper 1').toLowerCase().trim()}`;
-                        return enabledPaperKeySet.has(key) || enabledSubjectSet.has(item.subject.toLowerCase().trim());
-                    });
-                    if (filtered.length > 0) {
-                        classPaperItems = filtered;
-                    }
-                }
+            if (registeredItems.length > 0) {
+                const matchedActive = activeEnabledPapers.filter(p => {
+                    const subKey = p.subject.toLowerCase().trim();
+                    const paperKey = `${subKey}__${(p.paperName || 'Paper 1').toLowerCase().trim()}`;
+                    return regPaperKeySet.has(paperKey) || regSubjectNormSet.has(subKey);
+                });
+                classPaperItems = matchedActive.length > 0
+                    ? matchedActive.map(p => ({ subject: p.subject, paperName: p.paperName || 'Paper 1' }))
+                    : registeredItems.map(r => ({ subject: r.subject, paperName: r.paperName || 'Paper 1' }));
+            } else {
+                const matchedActive = activeEnabledPapers.filter(p => isSubjectApplicableToClass({ name: p.subject }, cName));
+                classPaperItems = matchedActive.length > 0
+                    ? matchedActive.map(p => ({ subject: p.subject, paperName: p.paperName || 'Paper 1' }))
+                    : (subjects || []).filter(s => isSubjectApplicableToClass({ name: s.name || (s as any).title, code: s.code }, cName)).map(s => ({ subject: s.name || (s as any).title, paperName: 'Paper 1' }));
             }
 
             const papers = classPaperItems.map((item, sIdx) => {
@@ -2526,7 +2479,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 papers
             };
         });
-    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore]);
+    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass]);
 
     const displayClassPaperRows = useMemo(() => {
         if (!dashboardGradeFilter || dashboardGradeFilter === 'all') return classPaperRows;
@@ -4202,7 +4155,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
                             <div>
                                 <h4 className="font-bold text-sm text-slate-800 dark:text-white uppercase">Papers to Test & Max Input Score</h4>
-                                <p className="text-[10px] text-slate-400 font-medium">Configure maximum raw input marks per paper (e.g. Math Paper 1: 30 marks) & auto-conversion to 100%.</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                    Target Classes: <span className="font-bold text-blue-600 dark:text-blue-400">{(isAddExamModalOpen ? selectedClasses : (activeExam?.classes && activeExam.classes.length > 0 ? activeExam.classes : [selectedClassFilter])).join(', ') || 'All Sitting Classes'}</span> • Papers strictly match registered subjects.
+                                </p>
                             </div>
                             <button onClick={() => setIsPapersModalOpen(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><XIcon className="w-5 h-5" /></button>
                         </div>
