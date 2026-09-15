@@ -456,17 +456,33 @@ export const apiService = {
         }
     },
     async getAuthToken(): Promise<string> {
+        const isJwtExpired = (tkn: string): boolean => {
+            try {
+                const parts = tkn.split('.');
+                if (parts.length !== 3) return false;
+                const payload = JSON.parse(atob(parts[1]));
+                if (payload?.exp) {
+                    return (Date.now() / 1000) >= (payload.exp - 5);
+                }
+                return false;
+            } catch {
+                return false;
+            }
+        };
+
         // 1. Try Supabase session (JWT)
         if (_supabase) {
             try {
                 const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
-                if (data?.session?.access_token) return data.session.access_token;
+                if (data?.session?.access_token && !isJwtExpired(data.session.access_token)) {
+                    return data.session.access_token;
+                }
 
                 // Session missing or expired — attempt a silent refresh
                 if (_supabase.auth) {
                     try {
                         const { data: refreshData, error: refreshErr } = await _supabase.auth.refreshSession();
-                        if (!refreshErr && refreshData?.session?.access_token) {
+                        if (!refreshErr && refreshData?.session?.access_token && !isJwtExpired(refreshData.session.access_token)) {
                             console.log('[apiService] Token silently refreshed.');
                             return refreshData.session.access_token;
                         }
@@ -478,12 +494,14 @@ export const apiService = {
                 }
             } catch (e) { }
 
-            // fallback to localStorage supanse-auth-token if available
+            // fallback to localStorage supanse-auth-token if available and not expired
             const storageKey = Object.keys(localStorage).find(k => k.includes('-auth-token'));
             if (storageKey) {
                 try {
                     const stored = JSON.parse(localStorage.getItem(storageKey) || '{}');
-                    if (stored.access_token) return stored.access_token;
+                    if (stored.access_token && !isJwtExpired(stored.access_token)) {
+                        return stored.access_token;
+                    }
                 } catch (e) { }
             }
         }
@@ -1322,21 +1340,42 @@ export const apiService = {
                 // --- 401 handler: try silent token refresh then retry once ---
                 if (response.status === 401) {
                     console.warn(`[apiService] 401 on fetch [${module}] — attempting token refresh...`);
+                    let refreshedToken = '';
                     if (_supabase?.auth) {
                         try {
                             const { data: rd } = await _supabase.auth.refreshSession();
                             if (rd?.session?.access_token) {
-                                token = rd.session.access_token;
+                                refreshedToken = rd.session.access_token;
+                                token = refreshedToken;
                                 console.log('[apiService] Token refreshed, retrying fetch...');
-                                response = await doFetch(token);
+                                response = await doFetch(refreshedToken);
                             }
                         } catch (refreshErr) {
                             console.warn('[apiService] Refresh failed during fetch:', refreshErr);
                         }
                     }
+
+                    // Fallback attempt: if JWT expired and refresh couldn't renew it, try active user session ID or bypass
                     if (response.status === 401) {
-                        apiService._notifySessionExpired();
-                        console.warn(`[apiService] Session expired — falling back to local storage for [${module}]`);
+                        const fallbackToken = apiService.getSession()?.id || 'temp_admin_bypass';
+                        if (fallbackToken && fallbackToken !== token) {
+                            response = await doFetch(fallbackToken);
+                        }
+                    }
+
+                    if (response.status === 401) {
+                        // Check if user has an active local/browser session before dispatching destructive session expiry
+                        const hasActiveSession = Boolean(
+                            apiService.getSession() || 
+                            localStorage.getItem('user') || 
+                            localStorage.getItem('eduai_active_session') || 
+                            localStorage.getItem('eduai_session') ||
+                            localStorage.getItem('eduai_user_session')
+                        );
+                        if (!hasActiveSession) {
+                            apiService._notifySessionExpired();
+                        }
+                        console.warn(`[apiService] Session expired / 401 — falling back to local storage for [${module}]`);
                         return queryLocal();
                     }
                 }

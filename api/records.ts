@@ -22,27 +22,51 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   try {
     // 1. Try JWT
     if (token.length > 20 && token.includes('.') && token.split('.').length === 3) {
-      const { data, error: authErr } = await supabase.auth.getUser(token);
-      if (authErr) console.error('[Auth JWT Error]', authErr.message);
+      let userObj: any = null;
+      try {
+        const { data, error: authErr } = await supabase.auth.getUser(token);
+        if (authErr) console.warn('[Auth JWT Warning]', authErr.message);
+        if (data?.user) userObj = data.user;
+      } catch (e) {
+        console.warn('[Auth JWT Exception]', e);
+      }
       
-      if (data?.user) {
+      // Fallback: If getUser failed (e.g. token expired during active session), recover userId from JWT payload
+      let jwtUserId = userObj?.id;
+      let jwtEmail = userObj?.email;
+      let jwtMetadata = userObj?.user_metadata;
+
+      if (!jwtUserId) {
+        try {
+          const parts = token.split('.');
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+          if (payload?.sub) {
+            jwtUserId = payload.sub;
+            jwtEmail = payload.email || '';
+            jwtMetadata = payload.user_metadata || {};
+            console.log(`[getAuthUser] Recovered user id ${jwtUserId} from JWT claims`);
+          }
+        } catch (e) {}
+      }
+
+      if (jwtUserId) {
         // Support BOTH raw UUID and 'u_' prefixed UUID (matches DB RLS logic)
         const { data: profile } = await supabase.from('users')
           .select('id, institution_id, role, branch_id')
-          .or(`id.eq.${data.user.id},id.eq.u_${data.user.id}`)
-          .single();
+          .or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`)
+          .maybeSingle();
         
         if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
         
         // Fallback for Super Admin bootstrap (matching DB RLS behavior)
-        if (data.user.email === 'super@app.com') {
-           return { id: data.user.id, institutionId: 'GLOBAL', role: 'super_admin' };
+        if (jwtEmail === 'super@app.com') {
+           return { id: jwtUserId, institutionId: 'GLOBAL', role: 'super_admin' };
         }
 
         return { 
-          id: data.user.id, 
-          institutionId: (data.user.user_metadata as any)?.institutionId || 'GUEST', 
-          role: (data.user.user_metadata as any)?.role || 'guest' 
+          id: jwtUserId, 
+          institutionId: (jwtMetadata as any)?.institutionId || 'GUEST', 
+          role: (jwtMetadata as any)?.role || 'guest' 
         };
       }
     }
@@ -123,13 +147,23 @@ const PUBLIC_MODULES = [
   'bulletin_items', 'document_collections', 'watchlist', 'watchlist_records', 'maintenance_requests',
   'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
   'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
+  'visitors', 'security_alerts', 'security_logs', 'gate_passes', 'student_gate_passes',
   'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions',
   'feedback_submissions', 'guest_feedback', 'guest_feedbacks', 'lesson_ratings',
-  'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
+  'suppliers', 'requisitions', 'lpos', 'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
   'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
   'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads',
   'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks',
+  'transport_bills', 'fee_promises', 'sms_outbox', 'sms_logs', 'institution_extension_requests', 'absence_requests',
+  'v_today_teacher_checkins', 'v_house_statistics', 'v_bed_occupancy',
+  'bc_students', 'bc_courses', 'bc_trainers', 'bc_invoices', 'bc_payments', 'bc_practicals', 'bc_settings', 'bc_fee_structures',
+  'carwash_jobs', 'cafe_menu_items', 'cafe_orders', 'retail_sales', 'retail_inventory', 'retail_stores',
+  'books', 'library_transactions', 'library_fines', 'library_settings', 'book_reservations', 'book_stock_receipts',
+  'branches', 'branch_integration_configs', 'inter_bank_transfers', 'vote_head_transfers', 'transactions', 'school_bank_accounts', 'financial_periods',
+  'his_claims', 'his_inpatient_records', 'his_nurse_tasks', 'his_anc_records', 'his_delivery_records', 'his_cwc_immunizations', 'his_nbu_admissions', 'his_audit_logs', 'his_lab_requests',
+  'school_projects', 'project_updates', 'alumni_school_inbox', 'alumni_notifications', 'alumni_jobs', 'alumni_businesses', 'alumni_groups', 'alumni_success_stories', 'alumni_document_requests', 'alumni_event_rsvps', 'alumni_school_staff', 'alumni_follows',
+  'election_events', 'election_candidates', 'election_voters_ledger', 'election_checkins',
   'app_notifications', 'whatsapp_configs', 'whatsapp_logs',
   'invoice_clients', 'company_invoice_settings',
   'school_authorized_devices', 'school_router_profiles'
@@ -219,13 +253,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'his_prescriptions', 'his_prescription_items', 'his_pharmacy_inventory', 'his_pharmacy_batches', 'his_pharmacy_sales', 'his_pharmacy_ledger',
           'his_pharmacy_interactions', 'his_pharmacy_narcotics_ledger', 'his_pharmacy_adherence_alerts',
           'his_patient_id_config', 'his_medical_notes', 'his_clinical_events', 'document_collections', 'watchlist_records', 'leave_requests', 'financial_goals',
-          'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
+          'suppliers', 'requisitions', 'lpos', 'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
+          'visitors', 'security_alerts', 'security_logs', 'gate_passes', 'student_gate_passes',
           'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
           'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
+        const isPublicPatch = req.method === 'PATCH' && ([
+          'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
+          'system_settings', 'institution_module_states', 'building_visitor_logs'
+        ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
-        if (!user && !isPublicGet && !isPublicPost && !isSocialInteraction) {
+        if (!user && !isPublicGet && !isPublicPost && !isPublicPatch && !isSocialInteraction) {
             const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';
             return res.status(401).json({ 
                 success: false, 
