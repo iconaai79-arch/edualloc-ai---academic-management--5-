@@ -5705,12 +5705,27 @@ export const generateParentInKindLpoPdf = async (
     student: any,
     institution: Institution,
     companyDetails?: CompanyDetails,
-    logoUrl?: string | null
+    logoUrl?: string | null,
+    letterheadUrl?: string | null
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    // Resolve branding configurations (letterhead banner, stamp, footer)
+    const letterConfig = institution?.letterheadConfig || companyDetails?.letterheadConfig;
+    const resolvedLetterheadUrl = letterheadUrl 
+        || letterConfig?.headerImageUrl 
+        || (institution as any)?.letterheadUrl 
+        || (institution as any)?.letterhead_url 
+        || companyDetails?.letterheadConfig?.headerImageUrl 
+        || null;
+
     const logoImg = await loadImage(logoUrl || institution?.logoUrl || null);
+    const headerImg = await loadImage(resolvedLetterheadUrl);
+    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
+    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
+    const footerText = letterConfig?.footerText || `${institution?.name || 'School'} • Official In-Kind Procurement LPO`;
 
     const activeCompanyDetails = companyDetails || {
         applicationTitle: institution?.name || 'School Management System',
@@ -5721,19 +5736,16 @@ export const generateParentInKindLpoPdf = async (
     } as any;
 
     // Header & Letterhead
-    createPdfWithLetterhead(
+    const tableStartY = createPdfWithLetterhead(
         doc,
         'PARENT IN-KIND PURCHASE ORDER',
         activeCompanyDetails,
         institution,
-        logoImg
+        logoImg,
+        headerImg
     );
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
-
-    // LPO Header Details Box
-    const metaBoxWidth = 85;
-    const metaX = pageWidth - margin - metaBoxWidth;
 
     // Parse / format delivery due date safely to avoid overflow
     let dueDate = 'Within Agreed Term';
@@ -5747,26 +5759,31 @@ export const generateParentInKindLpoPdf = async (
         }
     }
 
+    // Dynamic start Y for metadata box depending on whether letterhead banner is present
+    const metaBoxWidth = 85;
+    const metaX = pageWidth - margin - metaBoxWidth;
+    const startMetaY = headerImg ? (tableStartY - 18) : (margin + 52);
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
-    doc.text('LPO NUMBER:', metaX, margin + 52);
-    doc.text('ISSUE DATE:', metaX, margin + 57);
-    doc.text('DELIVERY DUE:', metaX, margin + 62);
-    doc.text('SETTLEMENT:', metaX, margin + 67);
+    doc.text('LPO NUMBER:', metaX, startMetaY);
+    doc.text('ISSUE DATE:', metaX, startMetaY + 5);
+    doc.text('DELIVERY DUE:', metaX, startMetaY + 10);
+    doc.text('SETTLEMENT:', metaX, startMetaY + 15);
 
     doc.setFont('helvetica', 'normal');
     const lpoNum = proposal.lpoNumber || proposal.lpo_number || `LPO-PIK-${String(proposal.id || '').slice(-6).toUpperCase()}`;
-    doc.text(lpoNum, pageWidth - margin, margin + 52, { align: 'right' });
+    doc.text(lpoNum, pageWidth - margin, startMetaY, { align: 'right' });
     const issueDate = proposal.createdAt ? new Date(proposal.createdAt).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
-    doc.text(issueDate, pageWidth - margin, margin + 57, { align: 'right' });
-    doc.text(dueDate, pageWidth - margin, margin + 62, { align: 'right' });
+    doc.text(issueDate, pageWidth - margin, startMetaY + 5, { align: 'right' });
+    doc.text(dueDate, pageWidth - margin, startMetaY + 10, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(16, 185, 129);
-    doc.text('Fee Offset (In-Kind)', pageWidth - margin, margin + 67, { align: 'right' });
+    doc.text('Fee Offset (In-Kind)', pageWidth - margin, startMetaY + 15, { align: 'right' });
     doc.setTextColor(0, 0, 0);
 
     // Parent & Student Details
-    let nextY = margin + 76;
+    let nextY = headerImg ? (tableStartY + 5) : (margin + 76);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('PARENT / SUPPLIER (PARTY A):', margin, nextY);
@@ -5811,17 +5828,17 @@ export const generateParentInKindLpoPdf = async (
         startY: nextY,
         theme: 'striped',
         headStyles: { fillColor: [79, 70, 229] },
-        styles: { fontSize: 9 },
+        styles: { fontSize: 8.5 },
         columnStyles: {
-            0: { halign: 'center', cellWidth: 12 },
-            1: { halign: 'left' },
-            2: { halign: 'center', cellWidth: 35 },
-            3: { halign: 'right', cellWidth: 38 },
-            4: { halign: 'right', cellWidth: 42 }
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 30, halign: 'center' },
+            3: { cellWidth: 35, halign: 'right' },
+            4: { cellWidth: 35, halign: 'right' }
         }
     });
 
-    const finalY = ((doc as any).lastAutoTable?.finalY || nextY) + 7;
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
 
     // Total Amount Box
     doc.setFontSize(10.5);
@@ -5861,6 +5878,15 @@ export const generateParentInKindLpoPdf = async (
     doc.line(pageWidth - margin - 65, authY, pageWidth - margin, authY);
     doc.text('Committed & Accepted by: Parent / Supplier', pageWidth - margin - 65, authY + 4);
     doc.text('Parent Signature: ___________________', pageWidth - margin - 65, authY + 8);
+
+    // Official School Stamp if available
+    if (stampImg) {
+        const stampWidth = 28;
+        const stampHeight = (stampImg.height * stampWidth) / stampImg.width;
+        doc.addImage(stampImg, 'PNG', margin + 35, authY - 14, stampWidth, stampHeight);
+    }
+
+    setupPdfFooter(doc, footerImg, footerText);
 
     return doc.output('datauristring');
 };

@@ -5609,12 +5609,19 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             setIsGeneratingLpoPdf(true);
             const targetStudent = student || props.students.find(s => s.id === proposal.studentId);
+            const letterheadUrl = props.institution?.letterheadConfig?.headerImageUrl 
+                || (props.institution as any)?.letterheadUrl 
+                || (props.institution as any)?.letterhead_url 
+                || props.companyDetails?.letterheadConfig?.headerImageUrl 
+                || null;
+
             const pdfDataUri = await pdfService.generateParentInKindLpoPdf(
                 proposal,
                 targetStudent,
                 props.institution,
                 props.companyDetails,
-                props.institution.logoUrl || null
+                props.institution.logoUrl || null,
+                letterheadUrl
             );
 
             setLpoPdfPreviewUrl(pdfDataUri);
