@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Truck, 
     Package, 
@@ -1576,129 +1577,146 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         </div>
 
                         {/* Add / Edit Route Modal */}
-                        {isAddRouteModalOpen && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-                                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up">
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">
-                                        {editingRoute ? 'Edit Bus Route' : 'Register Bus Route'}
-                                    </h3>
-                                    <p className="text-slate-500 text-xs font-medium mb-6">
-                                        {editingRoute ? 'Modify route landmarks, assigned bus vehicle, and designated personnel.' : 'Create school run routes, specify geographic bounds, and assign fleet vehicles.'}
-                                    </p>
-                                    
-                                    <form onSubmit={handleSaveRoute} className="space-y-4">
+                        {isAddRouteModalOpen && typeof document !== 'undefined' && createPortal(
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 overflow-y-auto animate-fade-in">
+                                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl p-6 sm:p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative my-auto max-h-[92vh] flex flex-col overflow-hidden">
+                                    <div className="flex justify-between items-start mb-4 shrink-0">
                                         <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Route Name *</label>
-                                            <input 
-                                                type="text" 
-                                                required
-                                                value={newRouteName}
-                                                onChange={e => setNewRouteName(e.target.value)}
-                                                placeholder="e.g. Route D - Eastlands / Buruburu"
-                                                className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                            />
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">
+                                                {editingRoute ? 'Edit Bus Route' : 'Register Bus Route'}
+                                            </h3>
+                                            <p className="text-slate-500 text-xs font-medium">
+                                                {editingRoute ? 'Modify route landmarks, assigned bus vehicle, and designated personnel.' : 'Create school run routes, specify geographic bounds, and assign fleet vehicles.'}
+                                            </p>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setIsAddRouteModalOpen(false);
+                                                setEditingRoute(null);
+                                            }}
+                                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                    
+                                    <form onSubmit={handleSaveRoute} className="flex flex-col flex-1 overflow-hidden">
+                                        <div className="space-y-4 overflow-y-auto flex-1 pr-1 custom-scrollbar">
                                             <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Starting Landmark *</label>
+                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Route Name *</label>
                                                 <input 
                                                     type="text" 
                                                     required
-                                                    value={newRouteStart}
-                                                    onChange={e => setNewRouteStart(e.target.value)}
-                                                    placeholder="e.g. Buruburu Shopping Center"
-                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                    value={newRouteName}
+                                                    onChange={e => setNewRouteName(e.target.value)}
+                                                    placeholder="e.g. Route D - Eastlands / Buruburu"
+                                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
                                                 />
                                             </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Terminal Landmark *</label>
-                                                <input 
-                                                    type="text" 
-                                                    required
-                                                    value={newRouteEnd}
-                                                    onChange={e => setNewRouteEnd(e.target.value)}
-                                                    placeholder="Westlands School Gate"
-                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Bus / Vehicle *</label>
-                                                {availableVehicleOptions.length > 0 ? (
-                                                    <select 
-                                                        value={newRouteBus}
-                                                        onChange={e => {
-                                                            const val = e.target.value;
-                                                            setNewRouteBus(val);
-                                                            const matched = availableVehicleOptions.find(o => o.label === val || o.plate === val);
-                                                            if (matched?.driver && !newRouteDriver) {
-                                                                setNewRouteDriver(matched.driver);
-                                                            }
-                                                        }}
-                                                        className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                                    >
-                                                        <option value="">Select registered vehicle...</option>
-                                                        {availableVehicleOptions.map(opt => (
-                                                            <option key={opt.id} value={opt.label}>{opt.label}</option>
-                                                        ))}
-                                                        {newRouteBus && !availableVehicleOptions.some(o => o.label === newRouteBus) && (
-                                                            <option value={newRouteBus}>{newRouteBus}</option>
-                                                        )}
-                                                    </select>
-                                                ) : (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Starting Landmark *</label>
                                                     <input 
-                                                        type="text"
-                                                        value={newRouteBus}
-                                                        onChange={e => setNewRouteBus(e.target.value)}
-                                                        placeholder="e.g. Bus 01 (KDA 123X)"
-                                                        className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
+                                                        type="text" 
+                                                        required
+                                                        value={newRouteStart}
+                                                        onChange={e => setNewRouteStart(e.target.value)}
+                                                        placeholder="e.g. Buruburu Shopping Center"
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
                                                     />
-                                                )}
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Terminal Landmark *</label>
+                                                    <input 
+                                                        type="text" 
+                                                        required
+                                                        value={newRouteEnd}
+                                                        onChange={e => setNewRouteEnd(e.target.value)}
+                                                        placeholder="Westlands School Gate"
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                    />
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Driver</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={newRouteDriver}
-                                                    onChange={e => setNewRouteDriver(e.target.value)}
-                                                    placeholder="Douglas Omwamba"
-                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Attendant</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={newRouteAttendant}
-                                                    onChange={e => setNewRouteAttendant(e.target.value)}
-                                                    placeholder="Sarah Wanjiku"
-                                                    className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border-none outline-none font-bold text-xs"
-                                                />
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Bus / Vehicle *</label>
+                                                    {availableVehicleOptions.length > 0 ? (
+                                                        <select 
+                                                            value={newRouteBus}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                setNewRouteBus(val);
+                                                                const matched = availableVehicleOptions.find(o => o.label === val || o.plate === val);
+                                                                if (matched?.driver && !newRouteDriver) {
+                                                                    setNewRouteDriver(matched.driver);
+                                                                }
+                                                            }}
+                                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                        >
+                                                            <option value="">Select registered vehicle...</option>
+                                                            {availableVehicleOptions.map(opt => (
+                                                                <option key={opt.id} value={opt.label}>{opt.label}</option>
+                                                            ))}
+                                                            {newRouteBus && !availableVehicleOptions.some(o => o.label === newRouteBus) && (
+                                                                <option value={newRouteBus}>{newRouteBus}</option>
+                                                            )}
+                                                        </select>
+                                                    ) : (
+                                                        <input 
+                                                            type="text" 
+                                                            value={newRouteBus}
+                                                            onChange={e => setNewRouteBus(e.target.value)}
+                                                            placeholder="e.g. Bus 01 (KDA 123X)"
+                                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Driver</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newRouteDriver}
+                                                        onChange={e => setNewRouteDriver(e.target.value)}
+                                                        placeholder="Douglas Omwamba"
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Attendant</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={newRouteAttendant}
+                                                        onChange={e => setNewRouteAttendant(e.target.value)}
+                                                        placeholder="Sarah Wanjiku"
+                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                         
-                                        <div className="flex gap-4 pt-4">
+                                        <div className="flex gap-4 pt-4 mt-2 border-t border-slate-100 dark:border-slate-700 shrink-0">
                                             <button 
                                                 type="button"
                                                 onClick={() => {
                                                     setIsAddRouteModalOpen(false);
                                                     setEditingRoute(null);
                                                 }}
-                                                className="flex-1 py-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
+                                                className="flex-1 py-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors cursor-pointer"
                                             >
                                                 Cancel
                                             </button>
                                             <button 
                                                 type="submit"
-                                                className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-colors cursor-pointer"
+                                                className="flex-1 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-colors cursor-pointer"
                                             >
                                                 {editingRoute ? 'Update Route' : 'Register Route'}
                                             </button>
                                         </div>
                                     </form>
                                 </div>
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </div>
                 )}
