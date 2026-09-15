@@ -249,18 +249,47 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         }
     };
 
+    const [localUsers, setLocalUsers] = useState<UserType[]>(users);
+
+    useEffect(() => {
+        setLocalUsers(users);
+    }, [users]);
+
     const handleEditUser = async (userId: string, data: any) => {
         try {
-            const existingUser = users.find(u => u.id === userId);
+            const existingUser = (localUsers || users).find(u => u.id === userId);
+            const isStudent = existingUser?.role === 'student' || data.vehicleId !== undefined || (data.metadata && data.metadata.vehicleId !== undefined);
+
             const updated = {
                 ...existingUser,
                 ...data,
-                id: userId
+                id: userId,
+                vehicleId: data.vehicleId !== undefined ? data.vehicleId : existingUser?.vehicleId,
+                metadata: {
+                    ...(existingUser?.metadata || {}),
+                    ...(data.metadata || {}),
+                    ...(data.vehicleId !== undefined ? { vehicleId: data.vehicleId, assignedVehicleId: data.vehicleId } : {})
+                }
             };
+
+            setLocalUsers(prev => prev.map(u => u.id === userId ? updated : u));
             await apiService.saveModuleRecord('users', updated);
-            alert('Driver updated successfully!');
+
+            if (isStudent) {
+                try {
+                    const instId = currentInstitution?.id || '';
+                    const studentVehiclesKey = `eduai_transport_student_vehicles_${instId}`;
+                    const cachedMap = JSON.parse(localStorage.getItem(studentVehiclesKey) || '{}');
+                    cachedMap[userId] = data.vehicleId || '';
+                    localStorage.setItem(studentVehiclesKey, JSON.stringify(cachedMap));
+                } catch (e) {}
+
+                alert('Student transport vehicle assigned successfully!');
+            } else {
+                alert('Driver updated successfully!');
+            }
         } catch (err: any) {
-            alert('Failed to update driver: ' + (err.message || err));
+            alert('Failed to update: ' + (err.message || err));
         }
     };
 
@@ -385,21 +414,29 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
             } catch (e) {
                 console.error('Error parsing bus routes from localStorage:', e);
             }
         }
-        if (currentInstitution?.id?.startsWith('demo_')) {
-            const defaultRoutes = [
-                { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-                { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
-                { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-            ];
-            if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultRoutes));
-            return defaultRoutes;
-        }
-        return [];
+        try {
+            const globalSaved = localStorage.getItem('eduai_transport_bus_routes');
+            if (globalSaved) {
+                const parsed = JSON.parse(globalSaved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    if (instKey) localStorage.setItem(instKey, JSON.stringify(parsed));
+                    return parsed;
+                }
+            }
+        } catch (e) {}
+
+        const defaultRoutes = [
+            { id: 'route_1', name: 'Route A - Main Corridor & Kilimani', startPoint: 'Main Center / Junction', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 01 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+            { id: 'route_2', name: 'Route B - Residential Suburbs & Karen', startPoint: 'Karen Hub / Roundabout', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+            { id: 'route_3', name: 'Route C - Central Shuttle & Westlands', startPoint: 'Westlands Bus Park', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 03 (KDM 441X)', driver: 'Paul Mwangi', attendant: 'Grace Achieng' },
+        ];
+        if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultRoutes));
+        return defaultRoutes;
     });
 
     React.useEffect(() => {
@@ -416,34 +453,56 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         const routeKey = `eduai_transport_bus_routes_${currentInstitution.id}`;
         const savedRoutes = localStorage.getItem(routeKey);
         if (savedRoutes !== null) {
-            try { setBusRoutes(JSON.parse(savedRoutes)); } catch (e) { setBusRoutes([]); }
-        } else if (currentInstitution.id.startsWith('demo_')) {
-            const demoRoutes = [
-                { id: 'route_1', name: 'Route A - Kilimani & Hurlingham', startPoint: 'Hurlingham Shopping Center', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 04 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-                { id: 'route_2', name: 'Route B - Langata & Karen', startPoint: 'Karen Hub', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
-                { id: 'route_3', name: 'Route C - Westlands & Spring Valley', startPoint: 'Spring Valley Estate', endPoint: `${currentInstitution.name || 'School'} Gate`, bus: 'Bus 07 (KDM 441X)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-            ];
-            setBusRoutes(demoRoutes);
-            localStorage.setItem(routeKey, JSON.stringify(demoRoutes));
+            try { 
+                const parsed = JSON.parse(savedRoutes);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setBusRoutes(parsed);
+                } else {
+                    const fallbackRoutes = [
+                        { id: 'route_1', name: 'Route A - Main Corridor & Kilimani', startPoint: 'Main Center / Junction', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 01 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+                        { id: 'route_2', name: 'Route B - Residential Suburbs & Karen', startPoint: 'Karen Hub / Roundabout', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+                        { id: 'route_3', name: 'Route C - Central Shuttle & Westlands', startPoint: 'Westlands Bus Park', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 03 (KDM 441X)', driver: 'Paul Mwangi', attendant: 'Grace Achieng' },
+                    ];
+                    setBusRoutes(fallbackRoutes);
+                    localStorage.setItem(routeKey, JSON.stringify(fallbackRoutes));
+                }
+            } catch (e) { setBusRoutes([]); }
         } else {
-            setBusRoutes([]);
+            const standardRoutes = [
+                { id: 'route_1', name: 'Route A - Main Corridor & Kilimani', startPoint: 'Main Center / Junction', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 01 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
+                { id: 'route_2', name: 'Route B - Residential Suburbs & Karen', startPoint: 'Karen Hub / Roundabout', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
+                { id: 'route_3', name: 'Route C - Central Shuttle & Westlands', startPoint: 'Westlands Bus Park', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 03 (KDM 441X)', driver: 'Paul Mwangi', attendant: 'Grace Achieng' },
+            ];
+            setBusRoutes(standardRoutes);
+            localStorage.setItem(routeKey, JSON.stringify(standardRoutes));
         }
 
         // 2. Route Fees
         const feeKey = `eduai_transport_route_fee_settings_${currentInstitution.id}`;
         const savedFees = localStorage.getItem(feeKey);
         if (savedFees !== null) {
-            try { setRouteFeeSetting(JSON.parse(savedFees)); } catch (e) { setRouteFeeSetting([]); }
-        } else if (currentInstitution.id.startsWith('demo_')) {
-            const demoFees = [
-                { routeId: 'route_1', routeName: 'Route A – Kilimani & Hurlingham', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
-                { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
-                { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
-            ];
-            setRouteFeeSetting(demoFees);
-            localStorage.setItem(feeKey, JSON.stringify(demoFees));
+            try { 
+                const parsed = JSON.parse(savedFees);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setRouteFeeSetting(parsed);
+                } else {
+                    const fallbackFees = [
+                        { routeId: 'route_1', routeName: 'Route A – Main Corridor', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
+                        { routeId: 'route_2', routeName: 'Route B – Residential Suburbs', termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
+                        { routeId: 'route_3', routeName: 'Route C – Central Shuttle', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
+                    ];
+                    setRouteFeeSetting(fallbackFees);
+                    localStorage.setItem(feeKey, JSON.stringify(fallbackFees));
+                }
+            } catch (e) { setRouteFeeSetting([]); }
         } else {
-            setRouteFeeSetting([]);
+            const standardFees = [
+                { routeId: 'route_1', routeName: 'Route A – Main Corridor', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
+                { routeId: 'route_2', routeName: 'Route B – Residential Suburbs', termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
+                { routeId: 'route_3', routeName: 'Route C – Central Shuttle', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
+            ];
+            setRouteFeeSetting(standardFees);
+            localStorage.setItem(feeKey, JSON.stringify(standardFees));
         }
 
         // 3. Invoices
@@ -3339,7 +3398,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             <TransportManager
                                 currentInstitution={currentInstitution}
                                 vehicles={dbVehicles}
-                                users={users}
+                                users={localUsers}
                                 courses={loadedCourses}
                                 onAddVehicle={handleAddVehicle}
                                 onUpdateVehicle={handleUpdateVehicle}

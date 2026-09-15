@@ -50,6 +50,26 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loadedCourses, setLoadedCourses] = useState<Course[]>(initialCourses);
 
+    const instId = currentInstitution?.id || '';
+    const [studentVehicleMap, setStudentVehicleMap] = useState<Record<string, string>>(() => {
+        try {
+            const cached = localStorage.getItem(`eduai_transport_student_vehicles_${instId}`);
+            return cached ? JSON.parse(cached) : {};
+        } catch (e) {
+            return {};
+        }
+    });
+
+    useEffect(() => {
+        if (!instId) return;
+        const cached = localStorage.getItem(`eduai_transport_student_vehicles_${instId}`);
+        if (cached) {
+            try {
+                setStudentVehicleMap(JSON.parse(cached));
+            } catch (e) {}
+        }
+    }, [instId]);
+
     // Form data for Vehicle
     const [formData, setFormData] = useState<Omit<TransportVehicle, 'id' | 'institutionId'>>({
         plateNumber: '',
@@ -357,6 +377,14 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     };
 
     const handleStudentAssignment = async (studentId: string, vehicleId: string) => {
+        setStudentVehicleMap(prev => {
+            const updated = { ...prev, [studentId]: vehicleId };
+            try {
+                localStorage.setItem(`eduai_transport_student_vehicles_${instId}`, JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+        });
+
         if (!onEditUser) return;
         try {
             await onEditUser(studentId, { vehicleId: vehicleId || undefined } as any);
@@ -803,28 +831,40 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                             </div>
                                         </td>
                                         <td className="px-8 py-6">
-                                            <select
-                                                value={student.vehicleId || ''}
-                                                onChange={e => handleStudentAssignment(student.id, e.target.value)}
-                                                className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-indigo-500"
-                                            >
-                                                <option value="">No Vehicle Assigned</option>
-                                                {vehicles.map(v => (
-                                                    <option key={v.id} value={v.id}>{v.plateNumber} ({v.model})</option>
-                                                ))}
-                                            </select>
+                                            {(() => {
+                                                const assignedVehId = studentVehicleMap[student.id] !== undefined
+                                                    ? studentVehicleMap[student.id]
+                                                    : (student.vehicleId || (student as any).metadata?.vehicleId || '');
+                                                return (
+                                                    <select
+                                                        value={assignedVehId}
+                                                        onChange={e => handleStudentAssignment(student.id, e.target.value)}
+                                                        className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-indigo-500"
+                                                    >
+                                                        <option value="">No Vehicle Assigned</option>
+                                                        {vehicles.map(v => (
+                                                            <option key={v.id} value={v.id}>{v.plateNumber} ({v.model})</option>
+                                                        ))}
+                                                    </select>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="px-8 py-6 text-center">
-                                            {student.vehicleId ? (
-                                                <button
-                                                    onClick={() => handleStudentAssignment(student.id, '')}
-                                                    className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-red-100 transition-all"
-                                                >
-                                                    Unassign
-                                                </button>
-                                            ) : (
-                                                <span className="text-[10px] font-bold text-slate-300 uppercase italic">Pending</span>
-                                            )}
+                                            {(() => {
+                                                const assignedVehId = studentVehicleMap[student.id] !== undefined
+                                                    ? studentVehicleMap[student.id]
+                                                    : (student.vehicleId || (student as any).metadata?.vehicleId || '');
+                                                return assignedVehId ? (
+                                                    <button
+                                                        onClick={() => handleStudentAssignment(student.id, '')}
+                                                        className="px-4 py-2 bg-red-50 text-red-600 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-red-100 transition-all"
+                                                    >
+                                                        Unassign
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-300 uppercase italic">Pending</span>
+                                                );
+                                            })()}
                                         </td>
                                     </tr>
                                 ))}

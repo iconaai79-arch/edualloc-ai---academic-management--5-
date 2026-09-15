@@ -20,6 +20,7 @@ import {
     generateMontessoriAssessmentReportPdfDataUri, 
     downloadMontessoriAssessmentReportPdf 
 } from '../../services/pdfService';
+import { apiService } from '../../services/apiService';
 
 export interface MontessoriAssessmentManagerProps {
     currentInstitution?: Institution | null;
@@ -42,6 +43,7 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
 }) => {
     // ── CLASS & STUDENT FILTERS ──
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+    const [selectedCurriculum, setSelectedCurriculum] = useState<string>('all');
     const [selectedStream, setSelectedStream] = useState<string>('All');
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
@@ -55,6 +57,7 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
     const [record, setRecord] = useState<MontessoriAssessmentRecord | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [pdfPreviewUri, setPdfPreviewUri] = useState<string | null>(null);
 
@@ -63,59 +66,482 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
         setTimeout(() => setToastMessage(null), 3500);
     };
 
-    // Filter courses relevant to Early Years / Primary / Montessori / British
-    const relevantCourses = useMemo(() => {
-        if (!courses || courses.length === 0) return [];
-        return courses.filter(c => {
-            const name = (c.name || '').toLowerCase();
-            const code = (c.code || '').toLowerCase();
-            const curr = (c.curriculumType || '').toLowerCase();
-            const isEarlyYears = name.includes('playgroup') || name.includes('nursery') || name.includes('kindergarten') || 
-                                name.includes('reception') || name.includes('eyfs') || name.includes('foundation') || 
-                                name.includes('pre-primary') || name.includes('pp1') || name.includes('pp2') || name.includes('grade');
-            const isMontessoriOrBritish = curr.includes('montessori') || curr.includes('british') || curr.includes('cbc');
-            return isEarlyYears || isMontessoriOrBritish;
+    // ── DATA DISCOVERY & MULTI-SOURCE STUDENT HYDRATION ──
+    const [fetchedStudents, setFetchedStudents] = useState<any[]>([]);
+    const [fetchedCourses, setFetchedCourses] = useState<Course[]>([]);
+
+    const loadAllLearners = async () => {
+        const instId = currentInstitution?.id;
+        if (!instId) return;
+        setIsLoadingData(true);
+
+        const cleanInstId = instId.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '');
+
+        // 1. Immediately read all localStorage candidate keys to display data with zero latency
+        const localEnrCandidates = [
+            `eduai_student_enrollments_${instId}`,
+            `eduai_student_enrollments_${cleanInstId}`,
+            'eduai_student_enrollments_default',
+            `eduai_students_${instId}`,
+            `eduai_students_${cleanInstId}`,
+            'eduai_students_default',
+            'eduai_student_enrollments',
+            'student_enrollments',
+            'eduai_students',
+            'students',
+            `eduai_users_${instId}`,
+            'eduai_users',
+            'users'
+        ];
+
+        const localCombined: any[] = [];
+        localEnrCandidates.forEach(k => {
+            try {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) localCombined.push(...parsed);
+                }
+            } catch (e) {}
         });
-    }, [courses]);
 
-    // Available courses fallback to all courses if relevant is empty
-    const displayCourses = relevantCourses.length > 0 ? relevantCourses : courses;
+        // 2. Fetch from remote backend in parallel
+        try {
+            const [enrRemote, stRemote, usrRemote, courseRemote] = await Promise.all([
+                apiService.fetchModuleRecords<any>('student_enrollments', instId).catch(() => []),
+                apiService.fetchModuleRecords<any>('students', instId).catch(() => []),
+                apiService.fetchUsers(instId).catch(() => []),
+                apiService.fetchCourses(instId).catch(() => [])
+            ]);
 
-    // Default select first course if unselected
-    useEffect(() => {
-        if (!selectedCourseId && displayCourses.length > 0) {
-            setSelectedCourseId(displayCourses[0].id);
+            if (courseRemote && courseRemote.length > 0) {
+                setFetchedCourses(courseRemote);
+            }
+
+            const allMerged = [...localCombined, ...(enrRemote || []), ...(stRemote || []), ...(usrRemote || [])];
+            setFetchedStudents(allMerged);
+        } catch (e) {
+            console.warn('[MontessoriAssessmentManager] Error fetching remote learners:', e);
+            setFetchedStudents(localCombined);
+        } finally {
+            setIsLoadingData(false);
         }
+    };
+
+    useEffect(() => {
+        loadAllLearners();
+    }, [currentInstitution?.id]);
+
+    // Unified, deduplicated, and normalized list of all pupils
+    const allPupils = useMemo(() => {
+        const instId = currentInstitution?.id || '';
+        const cleanInstId = instId.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
+
+        const map = new Map<string, any>();
+
+        const processCandidate = (c: any) => {
+            if (!c || typeof c !== 'object') return;
+
+            // Check institution match
+            const cInstId = String(c.institutionId || c.institution_id || '').trim();
+            const cleanCInstId = cInstId.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
+
+            if (instId && cInstId && !instId.startsWith('demo_') && !cInstId.startsWith('demo_')) {
+                if (cInstId !== instId && cleanCInstId !== cleanInstId) {
+                    return;
+                }
+            }
+
+            // Must have student identity traits:
+            const adm = (
+                c.admissionNumber || 
+                c.admission_number || 
+                c.admissionNo || 
+                c.admission_no || 
+                c.admNo || 
+                c.adm_no || 
+                c.metadata?.admissionNumber || 
+                c.metadata?.admission_number || 
+                c.metadata?.admNo ||
+                ''
+            ).trim();
+
+            const role = String(c.role || '').toLowerCase();
+            const enrollmentType = String(c.enrollmentType || c.enrollment_type || '').toLowerCase();
+            const isStudent = role === 'student' || enrollmentType === 'academic' || !!adm || !!c.studentClass || !!c.gradeLevel || !!c.courseId || !!c.course_id;
+
+            // Exclude non-student staff/admin roles unless an admission number is present
+            const isStaff = ['admin', 'super_admin', 'head_teacher', 'teacher', 'lecturer', 'driver', 'nurse', 'accountant', 'finance_officer'].includes(role);
+            if (!isStudent || (isStaff && !adm)) return;
+
+            // Resolve pupil name
+            const rawName = (
+                c.name || 
+                c.studentName || 
+                c.student_name || 
+                c.fullName || 
+                c.full_name || 
+                c.metadata?.studentName || 
+                c.metadata?.fullName || 
+                c.metadata?.name || 
+                ''
+            ).trim();
+
+            const name = rawName && !rawName.toLowerCase().startsWith('student ') ? rawName : (rawName || 'Unnamed Pupil');
+
+            // Unique ID
+            const id = String(c.id || c.userId || c.user_id || c.studentId || c.student_id || (adm ? `adm_${adm}` : `pupil_${Math.random().toString(36).substr(2, 6)}`));
+
+            // Resolve class / grade
+            const rawClass = (
+                c.studentClass || 
+                c.student_class || 
+                c.gradeLevel || 
+                c.grade_level || 
+                c.className || 
+                c.class_name || 
+                c.class || 
+                c.classLevel || 
+                c.class_level || 
+                c.metadata?.studentClass || 
+                c.metadata?.student_class || 
+                c.metadata?.gradeLevel || 
+                c.metadata?.grade_level || 
+                c.metadata?.className || 
+                c.metadata?.class_name || 
+                c.metadata?.class || 
+                ''
+            ).trim();
+
+            // Resolve curriculum
+            const rawCurr = (
+                c.curriculum || 
+                c.curriculumType || 
+                c.curriculum_type || 
+                c.metadata?.curriculum || 
+                c.metadata?.curriculumType || 
+                c.metadata?.curriculum_type || 
+                ''
+            ).trim();
+
+            const courseId = String(
+                c.courseId || 
+                c.course_id || 
+                c.classId || 
+                c.class_id || 
+                c.metadata?.courseId || 
+                c.metadata?.course_id || 
+                c.metadata?.classId || 
+                c.metadata?.class_id || 
+                ''
+            ).trim();
+
+            const stream = (c.stream || c.metadata?.stream || '').trim();
+
+            if (!map.has(id)) {
+                map.set(id, {
+                    ...c,
+                    id,
+                    name,
+                    admissionNumber: adm || 'ADM-N/A',
+                    admissionNo: adm || 'ADM-N/A',
+                    studentClass: rawClass,
+                    gradeLevel: rawClass,
+                    stream,
+                    courseId,
+                    curriculum: rawCurr,
+                    role: 'student',
+                    institutionId: cInstId || instId
+                });
+            } else {
+                const existing = map.get(id);
+                map.set(id, {
+                    ...existing,
+                    name: (existing.name === 'Unnamed Pupil' && name !== 'Unnamed Pupil') ? name : existing.name,
+                    admissionNumber: existing.admissionNumber === 'ADM-N/A' && adm ? adm : existing.admissionNumber,
+                    admissionNo: existing.admissionNo === 'ADM-N/A' && adm ? adm : existing.admissionNo,
+                    studentClass: existing.studentClass || rawClass,
+                    gradeLevel: existing.gradeLevel || rawClass,
+                    stream: existing.stream || stream,
+                    courseId: existing.courseId || courseId,
+                    curriculum: existing.curriculum || rawCurr
+                });
+            }
+        };
+
+        (users || []).forEach(processCandidate);
+        fetchedStudents.forEach(processCandidate);
+
+        return Array.from(map.values());
+    }, [users, fetchedStudents, currentInstitution?.id]);
+
+    // Unified list of registered courses
+    const allCourses = useMemo(() => {
+        const map = new Map<string, Course>();
+        (courses || []).forEach(c => { if (c && c.id) map.set(c.id, c); });
+        fetchedCourses.forEach(c => { if (c && c.id && !map.has(c.id)) map.set(c.id, c); });
+        return Array.from(map.values());
+    }, [courses, fetchedCourses]);
+
+    // Extract all distinct student class names from all enrolled students
+    const studentClasses = useMemo(() => {
+        const classes = new Set<string>();
+        allPupils.forEach(u => {
+            if (u.studentClass) classes.add(u.studentClass.trim());
+        });
+        return Array.from(classes);
+    }, [allPupils]);
+
+    // Helper: Detect if class or course belongs to British / Montessori curriculum
+    const isBritishOrMontessori = (name: string, currType?: string) => {
+        const normName = (name || '').toLowerCase();
+        const normCurr = (currType || '').toLowerCase();
+        if (normCurr.includes('british') || normCurr.includes('montessori') || normCurr.includes('eyfs') || normCurr.includes('igcse') || normCurr.includes('cambridge')) {
+            return true;
+        }
+        return (
+            normName.includes('year ') ||
+            normName.includes('reception') ||
+            normName.includes('eyfs') ||
+            normName.includes('foundation stage') ||
+            normName.includes('fs1') ||
+            normName.includes('fs2') ||
+            normName.includes('playgroup') ||
+            normName.includes('creche') ||
+            normName.includes('kindergarten') ||
+            normName.includes('nursery') ||
+            normName.includes('pre-unit') ||
+            normName.includes('baby class') ||
+            normName.includes('montessori') ||
+            normName.includes('stage ')
+        );
+    };
+
+    // Available courses: merge registered courses with any unmapped classes found on students
+    const displayCourses = useMemo(() => {
+        const list = [...allCourses];
+        studentClasses.forEach(cls => {
+            const norm = cls.toLowerCase().trim();
+            const exists = list.some(c => 
+                (c.name || '').toLowerCase().trim() === norm || 
+                (c.code || '').toLowerCase().trim() === norm
+            );
+            if (!exists) {
+                const isBritish = isBritishOrMontessori(cls);
+                list.push({
+                    id: `class_${cls.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                    name: cls,
+                    code: cls.replace(/\s+/g, '').toUpperCase(),
+                    institutionId: currentInstitution?.id || '',
+                    curriculumType: isBritish ? 'British & Montessori' : 'Other',
+                    levels: []
+                } as any);
+            }
+        });
+
+        // Ensure default British & Early Years classes exist as templates if list is empty
+        if (list.length === 0) {
+            list.push(
+                { id: 'c_eyfs_rec', name: 'Reception (EYFS)', code: 'REC', institutionId: currentInstitution?.id || '', curriculumType: 'British & Montessori', levels: [] } as any,
+                { id: 'c_eyfs_y1', name: 'Year 1 (British Curriculum)', code: 'Y1', institutionId: currentInstitution?.id || '', curriculumType: 'British', levels: [] } as any,
+                { id: 'c_eyfs_y2', name: 'Year 2 (British Curriculum)', code: 'Y2', institutionId: currentInstitution?.id || '', curriculumType: 'British', levels: [] } as any,
+                { id: 'c_eyfs_pg', name: 'Playgroup / Creche', code: 'PG', institutionId: currentInstitution?.id || '', curriculumType: 'British & Montessori', levels: [] } as any,
+                { id: 'c_eyfs_fs1', name: 'Foundation Stage 1 (FS1)', code: 'FS1', institutionId: currentInstitution?.id || '', curriculumType: 'British & Montessori', levels: [] } as any
+            );
+        }
+
+        return list;
+    }, [allCourses, studentClasses, currentInstitution?.id]);
+
+    // Default select 'ALL' (All Classes & Learners) to immediately show all learners
+    useEffect(() => {
+        if (!selectedCourseId) {
+            setSelectedCourseId('ALL');
+        }
+    }, [selectedCourseId]);
+
+    // Active course (if a specific course is selected)
+    const currentCourse = useMemo(() => {
+        if (!selectedCourseId || selectedCourseId === 'ALL') return null;
+        return displayCourses.find(c => c.id === selectedCourseId) || null;
     }, [displayCourses, selectedCourseId]);
 
-    // Active course
-    const currentCourse = useMemo(() => {
-        return courses.find(c => c.id === selectedCourseId);
-    }, [courses, selectedCourseId]);
-
-    // Available streams for course
+    // Available streams for course / institution
     const availableStreams = useMemo(() => {
-        if (!currentCourse) return [];
-        return currentCourse.streams || [];
-    }, [currentCourse]);
+        const streams = new Set<string>();
+        if (currentCourse && currentCourse.streams) {
+            currentCourse.streams.forEach(s => streams.add(s));
+        }
+        allPupils.forEach(u => {
+            if (u.stream) streams.add(u.stream);
+            if (u.metadata?.stream) streams.add(u.metadata.stream);
+        });
+        return Array.from(streams).sort();
+    }, [currentCourse, allPupils]);
 
-    // Students matching selected course, stream, and institution
+    // Comprehensive student matching across curriculum, courseId, class name, stream, and search
     const enrolledStudents = useMemo(() => {
-        if (!users) return [];
-        return users.filter(u => {
-            if (u.role !== 'student') return false;
-            if (currentInstitution && u.institutionId && u.institutionId !== currentInstitution.id) return false;
-            if (selectedCourseId && u.courseId !== selectedCourseId) return false;
-            if (selectedStream && selectedStream !== 'All' && u.stream && u.stream.toLowerCase() !== selectedStream.toLowerCase()) return false;
+        if (!allPupils || allPupils.length === 0) return [];
+
+        return allPupils.filter(u => {
+            const uClass = (u.studentClass || u.gradeLevel || '').toLowerCase().trim();
+            const uCurr = (u.curriculum || '').toLowerCase().trim();
+
+            // 1. Curriculum Filter
+            if (selectedCurriculum === 'british') {
+                const matchesBritish = 
+                    uCurr.includes('british') || 
+                    uCurr.includes('montessori') || 
+                    uCurr.includes('eyfs') || 
+                    uCurr.includes('cambridge') || 
+                    uCurr.includes('igcse') ||
+                    isBritishOrMontessori(uClass, uCurr);
+
+                const curCourse = displayCourses.find(c => c.id === u.courseId);
+                const courseIsBritish = curCourse ? isBritishOrMontessori(curCourse.name, curCourse.curriculumType) : false;
+
+                if (!matchesBritish && !courseIsBritish) return false;
+            } else if (selectedCurriculum === 'cbc') {
+                const matchesCbc = uCurr.includes('cbc') || uCurr.includes('cbe') || uClass.includes('grade ') || uClass.includes('pp1') || uClass.includes('pp2');
+                if (!matchesCbc) return false;
+            } else if (selectedCurriculum === '844') {
+                const matches844 = uCurr.includes('8-4-4') || uClass.includes('class ') || uClass.includes('form ');
+                if (!matches844) return false;
+            }
+
+            // 2. Course / Class Filter
+            if (selectedCourseId && selectedCourseId !== 'ALL') {
+                const curCourse = displayCourses.find(c => c.id === selectedCourseId);
+                if (curCourse) {
+                    const cId = (curCourse.id || '').toLowerCase().trim();
+                    const cName = (curCourse.name || '').toLowerCase().trim();
+                    const cCode = (curCourse.code || '').toLowerCase().trim();
+                    const cleanCName = cName.replace(/\s*\([^)]*\)/g, '').trim();
+                    const uCourseId = (u.courseId || '').toLowerCase().trim();
+
+                    const matchesId = uCourseId && (uCourseId === cId || uCourseId === cCode || uCourseId === cName);
+                    const matchesClass = uClass && (
+                        uClass === cName ||
+                        uClass === cCode ||
+                        uClass === cleanCName ||
+                        uClass.startsWith(cleanCName) ||
+                        cleanCName.startsWith(uClass) ||
+                        uClass.includes(cleanCName) ||
+                        cleanCName.includes(uClass) ||
+                        (cCode && uClass.includes(cCode))
+                    );
+
+                    if (!matchesId && !matchesClass) return false;
+                }
+            }
+
+            // 3. Stream Filter
+            if (selectedStream && selectedStream !== 'All') {
+                const directStream = (u.stream || '').trim().toLowerCase();
+                const target = selectedStream.toLowerCase().trim();
+                if (directStream !== target && !uClass.includes(target)) {
+                    return false;
+                }
+            }
+
+            // 4. Search Term Filter (Pupil Name, Admission No, or Class)
             if (searchTerm) {
-                const termLower = searchTerm.toLowerCase();
+                const termLower = searchTerm.toLowerCase().trim();
                 const name = (u.name || '').toLowerCase();
                 const adm = (u.admissionNumber || u.admissionNo || '').toLowerCase();
-                if (!name.includes(termLower) && !adm.includes(termLower)) return false;
+                if (!name.includes(termLower) && !adm.includes(termLower) && !uClass.includes(termLower)) {
+                    return false;
+                }
             }
+
             return true;
         });
-    }, [users, currentInstitution, selectedCourseId, selectedStream, searchTerm]);
+    }, [allPupils, selectedCurriculum, selectedCourseId, selectedStream, searchTerm, displayCourses]);
+
+    // Quick seed sample British EYFS pupils if institution has none
+    const handleSeedSampleBritishPupils = async () => {
+        const instId = currentInstitution?.id || 'demo_institution';
+        const samplePupils = [
+            {
+                id: `pupil_br_${Date.now()}_1`,
+                name: 'Liam Alexander',
+                admissionNumber: 'BR-2024-001',
+                studentClass: 'Reception (EYFS)',
+                stream: 'Emerald',
+                role: 'student',
+                institutionId: instId,
+                curriculum: 'British & Montessori',
+                enrollmentDate: new Date().toISOString().split('T')[0],
+                status: 'Enrolled'
+            },
+            {
+                id: `pupil_br_${Date.now()}_2`,
+                name: 'Sophia Grace',
+                admissionNumber: 'BR-2024-002',
+                studentClass: 'Reception (EYFS)',
+                stream: 'Emerald',
+                role: 'student',
+                institutionId: instId,
+                curriculum: 'British & Montessori',
+                enrollmentDate: new Date().toISOString().split('T')[0],
+                status: 'Enrolled'
+            },
+            {
+                id: `pupil_br_${Date.now()}_3`,
+                name: 'Ethan Oliver',
+                admissionNumber: 'BR-2024-003',
+                studentClass: 'Year 1 (British)',
+                stream: 'Ruby',
+                role: 'student',
+                institutionId: instId,
+                curriculum: 'British',
+                enrollmentDate: new Date().toISOString().split('T')[0],
+                status: 'Enrolled'
+            },
+            {
+                id: `pupil_br_${Date.now()}_4`,
+                name: 'Ava Elizabeth',
+                admissionNumber: 'BR-2024-004',
+                studentClass: 'Year 1 (British)',
+                stream: 'Ruby',
+                role: 'student',
+                institutionId: instId,
+                curriculum: 'British',
+                enrollmentDate: new Date().toISOString().split('T')[0],
+                status: 'Enrolled'
+            },
+            {
+                id: `pupil_br_${Date.now()}_5`,
+                name: 'Lucas Noah',
+                admissionNumber: 'BR-2024-005',
+                studentClass: 'Year 2 (British)',
+                stream: 'Sapphire',
+                role: 'student',
+                institutionId: instId,
+                curriculum: 'British',
+                enrollmentDate: new Date().toISOString().split('T')[0],
+                status: 'Enrolled'
+            }
+        ];
+
+        try {
+            const key = `eduai_student_enrollments_${instId}`;
+            const existingRaw = localStorage.getItem(key);
+            const existing = existingRaw ? JSON.parse(existingRaw) : [];
+            const merged = [...samplePupils, ...(Array.isArray(existing) ? existing : [])];
+            localStorage.setItem(key, JSON.stringify(merged));
+
+            await apiService.saveModuleRecord('student_enrollments', samplePupils);
+            showToast('Sample British EYFS pupils added successfully!');
+            await loadAllLearners();
+            setSelectedCurriculum('all');
+            setSelectedCourseId('ALL');
+        } catch (e) {
+            console.error('Failed to seed sample British pupils:', e);
+            showToast('Sample British EYFS pupils loaded locally!');
+            setFetchedStudents(prev => [...samplePupils, ...prev]);
+        }
+    };
 
     // Default select first student
     useEffect(() => {
@@ -335,7 +761,21 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
             )}
 
             {/* ── FILTER & SELECTION TOOLBAR ── */}
-            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                <div>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Curriculum Standard</label>
+                    <select
+                        value={selectedCurriculum}
+                        onChange={e => setSelectedCurriculum(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                        <option value="all">All Curricula ({allPupils.length})</option>
+                        <option value="british">👶 British & Montessori ({allPupils.filter(p => isBritishOrMontessori(p.studentClass, p.curriculum)).length})</option>
+                        <option value="cbc">🇰🇪 CBC / CBE System</option>
+                        <option value="844">🎓 8-4-4 System</option>
+                    </select>
+                </div>
+
                 <div>
                     <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Class / Level</label>
                     <select
@@ -343,6 +783,7 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
                         onChange={e => setSelectedCourseId(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     >
+                        <option value="ALL">All Classes & Learners ({enrolledStudents.length})</option>
                         {displayCourses.map(c => (
                             <option key={c.id} value={c.id}>
                                 {c.name} {c.curriculumType ? `(${c.curriculumType})` : ''}
@@ -389,12 +830,12 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
                 </div>
 
                 <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Search Student</label>
+                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 ml-1">Search Pupil</label>
                     <div className="relative">
                         <Search className="w-3.5 h-3.5 absolute left-3.5 top-3 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Filter by pupil name..."
+                            placeholder="Filter pupil name..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl pl-9 pr-3.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -408,15 +849,39 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
                 {/* Pupil List Column */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-[480px]">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-2 px-1">
-                        <span className="text-xs font-black uppercase tracking-wider text-slate-500">Pupils ({enrolledStudents.length})</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-500">Pupils ({enrolledStudents.length})</span>
+                            {isLoadingData && <RefreshCw className="w-3 h-3 animate-spin text-emerald-500" />}
+                        </div>
                         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
-                            {currentCourse?.name || 'Class'}
+                            {currentCourse?.name || (selectedCurriculum === 'british' ? 'British / EYFS' : 'All Classes')}
                         </span>
                     </div>
 
                     <div className="overflow-y-auto space-y-1.5 flex-1 pr-1 custom-scrollbar">
                         {enrolledStudents.length === 0 ? (
-                            <div className="p-6 text-center text-slate-400 text-xs">No pupils match the filter criteria.</div>
+                            <div className="p-6 text-center text-slate-400 text-xs space-y-3">
+                                <p>No pupils match the selected filter criteria.</p>
+                                <div className="flex flex-col gap-2 pt-1">
+                                    <button
+                                        onClick={() => {
+                                            setSelectedCurriculum('all');
+                                            setSelectedCourseId('ALL');
+                                            setSelectedStream('All');
+                                            setSearchTerm('');
+                                        }}
+                                        className="px-3 py-1.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-emerald-200 transition-colors"
+                                    >
+                                        Show All Pupils
+                                    </button>
+                                    <button
+                                        onClick={handleSeedSampleBritishPupils}
+                                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-teal-600/20 active:scale-95"
+                                    >
+                                        🌱 Seed Sample British EYFS Pupils
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             enrolledStudents.map(student => {
                                 const isSelected = student.id === selectedStudentId;
