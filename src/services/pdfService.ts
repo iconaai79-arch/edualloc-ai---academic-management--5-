@@ -5732,19 +5732,33 @@ export const generateParentInKindLpoPdf = async (
     const pageWidth = doc.internal.pageSize.getWidth();
 
     // LPO Header Details Box
+    const metaBoxWidth = 85;
+    const metaX = pageWidth - margin - metaBoxWidth;
+
+    // Parse / format delivery due date safely to avoid overflow
+    let dueDate = 'Within Agreed Term';
+    if (proposal.expectedDeliveryDate) {
+        const parsedDate = new Date(proposal.expectedDeliveryDate);
+        if (!isNaN(parsedDate.getTime())) {
+            dueDate = parsedDate.toLocaleDateString('en-GB');
+        } else if (typeof proposal.expectedDeliveryDate === 'string' && proposal.expectedDeliveryDate.trim().length > 0) {
+            const raw = proposal.expectedDeliveryDate.trim();
+            dueDate = raw.length > 20 ? `${raw.slice(0, 18)}...` : raw;
+        }
+    }
+
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('LPO NUMBER:', pageWidth - margin - 60, margin + 52);
-    doc.text('ISSUE DATE:', pageWidth - margin - 60, margin + 57);
-    doc.text('DELIVERY DUE:', pageWidth - margin - 60, margin + 62);
-    doc.text('SETTLEMENT:', pageWidth - margin - 60, margin + 67);
+    doc.setFontSize(8.5);
+    doc.text('LPO NUMBER:', metaX, margin + 52);
+    doc.text('ISSUE DATE:', metaX, margin + 57);
+    doc.text('DELIVERY DUE:', metaX, margin + 62);
+    doc.text('SETTLEMENT:', metaX, margin + 67);
 
     doc.setFont('helvetica', 'normal');
     const lpoNum = proposal.lpoNumber || proposal.lpo_number || `LPO-PIK-${String(proposal.id || '').slice(-6).toUpperCase()}`;
     doc.text(lpoNum, pageWidth - margin, margin + 52, { align: 'right' });
     const issueDate = proposal.createdAt ? new Date(proposal.createdAt).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
     doc.text(issueDate, pageWidth - margin, margin + 57, { align: 'right' });
-    const dueDate = proposal.expectedDeliveryDate ? new Date(proposal.expectedDeliveryDate).toLocaleDateString('en-GB') : 'On or before agreed term date';
     doc.text(dueDate, pageWidth - margin, margin + 62, { align: 'right' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(16, 185, 129);
