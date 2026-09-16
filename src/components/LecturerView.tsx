@@ -201,6 +201,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     } = props;
 
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [timetableSubTab, setTimetableSubTab] = useState<'regular' | 'remedials'>('regular');
     const [showMoreDrawer, setShowMoreDrawer] = useState(false);
 
     // Remedial States
@@ -245,8 +246,12 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     useEffect(() => {
         if (activeTab === 'remedials') {
             loadRemedialData();
+            setActiveTab('my_timetable');
+            setTimetableSubTab('remedials');
+        } else if (activeTab === 'my_timetable' && timetableSubTab === 'remedials') {
+            loadRemedialData();
         }
-    }, [activeTab]);
+    }, [activeTab, timetableSubTab]);
 
     // Teacher's own remedial allocations
     const myRemedialAllocations = useMemo(() => {
@@ -326,7 +331,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'lesson_plans', 'class_supervisor_attendance', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin', 'remedials'];
+        const base = ['dashboard', 'lesson_plans', 'class_supervisor_attendance', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -387,7 +392,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     <div className="flex items-center gap-3.5 relative z-10">
                                         {renderTabIcon(tab, "w-4.5 h-4.5")}
                                         <span>{tab.replace(/_/g, ' ')}</span>
-                                        {tab === 'remedials' && pendingSubstituteRequests.length > 0 && (
+                                        {tab === 'my_timetable' && pendingSubstituteRequests.length > 0 && (
                                             <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[8px] font-black animate-pulse">
                                                 {pendingSubstituteRequests.length} Sub Req
                                             </span>
@@ -511,20 +516,63 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     )}
 
                     {activeTab === 'my_timetable' && (
-                        <div className="space-y-6">
-                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                                <h3 className="text-xl font-black uppercase tracking-tighter mb-6">Staff Schedule</h3>
-                                <TimetableGrid
-                                    entries={lecturerTimetable}
-                                    subjects={subjects || []}
-                                    courses={courses || []}
-                                    rooms={props.rooms || []}
-                                    getSubjectById={getSubjectById}
-                                    getLecturerById={id => user}
-                                    getRoomById={getRoomById}
-                                    timetableSettings={timetableSettings}
-                                />
+                        <div className="space-y-6 animate-fade-in-up">
+                            {/* Timetable Subtabs Switcher: Regular Timetable vs Remedials Hub */}
+                            <div className="flex flex-wrap items-center justify-between gap-4 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl p-2 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 shadow-sm no-print">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setTimetableSubTab('regular')}
+                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                                            timetableSubTab === 'regular'
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/40'
+                                        }`}
+                                    >
+                                        <ClockIcon className="w-4 h-4" />
+                                        <span>Regular Timetable</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setTimetableSubTab('remedials')}
+                                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 relative ${
+                                            timetableSubTab === 'remedials'
+                                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                                                : 'text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800/40'
+                                        }`}
+                                    >
+                                        <BookOpenIcon className="w-4 h-4" />
+                                        <span>Remedials Hub</span>
+                                        {pendingSubstituteRequests.length > 0 && (
+                                            <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[8px] font-black animate-pulse shadow-sm">
+                                                {pendingSubstituteRequests.length} Sub Req
+                                            </span>
+                                        )}
+                                        {myRemedialAllocations.length > 0 && (
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                                timetableSubTab === 'remedials' ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                            }`}>
+                                                {myRemedialAllocations.length}
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
+
+                            {timetableSubTab === 'regular' && (
+                                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                    <h3 className="text-xl font-black uppercase tracking-tighter mb-6">Staff Schedule</h3>
+                                    <TimetableGrid
+                                        entries={lecturerTimetable}
+                                        subjects={subjects || []}
+                                        courses={courses || []}
+                                        rooms={props.rooms || []}
+                                        getSubjectById={getSubjectById}
+                                        getLecturerById={id => user}
+                                        getRoomById={getRoomById}
+                                        timetableSettings={timetableSettings}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -783,7 +831,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         </div>
                     )}
 
-                    {activeTab === 'remedials' && (() => {
+                    {((activeTab === 'remedials') || (activeTab === 'my_timetable' && timetableSubTab === 'remedials')) && (() => {
                         const activeSession = remedialSessions.find(s => s.status === 'In Progress');
                         const coursePrefects = props.users?.filter(
                             u => u.role === 'student' && u.courseId === selectedCourseId
@@ -1658,12 +1706,19 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 ]
                                 .filter(x => x.enabled !== false)
                                 .map((item) => {
-                                    const isActive = activeTab === item.id;
+                                    const isActive = item.id === 'remedials' 
+                                        ? (activeTab === 'my_timetable' && timetableSubTab === 'remedials') 
+                                        : (activeTab === item.id);
                                     return (
                                         <button
                                             key={item.id}
                                             onClick={() => {
-                                                setActiveTab(item.id);
+                                                if (item.id === 'remedials') {
+                                                    setActiveTab('my_timetable');
+                                                    setTimetableSubTab('remedials');
+                                                } else {
+                                                    setActiveTab(item.id);
+                                                }
                                                 setShowMoreDrawer(false);
                                             }}
                                             className={`flex flex-col items-center justify-center p-5 rounded-2xl transition-all duration-300 border ${
