@@ -3025,9 +3025,36 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         };
     }, [printingPrefect]);
 
+    // Image loader helper for PDF card generation
+    const loadImgAsset = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
+        return new Promise((resolve) => {
+            let safeUrl = (url || '').trim();
+            if (!safeUrl) return resolve(null);
+            if (safeUrl.startsWith('data:image/svg+xml;utf8,')) {
+                safeUrl = safeUrl.replace('data:image/svg+xml;utf8,', 'data:image/svg+xml;charset=utf-8,');
+            }
+            const img = new Image();
+            if (!safeUrl.startsWith('data:') && !safeUrl.startsWith('blob:')) {
+                img.crossOrigin = "Anonymous";
+            }
+            img.src = safeUrl;
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+        });
+    };
+
     // Download Prefect QR Pass as A6 PDF
-    const downloadPrefectCardPdf = (prefect: User, qrDataUrl: string, courseName: string, institutionName: string) => {
+    const downloadPrefectCardPdf = async (
+        prefect: User, 
+        qrDataUrl: string, 
+        courseName: string, 
+        institutionName: string,
+        logoUrl?: string | null
+    ) => {
         try {
+            const effectiveLogoUrl = logoUrl || currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo || null;
+            const logoImg = effectiveLogoUrl ? await loadImgAsset(effectiveLogoUrl) : null;
+
             const lib = (window as any).jspdf || (window as any).jsPDF;
             const jsPDFClass = lib?.jsPDF || lib || jsPDF;
             const doc = new jsPDFClass({
@@ -3047,59 +3074,117 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             doc.setLineWidth(0.4);
             doc.roundedRect(8, 8, pageWidth - 16, 132, 4, 4, 'S');
 
-            // Institution Name
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(11);
-            doc.setTextColor(30, 27, 75);
-            doc.text((institutionName || 'School Remedial Program').toUpperCase(), pageWidth / 2, 17, { align: 'center' });
+            let yPos = 10;
 
-            // Badge Pill
-            doc.setFontSize(7.5);
-            doc.setTextColor(79, 70, 229);
-            doc.text('CLASS PREFECT VALIDATION CARD', pageWidth / 2, 23, { align: 'center' });
-
-            // Horizontal Rule
-            doc.setDrawColor(226, 232, 240);
-            doc.setLineWidth(0.3);
-            doc.line(14, 26, pageWidth - 14, 26);
-
-            // Prefect Name
-            doc.setFontSize(13);
-            doc.setTextColor(15, 23, 42);
-            doc.text(prefect.name.toUpperCase(), pageWidth / 2, 34, { align: 'center' });
-
-            // Stream Name
-            doc.setFontSize(9);
-            doc.setTextColor(79, 70, 229);
-            doc.text(`STREAM: ${(courseName || 'Class').toUpperCase()}`, pageWidth / 2, 40, { align: 'center' });
-
-            // QR Code Image
-            const qrSource = qrDataUrl || prefectQrUrl;
-            if (qrSource) {
-                const qrSize = 54;
-                const qrX = (pageWidth - qrSize) / 2;
-                doc.addImage(qrSource, 'PNG', qrX, 45, qrSize, qrSize);
+            // 1. School Logo (if available)
+            if (logoImg) {
+                const maxLogoW = 15;
+                const maxLogoH = 13;
+                const aspect = (logoImg.naturalWidth || logoImg.width) > 0 ? (logoImg.naturalHeight || logoImg.height) / (logoImg.naturalWidth || logoImg.width) : 1;
+                let logoW = maxLogoW;
+                let logoH = logoW * aspect;
+                if (logoH > maxLogoH) {
+                    logoH = maxLogoH;
+                    logoW = logoH / aspect;
+                }
+                const logoX = (pageWidth - logoW) / 2;
+                try {
+                    doc.addImage(logoImg, 'PNG', logoX, yPos, logoW, logoH);
+                } catch {
+                    try {
+                        doc.addImage(logoImg, 'JPEG', logoX, yPos, logoW, logoH);
+                    } catch (e) {
+                        console.warn('Could not render logo in PDF:', e);
+                    }
+                }
+                yPos += logoH + 2.5;
+            } else {
+                yPos = 15;
             }
 
-            // Token ID
+            // 2. Institution Name
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10.5);
+            doc.setTextColor(30, 27, 75);
+            const instText = (institutionName || 'School Remedial Program').toUpperCase();
+            const maxInstWidth = pageWidth - 24;
+            const instLines: string[] = doc.splitTextToSize(instText, maxInstWidth);
+            instLines.forEach((l: string) => {
+                doc.text(l, pageWidth / 2, yPos, { align: 'center' });
+                yPos += 4.5;
+            });
+
+            // 3. Badge Pill
+            doc.setFontSize(7.5);
+            doc.setTextColor(79, 70, 229);
+            doc.text('CLASS PREFECT VALIDATION CARD', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 3.5;
+
+            // 4. Horizontal Rule
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.3);
+            doc.line(14, yPos, pageWidth - 14, yPos);
+            yPos += 4.5;
+
+            // 5. Prefect Name (Auto-fit & wrap to ensure it always fits inside the card)
+            const rawName = (prefect.name || 'STUDENT PREFECT').toUpperCase().trim();
+            const maxNameWidth = pageWidth - 24; // 81mm within safe card border
+            let nameFontSize = 12;
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(nameFontSize);
+
+            while (doc.getTextWidth(rawName) > maxNameWidth && nameFontSize > 8) {
+                nameFontSize -= 0.5;
+                doc.setFontSize(nameFontSize);
+            }
+
+            // Split into lines if still exceeding width or containing brackets
+            const nameLines: string[] = doc.splitTextToSize(rawName, maxNameWidth);
+            doc.setTextColor(15, 23, 42);
+            const nameLineHeight = nameFontSize * 0.38 + 1.2;
+            nameLines.forEach((line: string) => {
+                doc.text(line, pageWidth / 2, yPos, { align: 'center' });
+                yPos += nameLineHeight;
+            });
+            yPos += 1;
+
+            // 6. Stream Name
+            doc.setFontSize(8.5);
+            doc.setTextColor(79, 70, 229);
+            doc.text(`STREAM: ${(courseName || 'Class').toUpperCase()}`, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 4;
+
+            // 7. QR Code Image
+            const qrSource = qrDataUrl || prefectQrUrl;
+            // Compute available vertical space for QR Code dynamically
+            const maxQrSize = Math.min(48, Math.max(38, 134 - 30 - yPos));
+            if (qrSource) {
+                const qrX = (pageWidth - maxQrSize) / 2;
+                doc.addImage(qrSource, 'PNG', qrX, yPos, maxQrSize, maxQrSize);
+            }
+            yPos += maxQrSize + 3.5;
+
+            // 8. Token ID
             doc.setFont('courier', 'bold');
-            doc.setFontSize(7);
+            doc.setFontSize(6.5);
             doc.setTextColor(100, 116, 139);
             const tokenStr = `Token: prefect_remedial_token_class_${prefect.courseId}`;
-            doc.text(tokenStr, pageWidth / 2, 106, { align: 'center' });
+            doc.text(tokenStr, pageWidth / 2, yPos, { align: 'center' });
+            yPos += 4;
 
-            // Instructions
+            // 9. Instructions
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
+            doc.setFontSize(6.8);
             doc.setTextColor(71, 85, 105);
-            doc.text('Scan this QR code to verify session start and end.', pageWidth / 2, 114, { align: 'center' });
-            doc.text('Authorized by Academic Administration', pageWidth / 2, 118, { align: 'center' });
+            doc.text('Scan this QR code to verify session start and end.', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 3.5;
+            doc.text('Authorized by Academic Administration', pageWidth / 2, yPos, { align: 'center' });
 
-            // Bottom Footer
+            // 10. Bottom Footer
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(7.5);
             doc.setTextColor(79, 70, 229);
-            doc.text('REMEDIAL LESSONS SCAN PASS', pageWidth / 2, 130, { align: 'center' });
+            doc.text('REMEDIAL LESSONS SCAN PASS', pageWidth / 2, 134, { align: 'center' });
 
             const filename = `Prefect_${prefect.name.replace(/[^a-zA-Z0-9]/g, '_')}_Remedial_QR.pdf`;
             doc.save(filename);
@@ -3116,6 +3201,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         const courseName = courses.find(c => c.id === target.courseId)?.name || 'Class / Stream';
         const institutionName = currentInstitution?.name || 'School Remedial Program';
+        const institutionLogo = currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo || null;
         const tokenId = `prefect_remedial_token_class_${target.courseId}`;
         const qrSrc = prefectQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tokenId)}`;
 
@@ -3157,6 +3243,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             background: #ffffff;
                             box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06);
                         }
+                        .school-logo {
+                            width: 52px;
+                            height: 52px;
+                            object-fit: contain;
+                            margin: 0 auto 10px auto;
+                            display: block;
+                        }
                         .institution-title {
                             font-size: 15px;
                             font-weight: 900;
@@ -3179,12 +3272,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             margin-bottom: 16px;
                         }
                         .prefect-name {
-                            font-size: 20px;
+                            font-size: 16px;
                             font-weight: 900;
                             text-transform: uppercase;
                             color: #0f172a;
                             letter-spacing: -0.5px;
-                            margin: 0 0 4px 0;
+                            margin: 0 auto 4px auto;
+                            word-break: break-word;
+                            overflow-wrap: break-word;
+                            max-width: 95%;
+                            line-height: 1.3;
                         }
                         .stream-badge {
                             font-size: 12px;
@@ -3246,6 +3343,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 </head>
                 <body>
                     <div class="card-container">
+                        ${institutionLogo ? `<img src="${institutionLogo}" alt="School Logo" class="school-logo" />` : ''}
                         <h2 class="institution-title">${institutionName}</h2>
                         <div class="badge-pill">Class Prefect Card</div>
                         <h3 class="prefect-name">${target.name}</h3>
@@ -8771,11 +8869,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-
-                        {/* Card Preview Graphic */}
+                                  {/* Card Preview Graphic */}
                         <div className="p-6 sm:p-8 flex flex-col items-center">
                             <div className="w-full max-w-xs bg-white text-black p-6 rounded-[2rem] border-4 border-double border-indigo-600 text-center shadow-lg space-y-4">
                                 <div>
+                                    {(currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo) && (
+                                        <img 
+                                            src={currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo} 
+                                            alt="School Logo" 
+                                            className="w-12 h-12 object-contain mx-auto mb-2 drop-shadow-sm" 
+                                        />
+                                    )}
                                     <h4 className="text-sm font-black uppercase tracking-tight text-indigo-950 leading-tight">
                                         {currentInstitution?.name || 'SCHOOL REMEDIAL PROGRAM'}
                                     </h4>
@@ -8785,7 +8889,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
 
                                 <div>
-                                    <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900">{printingPrefect.name}</h3>
+                                    <h3 className="text-lg sm:text-xl font-black uppercase italic tracking-tight text-slate-900 break-words leading-tight px-2 max-w-full">
+                                        {printingPrefect.name}
+                                    </h3>
                                     <p className="text-xs font-black uppercase text-indigo-600 mt-0.5">
                                         Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
                                     </p>
@@ -8835,7 +8941,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     printingPrefect,
                                     prefectQrUrl,
                                     courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class',
-                                    currentInstitution?.name || 'School Remedial Program'
+                                    currentInstitution?.name || 'School Remedial Program',
+                                    currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo || null
                                 )}
                                 className="px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                             >
@@ -8856,7 +8963,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             {/* DOM Print Sheet for Native Browser Print Preview (Includes .print-only to override body visibility:hidden) */}
             {printingPrefect && (
                 <div id="prefect-print-sheet" className="print-only hidden print:flex fixed inset-0 bg-white z-[999999] flex-col items-center justify-center p-8 text-black text-center font-sans">
-                    <div className="border-4 border-double border-indigo-600 p-8 max-w-sm w-full mx-auto rounded-[2rem] space-y-5 bg-white">
+                    <div className="border-4 border-double border-indigo-600 p-8 max-w-sm w-full mx-auto rounded-[2rem] space-y-4 bg-white">
+                        {(currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo) && (
+                            <img 
+                                src={currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo} 
+                                alt="School Logo" 
+                                className="w-14 h-14 object-contain mx-auto mb-2" 
+                            />
+                        )}
                         <h2 className="text-lg font-black uppercase tracking-tight text-indigo-900">
                             {currentInstitution?.name || 'SCHOOL REMEDIAL PROGRAM'}
                         </h2>
@@ -8864,7 +8978,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             Class Prefect Card
                         </div>
                         <div>
-                            <h3 className="text-2xl font-black uppercase italic tracking-tight text-slate-900">{printingPrefect.name}</h3>
+                            <h3 className="text-xl font-black uppercase italic tracking-tight text-slate-900 break-words leading-tight px-2 max-w-full">
+                                {printingPrefect.name}
+                            </h3>
                             <p className="text-xs font-black uppercase text-indigo-600 mt-1">
                                 Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
                             </p>
@@ -8874,15 +8990,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="mx-auto w-[200px] h-[200px] border-2 border-dashed border-slate-300 p-2 rounded-2xl flex items-center justify-center bg-white">
                             {prefectQrUrl ? (
                                 <img 
-                                    src={prefectQrUrl}
-                                    alt="Prefect Validation QR"
-                                    className="w-full h-full object-contain"
+                                    src={prefectQrUrl} 
+                                    alt="Prefect Validation QR" 
+                                    className="w-full h-full object-contain" 
                                 />
                             ) : (
                                 <img 
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`prefect_remedial_token_class_${printingPrefect.courseId}`)}`}
-                                    alt="Prefect Validation QR"
-                                    className="w-full h-full object-contain"
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`prefect_remedial_token_class_${printingPrefect.courseId}`)}`} 
+                                    alt="Prefect Validation QR" 
+                                    className="w-full h-full object-contain" 
                                 />
                             )}
                         </div>

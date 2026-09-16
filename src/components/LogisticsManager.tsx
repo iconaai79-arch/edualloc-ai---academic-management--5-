@@ -55,6 +55,7 @@ import { TransportBillingManager } from './TransportBillingManager';
 import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
 import { TransportManager } from './TransportManager';
 import { apiService } from '../services/apiService';
+import { useToast } from '../services/ToastContext';
 
 interface Shipment {
     id: string;
@@ -81,6 +82,7 @@ interface LogisticsManagerProps {
 }
 
 export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users, courses: initialCourses = [] }) => {
+    const { success: toastSuccess, error: toastError } = useToast();
     const isShuttle = currentInstitution.category === 'Staff Shuttle' || currentInstitution.category === 'Corporate Shuttle';
     const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
     // Actually, based on user request, let's explicitly detect Public Transport
@@ -512,8 +514,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         schoolTrips: any[];
         transportInvoices: any[];
         transportAlerts: any[];
+        studentVehicles: any;
     }>) => {
         if (!currentInstitution?.id) return;
+        const studentVehiclesKey = `eduai_transport_student_vehicles_${currentInstitution.id}`;
+        let localStudentVehicles: Record<string, string> = {};
+        try {
+            const sv = localStorage.getItem(studentVehiclesKey);
+            if (sv) localStudentVehicles = JSON.parse(sv);
+        } catch (_) {}
+
         const payload = {
             busRoutes: updates.busRoutes !== undefined ? updates.busRoutes : busRoutes,
             studentCommutePrefs: updates.studentCommutePrefs !== undefined ? updates.studentCommutePrefs : studentCommutePrefs,
@@ -522,6 +532,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             schoolTrips: updates.schoolTrips !== undefined ? updates.schoolTrips : schoolTrips,
             transportInvoices: updates.transportInvoices !== undefined ? updates.transportInvoices : transportInvoices,
             transportAlerts: updates.transportAlerts !== undefined ? updates.transportAlerts : transportAlerts,
+            studentVehicles: updates.studentVehicles !== undefined ? updates.studentVehicles : localStudentVehicles,
             updatedAt: new Date().toISOString()
         };
         apiService.saveTransportLogisticsHub(currentInstitution.id, payload).catch(err => {
@@ -564,6 +575,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const tripKey = `eduai_school_trips_${instId}`;
             const invKey = `eduai_transport_fee_invoices_${instId}`;
             const pctKey = `eduai_transport_oneway_pct_${instId}`;
+            const studentVehiclesKey = `eduai_transport_student_vehicles_${instId}`;
 
             // Read local storage data
             let localRoutes: any[] = [];
@@ -576,18 +588,61 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             try { const t = localStorage.getItem(tripKey); if (t) localTrips = JSON.parse(t); } catch (_) {}
             let localInvs: any[] = [];
             try { const i = localStorage.getItem(invKey); if (i) localInvs = JSON.parse(i); } catch (_) {}
+            let localStudentVehicles: Record<string, string> = {};
+            try { const sv = localStorage.getItem(studentVehiclesKey); if (sv) localStudentVehicles = JSON.parse(sv); } catch (_) {}
 
             const cloudData = await apiService.fetchTransportLogisticsHub(instId);
 
-            const localStudentCount = Object.keys(localPrefs).filter(k => localPrefs[k]?.preference && localPrefs[k].preference !== 'none').length;
-            const cloudRoutes = Array.isArray(cloudData?.busRoutes) ? cloudData.busRoutes : [];
-            const cloudPrefs = cloudData?.studentCommutePrefs && typeof cloudData.studentCommutePrefs === 'object' ? cloudData.studentCommutePrefs : {};
-            const cloudStudentCount = Object.keys(cloudPrefs).filter(k => cloudPrefs[k]?.preference && cloudPrefs[k].preference !== 'none').length;
+            // Normalize cloud routes (support both camelCase busRoutes and snake_case bus_routes)
+            const rawCloudRoutes = Array.isArray(cloudData?.busRoutes) ? cloudData.busRoutes : (Array.isArray(cloudData?.bus_routes) ? cloudData.bus_routes : []);
+            const cloudRoutes = rawCloudRoutes.map((r: any) => ({
+                id: r.id,
+                name: r.name || r.routeName || r.route_name || '',
+                startPoint: r.startPoint || r.start_point || '',
+                endPoint: r.endPoint || r.end_point || '',
+                bus: r.bus || '',
+                driver: r.driver || '',
+                attendant: r.attendant || ''
+            }));
 
-            const localHasMoreRoutes = localRoutes.length > cloudRoutes.length;
+            // Normalize student commute preferences (support both studentCommutePrefs and student_commute_prefs)
+            const rawCloudPrefs = (cloudData?.studentCommutePrefs && typeof cloudData.studentCommutePrefs === 'object')
+                ? cloudData.studentCommutePrefs
+                : ((cloudData?.student_commute_prefs && typeof cloudData.student_commute_prefs === 'object') ? cloudData.student_commute_prefs : {});
 
-            if (forcePush || (!cloudData && (localRoutes.length > 0 || localStudentCount > 0)) || (localHasMoreRoutes && cloudRoutes.length <= 3)) {
-                // Upload local dataset to Supabase
+            const cloudPrefs: Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }> = {};
+            Object.entries(rawCloudPrefs).forEach(([stId, prefObj]: [string, any]) => {
+                if (prefObj && typeof prefObj === 'object') {
+                    cloudPrefs[stId] = {
+                        routeId: prefObj.routeId || prefObj.route_id || 'none',
+                        preference: prefObj.preference || 'none'
+                    };
+                }
+            });
+
+            const cloudFees = Array.isArray(cloudData?.routeFeeSetting)
+                ? cloudData.routeFeeSetting
+                : (Array.isArray(cloudData?.route_fee_setting) ? cloudData.route_fee_setting : []);
+
+            const cloudTrips = Array.isArray(cloudData?.schoolTrips)
+                ? cloudData.schoolTrips
+                : (Array.isArray(cloudData?.school_trips) ? cloudData.school_trips : []);
+
+            const cloudInvs = Array.isArray(cloudData?.transportInvoices)
+                ? cloudData.transportInvoices
+                : (Array.isArray(cloudData?.transport_invoices) ? cloudData.transport_invoices : []);
+
+            const cloudAlerts = Array.isArray(cloudData?.transportAlerts)
+                ? cloudData.transportAlerts
+                : (Array.isArray(cloudData?.transport_alerts) ? cloudData.transport_alerts : []);
+
+            const cloudPct = cloudData?.defaultOneWayPercentage || cloudData?.default_one_way_percentage;
+            const cloudStudentVehicles = cloudData?.studentVehicles || cloudData?.student_vehicles || {};
+
+            const hasCloudData = cloudRoutes.length > 0 || Object.keys(cloudPrefs).length > 0 || cloudFees.length > 0 || cloudTrips.length > 0;
+
+            if (forcePush) {
+                // EXPLICIT USER SYNC: Upload all current logistics data to Supabase
                 const payload = {
                     busRoutes: localRoutes.length > 0 ? localRoutes : busRoutes,
                     studentCommutePrefs: Object.keys(localPrefs).length > 0 ? localPrefs : studentCommutePrefs,
@@ -596,68 +651,53 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     schoolTrips: localTrips.length > 0 ? localTrips : schoolTrips,
                     transportInvoices: localInvs.length > 0 ? localInvs : transportInvoices,
                     transportAlerts: transportAlerts,
+                    studentVehicles: localStudentVehicles,
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.saveTransportLogisticsHub(instId, payload);
-                setLastSyncedTime(new Date());
-            } else if (cloudData && (cloudRoutes.length > 0 || Object.keys(cloudPrefs).length > 0)) {
-                // If local has more data, merge with cloud
-                if (localRoutes.length > cloudRoutes.length || localStudentCount > cloudStudentCount) {
-                    const mergedRoutes = localRoutes.length >= cloudRoutes.length ? localRoutes : cloudRoutes;
-                    const mergedPrefs = { ...cloudPrefs, ...localPrefs };
-                    const mergedFees = localFees.length >= (cloudData.routeFeeSetting || []).length ? localFees : (cloudData.routeFeeSetting || []);
-                    const mergedTrips = localTrips.length >= (cloudData.schoolTrips || []).length ? localTrips : (cloudData.schoolTrips || []);
-                    const mergedInvs = localInvs.length >= (cloudData.transportInvoices || []).length ? localInvs : (cloudData.transportInvoices || []);
+                const syncTime = new Date();
+                setLastSyncedTime(syncTime);
 
-                    const payload = {
-                        busRoutes: mergedRoutes,
-                        studentCommutePrefs: mergedPrefs,
-                        routeFeeSetting: mergedFees,
-                        defaultOneWayPercentage: cloudData.defaultOneWayPercentage || defaultOneWayPercentage,
-                        schoolTrips: mergedTrips,
-                        transportInvoices: mergedInvs,
-                        transportAlerts: cloudData.transportAlerts || transportAlerts,
-                        updatedAt: new Date().toISOString()
-                    };
-                    await apiService.saveTransportLogisticsHub(instId, payload);
-                    setBusRoutes(mergedRoutes);
-                    setStudentCommutePrefs(mergedPrefs);
-                    setRouteFeeSetting(mergedFees);
-                    setSchoolTrips(mergedTrips);
-                    setTransportInvoices(mergedInvs);
-                } else {
-                    // Cloud has the rich dataset (e.g. Browser 2 loading!)
-                    if (cloudRoutes.length > 0) {
-                        setBusRoutes(cloudRoutes);
-                        localStorage.setItem(routeKey, JSON.stringify(cloudRoutes));
-                    }
-                    if (Object.keys(cloudPrefs).length > 0) {
-                        setStudentCommutePrefs(cloudPrefs);
-                        localStorage.setItem(prefKey, JSON.stringify(cloudPrefs));
-                    }
-                    if (Array.isArray(cloudData.routeFeeSetting) && cloudData.routeFeeSetting.length > 0) {
-                        setRouteFeeSetting(cloudData.routeFeeSetting);
-                        localStorage.setItem(feeKey, JSON.stringify(cloudData.routeFeeSetting));
-                    }
-                    if (cloudData.defaultOneWayPercentage) {
-                        setDefaultOneWayPercentage(cloudData.defaultOneWayPercentage);
-                        localStorage.setItem(pctKey, String(cloudData.defaultOneWayPercentage));
-                    }
-                    if (Array.isArray(cloudData.schoolTrips)) {
-                        setSchoolTrips(cloudData.schoolTrips);
-                        localStorage.setItem(tripKey, JSON.stringify(cloudData.schoolTrips));
-                    }
-                    if (Array.isArray(cloudData.transportInvoices)) {
-                        setTransportInvoices(cloudData.transportInvoices);
-                        localStorage.setItem(invKey, JSON.stringify(cloudData.transportInvoices));
-                    }
-                    if (Array.isArray(cloudData.transportAlerts)) {
-                        setTransportAlerts(cloudData.transportAlerts);
-                    }
+                const commuterCount = Object.values(payload.studentCommutePrefs).filter((p: any) => p?.preference && p.preference !== 'none').length;
+                toastSuccess(`✅ Cloud Sync Complete: ${payload.busRoutes.length} route(s), ${dbVehicles.length} vehicle(s), and ${commuterCount} commuter allocation(s) updated.`);
+            } else if (hasCloudData) {
+                // CLOUD-FIRST LOAD: Browser 2 (or reload) loads the rich cloud dataset without overwriting
+                if (cloudRoutes.length > 0) {
+                    setBusRoutes(cloudRoutes);
+                    localStorage.setItem(routeKey, JSON.stringify(cloudRoutes));
+                }
+                if (Object.keys(cloudPrefs).length > 0) {
+                    setStudentCommutePrefs(cloudPrefs);
+                    localStorage.setItem(prefKey, JSON.stringify(cloudPrefs));
+                }
+                if (cloudFees.length > 0) {
+                    setRouteFeeSetting(cloudFees);
+                    localStorage.setItem(feeKey, JSON.stringify(cloudFees));
+                }
+                if (cloudPct) {
+                    setDefaultOneWayPercentage(cloudPct);
+                    localStorage.setItem(pctKey, String(cloudPct));
+                }
+                if (cloudTrips.length > 0) {
+                    setSchoolTrips(cloudTrips);
+                    localStorage.setItem(tripKey, JSON.stringify(cloudTrips));
+                }
+                if (cloudInvs.length > 0) {
+                    setTransportInvoices(cloudInvs);
+                    localStorage.setItem(invKey, JSON.stringify(cloudInvs));
+                }
+                if (cloudAlerts.length > 0) {
+                    setTransportAlerts(cloudAlerts);
+                }
+                if (cloudStudentVehicles && typeof cloudStudentVehicles === 'object' && Object.keys(cloudStudentVehicles).length > 0) {
+                    try {
+                        const existing = JSON.parse(localStorage.getItem(studentVehiclesKey) || '{}');
+                        localStorage.setItem(studentVehiclesKey, JSON.stringify({ ...existing, ...cloudStudentVehicles }));
+                    } catch (_) {}
                 }
                 setLastSyncedTime(new Date());
             } else if (localRoutes.length > 0 || Object.keys(localPrefs).length > 0) {
-                // Cloud is empty, push local dataset
+                // Cloud is empty and local has custom data, push initial local data
                 const payload = {
                     busRoutes: localRoutes,
                     studentCommutePrefs: localPrefs,
@@ -666,13 +706,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     schoolTrips: localTrips,
                     transportInvoices: localInvs,
                     transportAlerts,
+                    studentVehicles: localStudentVehicles,
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.saveTransportLogisticsHub(instId, payload);
                 setLastSyncedTime(new Date());
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Error synchronizing transport logistics with cloud:', e);
+            if (forcePush) {
+                toastError(`Cloud sync failed: ${e?.message || 'Unable to update cloud database.'}`);
+            }
         } finally {
             setIsCloudSyncing(false);
         }
@@ -3569,11 +3613,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                    {lastSyncedTime && (
+                        <div className="hidden sm:flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 rounded-[1.2rem] text-[10px] font-black uppercase tracking-wider shadow-sm animate-fade-in">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            <span>Cloud Synced {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                    )}
                     <button 
                         type="button"
-                        onClick={() => {
-                            fetchVehiclesList();
-                            syncWithCloud(true);
+                        onClick={async () => {
+                            await fetchVehiclesList();
+                            await syncWithCloud(true);
                         }}
                         disabled={isCloudSyncing}
                         className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 disabled:opacity-50"

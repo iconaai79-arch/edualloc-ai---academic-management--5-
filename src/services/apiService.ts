@@ -132,6 +132,7 @@ const _unsupportedServerModules = new Set<string>([
 ]);
 
 const PROTECTED_KEYS = new Set([
+    'data', 'state_data', 'stateData',
     'coopConfig', 'coopSettings', 'coop_settings',
     'mpesaConfig', 'mpesa_config',
     'smsConfig', 'sms_config',
@@ -2555,6 +2556,36 @@ export const apiService = {
                     console.warn('[apiService] Supabase upsert for institution_module_states caught exception:', imsErr);
                 }
             }
+
+            // Fallback via proxy /api/records endpoint if Supabase direct write failed or _supabase is absent
+            try {
+                let token = await apiService.getAuthToken();
+                const cleanData = {
+                    id: payload.id || `ims_${payload.module_id || payload.moduleId || 'general'}_${payload.institution_id || payload.institutionId || 'default'}`,
+                    institution_id: payload.institution_id || payload.institutionId || 'default',
+                    module_id: payload.module_id || payload.moduleId || 'general',
+                    data: payload.data || payload,
+                    status: payload.status || 'active',
+                    updated_at: new Date().toISOString()
+                };
+                const proxyRes = await fetch('/api/records?module=institution_module_states', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ data: cleanData })
+                });
+                if (proxyRes.ok) {
+                    const resJson = await proxyRes.json();
+                    if (resJson && (resJson.data || resJson.id)) {
+                        return toCamelCase(resJson.data || resJson);
+                    }
+                }
+            } catch (proxyErr) {
+                console.warn('[apiService] Proxy save fallback for institution_module_states failed:', proxyErr);
+            }
+
             return toCamelCase(payload);
         }
 

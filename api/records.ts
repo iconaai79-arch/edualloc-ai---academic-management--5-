@@ -261,7 +261,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'visitors', 'security_alerts', 'security_logs', 'gate_passes', 'student_gate_passes',
           'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
           'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
-          'vehicles', 'transport_onboarding', 'vehicle_logs'
+          'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
