@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import type { User, AllocationRequest, Subject, RequestStatus, TimetableEntry, Room, LessonStructure, UserTask, Institution, StudentAbsenceRequest } from '../types';
+import type { User, AllocationRequest, Subject, RequestStatus, TimetableEntry, Room, LessonStructure, UserTask, Institution, StudentAbsenceRequest, RemedialAllocation, RemedialSession } from '../types';
 import { BookOpenIcon } from './icons/BookOpenIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
@@ -22,7 +22,7 @@ import { AbsenceRequestModal } from './AbsenceRequestModal';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
 import { MyTasks } from './MyTasks';
 import { AttendanceTakerModal } from './AttendanceTakerModal';
-import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Clock, AlertTriangle, Play, Calendar } from 'lucide-react';
 
 
 interface LecturerDashboardProps {
@@ -49,6 +49,9 @@ interface LecturerDashboardProps {
     users?: User[];
     onAccessAlumnaPortal: (school: any) => void;
     schoolRegistry?: any[];
+    myRemedialAllocations?: RemedialAllocation[];
+    pendingSubstituteRequests?: RemedialAllocation[];
+    remedialSessions?: RemedialSession[];
 }
 
 interface UpcomingLessonsWidgetProps {
@@ -378,7 +381,8 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     user, requests = [], allocations = [], subjects = [], getSubjectById, getRoomById, setActiveTab, generatedTimetable = [], onLessonCheckIn, onAbsenceRequest,
     userTasks = [], onAddTask, onUpdateTask, onDeleteTask, onNavigateToNearby, currentInstitution, onRequestChange,
     studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = [],
-    onAccessAlumnaPortal, schoolRegistry
+    onAccessAlumnaPortal, schoolRegistry,
+    myRemedialAllocations = [], pendingSubstituteRequests = [], remedialSessions = []
 }) => {
     const useRequests = currentInstitution?.useAllocationRequests ?? true;
     const pendingRequestsCount = requests.filter(r => r && r.lecturerId === user?.id && (r.status === 'pending' || r.status === 'hod_approved' || r.status === 'deallocation_pending')).length;
@@ -408,6 +412,23 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
         if (hour < 17) return 'Good Afternoon';
         return 'Good Evening';
     }, []);
+
+    const todayDayName = useMemo(() => {
+        return new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    }, []);
+
+    const todayRemedials = useMemo(() => {
+        return (myRemedialAllocations || []).filter(a => a && a.dayOfWeek === todayDayName);
+    }, [myRemedialAllocations, todayDayName]);
+
+    const activeRemedialSession = useMemo(() => {
+        return (remedialSessions || []).find(s => s && s.status === 'In Progress');
+    }, [remedialSessions]);
+
+    const nextUpcomingRemedial = useMemo(() => {
+        if (todayRemedials.length > 0) return null;
+        return (myRemedialAllocations || [])[0] || null;
+    }, [myRemedialAllocations, todayRemedials]);
 
     const registryFlowItems = useMemo(() => {
         const pending = requests.filter(r => r && r.lecturerId === user?.id && r.status === 'pending');
@@ -478,18 +499,31 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                     <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Primary Launch Pad</p>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {[
                         { id: 'self_checkin', label: 'Clock In/Out', desc: 'Verify Attendance', color: 'from-emerald-500/10 to-teal-500/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400', icon: <ClockInIcon className="w-6 h-6" /> },
                         { id: 'my_timetable', label: 'Weekly Schedule', desc: 'Browse Timetable', color: 'from-indigo-500/10 to-violet-500/5 border-indigo-500/20 text-indigo-600 dark:text-indigo-400', icon: <CalendarDaysIcon className="w-6 h-6" /> },
                         { id: 'eduflow', label: 'EduFlow Tasks', desc: 'View Workflows', color: 'from-purple-500/10 to-pink-500/5 border-purple-500/20 text-purple-600 dark:text-purple-400', icon: <ClipboardListIcon className="w-6 h-6" /> },
-                        { id: 'academic_hub', label: 'Marks Hub', desc: 'Assessments', color: 'from-amber-500/10 to-orange-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400', icon: <BookOpenIcon className="w-6 h-6" /> }
-                    ].map((act) => (
+                        { id: 'academic_hub', label: 'Marks Hub', desc: 'Assessments', color: 'from-amber-500/10 to-orange-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400', icon: <BookOpenIcon className="w-6 h-6" /> },
+                        { 
+                            id: 'remedials', 
+                            label: 'Remedials Hub', 
+                            desc: 'Tuition & Sub Calls', 
+                            color: 'from-orange-500/10 to-amber-500/5 border-orange-500/20 text-orange-600 dark:text-orange-400', 
+                            icon: <Clock className="w-6 h-6" />,
+                            badge: (pendingSubstituteRequests?.length || 0) > 0 ? `${pendingSubstituteRequests!.length} Sub Req` : undefined
+                        }
+                    ].map((act: any) => (
                         <button
                             key={act.id}
                             onClick={() => setActiveTab(act.id)}
-                            className={`flex flex-col items-start text-left p-5 rounded-3xl bg-gradient-to-br ${act.color} border hover:shadow-lg transition-all duration-305 hover:-translate-y-1 active:scale-95 group w-full`}
+                            className={`flex flex-col items-start text-left p-5 rounded-3xl bg-gradient-to-br ${act.color} border hover:shadow-lg transition-all duration-305 hover:-translate-y-1 active:scale-95 group w-full relative overflow-hidden`}
                         >
+                            {act.badge && (
+                                <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[8px] font-black uppercase tracking-wider animate-pulse shadow-sm">
+                                    {act.badge}
+                                </span>
+                            )}
                             <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 mb-4 group-hover:scale-110 transition-transform">
                                 {act.icon}
                             </div>
@@ -515,6 +549,173 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 currentUser={user}
                 studentAbsences={studentAbsenceRequests || []}
             />
+
+            {/* Remedial Tuition & Substitution Hub Card */}
+            <div className="bg-gradient-to-br from-white/95 to-slate-50/50 dark:from-slate-900/95 dark:to-slate-950/50 backdrop-blur-xl p-8 rounded-[2.5rem] border border-slate-200/50 dark:border-slate-800/60 shadow-xl shadow-slate-100/50 dark:shadow-none space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl shadow-lg shadow-orange-500/20">
+                            <Clock className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                Remedial Tuition &amp; Substitution Hub
+                            </h3>
+                            <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">
+                                After-Hours Curriculum Interventions &amp; Verified Hours
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {(pendingSubstituteRequests?.length || 0) > 0 ? (
+                            <span className="px-3 py-1 bg-amber-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse shadow-sm">
+                                {pendingSubstituteRequests!.length} Urgent Sub Request{pendingSubstituteRequests!.length === 1 ? '' : 's'}
+                            </span>
+                        ) : todayRemedials.length > 0 ? (
+                            <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider border border-indigo-100/50 dark:border-indigo-900/40">
+                                {todayRemedials.length} Class{todayRemedials.length === 1 ? '' : 'es'} Today ({todayDayName})
+                            </span>
+                        ) : (
+                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-full text-[9px] font-bold uppercase tracking-wider">
+                                Weekly Roster Active
+                            </span>
+                        )}
+                        <button
+                            onClick={() => setActiveTab('remedials')}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+                        >
+                            <span>Open Hub</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Urgent Substitute Alert Banner */}
+                {(pendingSubstituteRequests?.length || 0) > 0 && (
+                    <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 rounded-2xl text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in border border-white/20">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                <AlertTriangle className="w-5 h-5 text-white animate-bounce" />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider">
+                                    Priority Substitute Invitation ({pendingSubstituteRequests!.length})
+                                </h4>
+                                <p className="text-[11px] text-amber-100 font-medium mt-0.5">
+                                    You were selected as the priority substitute. Respond before the confirmation deadline to claim this session.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setActiveTab('remedials')}
+                            className="px-5 py-2.5 bg-white text-amber-800 hover:bg-amber-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow active:scale-95 shrink-0 cursor-pointer"
+                        >
+                            Review &amp; Accept &rarr;
+                        </button>
+                    </div>
+                )}
+
+                {/* Active Session In-Progress Notice */}
+                {activeRemedialSession && (
+                    <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 p-5 rounded-2xl text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in border border-white/20">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                <Play className="w-5 h-5 text-white animate-pulse" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest bg-black/20 px-2 py-0.5 rounded-full">Lesson In Progress</span>
+                                </div>
+                                <h4 className="text-xs font-black uppercase tracking-wider mt-1">
+                                    {activeRemedialSession.subjectName} • {activeRemedialSession.className}
+                                </h4>
+                                <p className="text-[11px] text-emerald-100 font-medium">
+                                    Prefect: {activeRemedialSession.prefectName} • Started: {new Date(activeRemedialSession.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setActiveTab('remedials')}
+                            className="px-5 py-2.5 bg-white text-emerald-900 hover:bg-emerald-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow active:scale-95 shrink-0 cursor-pointer"
+                        >
+                            End Lesson &amp; Scan &rarr;
+                        </button>
+                    </div>
+                )}
+
+                {/* Today's Lessons List or Next Upcoming Schedule */}
+                {todayRemedials.length > 0 ? (
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Today's Remedial Roster ({todayDayName})
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {todayRemedials.map((alloc) => (
+                                <div
+                                    key={alloc.id}
+                                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3 hover:border-indigo-400 transition-colors"
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div>
+                                            <h5 className="text-sm font-black uppercase text-slate-900 dark:text-white leading-tight">
+                                                {alloc.subjectName}
+                                            </h5>
+                                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase mt-0.5">
+                                                {alloc.className} {alloc.stream && alloc.stream !== 'All Streams' ? `• ${alloc.stream}` : ''}
+                                            </p>
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase">
+                                            {alloc.status || 'Confirmed'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                        <Clock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                                        <span>{alloc.startTime} – {alloc.endTime}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setActiveTab('remedials')}
+                                        className="w-full py-2 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-600 text-indigo-700 dark:text-indigo-400 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Play className="w-3 h-3" />
+                                        Launch / Verify Hours
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 text-center sm:text-left">
+                            <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl text-slate-400 shadow-sm">
+                                <Calendar className="w-5 h-5 text-indigo-500" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-black uppercase text-slate-700 dark:text-slate-200">
+                                    No Remedial Sessions Scheduled Today ({todayDayName})
+                                </p>
+                                {nextUpcomingRemedial ? (
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                        Next upcoming session: <strong className="text-indigo-600 dark:text-indigo-400">{nextUpcomingRemedial.subjectName}</strong> for {nextUpcomingRemedial.className} on <strong>{nextUpcomingRemedial.dayOfWeek}</strong> at <strong>{nextUpcomingRemedial.startTime}</strong>.
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                        You are all caught up on your weekly remedial timetable.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setActiveTab('remedials')}
+                            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 text-slate-700 dark:text-slate-200 hover:text-indigo-600 text-[10px] font-black uppercase tracking-wider rounded-xl shadow-sm transition-all whitespace-nowrap active:scale-95 cursor-pointer"
+                        >
+                            View Full Weekly TT
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* Main Statistics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

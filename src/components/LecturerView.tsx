@@ -439,6 +439,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 users={props.users}
                                 onAccessAlumnaPortal={onAccessAlumnaPortal || (() => {})}
                                 schoolRegistry={schoolRegistry}
+                                myRemedialAllocations={myRemedialAllocations}
+                                pendingSubstituteRequests={pendingSubstituteRequests}
+                                remedialSessions={remedialSessions}
                             />
                         </div>
                     )}
@@ -1647,6 +1650,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             <div className="grid grid-cols-2 gap-4">
                                 {[
                                     { id: 'academic_hub', label: 'Academic Hub' },
+                                    { id: 'remedials', label: 'Remedials Hub' },
                                     { id: 'scan_session', label: 'Scanner Module' },
                                     { id: 'synergy_hub', label: 'Synergy Hub' },
                                     { id: 'my_requests', label: 'Load Requests', enabled: useRequests },
