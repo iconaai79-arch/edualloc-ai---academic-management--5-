@@ -54,8 +54,28 @@ import type { TransportDisruption } from './TransportDisruptionAlert';
 import { TransportBillingManager } from './TransportBillingManager';
 import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
 import { TransportManager } from './TransportManager';
-import { apiService } from '../services/apiService';
+import { apiService, safeLocalStorage } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
+
+const safeSetLocalItem = (key: string, value: any) => {
+    try {
+        const strVal = typeof value === 'string' ? value : JSON.stringify(value);
+        safeLocalStorage.setItem(key, strVal);
+    } catch (_) {
+        // Safe fall-through: never crash component on storage quota limits
+    }
+};
+
+const filterActiveCommutePrefs = (prefs: Record<string, any>) => {
+    if (!prefs || typeof prefs !== 'object') return {};
+    const clean: Record<string, any> = {};
+    Object.entries(prefs).forEach(([stId, p]) => {
+        if (p && p.preference && p.preference !== 'none' && p.routeId && p.routeId !== 'none') {
+            clean[stId] = p;
+        }
+    });
+    return clean;
+};
 
 interface Shipment {
     id: string;
@@ -145,7 +165,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 { id: 'vh_demo_2', plateNumber: 'KBB 120Z', model: 'Bus 02', vehicleType: 'bus', capacity: 33, status: 'active', institutionId: currentInstitution?.id, driverName: 'James Kamau' },
                 { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
             ];
-            if (key) localStorage.setItem(key, JSON.stringify(demo));
+            if (key) safeSetLocalItem(key, demo);
             return demo;
         }
         return [];
@@ -208,8 +228,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
             if (merged.length > 0) {
                 setDbVehicles(merged);
-                localStorage.setItem(key, JSON.stringify(merged));
-                localStorage.setItem('eduai_vehicles', JSON.stringify(merged));
+                safeSetLocalItem(key, merged);
+                safeSetLocalItem('eduai_vehicles', merged);
             } else if (currentInstitution?.id?.startsWith('demo_')) {
                 const demo = [
                     { id: 'vh_demo_1', plateNumber: 'KDC 992P', model: 'Bus 04', vehicleType: 'bus', capacity: 51, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
@@ -217,7 +237,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
                 ];
                 setDbVehicles(demo);
-                localStorage.setItem(key, JSON.stringify(demo));
+                safeSetLocalItem(key, demo);
             } else {
                 setDbVehicles([]);
             }
@@ -255,8 +275,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const next = [newVehicle, ...dbVehicles];
             setDbVehicles(next);
             const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
-            if (key) localStorage.setItem(key, JSON.stringify(next));
-            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+            if (key) safeSetLocalItem(key, next);
+            safeSetLocalItem('eduai_vehicles', next);
 
             saveVehiclesToHub(next);
             await apiService.saveModuleRecord('vehicles', newVehicle).catch(() => {});
@@ -270,8 +290,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const next = dbVehicles.map(v => v.id === id ? { ...v, ...updates } : v);
             setDbVehicles(next);
             const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
-            localStorage.setItem(key, JSON.stringify(next));
-            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+            safeSetLocalItem(key, next);
+            safeSetLocalItem('eduai_vehicles', next);
 
             saveVehiclesToHub(next);
             const updatedVehicle = next.find(v => v.id === id);
@@ -288,8 +308,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const next = dbVehicles.filter(v => v.id !== id);
             setDbVehicles(next);
             const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
-            localStorage.setItem(key, JSON.stringify(next));
-            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
+            safeSetLocalItem(key, next);
+            safeSetLocalItem('eduai_vehicles', next);
 
             saveVehiclesToHub(next);
             await apiService.deleteModuleRecord('vehicles', id).catch(() => {});
@@ -344,7 +364,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     const studentVehiclesKey = `eduai_transport_student_vehicles_${instId}`;
                     const cachedMap = JSON.parse(localStorage.getItem(studentVehiclesKey) || '{}');
                     cachedMap[userId] = data.vehicleId || '';
-                    localStorage.setItem(studentVehiclesKey, JSON.stringify(cachedMap));
+                    safeSetLocalItem(studentVehiclesKey, cachedMap);
                 } catch (e) {}
 
                 alert('Student transport vehicle assigned successfully!');
@@ -376,7 +396,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 { routeId: 'route_2', routeName: 'Route B – Langata & Karen',        termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
                 { routeId: 'route_3', routeName: 'Route C – Westlands & Spring Valley', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
             ];
-            if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultFees));
+            if (instKey) safeSetLocalItem(instKey, defaultFees);
             return defaultFees;
         }
         return [];
@@ -385,7 +405,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     React.useEffect(() => {
         if (!currentInstitution?.id) return;
         const key = `eduai_transport_route_fee_settings_${currentInstitution.id}`;
-        localStorage.setItem(key, JSON.stringify(routeFeeSetting));
+        safeSetLocalItem(key, routeFeeSetting);
     }, [routeFeeSetting, currentInstitution?.id]);
 
     const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
@@ -405,7 +425,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     React.useEffect(() => {
         if (!currentInstitution?.id) return;
         const key = `eduai_transport_fee_invoices_${currentInstitution.id}`;
-        localStorage.setItem(key, JSON.stringify(transportInvoices));
+        safeSetLocalItem(key, transportInvoices);
     }, [transportInvoices, currentInstitution?.id]);
 
     const [studentCommutePrefs, setStudentCommutePrefs] = useState<Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }>>(() => {
@@ -425,7 +445,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     React.useEffect(() => {
         if (!currentInstitution?.id) return;
         const key = `eduai_student_commute_prefs_${currentInstitution.id}`;
-        localStorage.setItem(key, JSON.stringify(studentCommutePrefs));
+        safeSetLocalItem(key, filterActiveCommutePrefs(studentCommutePrefs));
     }, [studentCommutePrefs, currentInstitution?.id]);
 
     const [defaultOneWayPercentage, setDefaultOneWayPercentage] = useState<number>(() => {
@@ -441,7 +461,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     React.useEffect(() => {
         if (!currentInstitution?.id) return;
         const key = `eduai_transport_oneway_pct_${currentInstitution.id}`;
-        localStorage.setItem(key, String(defaultOneWayPercentage));
+        safeSetLocalItem(key, String(defaultOneWayPercentage));
     }, [defaultOneWayPercentage, currentInstitution?.id]);
 
     // School Bus Routes State
@@ -469,7 +489,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             if (globalSaved) {
                 const parsed = JSON.parse(globalSaved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    if (instKey) localStorage.setItem(instKey, JSON.stringify(parsed));
+                    if (instKey) safeSetLocalItem(instKey, parsed);
                     return parsed;
                 }
             }
@@ -480,14 +500,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             { id: 'route_2', name: 'Route B - Residential Suburbs & Karen', startPoint: 'Karen Hub / Roundabout', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
             { id: 'route_3', name: 'Route C - Central Shuttle & Westlands', startPoint: 'Westlands Bus Park', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 03 (KDM 441X)', driver: 'Paul Mwangi', attendant: 'Grace Achieng' },
         ];
-        if (instKey) localStorage.setItem(instKey, JSON.stringify(defaultRoutes));
+        if (instKey) safeSetLocalItem(instKey, defaultRoutes);
         return defaultRoutes;
     });
 
     React.useEffect(() => {
         if (!currentInstitution?.id) return;
         const key = `eduai_transport_bus_routes_${currentInstitution.id}`;
-        localStorage.setItem(key, JSON.stringify(busRoutes));
+        safeSetLocalItem(key, busRoutes);
     }, [busRoutes, currentInstitution?.id]);
 
     // School Trips State
@@ -517,8 +537,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
                 { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
             ];
-            localStorage.setItem(key, JSON.stringify(initialDemoTrips));
-            localStorage.setItem('eduai_school_trips', JSON.stringify(initialDemoTrips));
+            safeSetLocalItem(key, initialDemoTrips);
+            safeSetLocalItem('eduai_school_trips', initialDemoTrips);
             return initialDemoTrips;
         }
         return [];
@@ -527,7 +547,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     React.useEffect(() => {
         if (!isEduTransport || !currentInstitution?.id) return;
         const key = `eduai_school_trips_${currentInstitution.id}`;
-        localStorage.setItem(key, JSON.stringify(schoolTrips));
+        safeSetLocalItem(key, schoolTrips);
     }, [schoolTrips, currentInstitution?.id, isEduTransport]);
 
     // Cloud Database Synchronization State & Helpers
@@ -726,40 +746,40 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 // CLOUD-FIRST LOAD: Browser 2 (or reload) loads the rich cloud dataset without overwriting
                 if (cloudRoutes.length > 0) {
                     setBusRoutes(cloudRoutes);
-                    localStorage.setItem(routeKey, JSON.stringify(cloudRoutes));
+                    safeSetLocalItem(routeKey, cloudRoutes);
                 }
                 if (Object.keys(cloudPrefs).length > 0) {
                     setStudentCommutePrefs(cloudPrefs);
-                    localStorage.setItem(prefKey, JSON.stringify(cloudPrefs));
+                    safeSetLocalItem(prefKey, filterActiveCommutePrefs(cloudPrefs));
                 }
                 if (cloudFees.length > 0) {
                     setRouteFeeSetting(cloudFees);
-                    localStorage.setItem(feeKey, JSON.stringify(cloudFees));
+                    safeSetLocalItem(feeKey, cloudFees);
                 }
                 if (cloudPct) {
                     setDefaultOneWayPercentage(cloudPct);
-                    localStorage.setItem(pctKey, String(cloudPct));
+                    safeSetLocalItem(pctKey, String(cloudPct));
                 }
                 if (cloudTrips.length > 0) {
                     setSchoolTrips(cloudTrips);
-                    localStorage.setItem(tripKey, JSON.stringify(cloudTrips));
+                    safeSetLocalItem(tripKey, cloudTrips);
                 }
                 if (cloudInvs.length > 0) {
                     setTransportInvoices(cloudInvs);
-                    localStorage.setItem(invKey, JSON.stringify(cloudInvs));
+                    safeSetLocalItem(invKey, cloudInvs);
                 }
                 if (cloudAlerts.length > 0) {
                     setTransportAlerts(cloudAlerts);
                 }
                 if (cloudVehicles.length > 0) {
                     setDbVehicles(cloudVehicles);
-                    localStorage.setItem(vehiclesKey, JSON.stringify(cloudVehicles));
-                    localStorage.setItem('eduai_vehicles', JSON.stringify(cloudVehicles));
+                    safeSetLocalItem(vehiclesKey, cloudVehicles);
+                    safeSetLocalItem('eduai_vehicles', cloudVehicles);
                 }
                 if (cloudStudentVehicles && typeof cloudStudentVehicles === 'object' && Object.keys(cloudStudentVehicles).length > 0) {
                     try {
                         const existing = JSON.parse(localStorage.getItem(studentVehiclesKey) || '{}');
-                        localStorage.setItem(studentVehiclesKey, JSON.stringify({ ...existing, ...cloudStudentVehicles }));
+                        safeSetLocalItem(studentVehiclesKey, { ...existing, ...cloudStudentVehicles });
                     } catch (_) {}
 
                     // Ensure vehicle badges render immediately on student cards on device 2
@@ -1122,8 +1142,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
         const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : null;
         const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : null;
-        if (routeKey) localStorage.setItem(routeKey, JSON.stringify(nextRoutes));
-        if (feeKey) localStorage.setItem(feeKey, JSON.stringify(nextFees));
+        if (routeKey) safeSetLocalItem(routeKey, nextRoutes);
+        if (feeKey) safeSetLocalItem(feeKey, nextFees);
 
         // Clean up student preferences assigned to this route
         let updatedPrefs = studentCommutePrefs;
@@ -1136,7 +1156,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             });
             updatedPrefs = next;
             const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
-            if (prefKey) localStorage.setItem(prefKey, JSON.stringify(next));
+            if (prefKey) safeSetLocalItem(prefKey, filterActiveCommutePrefs(next));
             return next;
         });
 
@@ -1568,10 +1588,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
             const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
             const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
-            localStorage.setItem(routeKey, JSON.stringify(nextRoutes));
-            localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(nextRoutes));
-            localStorage.setItem(feeKey, JSON.stringify(nextFees));
-            localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(nextFees));
+            safeSetLocalItem(routeKey, nextRoutes);
+            safeSetLocalItem('eduai_transport_bus_routes', nextRoutes);
+            safeSetLocalItem(feeKey, nextFees);
+            safeSetLocalItem('eduai_transport_route_fee_settings', nextFees);
 
             persistHubToCloud({ busRoutes: nextRoutes, routeFeeSetting: nextFees });
 
@@ -2203,7 +2223,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                                     };
                                                                     setStudentCommutePrefs(nextPrefs);
                                                                     const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
-                                                                    if (prefKey) localStorage.setItem(prefKey, JSON.stringify(nextPrefs));
+                                                                    if (prefKey) safeSetLocalItem(prefKey, filterActiveCommutePrefs(nextPrefs));
                                                                     persistHubToCloud({ studentCommutePrefs: nextPrefs });
                                                                 }}
                                                                 className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
@@ -2224,7 +2244,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                                     };
                                                                     setStudentCommutePrefs(nextPrefs);
                                                                     const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
-                                                                    if (prefKey) localStorage.setItem(prefKey, JSON.stringify(nextPrefs));
+                                                                    if (prefKey) safeSetLocalItem(prefKey, filterActiveCommutePrefs(nextPrefs));
                                                                     persistHubToCloud({ studentCommutePrefs: nextPrefs });
                                                                 }}
                                                                 className={`px-4 py-2.5 border rounded-xl font-black uppercase text-[10px] tracking-wider outline-none cursor-pointer ${
@@ -2281,8 +2301,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const nextTrips = [...schoolTrips, newTrip];
             setSchoolTrips(nextTrips);
             const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-            localStorage.setItem(tripKey, JSON.stringify(nextTrips));
-            localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+            safeSetLocalItem(tripKey, nextTrips);
+            safeSetLocalItem('eduai_school_trips', nextTrips);
             persistHubToCloud({ schoolTrips: nextTrips });
 
             setIsAddTripModalOpen(false);
@@ -2301,8 +2321,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const nextTrips = schoolTrips.filter(t => t.id !== tripId);
             setSchoolTrips(nextTrips);
             const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-            localStorage.setItem(tripKey, JSON.stringify(nextTrips));
-            localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+            safeSetLocalItem(tripKey, nextTrips);
+            safeSetLocalItem('eduai_school_trips', nextTrips);
             persistHubToCloud({ schoolTrips: nextTrips });
         };
 
@@ -2314,8 +2334,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             });
             setSchoolTrips(nextTrips);
             const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-            localStorage.setItem(tripKey, JSON.stringify(nextTrips));
-            localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+            safeSetLocalItem(tripKey, nextTrips);
+            safeSetLocalItem('eduai_school_trips', nextTrips);
             persistHubToCloud({ schoolTrips: nextTrips });
         };
 

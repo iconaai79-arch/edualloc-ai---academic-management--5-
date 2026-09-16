@@ -194,16 +194,27 @@ export const safeLocalStorage = {
         try {
             const evictableKeys = Object.keys(localStorage).filter(k => 
                 !k.includes('active_session') && 
+                !k.includes('super_admin') &&
                 !k.includes('current_user') && 
                 !k.includes('credentials') &&
                 !k.includes('token') &&
                 !k.includes('auth') &&
-                (k.startsWith('eduai_') || k.startsWith('ds_') || k.includes('_cache') || k.includes('_backup') || k.includes('_history'))
+                !k.includes('user') &&
+                (
+                    k.includes('_cache') || 
+                    k.includes('_backup') || 
+                    k.includes('_history') || 
+                    k.includes('_logs') || 
+                    k.includes('_outbox') ||
+                    k.startsWith('eduai_') || 
+                    k.startsWith('ds_') || 
+                    k.startsWith('temp_')
+                )
             );
-            // Evict the largest 8 keys to free up plenty of headroom
+            // Evict the largest 15 bloated keys to free up plenty of headroom
             const keySizes = evictableKeys.map(k => ({ key: k, size: (localStorage.getItem(k) || '').length }));
             keySizes.sort((a, b) => b.size - a.size);
-            for (const item of keySizes.slice(0, 8)) {
+            for (const item of keySizes.slice(0, 15)) {
                 localStorage.removeItem(item.key);
             }
         } catch (e) {}
@@ -217,7 +228,25 @@ export const safeLocalStorage = {
                 localStorage.removeItem(key);
                 localStorage.setItem(key, value);
             } catch (_) {
-                // Graceful best-effort fallback
+                // Secondary aggressive eviction: remove largest non-session keys except target key
+                try {
+                    const allKeys = Object.keys(localStorage).filter(k => 
+                        k !== key && 
+                        !k.includes('session') && 
+                        !k.includes('token') && 
+                        !k.includes('user') && 
+                        !k.includes('auth')
+                    );
+                    const sizes = allKeys.map(k => ({ k, len: (localStorage.getItem(k) || '').length }));
+                    sizes.sort((a, b) => b.len - a.len);
+                    for (const s of sizes.slice(0, 10)) {
+                        localStorage.removeItem(s.k);
+                    }
+                    localStorage.setItem(key, value);
+                } catch (finalErr) {
+                    // CRITICAL: NEVER re-throw QuotaExceededError - keep app running smoothly in memory
+                    console.warn(`[safeLocalStorage] Storage quota full for '${key}' - state retained in memory.`);
+                }
             }
         }
     },
