@@ -2884,13 +2884,18 @@ export interface TeacherAttendanceWithDetails extends TeacherAttendanceSummary {
 // STUDENT LEAVE OUT / EXEAT TYPES
 // ============================================================================
 
-export type LeaveOutStatus = 'pending_boarding' | 'pending_security' | 'checked_out' | 'cancelled';
+export type LeaveOutStatus = 'pending_headteacher' | 'pending_boarding' | 'pending_security' | 'approved' | 'rejected' | 'checked_out' | 'cancelled';
 
 export interface LeaveOutRequest {
     id: string;
     studentId: string;
     institutionId: string;
     classTeacherId: string;
+    headteacherId?: string;
+    headteacherApprovedAt?: string;
+    headteacherRemarks?: string;
+    approvedByRole?: 'headteacher' | 'deputy_principal' | 'admin';
+    parentNotifiedAt?: string;
     boardingMasterId?: string;
     securityId?: string;
     reason: string;
@@ -2904,7 +2909,6 @@ export interface LeaveOutRequest {
     homeDepartureAt?: string;
     createdAt: string;
     updatedAt: string;
-
 }
 
 export interface LeaveOutWithDetails extends LeaveOutRequest {
@@ -2913,6 +2917,7 @@ export interface LeaveOutWithDetails extends LeaveOutRequest {
     parentPhone: string;
     parentEmail: string;
     classTeacherName: string;
+    headteacherName?: string;
     boardingMasterName?: string;
     securityName?: string;
 }

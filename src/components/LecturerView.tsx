@@ -48,6 +48,7 @@ import { ClassSupervisorAttendanceManager } from './common/ClassSupervisorAttend
 import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
+const StudentLeaveOutManager = lazy(() => import('./StudentLeaveOutManager').then(m => ({ default: m.StudentLeaveOutManager })));
 
 
 const renderTabIcon = (tab: string, className = "w-5 h-5") => {
@@ -58,6 +59,11 @@ const renderTabIcon = (tab: string, className = "w-5 h-5") => {
             </svg>
         );
         case 'class_supervisor_attendance': return <CheckCircleIcon className={className} />;
+        case 'student_leave_out': return (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+        );
         case 'academic_hub': return (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -411,7 +417,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'lesson_plans', 'class_supervisor_attendance', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin'];
+        const base = ['dashboard', 'lesson_plans', 'class_supervisor_attendance', 'student_leave_out', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin'];
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
@@ -567,6 +573,25 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 activeSemester={props.activeSemester}
                                 onSaveAttendance={props.onSaveAttendance}
                             />
+                        </div>
+                    )}
+
+                    {activeTab === 'student_leave_out' && (
+                        <div className="animate-fade-in-up">
+                            <Suspense fallback={<div className="p-8 text-center text-slate-400 font-bold">Loading Student Leave Out & Exeat Hub...</div>}>
+                                <StudentLeaveOutManager
+                                    currentUser={user!}
+                                    currentInstitution={currentInstitution || { id: user?.institutionId || '', name: 'Institution' } as any}
+                                    companyDetails={{ smsConfig: {} } as any}
+                                    users={props.users || []}
+                                    academicYears={academicYears}
+                                    semesters={semesters}
+                                    courses={courses}
+                                    departments={departments}
+                                    onLogAction={async (msg) => { if (props.onLogAction) props.onLogAction(msg); }}
+                                    onDataChange={() => {}}
+                                />
+                            </Suspense>
                         </div>
                     )}
 

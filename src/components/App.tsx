@@ -7705,7 +7705,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         onSubmitStudentAbsenceRequest: async (req: any) => { await apiService.saveModuleRecord('student_absence_requests', { ...req, id: `sar_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString(), institutionId: currentUser.institutionId }); loadData(); },
                                         assessments,
                                         assessmentMarks,
-                                        onAccessAlumnaPortal: handleAccessAlumnaPortal
+                                        onAccessAlumnaPortal: handleAccessAlumnaPortal,
+                                        onUpdateLeaveOut: async (id: string, data: any) => {
+                                            try {
+                                                const existing = await apiService.fetchModuleRecords<any>('leave_out_requests', currentUser.institutionId);
+                                                const target = existing.find((r: any) => r.id === id);
+                                                if (target) {
+                                                    await apiService.saveModuleRecord('leave_out_requests', { ...target, ...data, updatedAt: new Date().toISOString() });
+                                                }
+                                            } catch (e) {
+                                                console.error('Error updating leave out:', e);
+                                            }
+                                        }
                                     } as any}
                                     />
                                 ) : (activeRole === 'librarian' || (activeRole === 'staff' && (activeInstitution?.institutionType as string) === 'Library')) ? (

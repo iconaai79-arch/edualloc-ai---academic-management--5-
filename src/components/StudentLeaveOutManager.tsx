@@ -54,7 +54,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
     const [requests, setRequests] = useState<LeaveOutWithDetails[]>([]);
     const [bedAllocations, setBedAllocations] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'requests' | 'boarding' | 'security'>('requests');
+    const [activeTab, setActiveTab] = useState<'requests' | 'approvals' | 'boarding' | 'security'>('requests');
     const [searchTerm, setSearchTerm] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -86,6 +86,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
             const enriched: LeaveOutWithDetails[] = data.map(req => {
                 const student = users.find(u => u.id === req.studentId);
                 const teacher = users.find(u => u.id === req.classTeacherId);
+                const headteacher = users.find(u => u.id === req.headteacherId);
                 const boarding = users.find(u => u.id === req.boardingMasterId);
                 const security = users.find(u => u.id === req.securityId);
                 const course = courses.find(c => c.id === student?.courseId);
@@ -116,6 +117,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                     parentPhone,
                     parentEmail,
                     classTeacherName: teacher?.name || 'Unknown',
+                    headteacherName: headteacher?.name,
                     boardingMasterName: boarding?.name,
                     securityName: security?.name
                 };
@@ -142,6 +144,10 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
         }));
     };
 
+    const isHeadTeacherOrDeputy = useMemo(() => {
+        return ['admin', 'head_teacher', 'deputy', 'super_admin', 'managing_director', 'hoi'].includes(currentUser.role);
+    }, [currentUser.role]);
+
     const handleCreateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.studentId || !form.reason) return;
@@ -149,6 +155,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
         setSubmitting(true);
         try {
             const id = `lo_${Date.now()}`;
+            // Class teachers generate leave out and forward to headteacher/deputy for approval
             const newRequest: LeaveOutRequest = {
                 id,
                 institutionId: currentInstitution.id,
@@ -157,7 +164,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                 reason: form.reason,
                 leaveDate: form.leaveDate,
                 returnDate: form.returnDate,
-                status: form.isBoarder ? 'pending_boarding' : 'pending_security',
+                status: 'pending_headteacher',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             };
@@ -166,7 +173,22 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
 
             // Log action
             const student = users.find(u => u.id === form.studentId);
-            await onLogAction(`Generated leave out permission for ${student?.name}`);
+            await onLogAction(`Generated leave out permission request for ${student?.name} (forwarded for approval)`);
+
+            // Send in-app notification to Headteacher / Deputy / Admins
+            const approverUsers = users.filter(u => ['head_teacher', 'deputy', 'admin', 'super_admin'].includes(u.role));
+            for (const approver of approverUsers) {
+                try {
+                    await apiService.createNotification({
+                        userId: approver.id,
+                        institutionId: currentInstitution.id,
+                        title: 'Student Leave Out Awaiting Approval',
+                        message: `Class Teacher ${currentUser.name} submitted a leave out request for ${student?.name || 'a student'} (${form.reason}). Please review and approve.`,
+                        type: 'system',
+                        link: '/leave-out-requests'
+                    });
+                } catch (_) {}
+            }
 
             setShowAddModal(false);
             setForm({
@@ -179,11 +201,155 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
 
             loadRequests();
             onDataChange();
+            alert(`Leave out request generated successfully!\nForwarded to Headteacher / Deputy Principal for approval.`);
         } catch (error) {
             console.error("Failed to create request:", error);
             alert("Error creating request. Please try again.");
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleApproveRequest = async (request: LeaveOutWithDetails) => {
+        const roleTitle = currentUser.role === 'deputy' ? 'Deputy Principal' : currentUser.role === 'head_teacher' ? 'Headteacher' : 'School Administration';
+        if (!window.confirm(`Approve leave out permission for ${request.studentName}?\n\nThis will officially approve the exeat and immediately send SMS & Email notifications to the parent (${request.parentPhone || request.parentEmail || 'Parent'}).`)) return;
+
+        try {
+            const now = new Date().toISOString();
+            const nextStatus: LeaveOutStatus = isStudentBoarder(request.studentId) ? 'pending_boarding' : 'pending_security';
+            const roleTag: 'headteacher' | 'deputy_principal' | 'admin' = currentUser.role === 'deputy' ? 'deputy_principal' : currentUser.role === 'head_teacher' ? 'headteacher' : 'admin';
+
+            const dbPayload: LeaveOutRequest = {
+                id: request.id,
+                institutionId: request.institutionId,
+                studentId: request.studentId,
+                classTeacherId: request.classTeacherId,
+                headteacherId: currentUser.id,
+                headteacherApprovedAt: now,
+                approvedByRole: roleTag,
+                parentNotifiedAt: now,
+                boardingMasterId: request.boardingMasterId,
+                securityId: request.securityId,
+                reason: request.reason,
+                leaveDate: request.leaveDate,
+                returnDate: request.returnDate,
+                status: nextStatus,
+                sheetUrl: request.sheetUrl,
+                houseCheckedOutAt: request.houseCheckedOutAt,
+                gateCheckedOutAt: request.gateCheckedOutAt,
+                homeArrivalAt: request.homeArrivalAt,
+                homeDepartureAt: request.homeDepartureAt,
+                createdAt: request.createdAt,
+                updatedAt: now
+            };
+
+            await apiService.saveModuleRecord('leave_out_requests', dbPayload);
+            await onLogAction(`${roleTitle} approved leave out for ${request.studentName}`);
+
+            // 1. Send SMS to Parent
+            if (request.parentPhone) {
+                const smsMsg = `Dear Parent, leave out (exeat) for ${request.studentName} has been APPROVED by the ${roleTitle}. Reason: ${request.reason}. Valid: ${new Date(request.leaveDate).toLocaleDateString()} to ${new Date(request.returnDate).toLocaleDateString()}. Please confirm safe home arrival on your Parent Portal.`;
+                await apiService.sendSms(request.parentPhone, smsMsg, currentInstitution.letterheadConfig ? { ...companyDetails.smsConfig } : undefined).catch(() => {});
+            }
+
+            // 2. Send Email to Parent
+            if (request.parentEmail) {
+                const subject = `Leave Out Approved: ${request.studentName} - ${currentInstitution.name}`;
+                const emailMsg = `Dear Parent,\n\nThis is to notify you that the leave out (exeat) for ${request.studentName} (${request.studentClass}) has been officially APPROVED by ${currentUser.name} (${roleTitle}).\n\nLeave Out Details:\n- Student: ${request.studentName} (${request.studentClass})\n- Reason for leave: ${request.reason}\n- Departure Date: ${new Date(request.leaveDate).toLocaleDateString()}\n- Expected Return Date: ${new Date(request.returnDate).toLocaleDateString()}\n- Approved by: ${currentUser.name} (${roleTitle})\n- Class Teacher: ${request.classTeacherName}\n\nIMPORTANT: Once your child arrives safely home, please log in to your Parent Portal to confirm their safe arrival. When they depart from home to return to school, please click 'Confirm Departure' so school gate officers are alerted.\n\nWarm regards,\n${currentInstitution.name}`;
+                await apiService.sendEmail(request.parentEmail, subject, emailMsg, getInstitutionEmailConfig(currentInstitution)).catch(() => {});
+            }
+
+            // 3. Send in-app notification to Parent user accounts
+            const parentUsers = users.filter(u => u.role === 'parent' && (u.studentIds?.includes(request.studentId) || (u.email && u.email.toLowerCase() === request.parentEmail?.toLowerCase())));
+            for (const pu of parentUsers) {
+                try {
+                    await apiService.createNotification({
+                        userId: pu.id,
+                        institutionId: currentInstitution.id,
+                        title: `Leave Out Approved: ${request.studentName}`,
+                        message: `Exeat for ${request.studentName} has been approved by the ${roleTitle}. You can confirm safe arrival and departure in your Parent Portal.`,
+                        type: 'announcement',
+                        link: '/parent-portal'
+                    });
+                } catch (_) {}
+            }
+
+            // 4. Send in-app notification to Class Teacher
+            if (request.classTeacherId) {
+                try {
+                    await apiService.createNotification({
+                        userId: request.classTeacherId,
+                        institutionId: currentInstitution.id,
+                        title: `Leave Out Approved for ${request.studentName}`,
+                        message: `${roleTitle} (${currentUser.name}) approved the exeat request for ${request.studentName}. Parent has been notified.`,
+                        type: 'system',
+                        link: '/leave-out-requests'
+                    });
+                } catch (_) {}
+            }
+
+            loadRequests();
+            onDataChange();
+            alert(`Leave out approved successfully!\nParent notified via SMS and Email.`);
+        } catch (error) {
+            console.error("Failed to approve request:", error);
+            alert("Error approving request. Please try again.");
+        }
+    };
+
+    const handleRejectRequest = async (request: LeaveOutWithDetails) => {
+        const remarks = window.prompt(`Enter reason for rejecting leave out for ${request.studentName}:`);
+        if (remarks === null) return;
+
+        try {
+            const now = new Date().toISOString();
+            const roleTag: 'headteacher' | 'deputy_principal' | 'admin' = currentUser.role === 'deputy' ? 'deputy_principal' : currentUser.role === 'head_teacher' ? 'headteacher' : 'admin';
+
+            const dbPayload: LeaveOutRequest = {
+                id: request.id,
+                institutionId: request.institutionId,
+                studentId: request.studentId,
+                classTeacherId: request.classTeacherId,
+                headteacherId: currentUser.id,
+                headteacherRemarks: remarks || 'Rejected by administration',
+                approvedByRole: roleTag,
+                boardingMasterId: request.boardingMasterId,
+                securityId: request.securityId,
+                reason: request.reason,
+                leaveDate: request.leaveDate,
+                returnDate: request.returnDate,
+                status: 'rejected',
+                sheetUrl: request.sheetUrl,
+                houseCheckedOutAt: request.houseCheckedOutAt,
+                gateCheckedOutAt: request.gateCheckedOutAt,
+                homeArrivalAt: request.homeArrivalAt,
+                homeDepartureAt: request.homeDepartureAt,
+                createdAt: request.createdAt,
+                updatedAt: now
+            };
+
+            await apiService.saveModuleRecord('leave_out_requests', dbPayload);
+            await onLogAction(`Leave out for ${request.studentName} rejected by ${currentUser.name}`);
+
+            if (request.classTeacherId) {
+                try {
+                    await apiService.createNotification({
+                        userId: request.classTeacherId,
+                        institutionId: currentInstitution.id,
+                        title: `Leave Out Request Rejected: ${request.studentName}`,
+                        message: `The leave out for ${request.studentName} was rejected by administration. Reason: ${remarks || 'No remarks provided.'}`,
+                        type: 'alert',
+                        link: '/leave-out-requests'
+                    });
+                } catch (_) {}
+            }
+
+            loadRequests();
+            onDataChange();
+            alert("Leave out request rejected.");
+        } catch (error) {
+            console.error("Failed to reject request:", error);
+            alert("Error rejecting request.");
         }
     };
 
@@ -344,16 +510,26 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
         );
     }, [users, currentUser, courses]);
 
+    const pendingApprovalCount = useMemo(() => {
+        return requests.filter(r => r.status === 'pending_headteacher').length;
+    }, [requests]);
+
     const getStatusBadge = (status: LeaveOutStatus) => {
         switch (status) {
+            case 'pending_headteacher':
+                return <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5"><ClockIcon className="w-3.5 h-3.5 text-amber-700 animate-pulse" /> Pending Approval</span>;
             case 'pending_boarding':
-                return <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold uppercase tracking-wider">Pending Boarding</span>;
+                return <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold uppercase tracking-wider">Pending House Exit</span>;
             case 'pending_security':
-                return <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold uppercase tracking-wider">Pending Security</span>;
+                return <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold uppercase tracking-wider">Pending Gate Exit</span>;
+            case 'approved':
+                return <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase tracking-wider">Approved</span>;
             case 'checked_out':
                 return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold uppercase tracking-wider">Checked Out</span>;
+            case 'rejected':
+                return <span className="px-2 py-1 bg-rose-100 text-rose-800 rounded-full text-xs font-bold uppercase tracking-wider">Rejected</span>;
             case 'cancelled':
-                return <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold uppercase tracking-wider">Cancelled</span>;
+                return <span className="px-2 py-1 bg-slate-100 text-slate-800 rounded-full text-xs font-bold uppercase tracking-wider">Cancelled</span>;
             default:
                 return null;
         }
@@ -376,13 +552,13 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Student Checkout Process</h2>
-                    <p className="text-slate-500 text-sm">Automated multi-stage exit management system</p>
+                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Student Leave Out & Exeat Management</h2>
+                    <p className="text-slate-500 text-sm font-medium">Teacher generation &bull; Headteacher/Deputy approval &bull; Parent notification &bull; Home transit tracking</p>
                 </div>
                 {isClassTeacher && (
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl shadow-lg hover:shadow-indigo-200 transition-all flex items-center gap-2 font-bold"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl shadow-lg hover:shadow-indigo-200 transition-all flex items-center gap-2 font-bold cursor-pointer"
                     >
                         <PlusIcon className="w-5 h-5" />
                         Generate Permission Sheet
@@ -391,19 +567,31 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl w-fit">
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100 rounded-2xl w-fit">
                 <button
                     onClick={() => setActiveTab('requests')}
-                    className={`px - 6 py - 2 rounded - lg text - sm font - black transition - all ${activeTab === 'requests' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'} `}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'requests' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
                 >
                     <div className="flex items-center gap-2">
                         <FileTextIcon className="w-4 h-4" />
-                        Permission Sheets
+                        All Permission Sheets
                     </div>
                 </button>
                 <button
+                    onClick={() => setActiveTab('approvals')}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'approvals' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+                >
+                    <CheckCircleIcon className="w-4 h-4" />
+                    <span>Headteacher Approvals</span>
+                    {pendingApprovalCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black animate-pulse">
+                            {pendingApprovalCount}
+                        </span>
+                    )}
+                </button>
+                <button
                     onClick={() => setActiveTab('boarding')}
-                    className={`px - 6 py - 2 rounded - lg text - sm font - black transition - all ${activeTab === 'boarding' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'} `}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'boarding' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
                 >
                     <div className="flex items-center gap-2">
                         <HomeIcon className="w-4 h-4" />
@@ -412,7 +600,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                 </button>
                 <button
                     onClick={() => setActiveTab('security')}
-                    className={`px - 6 py - 2 rounded - lg text - sm font - black transition - all ${activeTab === 'security' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'} `}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === 'security' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
                 >
                     <div className="flex items-center gap-2">
                         <ShieldIcon className="w-4 h-4" />
@@ -437,7 +625,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                     </div>
                     <button
                         onClick={loadRequests}
-                        className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                        className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
                     >
                         <ArrowPathIcon className="w-5 h-5" />
                     </button>
@@ -451,7 +639,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                             <tr className="bg-slate-50/50">
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Student Info</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Reason & Dates</th>
-                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Current Phase</th>
+                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Current Phase & Workflow</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Actions</th>
                             </tr>
                         </thead>
@@ -471,6 +659,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                             ) : (
                                 filteredRequests
                                     .filter(req => {
+                                        if (activeTab === 'approvals') return req.status === 'pending_headteacher';
                                         if (activeTab === 'boarding') return req.status === 'pending_boarding';
                                         if (activeTab === 'security') return req.status === 'pending_security';
                                         return true;
@@ -485,21 +674,29 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                                     <div>
                                                         <p className="text-sm font-black text-slate-900">{req.studentName}</p>
                                                         <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">{req.studentClass}</p>
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-0.5">Teacher: {req.classTeacherName}</p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5">
-                                                <p className="text-sm text-slate-600 font-medium mb-1 line-clamp-1">{req.reason}</p>
+                                                <p className="text-sm text-slate-700 font-medium mb-1 line-clamp-1">{req.reason}</p>
                                                 <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-400">
                                                     <span className="flex items-center gap-1.5"><CalendarDaysIcon className="w-3 h-3 text-indigo-400" /> {new Date(req.leaveDate).toLocaleDateString()}</span>
                                                     <ArrowRightIcon className="w-3 h-3" />
                                                     <span className="flex items-center gap-1.5"><ArrowPathIcon className="w-3 h-3 text-emerald-400" /> {new Date(req.returnDate).toLocaleDateString()}</span>
                                                 </div>
-
+                                                {req.headteacherRemarks && (
+                                                    <p className="text-[10px] text-rose-600 font-bold mt-1 italic">Remarks: {req.headteacherRemarks}</p>
+                                                )}
                                             </td>
                                             <td className="px-6 py-5">
                                                 <div className="flex flex-col gap-1.5">
                                                     {getStatusBadge(req.status)}
+                                                    {req.status === 'pending_headteacher' && (
+                                                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-amber-700 uppercase tracking-tighter">
+                                                            <ClockIcon className="w-3 h-3" /> Awaiting Headteacher / Deputy
+                                                        </div>
+                                                    )}
                                                     {req.status === 'pending_boarding' && (
                                                         <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
                                                             <ClockIcon className="w-3 h-3" /> Waiting for House Master
@@ -507,22 +704,76 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                                     )}
                                                     {req.status === 'pending_security' && (
                                                         <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                            <ClockIcon className="w-3 h-3" /> Waiting for Security
+                                                            <ClockIcon className="w-3 h-3" /> Waiting for Security Gate
                                                         </div>
                                                     )}
                                                     {req.status === 'checked_out' && (
                                                         <div className="flex items-center gap-2 text-[9px] font-bold text-emerald-500 uppercase tracking-tighter">
-                                                            <CheckCircleIcon className="w-3 h-3" /> Process Complete
+                                                            <CheckCircleIcon className="w-3 h-3" /> Exited School Gate
                                                         </div>
+                                                    )}
+
+                                                    {/* Approval & Notification details */}
+                                                    {req.headteacherApprovedAt && (
+                                                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
+                                                            ✓ Approved by {req.headteacherName || (req.approvedByRole === 'deputy_principal' ? 'Deputy Principal' : 'Headteacher')}
+                                                        </span>
+                                                    )}
+                                                    {req.parentNotifiedAt && (
+                                                        <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full w-fit">
+                                                            ✓ Parent Notified (SMS & Email)
+                                                        </span>
+                                                    )}
+
+                                                    {/* Home Transit Status */}
+                                                    {req.homeArrivalAt && (
+                                                        <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full w-fit flex items-center gap-1">
+                                                            <HomeIcon className="w-3 h-3 text-emerald-600" />
+                                                            Arrived Home: {new Date(req.homeArrivalAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    )}
+                                                    {req.homeDepartureAt && (
+                                                        <span className="text-[9px] font-black text-indigo-800 bg-indigo-100 border border-indigo-300 px-2 py-0.5 rounded-full w-fit flex items-center gap-1">
+                                                            <ArrowPathIcon className="w-3 h-3 text-indigo-600" />
+                                                            Departed Home: {new Date(req.homeDepartureAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5">
-                                                <div className="flex items-center gap-2">
-                                                    {activeTab === 'requests' && (
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    {/* Headteacher Approval Actions */}
+                                                    {req.status === 'pending_headteacher' && (
+                                                        isHeadTeacherOrDeputy ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => handleApproveRequest(req)}
+                                                                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                                                    title="Approve & Immediately Notify Parent via SMS & Email"
+                                                                >
+                                                                    <CheckCircleIcon className="w-4 h-4" />
+                                                                    Approve & Notify Parent
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectRequest(req)}
+                                                                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer"
+                                                                    title="Reject Leave Out Request"
+                                                                >
+                                                                    <XCircleIcon className="w-4 h-4" />
+                                                                    Reject
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-3 py-1.5 rounded-xl uppercase tracking-wider border border-amber-200">
+                                                                Awaiting Approval
+                                                            </span>
+                                                        )
+                                                    )}
+
+                                                    {activeTab === 'requests' && req.status !== 'pending_headteacher' && (
                                                         <button
                                                             onClick={() => handlePrintSheet(req)}
-                                                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white border rounded-lg transition-all"
+                                                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white border rounded-lg transition-all cursor-pointer"
                                                             title="Print Sheet"
                                                         >
                                                             <PrinterIcon className="w-4 h-4" />
@@ -531,7 +782,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                                     {activeTab === 'boarding' && req.status === 'pending_boarding' && (
                                                         <button
                                                             onClick={() => handleHouseCheckout(req)}
-                                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center gap-2 cursor-pointer"
                                                         >
                                                             <HomeIcon className="w-3.5 h-3.5" />
                                                             Verify House Exit
@@ -540,7 +791,7 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                                     {activeTab === 'security' && req.status === 'pending_security' && (
                                                         <button
                                                             onClick={() => handleGateCheckout(req)}
-                                                            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold shadow-lg shadow-slate-200 hover:bg-black transition-all flex items-center gap-2"
+                                                            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold shadow-lg shadow-slate-200 hover:bg-black transition-all flex items-center gap-2 cursor-pointer"
                                                         >
                                                             <ShieldIcon className="w-3.5 h-3.5" />
                                                             Verify Gate Exit
@@ -552,20 +803,8 @@ export const StudentLeaveOutManager: React.FC<StudentLeaveOutManagerProps> = ({
                                                                 {req.parentPhone && <span title="SMS Sent"><ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-emerald-500" /></span>}
                                                                 {req.parentEmail && <span title="Email Sent"><EnvelopeIcon className="w-4 h-4 text-blue-500" /></span>}
                                                             </div>
-                                                            {req.homeArrivalAt && (
-                                                                <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
-                                                                    Arrived Home
-                                                                </span>
-                                                            )}
-                                                            {req.homeDepartureAt && (
-                                                                <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-tighter">
-                                                                    Returning
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     )}
-
-
                                                 </div>
                                             </td>
                                         </tr>

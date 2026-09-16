@@ -114,81 +114,155 @@ const LeaveOutManager: React.FC<{
     requests: LeaveOutRequest[],
     onUpdate?: (id: string, data: Partial<LeaveOutRequest>) => Promise<void>
 }> = ({ child, requests, onUpdate }) => {
-    const childRequests = requests.filter(r => r.studentId === child.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const childRequests = requests
+        .filter(r => r.studentId === child.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     if (childRequests.length === 0) return null;
 
-    const activeRequest = childRequests.find(r => r.status !== 'cancelled' && r.status !== 'pending_boarding');
+    // Active request is any non-cancelled and non-rejected request (or latest)
+    const activeRequest = childRequests.find(r => r.status !== 'cancelled' && r.status !== 'rejected') || childRequests[0];
     if (!activeRequest) return null;
 
-    return (
-        <div className="mt-6 border-t border-slate-100 dark:border-slate-700 pt-6">
-            <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                <div className="w-1.5 h-4 bg-indigo-500 rounded-full"></div>
-                Leave Out / Exeat Management
-            </h5>
+    const isPendingApproval = activeRequest.status === 'pending_headteacher';
+    const isPendingClearance = activeRequest.status === 'pending_boarding' || activeRequest.status === 'pending_security';
+    const isCheckedOut = activeRequest.status === 'checked_out';
+    const isRejected = activeRequest.status === 'rejected';
 
-            <div className={`p-6 rounded-[2rem] border transition-all ${activeRequest.status === 'checked_out' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700'
-                }`}>
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
-                    <div>
-                        <p className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{activeRequest.reason}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                {new Date(activeRequest.leaveDate).toLocaleDateString()} - {new Date(activeRequest.returnDate).toLocaleDateString()}
-                            </span>
-                        </div>
+    return (
+        <div className="bg-gradient-to-br from-white to-indigo-50/40 dark:from-slate-800 dark:to-slate-900 p-7 rounded-[2.5rem] border border-indigo-100/80 dark:border-slate-700 shadow-sm transition-all space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
+                        <Home className="w-5 h-5" />
                     </div>
-                    <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${activeRequest.status === 'checked_out' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-100'
-                        }`}>
-                        {activeRequest.status.replace('_', ' ')}
-                    </span>
+                    <div>
+                        <h5 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                            Exeat & Home Transit Tracker
+                        </h5>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            Leave Permission &bull; Safe Arrival & Return Confirmation
+                        </p>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Home Arrival */}
-                    <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Safe Arrival Alert</p>
-                        {activeRequest.homeArrivalAt ? (
-                            <div className="flex flex-col gap-1">
-                                <span className="text-xs font-black uppercase tracking-tight text-emerald-600 flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                    Confirmed At Home
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logged: {new Date(activeRequest.homeArrivalAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}</span>
+                {/* Status Badge */}
+                <div>
+                    {isPendingApproval && (
+                        <span className="px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-700 animate-spin" />
+                            Awaiting Headteacher Approval
+                        </span>
+                    )}
+                    {isPendingClearance && (
+                        <span className="px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-300 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-700" />
+                            Approved &bull; Exit Clearance In Progress
+                        </span>
+                    )}
+                    {isCheckedOut && (
+                        <span className="px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                            Checked Out of School Gate
+                        </span>
+                    )}
+                    {isRejected && (
+                        <span className="px-3.5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-900 border border-rose-300">
+                            Rejected by Administration
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Leave Details Card */}
+            <div className="p-4 bg-white/90 dark:bg-slate-800/90 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Reason for Leave</span>
+                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">{activeRequest.reason}</p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Permitted Period</span>
+                        <p className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                            {new Date(activeRequest.leaveDate).toLocaleDateString()} &rarr; {new Date(activeRequest.returnDate).toLocaleDateString()}
+                        </p>
+                    </div>
+                </div>
+
+                {activeRequest.headteacherApprovedAt && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-[10px] font-bold text-emerald-600 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Approved by School Administration on {new Date(activeRequest.headteacherApprovedAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}. Parent notified.
+                    </div>
+                )}
+            </div>
+
+            {/* Home Arrival & Departure Confirmations */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 1. Safe Arrival at Home */}
+                <div className={`p-5 rounded-3xl border transition-all ${activeRequest.homeArrivalAt ? 'bg-emerald-50/70 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Phase 1: Safe Arrival</span>
+                        <Home className={`w-4 h-4 ${activeRequest.homeArrivalAt ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    </div>
+
+                    {activeRequest.homeArrivalAt ? (
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-tight">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                                Safely Arrived at Home
                             </div>
-                        ) : (
+                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                Logged: {new Date(activeRequest.homeArrivalAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
                             <button
                                 onClick={() => onUpdate?.(activeRequest.id, { homeArrivalAt: new Date().toISOString() })}
                                 disabled={activeRequest.status !== 'checked_out'}
-                                className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 transition-all active:scale-95"
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl text-[11px] font-black uppercase tracking-wider shadow-lg shadow-emerald-200 transition-all cursor-pointer active:scale-95"
                             >
-                                Confirm Arrival
+                                Confirm Safe Arrival at Home
                             </button>
-                        )}
+                            <p className="text-[9px] text-slate-400 font-bold text-center">
+                                {activeRequest.status !== 'checked_out' ? 'Active once learner checks out of school gate' : 'Click to notify school administration that your child has arrived safely'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. Departure from Home (Return to School) */}
+                <div className={`p-5 rounded-3xl border transition-all ${activeRequest.homeDepartureAt ? 'bg-indigo-50/70 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Phase 2: Return to School</span>
+                        <Clock className={`w-4 h-4 ${activeRequest.homeDepartureAt ? 'text-indigo-600' : 'text-slate-400'}`} />
                     </div>
 
-                    {/* Home Departure */}
-                    <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Return To School Alert</p>
-                        {activeRequest.homeDepartureAt ? (
-                            <div className="flex flex-col gap-1">
-                                <span className="text-xs font-black uppercase tracking-tight text-indigo-600 flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                                    Departure Confirmed
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Logged: {new Date(activeRequest.homeDepartureAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}</span>
+                    {activeRequest.homeDepartureAt ? (
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-tight">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                                Departed Home &bull; En Route to School
                             </div>
-                        ) : (
+                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                Logged: {new Date(activeRequest.homeDepartureAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
                             <button
                                 onClick={() => onUpdate?.(activeRequest.id, { homeDepartureAt: new Date().toISOString() })}
                                 disabled={!activeRequest.homeArrivalAt}
-                                className="w-full h-12 bg-slate-900 hover:bg-black disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-100 transition-all active:scale-95"
+                                className="w-full py-3.5 bg-slate-900 hover:bg-black disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl text-[11px] font-black uppercase tracking-wider shadow-lg shadow-slate-200 transition-all cursor-pointer active:scale-95"
                             >
-                                Confirm Departure
+                                Confirm Departure from Home
                             </button>
-                        )}
-                    </div>
+                            <p className="text-[9px] text-slate-400 font-bold text-center">
+                                {!activeRequest.homeArrivalAt ? 'Confirm safe arrival first before departure' : 'Click when student departs home to return to school'}
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -213,6 +287,80 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         onAccessAlumnaPortal = () => {}
     } = props;
     const isSimulator = props.isSimulatorMode || user?.id?.startsWith('demo_') || user?.id?.startsWith('temp_admin_') || user?.institutionId?.startsWith('demo_') || user?.role === 'super_admin';
+
+    // ── Student Leave Out / Exeat Local State ─────────────────────────────────
+    const [localLeaveOuts, setLocalLeaveOuts] = useState<LeaveOutRequest[]>(leaveOutRequests || []);
+
+    const loadLeaveOuts = async () => {
+        const instId = user?.institutionId;
+        if (!instId) return;
+        try {
+            const records = await apiService.fetchModuleRecords<LeaveOutRequest>('leave_out_requests', instId);
+            if (records && Array.isArray(records)) {
+                setLocalLeaveOuts(records);
+            }
+        } catch (e) {
+            console.error("Failed to load parent leave outs:", e);
+        }
+    };
+
+    useEffect(() => {
+        if (leaveOutRequests && leaveOutRequests.length > 0) {
+            setLocalLeaveOuts(leaveOutRequests);
+        } else {
+            loadLeaveOuts();
+        }
+    }, [leaveOutRequests, user?.institutionId]);
+
+    const handleUpdateLeaveOut = async (id: string, data: Partial<LeaveOutRequest>) => {
+        if (props.onUpdateLeaveOut) {
+            try {
+                await props.onUpdateLeaveOut(id, data);
+            } catch (_) {}
+        }
+
+        const now = new Date().toISOString();
+        setLocalLeaveOuts(prev => prev.map(r => r.id === id ? { ...r, ...data, updatedAt: now } : r));
+
+        try {
+            const instId = user?.institutionId || '';
+            const existing = localLeaveOuts.find(r => r.id === id);
+            if (existing) {
+                const updated: LeaveOutRequest = { ...existing, ...data, updatedAt: now };
+                await apiService.saveModuleRecord('leave_out_requests', updated);
+
+                // Safe Arrival at Home notification to School
+                if (data.homeArrivalAt && existing.classTeacherId) {
+                    try {
+                        await apiService.createNotification({
+                            userId: existing.classTeacherId,
+                            institutionId: instId,
+                            title: 'Student Safe Arrival at Home Confirmed',
+                            message: `Parent confirmed that their child has arrived safely at home on ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+                            type: 'system',
+                            link: '/leave-out-requests'
+                        });
+                    } catch (_) {}
+                }
+
+                // Departure from Home (Returning to School) notification to School & Gate
+                if (data.homeDepartureAt && existing.classTeacherId) {
+                    try {
+                        await apiService.createNotification({
+                            userId: existing.classTeacherId,
+                            institutionId: instId,
+                            title: 'Student Departed Home - Returning to School',
+                            message: `Parent confirmed student departure from home at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Returning to school for resumption.`,
+                            type: 'alert',
+                            link: '/leave-out-requests'
+                        });
+                    } catch (_) {}
+                }
+            }
+        } catch (err) {
+            console.error("Failed to save parent leave out update:", err);
+        }
+    };
 
     const demoChildUser: User = {
         id: 'demo_student_1',
@@ -673,8 +821,8 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                     )}
                                     <LeaveOutManager
                                         child={child}
-                                        requests={props.leaveOutRequests || []}
-                                        onUpdate={props.onUpdateLeaveOut}
+                                        requests={localLeaveOuts}
+                                        onUpdate={handleUpdateLeaveOut}
                                     />
                                 </div>
                             );
