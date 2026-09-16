@@ -4756,6 +4756,33 @@ export const apiService = {
     async fetchVehicles(instId?: string): Promise<Vehicle[]> { return apiService.fetchModuleRecords('vehicles', instId); },
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return apiService.fetchModuleRecords('transport_onboarding', instId); },
     async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return apiService.fetchModuleRecords('vehicle_logs', instId); },
+    async fetchTransportLogisticsHub(instId: string): Promise<any> {
+        try {
+            const records = await apiService.fetchModuleRecords<any>('institution_module_states', instId, undefined, {
+                filter: { module_id: 'transport_logistics' }
+            });
+            const match = records.find((r: any) => (r.moduleId || r.module_id) === 'transport_logistics');
+            if (match) {
+                const hubData = match.data || match.stateData || match.state_data;
+                if (hubData && typeof hubData === 'object') return hubData;
+            }
+        } catch (e) {
+            console.warn('[apiService] fetchTransportLogisticsHub error:', e);
+        }
+        return null;
+    },
+    async saveTransportLogisticsHub(instId: string, data: any): Promise<void> {
+        if (!instId) return;
+        const payload = {
+            id: `ims_transport_logistics_${instId}`,
+            institution_id: instId,
+            module_id: 'transport_logistics',
+            status: 'active',
+            data,
+            updated_at: new Date().toISOString()
+        };
+        await apiService.saveModuleRecord('institution_module_states', payload);
+    },
     // Remedial Module
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { return apiService.fetchModuleRecords('school_remedial_sessions', instId); },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { await apiService.saveModuleRecord('school_remedial_sessions', data); },

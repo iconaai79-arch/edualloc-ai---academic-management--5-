@@ -42,7 +42,9 @@ import {
     DollarSign,
     CheckCircle,
     TrendingUp,
-    Briefcase
+    Briefcase,
+    Cloud,
+    RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Institution, User as UserType, Course, StudentEnrollment } from '../types';
@@ -153,28 +155,58 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setIsLoadingVehicles(true);
         try {
             const key = `eduai_vehicles_${currentInstitution.id}`;
+            const localSaved = localStorage.getItem(key);
+            let localVehicles: any[] = [];
+            if (localSaved) {
+                try {
+                    const parsed = JSON.parse(localSaved);
+                    if (Array.isArray(parsed)) localVehicles = parsed;
+                } catch (_) {}
+            }
+
             const apiRecords = await apiService.fetchModuleRecords('vehicles', currentInstitution.id).catch(() => []);
-            if (Array.isArray(apiRecords) && apiRecords.length > 0) {
-                setDbVehicles(apiRecords);
-                localStorage.setItem(key, JSON.stringify(apiRecords));
-            } else {
-                const saved = localStorage.getItem(key);
-                if (saved !== null) {
-                    try {
-                        const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed)) setDbVehicles(parsed);
-                    } catch (e) {}
-                } else if (currentInstitution?.id?.startsWith('demo_')) {
-                    const demo = [
-                        { id: 'vh_demo_1', plateNumber: 'KDC 992P', model: 'Bus 04', vehicleType: 'bus', capacity: 51, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
-                        { id: 'vh_demo_2', plateNumber: 'KBB 120Z', model: 'Bus 02', vehicleType: 'bus', capacity: 33, status: 'active', institutionId: currentInstitution?.id, driverName: 'James Kamau' },
-                        { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
-                    ];
-                    setDbVehicles(demo);
-                    localStorage.setItem(key, JSON.stringify(demo));
-                } else {
-                    setDbVehicles([]);
+            const remoteVehicles: any[] = Array.isArray(apiRecords) ? [...apiRecords] : [];
+
+            // Bi-directional vehicle synchronization:
+            // If local storage has vehicles not yet in Supabase (e.g. Browser 1's 9 buses), upload them!
+            if (localVehicles.length > 0) {
+                for (const lv of localVehicles) {
+                    const normPlate = (lv.plateNumber || lv.registrationNumber || lv.plate || '').trim().toUpperCase();
+                    const exists = remoteVehicles.some(rv => {
+                        const rvPlate = (rv.plateNumber || rv.registrationNumber || rv.plate || '').trim().toUpperCase();
+                        return (rv.id && rv.id === lv.id) || (normPlate && rvPlate === normPlate);
+                    });
+                    if (!exists && (normPlate || lv.model)) {
+                        try {
+                            const uploaded = await apiService.saveModuleRecord('vehicles', {
+                                ...lv,
+                                institutionId: currentInstitution.id,
+                                institution_id: currentInstitution.id
+                            });
+                            remoteVehicles.push(uploaded || lv);
+                        } catch (e) {
+                            console.warn('Failed to upload local vehicle to cloud:', e);
+                        }
+                    }
                 }
+            }
+
+            const merged = remoteVehicles.length > 0 ? remoteVehicles : localVehicles;
+
+            if (merged.length > 0) {
+                setDbVehicles(merged);
+                localStorage.setItem(key, JSON.stringify(merged));
+                localStorage.setItem('eduai_vehicles', JSON.stringify(merged));
+            } else if (currentInstitution?.id?.startsWith('demo_')) {
+                const demo = [
+                    { id: 'vh_demo_1', plateNumber: 'KDC 992P', model: 'Bus 04', vehicleType: 'bus', capacity: 51, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
+                    { id: 'vh_demo_2', plateNumber: 'KBB 120Z', model: 'Bus 02', vehicleType: 'bus', capacity: 33, status: 'active', institutionId: currentInstitution?.id, driverName: 'James Kamau' },
+                    { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
+                ];
+                setDbVehicles(demo);
+                localStorage.setItem(key, JSON.stringify(demo));
+            } else {
+                setDbVehicles([]);
             }
         } catch (err) {
             console.error('Error fetching vehicles:', err);
@@ -296,24 +328,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     // Transport Disruption Alerts state
     const [transportAlerts, setTransportAlerts] = useState<TransportDisruption[]>([]);
-
-    const handleAddAlert = (alert: TransportDisruption) => {
-        setTransportAlerts(prev => [alert, ...prev]);
-    };
-
-    const handleResolveAlert = (id: string) => {
-        setTransportAlerts(prev => prev.map(a => a.id === id
-            ? { ...a, status: 'resolved', resolvedAt: new Date().toISOString() }
-            : a
-        ));
-    };
-
-    const handleAcknowledgeAlert = (id: string, parentId: string) => {
-        setTransportAlerts(prev => prev.map(a => a.id === id
-            ? { ...a, acknowledgedBy: [...a.acknowledgedBy.filter(p => p !== parentId), parentId] }
-            : a
-        ));
-    };
     // ── TRANSPORT BILLING & ROUTES STATE (SCOPED STRICTLY BY INSTITUTION) ────
     const [routeFeeSetting, setRouteFeeSetting] = useState<RouteFeeSetting[]>(() => {
         const instKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : null;
@@ -446,6 +460,224 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         localStorage.setItem(key, JSON.stringify(busRoutes));
     }, [busRoutes, currentInstitution?.id]);
 
+    // School Trips State
+    const [schoolTrips, setSchoolTrips] = useState<Array<{
+        id: string;
+        name: string;
+        destination: string;
+        date: string;
+        time: string;
+        leadTeacher: string;
+        vehicle: string;
+        passengers: string;
+        status: 'approved' | 'pending' | 'completed' | 'cancelled';
+    }>>(() => {
+        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
+        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_school_trips');
+        if (saved !== null) {
+            try {
+                return JSON.parse(saved);
+            } catch (e) {
+                console.error('Failed to parse saved school trips', e);
+            }
+        }
+        if (currentInstitution?.id?.startsWith('demo_')) {
+            const initialDemoTrips = [
+                { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' as const },
+                { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
+                { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
+            ];
+            localStorage.setItem(key, JSON.stringify(initialDemoTrips));
+            localStorage.setItem('eduai_school_trips', JSON.stringify(initialDemoTrips));
+            return initialDemoTrips;
+        }
+        return [];
+    });
+
+    React.useEffect(() => {
+        if (!isEduTransport || !currentInstitution?.id) return;
+        const key = `eduai_school_trips_${currentInstitution.id}`;
+        localStorage.setItem(key, JSON.stringify(schoolTrips));
+    }, [schoolTrips, currentInstitution?.id, isEduTransport]);
+
+    // Cloud Database Synchronization State & Helpers
+    const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+    const [lastSyncedTime, setLastSyncedTime] = useState<Date | null>(null);
+
+    const persistHubToCloud = (updates: Partial<{
+        busRoutes: any[];
+        studentCommutePrefs: any;
+        routeFeeSetting: any[];
+        defaultOneWayPercentage: number;
+        schoolTrips: any[];
+        transportInvoices: any[];
+        transportAlerts: any[];
+    }>) => {
+        if (!currentInstitution?.id) return;
+        const payload = {
+            busRoutes: updates.busRoutes !== undefined ? updates.busRoutes : busRoutes,
+            studentCommutePrefs: updates.studentCommutePrefs !== undefined ? updates.studentCommutePrefs : studentCommutePrefs,
+            routeFeeSetting: updates.routeFeeSetting !== undefined ? updates.routeFeeSetting : routeFeeSetting,
+            defaultOneWayPercentage: updates.defaultOneWayPercentage !== undefined ? updates.defaultOneWayPercentage : defaultOneWayPercentage,
+            schoolTrips: updates.schoolTrips !== undefined ? updates.schoolTrips : schoolTrips,
+            transportInvoices: updates.transportInvoices !== undefined ? updates.transportInvoices : transportInvoices,
+            transportAlerts: updates.transportAlerts !== undefined ? updates.transportAlerts : transportAlerts,
+            updatedAt: new Date().toISOString()
+        };
+        apiService.saveTransportLogisticsHub(currentInstitution.id, payload).catch(err => {
+            console.warn('[LogisticsManager] Failed to persist hub update to cloud:', err);
+        });
+    };
+
+    const handleAddAlert = (alert: TransportDisruption) => {
+        const next = [alert, ...transportAlerts];
+        setTransportAlerts(next);
+        persistHubToCloud({ transportAlerts: next });
+    };
+
+    const handleResolveAlert = (id: string) => {
+        const next = transportAlerts.map(a => a.id === id
+            ? { ...a, status: 'resolved' as const, resolvedAt: new Date().toISOString() }
+            : a
+        );
+        setTransportAlerts(next);
+        persistHubToCloud({ transportAlerts: next });
+    };
+
+    const handleAcknowledgeAlert = (id: string, parentId: string) => {
+        const next = transportAlerts.map(a => a.id === id
+            ? { ...a, acknowledgedBy: [...a.acknowledgedBy.filter(p => p !== parentId), parentId] }
+            : a
+        );
+        setTransportAlerts(next);
+        persistHubToCloud({ transportAlerts: next });
+    };
+
+    const syncWithCloud = async (forcePush = false) => {
+        if (!currentInstitution?.id) return;
+        setIsCloudSyncing(true);
+        try {
+            const instId = currentInstitution.id;
+            const routeKey = `eduai_transport_bus_routes_${instId}`;
+            const prefKey = `eduai_student_commute_prefs_${instId}`;
+            const feeKey = `eduai_transport_route_fee_settings_${instId}`;
+            const tripKey = `eduai_school_trips_${instId}`;
+            const invKey = `eduai_transport_fee_invoices_${instId}`;
+            const pctKey = `eduai_transport_oneway_pct_${instId}`;
+
+            // Read local storage data
+            let localRoutes: any[] = [];
+            try { const r = localStorage.getItem(routeKey); if (r) localRoutes = JSON.parse(r); } catch (_) {}
+            let localPrefs: Record<string, any> = {};
+            try { const p = localStorage.getItem(prefKey); if (p) localPrefs = JSON.parse(p); } catch (_) {}
+            let localFees: any[] = [];
+            try { const f = localStorage.getItem(feeKey); if (f) localFees = JSON.parse(f); } catch (_) {}
+            let localTrips: any[] = [];
+            try { const t = localStorage.getItem(tripKey); if (t) localTrips = JSON.parse(t); } catch (_) {}
+            let localInvs: any[] = [];
+            try { const i = localStorage.getItem(invKey); if (i) localInvs = JSON.parse(i); } catch (_) {}
+
+            const cloudData = await apiService.fetchTransportLogisticsHub(instId);
+
+            const localStudentCount = Object.keys(localPrefs).filter(k => localPrefs[k]?.preference && localPrefs[k].preference !== 'none').length;
+            const cloudRoutes = Array.isArray(cloudData?.busRoutes) ? cloudData.busRoutes : [];
+            const cloudPrefs = cloudData?.studentCommutePrefs && typeof cloudData.studentCommutePrefs === 'object' ? cloudData.studentCommutePrefs : {};
+            const cloudStudentCount = Object.keys(cloudPrefs).filter(k => cloudPrefs[k]?.preference && cloudPrefs[k].preference !== 'none').length;
+
+            const localHasMoreRoutes = localRoutes.length > cloudRoutes.length;
+
+            if (forcePush || (!cloudData && (localRoutes.length > 0 || localStudentCount > 0)) || (localHasMoreRoutes && cloudRoutes.length <= 3)) {
+                // Upload local dataset to Supabase
+                const payload = {
+                    busRoutes: localRoutes.length > 0 ? localRoutes : busRoutes,
+                    studentCommutePrefs: Object.keys(localPrefs).length > 0 ? localPrefs : studentCommutePrefs,
+                    routeFeeSetting: localFees.length > 0 ? localFees : routeFeeSetting,
+                    defaultOneWayPercentage: defaultOneWayPercentage,
+                    schoolTrips: localTrips.length > 0 ? localTrips : schoolTrips,
+                    transportInvoices: localInvs.length > 0 ? localInvs : transportInvoices,
+                    transportAlerts: transportAlerts,
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveTransportLogisticsHub(instId, payload);
+                setLastSyncedTime(new Date());
+            } else if (cloudData && (cloudRoutes.length > 0 || Object.keys(cloudPrefs).length > 0)) {
+                // If local has more data, merge with cloud
+                if (localRoutes.length > cloudRoutes.length || localStudentCount > cloudStudentCount) {
+                    const mergedRoutes = localRoutes.length >= cloudRoutes.length ? localRoutes : cloudRoutes;
+                    const mergedPrefs = { ...cloudPrefs, ...localPrefs };
+                    const mergedFees = localFees.length >= (cloudData.routeFeeSetting || []).length ? localFees : (cloudData.routeFeeSetting || []);
+                    const mergedTrips = localTrips.length >= (cloudData.schoolTrips || []).length ? localTrips : (cloudData.schoolTrips || []);
+                    const mergedInvs = localInvs.length >= (cloudData.transportInvoices || []).length ? localInvs : (cloudData.transportInvoices || []);
+
+                    const payload = {
+                        busRoutes: mergedRoutes,
+                        studentCommutePrefs: mergedPrefs,
+                        routeFeeSetting: mergedFees,
+                        defaultOneWayPercentage: cloudData.defaultOneWayPercentage || defaultOneWayPercentage,
+                        schoolTrips: mergedTrips,
+                        transportInvoices: mergedInvs,
+                        transportAlerts: cloudData.transportAlerts || transportAlerts,
+                        updatedAt: new Date().toISOString()
+                    };
+                    await apiService.saveTransportLogisticsHub(instId, payload);
+                    setBusRoutes(mergedRoutes);
+                    setStudentCommutePrefs(mergedPrefs);
+                    setRouteFeeSetting(mergedFees);
+                    setSchoolTrips(mergedTrips);
+                    setTransportInvoices(mergedInvs);
+                } else {
+                    // Cloud has the rich dataset (e.g. Browser 2 loading!)
+                    if (cloudRoutes.length > 0) {
+                        setBusRoutes(cloudRoutes);
+                        localStorage.setItem(routeKey, JSON.stringify(cloudRoutes));
+                    }
+                    if (Object.keys(cloudPrefs).length > 0) {
+                        setStudentCommutePrefs(cloudPrefs);
+                        localStorage.setItem(prefKey, JSON.stringify(cloudPrefs));
+                    }
+                    if (Array.isArray(cloudData.routeFeeSetting) && cloudData.routeFeeSetting.length > 0) {
+                        setRouteFeeSetting(cloudData.routeFeeSetting);
+                        localStorage.setItem(feeKey, JSON.stringify(cloudData.routeFeeSetting));
+                    }
+                    if (cloudData.defaultOneWayPercentage) {
+                        setDefaultOneWayPercentage(cloudData.defaultOneWayPercentage);
+                        localStorage.setItem(pctKey, String(cloudData.defaultOneWayPercentage));
+                    }
+                    if (Array.isArray(cloudData.schoolTrips)) {
+                        setSchoolTrips(cloudData.schoolTrips);
+                        localStorage.setItem(tripKey, JSON.stringify(cloudData.schoolTrips));
+                    }
+                    if (Array.isArray(cloudData.transportInvoices)) {
+                        setTransportInvoices(cloudData.transportInvoices);
+                        localStorage.setItem(invKey, JSON.stringify(cloudData.transportInvoices));
+                    }
+                    if (Array.isArray(cloudData.transportAlerts)) {
+                        setTransportAlerts(cloudData.transportAlerts);
+                    }
+                }
+                setLastSyncedTime(new Date());
+            } else if (localRoutes.length > 0 || Object.keys(localPrefs).length > 0) {
+                // Cloud is empty, push local dataset
+                const payload = {
+                    busRoutes: localRoutes,
+                    studentCommutePrefs: localPrefs,
+                    routeFeeSetting: localFees,
+                    defaultOneWayPercentage,
+                    schoolTrips: localTrips,
+                    transportInvoices: localInvs,
+                    transportAlerts,
+                    updatedAt: new Date().toISOString()
+                };
+                await apiService.saveTransportLogisticsHub(instId, payload);
+                setLastSyncedTime(new Date());
+            }
+        } catch (e) {
+            console.error('Error synchronizing transport logistics with cloud:', e);
+        } finally {
+            setIsCloudSyncing(false);
+        }
+    };
+
     // Synchronize all states whenever institution switches to guarantee 100% tenant isolation
     React.useEffect(() => {
         if (!currentInstitution?.id) return;
@@ -458,24 +690,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 const parsed = JSON.parse(savedRoutes);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     setBusRoutes(parsed);
-                } else {
-                    const fallbackRoutes = [
-                        { id: 'route_1', name: 'Route A - Main Corridor & Kilimani', startPoint: 'Main Center / Junction', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 01 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-                        { id: 'route_2', name: 'Route B - Residential Suburbs & Karen', startPoint: 'Karen Hub / Roundabout', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
-                        { id: 'route_3', name: 'Route C - Central Shuttle & Westlands', startPoint: 'Westlands Bus Park', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 03 (KDM 441X)', driver: 'Paul Mwangi', attendant: 'Grace Achieng' },
-                    ];
-                    setBusRoutes(fallbackRoutes);
-                    localStorage.setItem(routeKey, JSON.stringify(fallbackRoutes));
                 }
             } catch (e) { setBusRoutes([]); }
-        } else {
-            const standardRoutes = [
-                { id: 'route_1', name: 'Route A - Main Corridor & Kilimani', startPoint: 'Main Center / Junction', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 01 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
-                { id: 'route_2', name: 'Route B - Residential Suburbs & Karen', startPoint: 'Karen Hub / Roundabout', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 02 (KBB 120Z)', driver: 'James Kamau', attendant: 'Mercy Nyambura' },
-                { id: 'route_3', name: 'Route C - Central Shuttle & Westlands', startPoint: 'Westlands Bus Park', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 03 (KDM 441X)', driver: 'Paul Mwangi', attendant: 'Grace Achieng' },
-            ];
-            setBusRoutes(standardRoutes);
-            localStorage.setItem(routeKey, JSON.stringify(standardRoutes));
         }
 
         // 2. Route Fees
@@ -486,24 +702,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 const parsed = JSON.parse(savedFees);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     setRouteFeeSetting(parsed);
-                } else {
-                    const fallbackFees = [
-                        { routeId: 'route_1', routeName: 'Route A – Main Corridor', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
-                        { routeId: 'route_2', routeName: 'Route B – Residential Suburbs', termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
-                        { routeId: 'route_3', routeName: 'Route C – Central Shuttle', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
-                    ];
-                    setRouteFeeSetting(fallbackFees);
-                    localStorage.setItem(feeKey, JSON.stringify(fallbackFees));
                 }
             } catch (e) { setRouteFeeSetting([]); }
-        } else {
-            const standardFees = [
-                { routeId: 'route_1', routeName: 'Route A – Main Corridor', termFee: 8500,  monthlyFee: 3200, currency: 'KES' },
-                { routeId: 'route_2', routeName: 'Route B – Residential Suburbs', termFee: 9500,  monthlyFee: 3600, currency: 'KES' },
-                { routeId: 'route_3', routeName: 'Route C – Central Shuttle', termFee: 7800, monthlyFee: 3000, currency: 'KES' },
-            ];
-            setRouteFeeSetting(standardFees);
-            localStorage.setItem(feeKey, JSON.stringify(standardFees));
         }
 
         // 3. Invoices
@@ -532,21 +732,37 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         } else {
             setDefaultOneWayPercentage(60);
         }
+
+        // 6. School Trips
+        const tripKey = `eduai_school_trips_${currentInstitution.id}`;
+        const savedTrips = localStorage.getItem(tripKey);
+        if (savedTrips !== null) {
+            try { setSchoolTrips(JSON.parse(savedTrips)); } catch (e) { setSchoolTrips([]); }
+        } else {
+            setSchoolTrips([]);
+        }
+
+        // 7. Perform cloud database synchronization
+        syncWithCloud();
     }, [currentInstitution?.id]);
 
     const PREF_MULTIPLIER: Record<string, number> = { round_trip: 1.0, one_way_pickup: 0.6, one_way_drop: 0.6, none: 0 };
 
     const handleUpdateRouteFee = (routeId: string, termFee: number, monthlyFee: number, routeName?: string, oneWayPercentage?: number) => {
-        setRouteFeeSetting(prev => prev.map(r => r.routeId === routeId ? {
+        let updatedRoutes = busRoutes;
+        const updatedFees = routeFeeSetting.map(r => r.routeId === routeId ? {
             ...r,
             termFee,
             monthlyFee,
             ...(routeName ? { routeName } : {}),
             ...(oneWayPercentage !== undefined ? { oneWayPercentage } : {})
-        } : r));
+        } : r);
+        setRouteFeeSetting(updatedFees);
         if (routeName) {
-            setBusRoutes(prev => prev.map(br => br.id === routeId ? { ...br, name: routeName } : br));
+            updatedRoutes = busRoutes.map(br => br.id === routeId ? { ...br, name: routeName } : br);
+            setBusRoutes(updatedRoutes);
         }
+        persistHubToCloud({ routeFeeSetting: updatedFees, busRoutes: updatedRoutes });
     };
 
     const handleGenerateInvoices = async (cycle: BillingCycle, period: string, notifySms: boolean = true) => {
@@ -560,7 +776,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         const sourceStudents = students.length > 0
             ? students.map(s => {
                 const userObj = users.find(u => u.id === s.id || u.email === (s as any).email);
-                const phone = (s as any).parentPhone || (s as any).guardianPhoneNumber || (s as any).phoneNumber || userObj?.guardianPhoneNumber || userObj?.parentPhone || userObj?.phoneNumber;
+                const phone = (s as any).parentPhone || (s as any).guardianPhoneNumber || (s as any).phoneNumber || (userObj as any)?.guardianPhoneNumber || (userObj as any)?.guardianPhone || (userObj as any)?.parentPhone || (userObj as any)?.phoneNumber;
                 return {
                     id: s.id,
                     name: s.name,
@@ -615,25 +831,31 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             }
         }
 
-        setTransportInvoices(prev => [...prev, ...newInvoices]);
+        const nextInvs = [...transportInvoices, ...newInvoices];
+        setTransportInvoices(nextInvs);
+        persistHubToCloud({ transportInvoices: nextInvs });
     };
 
     const handleMarkPaid = (invoiceId: string, method: string, transactionCode?: string) => {
-        setTransportInvoices(prev => prev.map(i => i.id === invoiceId
+        const nextInvs = transportInvoices.map(i => i.id === invoiceId
             ? {
                 ...i,
-                status: 'paid',
+                status: 'paid' as const,
                 paidDate: new Date().toISOString(),
                 paymentMethod: method,
                 transactionCode: transactionCode || i.transactionCode,
                 receiptNumber: `TR-REC-${invoiceId.slice(-6).toUpperCase()}`
             }
             : i
-        ));
+        );
+        setTransportInvoices(nextInvs);
+        persistHubToCloud({ transportInvoices: nextInvs });
     };
 
     const handleWaiveFee = (invoiceId: string, _reason: string) => {
-        setTransportInvoices(prev => prev.map(i => i.id === invoiceId ? { ...i, status: 'waived' } : i));
+        const nextInvs = transportInvoices.map(i => i.id === invoiceId ? { ...i, status: 'waived' as const } : i);
+        setTransportInvoices(nextInvs);
+        persistHubToCloud({ transportInvoices: nextInvs });
     };
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -775,6 +997,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         if (feeKey) localStorage.setItem(feeKey, JSON.stringify(nextFees));
 
         // Clean up student preferences assigned to this route
+        let updatedPrefs = studentCommutePrefs;
         setStudentCommutePrefs(prev => {
             const next = { ...prev };
             Object.keys(next).forEach(stId => {
@@ -782,10 +1005,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     delete next[stId];
                 }
             });
+            updatedPrefs = next;
             const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
             if (prefKey) localStorage.setItem(prefKey, JSON.stringify(next));
             return next;
         });
+
+        persistHubToCloud({ busRoutes: nextRoutes, routeFeeSetting: nextFees, studentCommutePrefs: updatedPrefs });
     };
 
     // Filter users strictly to current institution to prevent cross-institution data bleed
@@ -855,62 +1081,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setStudentCommutePrefs(initialPrefs);
     }, [students, isEduTransport, busRoutes, currentInstitution?.id]);
 
-    const [schoolTrips, setSchoolTrips] = useState<Array<{
-        id: string;
-        name: string;
-        destination: string;
-        date: string;
-        time: string;
-        leadTeacher: string;
-        vehicle: string;
-        passengers: string;
-        status: 'approved' | 'pending' | 'completed' | 'cancelled';
-    }>>(() => {
-        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_school_trips');
-        if (saved !== null) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                console.error('Failed to parse saved school trips', e);
-            }
-        }
-        // Only seed initial demo trips for demo institutions
-        if (currentInstitution?.id?.startsWith('demo_')) {
-            const initialDemoTrips = [
-                { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' as const },
-                { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
-                { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
-            ];
-            localStorage.setItem(key, JSON.stringify(initialDemoTrips));
-            localStorage.setItem('eduai_school_trips', JSON.stringify(initialDemoTrips));
-            return initialDemoTrips;
-        }
-        // Fresh accounts start with an empty trips list
-        return [];
-    });
 
-    React.useEffect(() => {
-        if (!isEduTransport) return;
-        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_school_trips');
-        if (saved !== null) {
-            try {
-                setSchoolTrips(JSON.parse(saved));
-            } catch (e) {}
-        } else if (currentInstitution?.id?.startsWith('demo_')) {
-            const initialDemoTrips = [
-                { id: 'trip_1', name: 'National Museum Geography Tour', destination: 'Nairobi National Museum', date: '2026-06-28', time: '08:30 AM', leadTeacher: 'Mr. Benson Kiprop', vehicle: 'KDC 992P (Bus 04)', passengers: '45 Students', status: 'approved' as const },
-                { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
-                { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
-            ];
-            setSchoolTrips(initialDemoTrips);
-            localStorage.setItem(key, JSON.stringify(initialDemoTrips));
-            localStorage.setItem('eduai_school_trips', JSON.stringify(initialDemoTrips));
-        } else {
-            setSchoolTrips([]);
-        }
-    }, [currentInstitution?.id, isEduTransport]);
 
     // Modal state for adding a new trip
     const [isAddTripModalOpen, setIsAddTripModalOpen] = useState(false);
@@ -1272,6 +1443,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             localStorage.setItem('eduai_transport_bus_routes', JSON.stringify(nextRoutes));
             localStorage.setItem(feeKey, JSON.stringify(nextFees));
             localStorage.setItem('eduai_transport_route_fee_settings', JSON.stringify(nextFees));
+
+            persistHubToCloud({ busRoutes: nextRoutes, routeFeeSetting: nextFees });
 
             setIsAddRouteModalOpen(false);
             setEditingRoute(null);
@@ -1895,10 +2068,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                             <select
                                                                 value={currentPref.routeId}
                                                                 onChange={e => {
-                                                                    setStudentCommutePrefs({
+                                                                    const nextPrefs = {
                                                                         ...studentCommutePrefs,
                                                                         [student.id]: { ...currentPref, routeId: e.target.value }
-                                                                    });
+                                                                    };
+                                                                    setStudentCommutePrefs(nextPrefs);
+                                                                    const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
+                                                                    if (prefKey) localStorage.setItem(prefKey, JSON.stringify(nextPrefs));
+                                                                    persistHubToCloud({ studentCommutePrefs: nextPrefs });
                                                                 }}
                                                                 className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
                                                             >
@@ -1912,10 +2089,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                             <select
                                                                 value={currentPref.preference}
                                                                 onChange={e => {
-                                                                    setStudentCommutePrefs({
+                                                                    const nextPrefs = {
                                                                         ...studentCommutePrefs,
                                                                         [student.id]: { ...currentPref, preference: e.target.value as any }
-                                                                    });
+                                                                    };
+                                                                    setStudentCommutePrefs(nextPrefs);
+                                                                    const prefKey = currentInstitution?.id ? `eduai_student_commute_prefs_${currentInstitution.id}` : null;
+                                                                    if (prefKey) localStorage.setItem(prefKey, JSON.stringify(nextPrefs));
+                                                                    persistHubToCloud({ studentCommutePrefs: nextPrefs });
                                                                 }}
                                                                 className={`px-4 py-2.5 border rounded-xl font-black uppercase text-[10px] tracking-wider outline-none cursor-pointer ${
                                                                     currentPref.preference === 'round_trip' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800' :
@@ -1973,6 +2154,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
             localStorage.setItem(tripKey, JSON.stringify(nextTrips));
             localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+            persistHubToCloud({ schoolTrips: nextTrips });
 
             setIsAddTripModalOpen(false);
             // Reset fields
@@ -1992,6 +2174,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
             localStorage.setItem(tripKey, JSON.stringify(nextTrips));
             localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+            persistHubToCloud({ schoolTrips: nextTrips });
         };
 
         const handleToggleTripStatus = (tripId: string) => {
@@ -2004,6 +2187,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
             localStorage.setItem(tripKey, JSON.stringify(nextTrips));
             localStorage.setItem('eduai_school_trips', JSON.stringify(nextTrips));
+            persistHubToCloud({ schoolTrips: nextTrips });
         };
 
         return (
@@ -2799,7 +2983,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const sName = inv.studentName || '';
             const adm = inv.admissionNumber || '';
             const rName = inv.routeName || '';
-            const invNo = inv.invoiceNumber || inv.id || '';
+            const invNo = (inv as any).invoiceNumber || inv.id || '';
             const matchesSearch = !reportSearch || 
                 sName.toLowerCase().includes(reportSearch.toLowerCase()) || 
                 adm.toLowerCase().includes(reportSearch.toLowerCase()) || 
@@ -2828,28 +3012,35 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         });
 
         const filteredAlerts = transportAlerts.filter(a => {
+            const aAny = a as any;
             return !reportSearch ||
                 (a.message || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
-                (a.route || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
-                (a.vehiclePlate || '').toLowerCase().includes(reportSearch.toLowerCase());
+                (aAny.route || a.affectedRoute || '').toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (aAny.vehiclePlate || a.affectedBusReg || '').toLowerCase().includes(reportSearch.toLowerCase());
         });
 
         const handleExportExcel = () => {
             if (reportSubTab === 'billing') {
-                const data = filteredInvoices.map((inv, idx) => ({
-                    '#': idx + 1,
-                    'Invoice No': inv.invoiceNumber || inv.id,
-                    'Student Name': inv.studentName,
-                    'Admission No': inv.admissionNumber,
-                    'Route': inv.routeName,
-                    'Commute Mode': inv.preference || (inv as any).commutePreference || 'Round Trip',
-                    'Billing Period': inv.period,
-                    'Amount (KES)': inv.amount || inv.finalAmount || 0,
-                    'Paid (KES)': inv.paidAmount || (inv.status === 'paid' ? (inv.amount || inv.finalAmount || 0) : 0),
-                    'Balance (KES)': inv.balance !== undefined ? inv.balance : ((inv.amount || inv.finalAmount || 0) - (inv.paidAmount || (inv.status === 'paid' ? (inv.amount || inv.finalAmount || 0) : 0))),
-                    'Status': (inv.status || 'Pending').toUpperCase(),
-                    'Due Date': inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'N/A'
-                }));
+                const data = filteredInvoices.map((inv, idx) => {
+                    const invAny = inv as any;
+                    const amt = invAny.amount || inv.finalAmount || 0;
+                    const paid = invAny.paidAmount || (inv.status === 'paid' ? amt : 0);
+                    const bal = invAny.balance !== undefined ? invAny.balance : Math.max(0, amt - paid);
+                    return {
+                        '#': idx + 1,
+                        'Invoice No': invAny.invoiceNumber || inv.id,
+                        'Student Name': inv.studentName,
+                        'Admission No': inv.admissionNumber,
+                        'Route': inv.routeName,
+                        'Commute Mode': inv.preference || invAny.commutePreference || 'Round Trip',
+                        'Billing Period': inv.period,
+                        'Amount (KES)': amt,
+                        'Paid (KES)': paid,
+                        'Balance (KES)': bal,
+                        'Status': (inv.status || 'Pending').toUpperCase(),
+                        'Due Date': inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : 'N/A'
+                    };
+                });
                 const ws = XLSX.utils.json_to_sheet(data);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, 'Transport Billing');
@@ -2903,17 +3094,20 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 XLSX.utils.book_append_sheet(wb, ws, 'School Trips');
                 XLSX.writeFile(wb, `School_Trips_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
             } else if (reportSubTab === 'alerts') {
-                const data = filteredAlerts.map((a, idx) => ({
-                    '#': idx + 1,
-                    'Severity': (a.severity || 'Normal').toUpperCase(),
-                    'Category': (a.type || 'Notice').toUpperCase(),
-                    'Route': a.route || 'All Routes',
-                    'Vehicle Plate': a.vehiclePlate || 'N/A',
-                    'Driver': a.driverName || 'N/A',
-                    'Message': a.message,
-                    'Status': (a.status || 'Active').toUpperCase(),
-                    'Created At': a.createdAt ? new Date(a.createdAt).toLocaleString() : 'N/A'
-                }));
+                const data = filteredAlerts.map((a, idx) => {
+                    const aAny = a as any;
+                    return {
+                        '#': idx + 1,
+                        'Severity': (aAny.severity || a.reason || 'Normal').toUpperCase(),
+                        'Category': (aAny.type || a.reason || 'Notice').toUpperCase(),
+                        'Route': aAny.route || a.affectedRoute || 'All Routes',
+                        'Vehicle Plate': aAny.vehiclePlate || a.affectedBusReg || 'N/A',
+                        'Driver': aAny.driverName || a.replacementDriver || 'N/A',
+                        'Message': a.message,
+                        'Status': (a.status || 'Active').toUpperCase(),
+                        'Created At': a.createdAt ? new Date(a.createdAt).toLocaleString() : 'N/A'
+                    };
+                });
                 const ws = XLSX.utils.json_to_sheet(data);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, 'Disruptions');
@@ -3082,14 +3276,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         </tr>
                                     ) : (
                                         filteredInvoices.map(inv => {
-                                            const amt = inv.amount || inv.finalAmount || 0;
-                                            const paid = inv.paidAmount || (inv.status === 'paid' ? amt : 0);
-                                            const bal = inv.balance !== undefined ? inv.balance : Math.max(0, amt - paid);
+                                            const invAny = inv as any;
+                                            const amt = invAny.amount || inv.finalAmount || 0;
+                                            const paid = invAny.paidAmount || (inv.status === 'paid' ? amt : 0);
+                                            const bal = invAny.balance !== undefined ? invAny.balance : Math.max(0, amt - paid);
                                             return (
                                                 <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
                                                     <td className="p-4">
                                                         <p className="font-black text-slate-900 dark:text-white">{inv.studentName}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400">{inv.admissionNumber || inv.invoiceNumber || inv.id}</p>
+                                                        <p className="text-[10px] font-bold text-slate-400">{inv.admissionNumber || invAny.invoiceNumber || inv.id}</p>
                                                     </td>
                                                     <td className="p-4">
                                                         <p className="font-bold text-slate-800 dark:text-slate-200">{inv.routeName}</p>
@@ -3280,32 +3475,36 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                             <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No disruption alerts or route delay incidents recorded.</td>
                                         </tr>
                                     ) : (
-                                        filteredAlerts.map(a => (
-                                            <tr key={a.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
-                                                <td className="p-4">
-                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
-                                                        a.severity === 'high' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
-                                                        a.severity === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
-                                                        'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
-                                                    }`}>
-                                                        {a.severity}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4">
-                                                    <p className="font-bold text-slate-800 dark:text-slate-200">{a.route || 'All Routes'}</p>
-                                                    <p className="text-[10px] font-mono text-slate-400">{a.vehiclePlate || 'N/A'}</p>
-                                                </td>
-                                                <td className="p-4 font-medium text-slate-700 dark:text-slate-300 max-w-md">{a.message}</td>
-                                                <td className="p-4">
-                                                    <span className="font-bold text-slate-600 dark:text-slate-400 uppercase text-[10px]">
-                                                        {a.status}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-right font-bold text-slate-500">
-                                                    {a.createdAt ? new Date(a.createdAt).toLocaleString() : 'N/A'}
-                                                </td>
-                                            </tr>
-                                        ))
+                                        filteredAlerts.map(a => {
+                                            const aAny = a as any;
+                                            const severity = aAny.severity || 'low';
+                                            return (
+                                                <tr key={a.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                            severity === 'high' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
+                                                            severity === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                            'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                                                        }`}>
+                                                            {severity}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{aAny.route || a.affectedRoute || 'All Routes'}</p>
+                                                        <p className="text-[10px] font-mono text-slate-400">{aAny.vehiclePlate || a.affectedBusReg || 'N/A'}</p>
+                                                    </td>
+                                                    <td className="p-4 font-medium text-slate-700 dark:text-slate-300 max-w-md">{a.message}</td>
+                                                    <td className="p-4">
+                                                        <span className="font-bold text-slate-600 dark:text-slate-400 uppercase text-[10px]">
+                                                            {a.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right font-bold text-slate-500">
+                                                        {a.createdAt ? new Date(a.createdAt).toLocaleString() : 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
@@ -3369,7 +3568,20 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             : 'The mission control for your supply chain. Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.'}
                     </p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                    <button 
+                        type="button"
+                        onClick={() => {
+                            fetchVehiclesList();
+                            syncWithCloud(true);
+                        }}
+                        disabled={isCloudSyncing}
+                        className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                        title="Synchronize all logistics data, routes, and vehicle registrations with the online database"
+                    >
+                        <Cloud className={`w-4 h-4 ${isCloudSyncing ? 'animate-pulse text-indigo-500' : 'text-emerald-500'}`} />
+                        <span>{isCloudSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+                    </button>
                     <button 
                         onClick={() => {
                             if (isEduTransport) {
