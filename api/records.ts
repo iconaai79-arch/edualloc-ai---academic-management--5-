@@ -167,7 +167,8 @@ const PUBLIC_MODULES = [
   'app_notifications', 'whatsapp_configs', 'whatsapp_logs',
   'invoice_clients', 'company_invoice_settings',
   'school_authorized_devices', 'school_router_profiles',
-  'vehicles', 'transport_onboarding', 'vehicle_logs'
+  'vehicles', 'transport_onboarding', 'vehicle_logs',
+  'stock_transactions', 'appointments'
 ];
 
 const TABLES_WITH_METADATA = new Set([
@@ -261,15 +262,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'visitors', 'security_alerts', 'security_logs', 'gate_passes', 'student_gate_passes',
           'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
           'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
-          'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states'
+          'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
+          'stock_transactions', 'appointments'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
-          'system_settings', 'institution_module_states', 'building_visitor_logs'
+          'system_settings', 'institution_module_states', 'building_visitor_logs',
+          'stock_transactions', 'appointments'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
-          'vehicles', 'transport_onboarding', 'vehicle_logs'
+          'vehicles', 'transport_onboarding', 'vehicle_logs',
+          'stock_transactions', 'appointments'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -648,6 +652,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'stock_transactions' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        if (r.item_id && !r.itemId) r.itemId = r.item_id;
+                        if (r.item_name && !r.itemName) r.itemName = r.item_name;
+                        if (r.recipient_or_supplier && !r.recipientOrSupplier) r.recipientOrSupplier = r.recipient_or_supplier;
+                        if (r.recipient_id && !r.recipientId) r.recipientId = r.recipient_id;
+                        if (r.recorded_by && !r.recordedBy) r.recordedBy = r.recorded_by;
+                        if (r.institution_id && !r.institutionId) r.institutionId = r.institution_id;
+                        if (r.verification_method && !r.verificationMethod) r.verificationMethod = r.verification_method;
+                    }
+                });
+            }
+
+            if (moduleName === 'appointments' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        if (r.host_id && !r.hostId) r.hostId = r.host_id;
+                        if (r.host_name && !r.hostName) r.hostName = r.host_name;
+                        if (r.guest_name && !r.guestName) r.guestName = r.guest_name;
+                        if (r.guest_email && !r.guestEmail) r.guestEmail = r.guest_email;
+                        if (r.guest_phone && !r.guestPhone) r.guestPhone = r.guest_phone;
+                        if (r.start_time && !r.startTime) r.startTime = r.start_time;
+                        if (r.end_time && !r.endTime) r.endTime = r.end_time;
+                        if (r.created_at && !r.createdAt) r.createdAt = r.created_at;
+                        if (r.institution_id && !r.institutionId) r.institutionId = r.institution_id;
+                    }
+                });
+            }
+
             return res.status(200).json(data || []);
         }
 
@@ -921,6 +955,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 copy.metadata = meta;
+            }
+            if (moduleName === 'stock_transactions') {
+                if (copy.itemId && !copy.item_id) copy.item_id = copy.itemId;
+                delete copy.itemId;
+                if (copy.itemName && !copy.item_name) copy.item_name = copy.itemName;
+                delete copy.itemName;
+                if (copy.recipientOrSupplier && !copy.recipient_or_supplier) copy.recipient_or_supplier = copy.recipientOrSupplier;
+                delete copy.recipientOrSupplier;
+                if (copy.recipientId && !copy.recipient_id) copy.recipient_id = copy.recipientId;
+                delete copy.recipientId;
+                if (copy.recordedBy && !copy.recorded_by) copy.recorded_by = copy.recordedBy;
+                delete copy.recordedBy;
+                if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                delete copy.institutionId;
+                if (copy.verificationMethod && !copy.verification_method) copy.verification_method = copy.verificationMethod;
+                delete copy.verificationMethod;
+            }
+            if (moduleName === 'appointments') {
+                if (copy.hostId && !copy.host_id) copy.host_id = copy.hostId;
+                delete copy.hostId;
+                if (copy.hostName && !copy.host_name) copy.host_name = copy.hostName;
+                delete copy.hostName;
+                if (copy.guestName && !copy.guest_name) copy.guest_name = copy.guestName;
+                delete copy.guestName;
+                if (copy.guestEmail && !copy.guest_email) copy.guest_email = copy.guestEmail;
+                delete copy.guestEmail;
+                if (copy.guestPhone && !copy.guest_phone) copy.guest_phone = copy.guestPhone;
+                delete copy.guestPhone;
+                if (copy.startTime && !copy.start_time) copy.start_time = copy.startTime;
+                delete copy.startTime;
+                if (copy.endTime && !copy.end_time) copy.end_time = copy.endTime;
+                delete copy.endTime;
+                if (copy.createdAt && !copy.created_at) copy.created_at = copy.createdAt;
+                delete copy.createdAt;
+                if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                delete copy.institutionId;
             }
             universalKeys.forEach(k => {
                 if (k in copy) delete copy[k];
@@ -2156,7 +2226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by'].forEach(k => {
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by'].forEach(k => {
                             if (k in copy) copy[k] = null;
                         });
                         return copy;

@@ -292,9 +292,13 @@ export function isRestaurantInstitution(institution: Partial<Institution> | null
 /**
  * Logic to properly display role names to the user.
  */
-export function formatRoleDisplayName(role: Role, institution?: Institution | null): string {
+export function formatRoleDisplayName(role: Role | string, institution?: Institution | null): string {
     if (!role) return 'User';
-    if (role === 'hod') return 'Head of Department';
+    const roleStr = String(role);
+    if (roleStr === 'hod') return 'Head of Department (HOD)';
+    if (roleStr === 'dos' || roleStr === 'director_of_studies') return 'Director of Studies (DOS)';
+    if (roleStr === 'academics_officer') return 'Academics Officer';
+    if (roleStr === 'deputy' || roleStr === 'deputy_head' || roleStr === 'deputy_principal' || roleStr === 'deputy_headteacher') return 'Deputy Principal / Head';
 
     const type = institution?.institutionType;
     const subType = institution?.businessSubType?.toLowerCase() || '';
@@ -358,7 +362,7 @@ export function formatRoleDisplayName(role: Role, institution?: Institution | nu
 
     const isHIS = type === 'HIS' || isHISInstitution(institution);
     if (isHIS) {
-        switch (role) {
+        switch (role as string) {
             case 'his_admin': return 'Hospital Administrator';
             case 'academics_officer': return 'Medical Record Officer';
         }
@@ -366,11 +370,13 @@ export function formatRoleDisplayName(role: Role, institution?: Institution | nu
 
     // School context
     if (isSchoolInstitution(institution)) {
-        switch (role) {
+        switch (role as string) {
             case 'head_teacher': case 'headteacher': case 'admin': case 'principal': case 'headmaster': case 'headmistress': return 'Head Teacher / Principal';
             case 'operation_manager': case 'operations_manager': return 'Operation Manager';
             case 'deputy': case 'deputy_headteacher': case 'deputy_principal': case 'deputy_head': return 'Deputy Principal / Head';
-            case 'dos': case 'director_of_studies': case 'academics_officer': return 'Director of Studies (DOS)';
+            case 'dos': case 'director_of_studies': return 'Director of Studies (DOS)';
+            case 'academics_officer': return 'Academics Officer';
+            case 'hod': return 'Head of Department (HOD)';
             case 'teacher': case 'lecturer': case 'practice_teacher': return 'Teacher';
             case 'class_supervisor': return 'Class Supervisor';
             case 'boarding_master': return 'Boarding Manager';
@@ -493,7 +499,7 @@ export function isTeacherRole(role?: Role | string | null): boolean {
 /**
  * Administrative leadership roles with access to the Admin Portal (including DOS, Headteacher, Deputy).
  */
-export const SCHOOL_ADMIN_ROLES: Role[] = [
+export const SCHOOL_ADMIN_ROLES: (Role | string)[] = [
     'super_admin',
     'group_admin',
     'school_group_admin',

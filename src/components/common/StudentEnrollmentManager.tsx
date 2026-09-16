@@ -41,7 +41,8 @@ import {
     Star,
     ExternalLink,
     Printer,
-    FlaskConical
+    FlaskConical,
+    LogIn
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
@@ -54,7 +55,21 @@ import { VALID_STAFF_ROLES } from '../../constants';
 import { formatPhoneNumber, phonesMatch } from '../../utils/stringUtils';
 import { PdfViewer } from '../PdfViewer';
 
-const teacherRoles = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
+const teacherRoles = [
+    'teacher',
+    'hod',
+    'dos',
+    'director_of_studies',
+    'deputy',
+    'deputy_principal',
+    'deputy_head',
+    'academics_officer',
+    'class_supervisor',
+    'lecturer',
+    'tto',
+    'practice_teacher',
+    'county_teacher'
+];
 const nonSupportRoles = [
     'student', 'parent', 'customer', 'lead', 'member',
     'super_admin', 'main_admin',
@@ -315,6 +330,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const isPrimaryOrSecondary = useMemo(() => {
         return isPrimaryInstitution(currentInstitution) || isSecondaryInstitution(currentInstitution);
     }, [currentInstitution]);
+
+    const isSuperAdmin = useMemo(() => {
+        if (currentUser?.role === 'super_admin') return true;
+        try {
+            const activeSession = apiService.getSession();
+            if (activeSession?.role === 'super_admin') return true;
+            const storedSa = localStorage.getItem('eduai_super_admin_session');
+            if (storedSa) {
+                const parsed = JSON.parse(storedSa);
+                if (parsed && (parsed.role === 'super_admin' || parsed.id)) return true;
+            }
+        } catch (_) {}
+        return false;
+    }, [currentUser]);
 
     const isNameUnknown = (name: string | undefined | null): boolean => {
         if (!name) return true;
@@ -4885,6 +4914,44 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
     };
 
+    // Handle Login as Teacher (Super Admin Impersonation)
+    const handleLoginAsTeacher = (teacher: User) => {
+        if (!isSuperAdmin) return;
+
+        try {
+            // 1. Preserve original super admin session if not already stored
+            const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
+            if (active?.role === 'super_admin' && !localStorage.getItem('eduai_super_admin_session')) {
+                localStorage.setItem('eduai_super_admin_session', JSON.stringify(active));
+            }
+        } catch (e) {
+            console.warn('[StudentEnrollmentManager] Failed to cache super admin session:', e);
+        }
+
+        // 2. Prepare the impersonated teacher payload
+        const impersonatedTeacher: User = {
+            ...teacher,
+            institutionId: teacher.institutionId || currentInstitution?.id || '',
+            role: (teacher.role && teacher.role !== 'super_admin') ? teacher.role : 'teacher',
+            isImpersonated: true
+        };
+
+        // 3. Store the new session into active localStorage keys
+        apiService.storeSession(impersonatedTeacher);
+        try {
+            localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedTeacher));
+            localStorage.setItem('eduai_user_session', JSON.stringify(impersonatedTeacher));
+            localStorage.setItem('user', JSON.stringify(impersonatedTeacher));
+        } catch (_) {}
+
+        setStatusMsg({ type: 'success', message: `Logging in as ${teacher.name}...` });
+
+        // 4. Force reload into Teacher Portal
+        setTimeout(() => {
+            window.location.href = window.location.origin + window.location.pathname;
+        }, 300);
+    };
+
     // Available Cohorts / Grade Levels — Only load registered grades
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
@@ -6339,6 +6406,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                         {/* Actions */}
                                         <div className="shrink-0 flex items-center gap-1">
+                                            {isSuperAdmin && (
+                                                <button
+                                                    onClick={() => handleLoginAsTeacher(teacher)}
+                                                    className="px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 group/loginbtn cursor-pointer"
+                                                    title={`Login as ${teacher.name} (Teacher Portal)`}
+                                                >
+                                                    <LogIn className="w-3.5 h-3.5 group-hover/loginbtn:translate-x-0.5 transition-transform" />
+                                                    <span className="text-[10px] font-black uppercase tracking-wider">Login as Teacher</span>
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => {
                                                     setRoleModalUser(teacher);
@@ -8459,7 +8536,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <div className="text-base font-black text-slate-800 dark:text-white">{roleModalUser.name}</div>
                             <div className="text-xs text-slate-400 mt-0.5">{roleModalUser.email || roleModalUser.phoneNumber || 'No contact info'}</div>
                             <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
-                                Current: {formatRoleDisplayName((roleModalUser.role || '') as any)}
+                                Current: {formatRoleDisplayName((roleModalUser.role || '') as any, currentInstitution)}
                             </div>
                         </div>
 
@@ -8468,20 +8545,51 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <select
                                 value={roleModalNewRole}
                                 onChange={e => setRoleModalNewRole(e.target.value)}
-                                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                             >
                                 <option value="">-- Select Role --</option>
-                                {getRolesForInstitution(currentInstitution)
-                                    .filter(r => {
-                                        const isTeacherRole = teacherRoles.includes(r as any);
-                                        if (roleModalSourceTab === 'teachers') return isTeacherRole;
-                                        // Support staff: exclude pure teacher roles and non-staff roles
-                                        return !isTeacherRole && !nonSupportRoles.includes(r as any);
-                                    })
-                                    .map(r => (
-                                        <option key={r} value={r}>{formatRoleDisplayName(r as any)}</option>
-                                    ))
-                                }
+                                {(() => {
+                                    const instRoles = getRolesForInstitution(currentInstitution);
+                                    const academicRoles = instRoles.filter(r => teacherRoles.includes(r as any));
+                                    const supportRoles = instRoles.filter(r => !teacherRoles.includes(r as any) && !nonSupportRoles.includes(r as any));
+                                    const finalAcademic = academicRoles.length > 0 
+                                        ? academicRoles 
+                                        : ['teacher', 'hod', 'dos', 'deputy', 'academics_officer', 'class_supervisor'];
+
+                                    if (roleModalSourceTab === 'teachers') {
+                                        return (
+                                            <>
+                                                <optgroup label="Academic & Teaching Leadership Roles">
+                                                    {finalAcademic.map(r => (
+                                                        <option key={r} value={r}>{formatRoleDisplayName(r as any, currentInstitution)}</option>
+                                                    ))}
+                                                </optgroup>
+                                                {supportRoles.length > 0 && (
+                                                    <optgroup label="Administrative & Support Roles">
+                                                        {supportRoles.map(r => (
+                                                            <option key={r} value={r}>{formatRoleDisplayName(r as any, currentInstitution)}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                            </>
+                                        );
+                                    }
+
+                                    return (
+                                        <>
+                                            <optgroup label="Support & Administrative Roles">
+                                                {supportRoles.map(r => (
+                                                    <option key={r} value={r}>{formatRoleDisplayName(r as any, currentInstitution)}</option>
+                                                ))}
+                                            </optgroup>
+                                            <optgroup label="Academic & Teaching Leadership Roles">
+                                                {finalAcademic.map(r => (
+                                                    <option key={r} value={r}>{formatRoleDisplayName(r as any, currentInstitution)}</option>
+                                                ))}
+                                            </optgroup>
+                                        </>
+                                    );
+                                })()}
                             </select>
                             {roleModalNewRole && teacherRoles.includes(roleModalNewRole as any) && roleModalSourceTab === 'support_staff' && (
                                 <p className="mt-2 text-[10px] font-bold text-amber-500 uppercase tracking-wider">
@@ -8587,11 +8695,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                         className="form-select mt-1 w-full bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 font-bold text-xs text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-300"
                                     >
                                         {activeTab === 'teachers' ? (
-                                            teacherRoles.map(role => (
-                                                <option key={role} value={role}>
-                                                    {formatRoleDisplayName(role as any, currentInstitution)}
-                                                </option>
-                                            ))
+                                            (() => {
+                                                const instRoles = getRolesForInstitution(currentInstitution);
+                                                const academicRoles = instRoles.filter(r => teacherRoles.includes(r as any));
+                                                const availableRoles = academicRoles.length > 0 
+                                                    ? academicRoles 
+                                                    : ['teacher', 'hod', 'dos', 'deputy', 'academics_officer', 'class_supervisor'];
+                                                return availableRoles.map(role => (
+                                                    <option key={role} value={role}>
+                                                        {formatRoleDisplayName(role as any, currentInstitution)}
+                                                    </option>
+                                                ));
+                                            })()
                                         ) : (
                                             getRolesForInstitution(currentInstitution)
                                                 .filter(role => !teacherRoles.includes(role) && !nonSupportRoles.includes(role))
