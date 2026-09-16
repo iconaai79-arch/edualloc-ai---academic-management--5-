@@ -43,7 +43,7 @@ interface Props {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const PRINCIPAL_ROLES = ['admin', 'head_teacher', 'super_admin', 'dos', 'deputy', 'store'];
+const PRINCIPAL_ROLES = ['admin', 'head_teacher', 'super_admin', 'deputy', 'store'];
 
 const DEFAULT_CATEGORIES: InventoryCategory[] = [
     { id: 'stationery', name: 'Stationery', icon: '✏️', color: '#6366f1', sortOrder: 1, isDefault: true },

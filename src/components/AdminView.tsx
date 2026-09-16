@@ -704,6 +704,15 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return isHigherEdInstitution(props.currentInstitution);
     }, [props.currentInstitution]);
 
+    const isDos = useMemo(() => {
+        if (props.currentUser?.role === 'super_admin' && !props.activeRole) return false;
+        const role = (props.activeRole || props.currentUser?.role || '').toLowerCase();
+        const roles: string[] = Array.isArray((props.currentUser as any)?.roles)
+            ? (props.currentUser as any).roles.map((r: any) => String(r).toLowerCase())
+            : [];
+        return role === 'dos' || role === 'director_of_studies' || roles.includes('dos') || roles.includes('director_of_studies');
+    }, [props.activeRole, props.currentUser?.role, (props.currentUser as any)?.roles]);
+
     const isRetailAgency = useMemo(() => {
         if (props.currentInstitution?.institutionType === 'Church' || props.currentInstitution?.institutionType === 'Hospitality' || props.currentInstitution?.institutionType === 'Car Showroom' || isAutoMarket || isLaw) return false;
         const subType = (props.currentInstitution?.businessSubType || '').toLowerCase();
@@ -808,6 +817,22 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         };
     }, []);
 
+    // Strict Scope & Tab Guard: DOS can ONLY access academics and remedials
+    useEffect(() => {
+        if (isDos) {
+            if (activeScope !== 'console_hub' && activeScope !== 'academics' && activeScope !== 'remedials') {
+                setActiveScope('console_hub');
+            }
+            if (activeScope === 'console_hub' && activeTab !== 'dashboard') {
+                setActiveTab('dashboard');
+            } else if (activeScope === 'academics' && activeTab !== 'timetable') {
+                setActiveTab('timetable');
+            } else if (activeScope === 'remedials' && activeTab !== 'remedials') {
+                setActiveTab('remedials');
+            }
+        }
+    }, [isDos, activeScope, activeTab]);
+
 
     const isModuleActive = useCallback((moduleId: string) => {
         if (props.currentInstitution?.institutionType === 'Reseller') return true;
@@ -907,6 +932,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
         if (isHeritage) {
             return [];
+        }
+
+        if (isDos) {
+            if (activeScope === 'console_hub') {
+                return [];
+            }
+            return [
+                { id: 'timetable', label: 'Academics', icon: <CalendarDaysIcon className="w-5 h-5 mr-2" /> },
+                { id: 'remedials', label: 'Remedial Manager', icon: <ClockIcon className="w-5 h-5 mr-2" /> }
+            ];
         }
 
         if (isInvoicing) {
@@ -1210,7 +1245,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         return filteredTabs;
-    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope, isHeritage]);
+    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope, isHeritage, isDos]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;
@@ -1338,7 +1373,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            {(!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && activeScope !== 'academics' && tabs.length > 0 && (
+            {(!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && (isDos || activeScope !== 'academics') && tabs.length > 0 && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar-horizontal pb-2 no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
                     {(isEdu || isSchool || isDS) && (activeScope !== 'console_hub' || activeTab === 'network_devices') && (
                         <button
@@ -1359,6 +1394,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 key={tab.id}
                                 onClick={() => {
                                     React.startTransition(() => {
+                                        if (isDos) {
+                                            if (tab.id === 'timetable') {
+                                                setActiveScope('academics');
+                                            } else if (tab.id === 'remedials') {
+                                                setActiveScope('remedials');
+                                            }
+                                        }
                                         setActiveTab(tab.id as any);
                                         if (tab.id !== 'settings') setRequestedSettingsTab(undefined);
                                     });
@@ -1403,13 +1445,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         {/* Hub Header */}
                         <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
                             <span className="inline-block px-4 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 text-xs font-black uppercase tracking-[0.2em] rounded-full border border-indigo-100/50 dark:border-indigo-900/30">
-                                Institutional Gateway Console
+                                {isDos ? 'Director of Studies Gateway' : 'Institutional Gateway Console'}
                             </span>
                             <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                                Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">EduAI Console</span>
+                                Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400">{isDos ? 'Academics & Remedials Console' : 'EduAI Console'}</span>
                             </h1>
                             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
-                                Select an active administrative module below to proceed with your institutional responsibilities.
+                                {isDos ? 'Access your authorized academic scheduling and remedial management modules below.' : 'Select an active administrative module below to proceed with your institutional responsibilities.'}
                             </p>
                         </div>
 
@@ -1451,10 +1493,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                                         onClick={async (e) => {
                                                             e.stopPropagation();
                                                             try {
-                                                                await onActivateModuleTrial('academics');
                                                                 await onActivateModuleTrial('timetable');
                                                             } catch (err) {
-                                                                console.error("Failed to activate academic trials:", err);
+                                                                console.error("Failed to activate timetable trial:", err);
                                                             }
                                                         }}
                                                         className="bg-indigo-600 hover:bg-indigo-700 font-black text-[10px] uppercase tracking-wider py-2.5 px-4 rounded-xl shadow-md text-white transition-all active:scale-95 text-center mt-4 w-full block animate-pulse-subtle"
@@ -1468,7 +1509,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 );
                             })()}
 
-                            {/* Card 2: School Inventory & Store */}
+                            {!isDos && (
+                                <>
+                                    {/* Card 2: School Inventory & Store */}
                             {(() => {
                                 const isActive = isModuleActive('school_store');
                                 return (
@@ -2294,6 +2337,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </div>
                                 );
                             })()}
+                                </>
+                            )}
 
                             {/* Card: Remedial Manager */}
                             {(isEdu || isSchool) && (() => {
@@ -2347,7 +2392,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 );
                             })()}
 
-                            {/* Card 12: Car Wash Module — only for higher-ed */}
+                            {!isDos && (
+                                <>
+                                    {/* Card 12: Car Wash Module — only for higher-ed */}
                             {isHigherEd && (() => {
                                 const isActive = isModuleActive('carwash_admin');
                                 return (
@@ -2476,6 +2523,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     </div>
                                 );
                             })()}
+                                </>
+                            )}
 
                         </div>
                     </div>

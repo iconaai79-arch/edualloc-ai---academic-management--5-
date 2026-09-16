@@ -17,7 +17,7 @@ interface OperationHoursConfig {
 
 const ALL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const PRINCIPAL_ROLES = ['admin', 'head_teacher', 'super_admin', 'dos', 'deputy'];
+const PRINCIPAL_ROLES = ['admin', 'head_teacher', 'super_admin', 'deputy'];
 
 interface Props {
     institutionId: string;
