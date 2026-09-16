@@ -12,6 +12,9 @@ import {
     SECONDARY_SPORTS_CLUBS_PRESETS
 } from '../../utils/leavingCertificateTemplates';
 import { LeavingCertificateSheet } from './LeavingCertificateSheet';
+import { StudentClearanceManager } from './StudentClearanceManager';
+import { AlumnaOnboardingModal } from './AlumnaOnboardingModal';
+import { apiService } from '../../services/apiService';
 import { supabase } from '../../lib/supabase';
 import { SparklesIcon } from '../icons/SparklesIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
@@ -57,9 +60,10 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
     // Determine default template
     const initialTemplate = useMemo(() => detectDefaultTemplate(currentInstitution), [currentInstitution]);
     const [templateType, setTemplateType] = useState<LeavingCertificateTemplateType>(initialTemplate);
-    const [viewMode, setViewMode] = useState<'editor' | 'registry'>('editor');
+    const [viewMode, setViewMode] = useState<'editor' | 'clearance' | 'registry'>('editor');
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [previewScale, setPreviewScale] = useState<number>(0.85);
+    const [isAlumnaModalOpen, setIsAlumnaModalOpen] = useState(false);
 
     // Prevent background scrolling when preview modal is open
     useEffect(() => {
@@ -217,13 +221,8 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
         });
     }, [students, studentSearchTerm]);
 
-    // Issue & Save Certificate Handler
-    const handleIssueCertificate = async () => {
-        if (!formData.studentName.trim()) {
-            alert('Please enter or select a student name before issuing.');
-            return;
-        }
-
+    // Actual Certificate Generation & Archival
+    const executeIssueCertificate = async (alumniMemberId?: string) => {
         const instId = currentInstitution?.id || 'inst_default';
         const serial = formData.certificateNo || generateCertificateSerial(issuedRecords.length + 1);
 
@@ -236,7 +235,10 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
             template_type: templateType,
             student_name: formData.studentName,
             admission_no: formData.admissionNumber,
-            payload: formData,
+            payload: {
+                ...formData,
+                alumniMemberId: alumniMemberId || (formData as any).alumniMemberId
+            },
             headteacher_name: formData.headteacherName,
             issue_date: formData.issueDate,
             status: 'issued',
@@ -281,6 +283,97 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
 
         setNotificationMessage(`Official Leaving Certificate #${serial} successfully issued & archived!`);
         setTimeout(() => setNotificationMessage(null), 4000);
+    };
+
+    // Alumnae Registration Callback
+    const handleCompleteAlumnaRegistration = async (alumnaData: {
+        personalEmail: string;
+        phone: string;
+        nextDestination: string;
+        alumniMemberId: string;
+    }) => {
+        const instId = currentInstitution?.id || 'inst_default';
+        const newAlumna = {
+            id: `alm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            name: formData.studentName,
+            admissionNumber: formData.admissionNumber,
+            email: alumnaData.personalEmail,
+            phone: alumnaData.phone,
+            schoolId: instId,
+            schoolName: currentInstitution?.name || 'School',
+            graduationYear: new Date().getFullYear().toString(),
+            course: formData.approvedCourse || 'Junior Secondary School',
+            profession: alumnaData.nextDestination,
+            company: 'Student / Graduate',
+            location: (currentInstitution as any)?.county || 'Kenya',
+            bio: `Class of ${new Date().getFullYear()} graduate.`,
+            status: 'verified',
+            joinedAt: new Date().toISOString()
+        };
+
+        try {
+            await apiService.saveModuleRecord('alumni_members', newAlumna);
+        } catch (_) {}
+
+        try {
+            const existing = JSON.parse(localStorage.getItem('alumni_members') || localStorage.getItem(`eduai_alumni_${instId}`) || '[]');
+            localStorage.setItem('alumni_members', JSON.stringify([newAlumna, ...existing]));
+            localStorage.setItem(`eduai_alumni_${instId}`, JSON.stringify([newAlumna, ...existing]));
+        } catch (_) {}
+
+        setIsAlumnaModalOpen(false);
+        setNotificationMessage(`Alumna profile ${alumnaData.alumniMemberId} registered! Finalizing Leaving Certificate...`);
+        await executeIssueCertificate(alumnaData.alumniMemberId);
+    };
+
+    // Issue & Save Certificate Handler (Validates Clearance & Alumnae Portal)
+    const handleIssueCertificate = async () => {
+        if (!formData.studentName.trim()) {
+            alert('Please enter or select a student name before issuing.');
+            return;
+        }
+
+        const instId = currentInstitution?.id || 'inst_default';
+
+        // 1. Check Junior School Clearance Status
+        try {
+            const clearanceKey = `eduai_student_clearances_${instId}`;
+            const clearances = JSON.parse(localStorage.getItem(clearanceKey) || '[]');
+            const studentClearance = clearances.find((c: any) => 
+                (selectedStudentId && c.studentId === selectedStudentId) ||
+                (formData.admissionNumber && c.admissionNumber === formData.admissionNumber)
+            );
+
+            if (!studentClearance || studentClearance.principalApproval?.releaseOfDocuments !== 'yes') {
+                const proceed = window.confirm(
+                    `⚠️ Clearance Incomplete / Not Approved:\n\n` +
+                    `Student ${formData.studentName} has not been approved for release on the Junior School Clearance Form (Release of Documents: Yes by Deputy Principal).\n\n` +
+                    `• Click "Cancel" to inspect/fill the Clearance Form.\n` +
+                    `• Click "OK" to proceed with Administrative Override.`
+                );
+                if (!proceed) {
+                    setViewMode('clearance');
+                    return;
+                }
+            }
+        } catch (_) {}
+
+        // 2. Check Alumnae Portal Registration
+        try {
+            const localAlumni = JSON.parse(localStorage.getItem('alumni_members') || localStorage.getItem(`eduai_alumni_${instId}`) || '[]');
+            const isEnrolled = localAlumni.some((m: any) => 
+                (m.admissionNumber && formData.admissionNumber && m.admissionNumber.toLowerCase() === formData.admissionNumber.toLowerCase()) ||
+                (m.name && m.name.toLowerCase() === formData.studentName.toLowerCase())
+            );
+
+            if (!isEnrolled) {
+                // Trigger mandatory Alumnae Portal Sign-Up Step
+                setIsAlumnaModalOpen(true);
+                return;
+            }
+        } catch (_) {}
+
+        await executeIssueCertificate();
     };
 
     // Print action using native window.print with isolated print stylesheet
@@ -401,6 +494,16 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                                 }`}
                             >
                                 Certificate Designer
+                            </button>
+                            <button
+                                onClick={() => setViewMode('clearance')}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    viewMode === 'clearance'
+                                        ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                <span>Clearance Forms</span>
                             </button>
                             <button
                                 onClick={() => setViewMode('registry')}
@@ -1007,6 +1110,24 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                     </div>
 
                 </div>
+            ) : viewMode === 'clearance' ? (
+                <StudentClearanceManager
+                    currentInstitution={currentInstitution}
+                    currentUser={currentUser}
+                    users={users}
+                    onClearanceApproved={(clearance) => {
+                        setSelectedStudentId(clearance.studentId);
+                        setFormData(prev => ({
+                            ...prev,
+                            studentName: clearance.studentName,
+                            admissionNumber: clearance.admissionNumber,
+                            assessmentNo: clearance.assessmentNo || prev.assessmentNo,
+                            exitGrade: clearance.grade || prev.exitGrade
+                        }));
+                        setViewMode('editor');
+                        setNotificationMessage(`Clearance approved for ${clearance.studentName}! Switched to Leaving Certificate Designer.`);
+                    }}
+                />
             ) : (
                 /* REGISTRY VIEW: Issued Certificates History */
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl shadow-sm p-6 space-y-5">
@@ -1216,6 +1337,17 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                 </div>,
                 document.body
             )}
+
+            {/* Mandatory Alumnae Portal Onboarding Modal */}
+            <AlumnaOnboardingModal
+                isOpen={isAlumnaModalOpen}
+                onClose={() => setIsAlumnaModalOpen(false)}
+                studentName={formData.studentName}
+                admissionNumber={formData.admissionNumber}
+                studentId={selectedStudentId}
+                currentInstitution={currentInstitution}
+                onComplete={handleCompleteAlumnaRegistration}
+            />
         </div>
     );
 };

@@ -219,6 +219,86 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [signingPayout, setSigningPayout] = useState<RemedialPayout | null>(null);
     const [anonymousToken, setAnonymousToken] = useState('');
 
+    // Student Clearance Requests for Teacher Sign-off
+    const [teacherClearances, setTeacherClearances] = useState<any[]>([]);
+    const [isTeacherClearanceModalOpen, setIsTeacherClearanceModalOpen] = useState(false);
+    const [lostItemInputs, setLostItemInputs] = useState<Record<string, string>>({});
+
+    const loadTeacherClearances = useCallback(async () => {
+        const instId = currentInstitution?.id || user?.institutionId;
+        if (!instId) return;
+        try {
+            const local = JSON.parse(localStorage.getItem(`eduai_student_clearances_${instId}`) || '[]');
+            setTeacherClearances(local);
+        } catch (_) {}
+    }, [currentInstitution?.id, user?.institutionId]);
+
+    useEffect(() => {
+        loadTeacherClearances();
+    }, [loadTeacherClearances]);
+
+    const pendingTeacherClearances = useMemo(() => {
+        const list: Array<{ clearanceId: string; studentName: string; admissionNumber: string; grade: string; item: any }> = [];
+        for (const clr of teacherClearances) {
+            if (clr.status === 'cleared') continue;
+            for (const item of (clr.clearanceItems || [])) {
+                if (item.status === 'pending') {
+                    list.push({
+                        clearanceId: clr.id,
+                        studentName: clr.studentName,
+                        admissionNumber: clr.admissionNumber,
+                        grade: clr.grade,
+                        item
+                    });
+                }
+            }
+        }
+        return list;
+    }, [teacherClearances]);
+
+    const handleTeacherSignClearance = async (clearanceId: string, sNo: number, itemLost: string) => {
+        const instId = currentInstitution?.id || user?.institutionId || '';
+        const todayStr = new Date().toLocaleDateString('en-GB');
+
+        const updated = teacherClearances.map(clr => {
+            if (clr.id !== clearanceId) return clr;
+            const nextItems = (clr.clearanceItems || []).map((i: any) => {
+                if (i.sNo === sNo) {
+                    return {
+                        ...i,
+                        teacherName: user?.name || 'Subject Teacher',
+                        itemLostOrDamaged: itemLost || 'None',
+                        signature: `✓ Signed by ${user?.name || 'Teacher'} (${todayStr})`,
+                        status: 'cleared',
+                        signedAt: new Date().toISOString()
+                    };
+                }
+                return i;
+            });
+            return {
+                ...clr,
+                clearanceItems: nextItems,
+                status: nextItems.every((i: any) => i.status === 'cleared') ? 'cleared' : 'in_progress',
+                updatedAt: new Date().toISOString()
+            };
+        });
+
+        setTeacherClearances(updated);
+        safeLocalStorage.setItem(`eduai_student_clearances_${instId}`, JSON.stringify(updated));
+        try {
+            const target = updated.find(c => c.id === clearanceId);
+            if (target) {
+                await apiService.saveModuleRecord('student_clearances', {
+                    id: target.id,
+                    institutionId: instId,
+                    studentId: target.studentId,
+                    payload: target,
+                    status: target.status
+                });
+            }
+        } catch (_) {}
+    };
+
     const loadRemedialData = async () => {
         try {
             const instId = currentInstitution?.id || user?.institutionId || '';
@@ -413,6 +493,31 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         <div className="bg-green-50 dark:bg-green-955/20 border border-green-200 dark:border-green-900/40 p-5 rounded-3xl flex items-center gap-3.5 animate-fade-in shadow-sm">
                             <CheckCircleIcon className="w-6 h-6 text-green-600 dark:text-green-400 shrink-0" />
                             <p className="text-xs font-black text-green-800 dark:text-green-200 uppercase tracking-wider">Registry database records updated successfully.</p>
+                        </div>
+                    )}
+
+                    {/* Pending Student Clearance Banner */}
+                    {pendingTeacherClearances.length > 0 && (
+                        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300 dark:border-amber-800/80 p-5 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-md shadow-amber-500/20">
+                                    <CheckCircle2 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                        {pendingTeacherClearances.length} Student Clearance Line{pendingTeacherClearances.length > 1 ? 's' : ''} Awaiting Teacher Sign-Off
+                                    </h4>
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium mt-0.5">
+                                        Junior School leaving candidates require subject verification before certificate release.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsTeacherClearanceModalOpen(true)}
+                                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md shadow-amber-500/20 cursor-pointer transition-all active:scale-95 shrink-0"
+                            >
+                                Review & Sign Clearances
+                            </button>
                         </div>
                     )}
 
@@ -1842,6 +1947,91 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Teacher Student Clearance Sign-off Modal */}
+            {isTeacherClearanceModalOpen && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+                        <div className="px-6 py-5 bg-gradient-to-r from-amber-500 to-orange-600 text-white flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center font-bold">
+                                    <CheckCircle2 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tight">
+                                        Pending Student Clearance Requests
+                                    </h3>
+                                    <p className="text-xs text-white/90">
+                                        Confirm that students have returned all books, equipment, and learning materials
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsTeacherClearanceModalOpen(false)}
+                                className="p-1.5 rounded-xl hover:bg-white/20 transition-all cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto space-y-3 flex-1">
+                            {pendingTeacherClearances.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 font-bold text-xs">
+                                    All student clearances signed! No pending requests.
+                                </div>
+                            ) : (
+                                pendingTeacherClearances.map((req, idx) => {
+                                    const inputKey = `${req.clearanceId}_${req.item.sNo}`;
+                                    const lostText = lostItemInputs[inputKey] ?? '';
+
+                                    return (
+                                        <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-black text-slate-900 dark:text-white text-xs">
+                                                        {req.studentName}
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-black text-[10px] uppercase">
+                                                        {req.item.subjectArea}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] font-mono text-slate-400">
+                                                    Adm: {req.admissionNumber} • {req.grade}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Item lost/damaged (or None)"
+                                                    value={lostText}
+                                                    onChange={e => setLostItemInputs(prev => ({ ...prev, [inputKey]: e.target.value }))}
+                                                    className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-400 flex-1 sm:w-48"
+                                                />
+                                                <button
+                                                    onClick={() => handleTeacherSignClearance(req.clearanceId, req.item.sNo, lostText || 'None')}
+                                                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase cursor-pointer shrink-0 shadow-sm"
+                                                >
+                                                    Sign & Clear ✓
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                            <button
+                                onClick={() => setIsTeacherClearanceModalOpen(false)}
+                                className="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold uppercase cursor-pointer"
+                            >
+                                Done
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
