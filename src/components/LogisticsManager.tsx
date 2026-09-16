@@ -169,6 +169,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const apiRecords = await apiService.fetchModuleRecords('vehicles', currentInstitution.id).catch(() => []);
             const remoteVehicles: any[] = Array.isArray(apiRecords) ? [...apiRecords] : [];
 
+            // If remoteVehicles table is empty, check if hub has vehicles saved from another device
+            if (remoteVehicles.length === 0) {
+                try {
+                    const hubData = await apiService.fetchTransportLogisticsHub(currentInstitution.id);
+                    const hubVehicles = Array.isArray(hubData?.vehicles) ? hubData.vehicles : [];
+                    if (hubVehicles.length > 0) {
+                        remoteVehicles.push(...hubVehicles);
+                    }
+                } catch (_) {}
+            }
+
             // Bi-directional vehicle synchronization:
             // If local storage has vehicles not yet in Supabase (e.g. Browser 1's 9 buses), upload them!
             if (localVehicles.length > 0) {
@@ -221,6 +232,19 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         fetchVehiclesList();
     }, [currentInstitution?.id]);
 
+    const saveVehiclesToHub = async (vehiclesList: any[]) => {
+        if (!currentInstitution?.id) return;
+        try {
+            const existingHub = await apiService.fetchTransportLogisticsHub(currentInstitution.id).catch(() => null);
+            const hubPayload = {
+                ...(existingHub || {}),
+                vehicles: vehiclesList,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveTransportLogisticsHub(currentInstitution.id, hubPayload);
+        } catch (_) {}
+    };
+
     const handleAddVehicle = async (vehicleData: any) => {
         try {
             const newVehicle = {
@@ -232,7 +256,9 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setDbVehicles(next);
             const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
             if (key) localStorage.setItem(key, JSON.stringify(next));
+            localStorage.setItem('eduai_vehicles', JSON.stringify(next));
 
+            saveVehiclesToHub(next);
             await apiService.saveModuleRecord('vehicles', newVehicle).catch(() => {});
         } catch (err: any) {
             alert('Failed to add vehicle: ' + (err.message || err));
@@ -247,6 +273,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             localStorage.setItem(key, JSON.stringify(next));
             localStorage.setItem('eduai_vehicles', JSON.stringify(next));
 
+            saveVehiclesToHub(next);
             const updatedVehicle = next.find(v => v.id === id);
             if (updatedVehicle) {
                 await apiService.saveModuleRecord('vehicles', updatedVehicle).catch(() => {});
@@ -264,6 +291,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             localStorage.setItem(key, JSON.stringify(next));
             localStorage.setItem('eduai_vehicles', JSON.stringify(next));
 
+            saveVehiclesToHub(next);
             await apiService.deleteModuleRecord('vehicles', id).catch(() => {});
         } catch (err: any) {
             alert('Failed to delete vehicle: ' + (err.message || err));
@@ -515,6 +543,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         transportInvoices: any[];
         transportAlerts: any[];
         studentVehicles: any;
+        vehicles: any[];
     }>) => {
         if (!currentInstitution?.id) return;
         const studentVehiclesKey = `eduai_transport_student_vehicles_${currentInstitution.id}`;
@@ -523,6 +552,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const sv = localStorage.getItem(studentVehiclesKey);
             if (sv) localStudentVehicles = JSON.parse(sv);
         } catch (_) {}
+
+        const vehiclesKey = `eduai_vehicles_${currentInstitution.id}`;
+        let localVehicles: any[] = [];
+        try {
+            const vh = localStorage.getItem(vehiclesKey) || localStorage.getItem('eduai_vehicles');
+            if (vh) localVehicles = JSON.parse(vh);
+        } catch (_) {}
+
+        const currentVehicles = updates.vehicles !== undefined ? updates.vehicles : (dbVehicles.length > 0 ? dbVehicles : localVehicles);
 
         const payload = {
             busRoutes: updates.busRoutes !== undefined ? updates.busRoutes : busRoutes,
@@ -533,6 +571,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             transportInvoices: updates.transportInvoices !== undefined ? updates.transportInvoices : transportInvoices,
             transportAlerts: updates.transportAlerts !== undefined ? updates.transportAlerts : transportAlerts,
             studentVehicles: updates.studentVehicles !== undefined ? updates.studentVehicles : localStudentVehicles,
+            vehicles: currentVehicles,
             updatedAt: new Date().toISOString()
         };
         apiService.saveTransportLogisticsHub(currentInstitution.id, payload).catch(err => {
@@ -576,6 +615,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const invKey = `eduai_transport_fee_invoices_${instId}`;
             const pctKey = `eduai_transport_oneway_pct_${instId}`;
             const studentVehiclesKey = `eduai_transport_student_vehicles_${instId}`;
+            const vehiclesKey = `eduai_vehicles_${instId}`;
 
             // Read local storage data
             let localRoutes: any[] = [];
@@ -590,6 +630,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             try { const i = localStorage.getItem(invKey); if (i) localInvs = JSON.parse(i); } catch (_) {}
             let localStudentVehicles: Record<string, string> = {};
             try { const sv = localStorage.getItem(studentVehiclesKey); if (sv) localStudentVehicles = JSON.parse(sv); } catch (_) {}
+            let localVehicles: any[] = [];
+            try { const vh = localStorage.getItem(vehiclesKey) || localStorage.getItem('eduai_vehicles'); if (vh) localVehicles = JSON.parse(vh); } catch (_) {}
+
+            const currentVehicles = dbVehicles.length > 0 ? dbVehicles : localVehicles;
 
             const cloudData = await apiService.fetchTransportLogisticsHub(instId);
 
@@ -639,7 +683,21 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             const cloudPct = cloudData?.defaultOneWayPercentage || cloudData?.default_one_way_percentage;
             const cloudStudentVehicles = cloudData?.studentVehicles || cloudData?.student_vehicles || {};
 
-            const hasCloudData = cloudRoutes.length > 0 || Object.keys(cloudPrefs).length > 0 || cloudFees.length > 0 || cloudTrips.length > 0;
+            const rawCloudVehicles = Array.isArray(cloudData?.vehicles) ? cloudData.vehicles : [];
+            const cloudVehicles = rawCloudVehicles.map((v: any) => ({
+                id: v.id,
+                plateNumber: v.plateNumber || v.plate_number || '',
+                model: v.model || '',
+                vehicleType: v.vehicleType || v.vehicle_type || 'bus',
+                capacity: Number(v.capacity) || 14,
+                status: v.status || 'active',
+                institutionId: v.institutionId || v.institution_id || instId,
+                driverName: v.driverName || v.driver_name || (v.metadata && v.metadata.driverName) || '',
+                driverId: v.driverId || v.driver_id || null,
+                assistantId: v.assistantId || v.assistant_id || null
+            }));
+
+            const hasCloudData = cloudRoutes.length > 0 || Object.keys(cloudPrefs).length > 0 || cloudFees.length > 0 || cloudTrips.length > 0 || cloudVehicles.length > 0 || (cloudStudentVehicles && Object.keys(cloudStudentVehicles).length > 0);
 
             if (forcePush) {
                 // EXPLICIT USER SYNC: Upload all current logistics data to Supabase
@@ -652,14 +710,18 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     transportInvoices: localInvs.length > 0 ? localInvs : transportInvoices,
                     transportAlerts: transportAlerts,
                     studentVehicles: localStudentVehicles,
+                    vehicles: currentVehicles,
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.saveTransportLogisticsHub(instId, payload);
+                for (const v of currentVehicles) {
+                    apiService.saveModuleRecord('vehicles', { ...v, institutionId: instId }).catch(() => {});
+                }
                 const syncTime = new Date();
                 setLastSyncedTime(syncTime);
 
                 const commuterCount = Object.values(payload.studentCommutePrefs).filter((p: any) => p?.preference && p.preference !== 'none').length;
-                toastSuccess(`✅ Cloud Sync Complete: ${payload.busRoutes.length} route(s), ${dbVehicles.length} vehicle(s), and ${commuterCount} commuter allocation(s) updated.`);
+                toastSuccess(`✅ Cloud Sync Complete: ${payload.busRoutes.length} route(s), ${currentVehicles.length} vehicle(s), and ${commuterCount} commuter allocation(s) updated.`);
             } else if (hasCloudData) {
                 // CLOUD-FIRST LOAD: Browser 2 (or reload) loads the rich cloud dataset without overwriting
                 if (cloudRoutes.length > 0) {
@@ -689,14 +751,36 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 if (cloudAlerts.length > 0) {
                     setTransportAlerts(cloudAlerts);
                 }
+                if (cloudVehicles.length > 0) {
+                    setDbVehicles(cloudVehicles);
+                    localStorage.setItem(vehiclesKey, JSON.stringify(cloudVehicles));
+                    localStorage.setItem('eduai_vehicles', JSON.stringify(cloudVehicles));
+                }
                 if (cloudStudentVehicles && typeof cloudStudentVehicles === 'object' && Object.keys(cloudStudentVehicles).length > 0) {
                     try {
                         const existing = JSON.parse(localStorage.getItem(studentVehiclesKey) || '{}');
                         localStorage.setItem(studentVehiclesKey, JSON.stringify({ ...existing, ...cloudStudentVehicles }));
                     } catch (_) {}
+
+                    // Ensure vehicle badges render immediately on student cards on device 2
+                    setLocalUsers(prev => prev.map(u => {
+                        const assignedVh = cloudStudentVehicles[u.id];
+                        if (assignedVh !== undefined) {
+                            return {
+                                ...u,
+                                vehicleId: assignedVh,
+                                metadata: {
+                                    ...(u.metadata || {}),
+                                    vehicleId: assignedVh,
+                                    assignedVehicleId: assignedVh
+                                }
+                            };
+                        }
+                        return u;
+                    }));
                 }
                 setLastSyncedTime(new Date());
-            } else if (localRoutes.length > 0 || Object.keys(localPrefs).length > 0) {
+            } else if (localRoutes.length > 0 || Object.keys(localPrefs).length > 0 || currentVehicles.length > 0) {
                 // Cloud is empty and local has custom data, push initial local data
                 const payload = {
                     busRoutes: localRoutes,
@@ -707,6 +791,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     transportInvoices: localInvs,
                     transportAlerts,
                     studentVehicles: localStudentVehicles,
+                    vehicles: currentVehicles,
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.saveTransportLogisticsHub(instId, payload);

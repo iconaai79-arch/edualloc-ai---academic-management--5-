@@ -1234,6 +1234,14 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'vehicles' && Array.isArray(finalResult)) {
+                    finalResult.forEach((v: any) => {
+                        const meta = typeof v.metadata === 'object' && v.metadata !== null ? v.metadata : {};
+                        if (!v.driverName && (meta.driverName || v.driver_name)) {
+                            v.driverName = meta.driverName || v.driver_name;
+                        }
+                    });
+                }
                 return finalResult;
             };
 
@@ -1494,6 +1502,14 @@ export const apiService = {
                         if (leadPos) {
                             enr.leadershipPosition = leadPos;
                             enr.leadership_position = leadPos;
+                        }
+                    });
+                }
+                if (module === 'vehicles' && Array.isArray(result)) {
+                    result.forEach((v: any) => {
+                        const meta = typeof v.metadata === 'object' && v.metadata !== null ? v.metadata : {};
+                        if (!v.driverName && (meta.driverName || v.driver_name)) {
+                            v.driverName = meta.driverName || v.driver_name;
                         }
                     });
                 }
@@ -2212,6 +2228,14 @@ export const apiService = {
                 if (!item.institution_id || item.institution_id === '') item.institution_id = null;
                 if (item.capacity !== undefined && item.capacity !== null) item.capacity = Number(item.capacity) || 14;
                 if (!item.status) item.status = 'active';
+                const dName = item.driver_name || item.driverName;
+                if (dName) {
+                    const meta = (typeof item.metadata === 'object' && item.metadata !== null) ? { ...item.metadata } : {};
+                    meta.driverName = dName;
+                    item.metadata = meta;
+                    delete item.driver_name;
+                    delete item.driverName;
+                }
             }
             if (module === 'transport_onboarding') {
                 if (!item.user_id || item.user_id === '') item.user_id = null;
@@ -2489,15 +2513,15 @@ export const apiService = {
                     const instId = payload.institution_id || payload.institutionId || payload.institution;
                     const modId = payload.module_id || payload.moduleId;
 
-                    // Check if an existing row exists for (institution_id, module_id) to prevent 409 unique constraint violations
+                    // Check if an existing row exists for (institution_id, module_id) or canonical ID
                     let existingId: string | null = null;
+                    const canonicalId = `ims_${modId}_${instId}`;
                     if (instId && modId) {
                         try {
                             const { data: existingRows } = await _supabase
                                 .from('institution_module_states')
                                 .select('id')
-                                .eq('institution_id', instId)
-                                .eq('module_id', modId)
+                                .or(`id.eq.${canonicalId},and(institution_id.eq.${instId},module_id.eq.${modId})`)
                                 .limit(1);
                             if (existingRows && existingRows.length > 0 && existingRows[0].id) {
                                 existingId = existingRows[0].id;
@@ -2505,8 +2529,9 @@ export const apiService = {
                         } catch (_) {}
                     }
 
+                    const targetId = payload.id || existingId || canonicalId;
                     const cleanPayload: any = {
-                        id: existingId || payload.id || `ims_${modId}_${instId}`,
+                        id: targetId,
                         institution_id: instId,
                         module_id: modId,
                         status: payload.status || 'active',
@@ -2520,27 +2545,24 @@ export const apiService = {
                     // Strip any undefined keys
                     Object.keys(cleanPayload).forEach(k => cleanPayload[k] === undefined && delete cleanPayload[k]);
 
-                    // Try upserting on composite unique constraint (institution_id, module_id)
+                    // Upsert directly on primary key 'id'
                     let { data: imsData, error: imsErr } = await _supabase
                         .from('institution_module_states')
-                        .upsert(cleanPayload, { onConflict: 'institution_id,module_id' })
+                        .upsert(cleanPayload, { onConflict: 'id' })
                         .select();
 
-                    // If onConflict on composite key fails or returns error, fallback to update by existing ID or onConflict: 'id'
-                    if (imsErr) {
-                        if (existingId) {
-                            const { data: updateData, error: updateErr } = await _supabase
-                                .from('institution_module_states')
-                                .update(cleanPayload)
-                                .eq('id', existingId)
-                                .select();
-                            if (!updateErr && updateData && updateData.length > 0) {
-                                return toCamelCase(updateData[0]);
-                            }
-                        }
+                    // If column missing error occurs, retry with core columns only
+                    if (imsErr && (imsErr.message?.includes('column') || (imsErr as any).code === '42703' || (imsErr as any).code === 'PGRST204')) {
+                        const minimalPayload = {
+                            id: cleanPayload.id,
+                            institution_id: cleanPayload.institution_id,
+                            module_id: cleanPayload.module_id,
+                            data: cleanPayload.data,
+                            updated_at: cleanPayload.updated_at
+                        };
                         const retryRes = await _supabase
                             .from('institution_module_states')
-                            .upsert(cleanPayload, { onConflict: 'id' })
+                            .upsert(minimalPayload, { onConflict: 'id' })
                             .select();
                         imsData = retryRes.data;
                         imsErr = retryRes.error;
@@ -4788,14 +4810,60 @@ export const apiService = {
     async fetchTransportOnboarding(instId?: string): Promise<TransportOnboarding[]> { return apiService.fetchModuleRecords('transport_onboarding', instId); },
     async fetchVehicleLogs(instId?: string): Promise<VehicleLog[]> { return apiService.fetchModuleRecords('vehicle_logs', instId); },
     async fetchTransportLogisticsHub(instId: string): Promise<any> {
+        if (!instId) return null;
+        const targetId = `ims_transport_logistics_${instId}`;
+
+        // 1. Direct primary key lookup via Supabase
+        if (_supabase) {
+            try {
+                const { data, error } = await _supabase
+                    .from('institution_module_states')
+                    .select('*')
+                    .or(`id.eq.${targetId},and(institution_id.eq.${instId},module_id.eq.transport_logistics)`)
+                    .limit(1);
+                if (!error && data && data.length > 0) {
+                    const row = data[0];
+                    const hub = row.data || (row as any).state_data || (row as any).stateData;
+                    if (hub && typeof hub === 'object') return toCamelCase(hub);
+                }
+            } catch (e) {
+                console.warn('[apiService] Direct PK fetch for transport logistics hub:', e);
+            }
+        }
+
+        // 2. Direct proxy lookup by ID
+        try {
+            let token = await apiService.getAuthToken();
+            const res = await fetch(`/api/records?module=institution_module_states&id=${targetId}`, {
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (res.ok) {
+                const resJson = await res.json();
+                const record = Array.isArray(resJson) ? resJson[0] : (resJson.data ? (Array.isArray(resJson.data) ? resJson.data[0] : resJson.data) : resJson);
+                if (record) {
+                    const hub = record.data || record.state_data || record.stateData;
+                    if (hub && typeof hub === 'object') return toCamelCase(hub);
+                }
+            }
+        } catch (e) {
+            console.warn('[apiService] Proxy fetch for transport logistics hub by ID:', e);
+        }
+
+        // 3. Fallback: scan institution_module_states via fetchModuleRecords
         try {
             const records = await apiService.fetchModuleRecords<any>('institution_module_states', instId, undefined, {
                 filter: { module_id: 'transport_logistics' }
             });
-            const match = records.find((r: any) => (r.moduleId || r.module_id) === 'transport_logistics');
+            const match = records.find((r: any) => 
+                (r.id === targetId) || 
+                ((r.moduleId || r.module_id) === 'transport_logistics')
+            );
             if (match) {
                 const hubData = match.data || match.stateData || match.state_data;
-                if (hubData && typeof hubData === 'object') return hubData;
+                if (hubData && typeof hubData === 'object') return toCamelCase(hubData);
             }
         } catch (e) {
             console.warn('[apiService] fetchTransportLogisticsHub error:', e);
@@ -4812,7 +4880,47 @@ export const apiService = {
             data,
             updated_at: new Date().toISOString()
         };
+
+        // 1. Direct Supabase upsert using onConflict: 'id'
+        if (_supabase) {
+            try {
+                const { error } = await _supabase
+                    .from('institution_module_states')
+                    .upsert(payload, { onConflict: 'id' });
+                if (!error) {
+                    ls.upsert('institution_module_states', [payload]);
+                    return;
+                }
+                console.warn('[apiService] Direct saveTransportLogisticsHub Supabase error:', error.message || error);
+            } catch (supaErr) {
+                console.warn('[apiService] Direct saveTransportLogisticsHub exception:', supaErr);
+            }
+        }
+
+        // 2. Fallback via proxy /api/records?module=institution_module_states
+        try {
+            const token = await apiService.getAuthToken();
+            const proxyRes = await fetch('/api/records?module=institution_module_states', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token ? `Bearer ${token}` : '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: payload })
+            });
+            if (proxyRes.ok) {
+                ls.upsert('institution_module_states', [payload]);
+                return;
+            }
+            const errText = await proxyRes.text();
+            console.warn('[apiService] Proxy saveTransportLogisticsHub failed:', proxyRes.status, errText);
+        } catch (proxyErr) {
+            console.warn('[apiService] Proxy saveTransportLogisticsHub exception:', proxyErr);
+        }
+
+        // 3. Fallback to saveModuleRecord
         await apiService.saveModuleRecord('institution_module_states', payload);
+        ls.upsert('institution_module_states', [payload]);
     },
     // Remedial Module
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { return apiService.fetchModuleRecords('school_remedial_sessions', instId); },

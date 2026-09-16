@@ -652,6 +652,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'vehicles' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+                        if (!r.driverName && !r.driver_name && meta.driverName) {
+                            r.driverName = meta.driverName;
+                            r.driver_name = meta.driverName;
+                        }
+                        if (r.driver_name && !r.driverName) r.driverName = r.driver_name;
+                        if (r.plate_number && !r.plateNumber) r.plateNumber = r.plate_number;
+                        if (r.vehicle_type && !r.vehicleType) r.vehicleType = r.vehicle_type;
+                        if (r.driver_id && !r.driverId) r.driverId = r.driver_id;
+                        if (r.assistant_id && !r.assistantId) r.assistantId = r.assistant_id;
+                        if (r.institution_id && !r.institutionId) r.institutionId = r.institution_id;
+                    }
+                });
+            }
+
             if (moduleName === 'stock_transactions' && Array.isArray(data)) {
                 (data as any[]).forEach(r => {
                     if (r && typeof r === 'object') {
@@ -2100,6 +2118,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         copy.capacity = 14;
                     }
                     if (!copy.status) copy.status = 'active';
+
+                    const dName = copy.driverName || copy.driver_name;
+                    if (dName) {
+                        const meta = (typeof copy.metadata === 'object' && copy.metadata !== null) ? { ...copy.metadata } : {};
+                        meta.driverName = dName;
+                        copy.metadata = meta;
+                        delete copy.driverName;
+                        delete copy.driver_name;
+                    }
 
                     delete copy.plateNumber;
                     delete copy.vehicleType;
