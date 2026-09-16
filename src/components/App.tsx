@@ -1338,6 +1338,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isHigherEd = ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
 
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
+            const hasTransport = isSuper || isLogistics || isAcademic || activeInstWithModules?.moduleStates?.some((m: any) => (m.moduleId === 'transport' || m.moduleId === 'transport_management') && (m.status === 'active' || m.status === 'trial')) || ['education', 'primary', 'secondary', 'college', 'university', 'logistics', 'transport'].includes(instTypeLower);
             const isHospitality = isSuper || instTypeLower === 'hospitality';
             const isDrivingSchool = isSuper || instTypeLower === 'driving school' || activeInstWithModules?.moduleStates?.some((m: any) => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
             const isBeautyCollege = isSuper || instTypeLower === 'beauty college' || activeInstWithModules?.moduleStates?.some((m: any) => m.moduleId === 'beauty_college' && (m.status === 'active' || m.status === 'trial'));
@@ -1698,9 +1699,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         apiService.fetchModuleRecords<BulletinItem>('bulletin_items', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<DocumentCollection>('document_collections', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<WatchlistRecord>('watchlist_records', effectiveInstIdFinal).catch(() => []),
-                        isLogistics ? apiService.fetchVehicles(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        isLogistics ? apiService.fetchTransportOnboarding(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        isLogistics ? apiService.fetchVehicleLogs(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        hasTransport ? apiService.fetchVehicles(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        hasTransport ? apiService.fetchTransportOnboarding(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        hasTransport ? apiService.fetchVehicleLogs(effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         apiService.fetchModuleRecords<Expense>('expenses', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstIdFinal).catch(() => []),
@@ -4291,7 +4292,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
     const handleAddVehicle = async (vehicle: Omit<TransportVehicle, 'id'>) => {
         try {
-            await apiService.saveModuleRecord('vehicles', { ...vehicle, id: `vh_${Date.now()}` });
+            const newVehicle = { ...vehicle, id: `vh_${Date.now()}` } as TransportVehicle;
+            setVehicles(prev => [newVehicle, ...prev]);
+            await apiService.saveModuleRecord('vehicles', newVehicle);
             await handleLogAction(`Registered vehicle: ${vehicle.plateNumber}`);
             loadData();
         } catch (error) {
@@ -4304,7 +4307,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         try {
             const existing = vehicles.find(v => v.id === id);
             if (existing) {
-                await apiService.saveModuleRecord('vehicles', { ...existing, ...updates, id });
+                const updated = { ...existing, ...updates, id };
+                setVehicles(prev => prev.map(v => v.id === id ? updated : v));
+                await apiService.saveModuleRecord('vehicles', updated);
                 await handleLogAction(`Updated vehicle: ${existing.plateNumber}`);
                 loadData();
             }
@@ -4317,6 +4322,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     const handleDeleteVehicle = async (id: string) => {
         try {
             const vehicle = vehicles.find(v => v.id === id);
+            setVehicles(prev => prev.filter(v => v.id !== id));
             await apiService.deleteModuleRecord('vehicles', id);
             if (vehicle) await handleLogAction(`Deleted vehicle: ${vehicle.plateNumber}`);
             loadData();

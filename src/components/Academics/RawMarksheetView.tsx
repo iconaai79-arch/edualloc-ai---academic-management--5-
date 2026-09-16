@@ -1190,8 +1190,8 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         // 7. Fallback: If ZERO students in the active cohort have any stream assigned at all,
         // deterministically distribute across streamOptions to ensure the user can verify data per stream
         const availableStreams = streamOptions.filter(s => s && s !== 'all');
-        const cohortHasAnyExplicitStream = allYearCohortStudents.some(s => {
-            const str = String(s.stream || s.broadsheetRow?.stream || s.matchedStudent?.stream || '').trim();
+        const cohortHasAnyExplicitStream = allYearCohortStudents.some((s: any) => {
+            const str = String(s?.stream || s?.broadsheetRow?.stream || (s?.matchedStudent as any)?.stream || s?.matchedStudent?.metadata?.stream || '').trim();
             return str !== '' && str.toLowerCase() !== 'all';
         });
 

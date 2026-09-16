@@ -52,23 +52,46 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
 
     const instId = currentInstitution?.id || '';
     const [studentVehicleMap, setStudentVehicleMap] = useState<Record<string, string>>(() => {
+        const initialMap: Record<string, string> = {};
+        users.forEach(u => {
+            const vId = (u as any).vehicle_id || (u as any).vehicleId || (u as any).assignedVehicleId || (u as any).assigned_vehicle_id || u.metadata?.vehicleId || u.metadata?.assignedVehicleId || u.metadata?.vehicle_id;
+            if (vId && String(vId).trim() !== '' && String(vId).toLowerCase() !== 'unassigned') {
+                initialMap[u.id] = String(vId).trim();
+            }
+        });
         try {
             const cached = localStorage.getItem(`eduai_transport_student_vehicles_${instId}`);
-            return cached ? JSON.parse(cached) : {};
-        } catch (e) {
-            return {};
-        }
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                return { ...initialMap, ...parsed };
+            }
+        } catch (e) {}
+        return initialMap;
     });
 
     useEffect(() => {
-        if (!instId) return;
-        const cached = localStorage.getItem(`eduai_transport_student_vehicles_${instId}`);
-        if (cached) {
+        const fromUsers: Record<string, string> = {};
+        users.forEach(u => {
+            const vId = (u as any).vehicle_id || (u as any).vehicleId || (u as any).assignedVehicleId || (u as any).assigned_vehicle_id || u.metadata?.vehicleId || u.metadata?.assignedVehicleId || u.metadata?.vehicle_id;
+            if (vId && String(vId).trim() !== '' && String(vId).toLowerCase() !== 'unassigned') {
+                fromUsers[u.id] = String(vId).trim();
+            }
+        });
+
+        let cachedMap: Record<string, string> = {};
+        if (instId) {
             try {
-                setStudentVehicleMap(JSON.parse(cached));
+                const cached = localStorage.getItem(`eduai_transport_student_vehicles_${instId}`);
+                if (cached) cachedMap = JSON.parse(cached);
             } catch (e) {}
         }
-    }, [instId]);
+
+        setStudentVehicleMap(prev => ({
+            ...cachedMap,
+            ...fromUsers,
+            ...prev
+        }));
+    }, [users, instId]);
 
     // Form data for Vehicle
     const [formData, setFormData] = useState<Omit<TransportVehicle, 'id' | 'institutionId'>>({
@@ -377,8 +400,14 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     };
 
     const handleStudentAssignment = async (studentId: string, vehicleId: string) => {
+        const cleanVId = (vehicleId && vehicleId.trim() !== '' && vehicleId.toLowerCase() !== 'unassigned') ? vehicleId.trim() : '';
         setStudentVehicleMap(prev => {
-            const updated = { ...prev, [studentId]: vehicleId };
+            const updated = { ...prev };
+            if (cleanVId) {
+                updated[studentId] = cleanVId;
+            } else {
+                delete updated[studentId];
+            }
             try {
                 localStorage.setItem(`eduai_transport_student_vehicles_${instId}`, JSON.stringify(updated));
             } catch (e) {}
@@ -387,8 +416,13 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
 
         if (!onEditUser) return;
         try {
-            await onEditUser(studentId, { vehicleId: vehicleId || undefined } as any);
+            await onEditUser(studentId, {
+                vehicleId: cleanVId ? cleanVId : null,
+                assignedVehicleId: cleanVId ? cleanVId : null,
+                vehicle_id: cleanVId ? cleanVId : null
+            } as any);
         } catch (error: any) {
+            console.error('Failed to update student vehicle assignment:', error);
             alert(error.message);
         }
     };
@@ -619,7 +653,12 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
             {activeTab === 'vehicles' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {vehicles.map(vehicle => {
-                        const assignedStudentsCount = users.filter(u => u.vehicleId === vehicle.id).length;
+                        const assignedStudentsCount = users.filter(u => {
+                            const vId = studentVehicleMap[u.id] !== undefined 
+                                ? studentVehicleMap[u.id] 
+                                : ((u as any).vehicle_id || u.vehicleId || (u as any).assignedVehicleId || u.metadata?.vehicleId || u.metadata?.assignedVehicleId);
+                            return vId === vehicle.id;
+                        }).length;
                         return (
                             <div key={vehicle.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group hover:-translate-y-1">
                                 <div className={`h-3 w-full ${vehicle.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>

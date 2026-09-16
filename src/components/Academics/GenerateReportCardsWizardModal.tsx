@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Assessment, Institution, Student, Course } from '../../types';
+import type { Assessment, Institution, Course } from '../../types';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentAdmNo } from '../../utils/academicUtils';

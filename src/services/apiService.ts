@@ -2206,8 +2206,22 @@ export const apiService = {
 
             // Vehicles module: ensure FK reference columns are null (not undefined/empty) to prevent constraint violations
             if (module === 'vehicles') {
-                if (!item.driver_id) item.driver_id = null;
-                if (!item.assistant_id) item.assistant_id = null;
+                if (!item.driver_id || item.driver_id === '') item.driver_id = null;
+                if (!item.assistant_id || item.assistant_id === '') item.assistant_id = null;
+                if (!item.institution_id || item.institution_id === '') item.institution_id = null;
+                if (item.capacity !== undefined && item.capacity !== null) item.capacity = Number(item.capacity) || 14;
+                if (!item.status) item.status = 'active';
+            }
+            if (module === 'transport_onboarding') {
+                if (!item.user_id || item.user_id === '') item.user_id = null;
+                if (!item.vehicle_id || item.vehicle_id === '') item.vehicle_id = null;
+                if (!item.institution_id || item.institution_id === '') item.institution_id = null;
+            }
+            if (module === 'vehicle_logs') {
+                if (!item.vehicle_id || item.vehicle_id === '') item.vehicle_id = null;
+                if (!item.driver_id || item.driver_id === '') item.driver_id = null;
+                if (!item.security_id || item.security_id === '') item.security_id = null;
+                if (!item.institution_id || item.institution_id === '') item.institution_id = null;
             }
             
             return item;

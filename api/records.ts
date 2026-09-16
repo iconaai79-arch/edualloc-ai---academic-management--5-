@@ -166,7 +166,8 @@ const PUBLIC_MODULES = [
   'election_events', 'election_candidates', 'election_voters_ledger', 'election_checkins',
   'app_notifications', 'whatsapp_configs', 'whatsapp_logs',
   'invoice_clients', 'company_invoice_settings',
-  'school_authorized_devices', 'school_router_profiles'
+  'school_authorized_devices', 'school_router_profiles',
+  'vehicles', 'transport_onboarding', 'vehicle_logs'
 ];
 
 const TABLES_WITH_METADATA = new Set([
@@ -191,7 +192,10 @@ const TABLES_WITH_METADATA = new Set([
   'ncba_transactions',
   'his_tariffs',
   'bursary_disbursements',
-  'ds_payments'
+  'ds_payments',
+  'vehicles',
+  'transport_onboarding',
+  'vehicle_logs'
 ]);
 
 const MODULE_ALIASES: Record<string, string> = {
@@ -239,7 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const isPublicModule = PUBLIC_MODULES.includes(moduleName) || PUBLIC_MODULES.includes(rawModuleName);
         const isPublicGet = req.method === 'GET' && isPublicModule;
         
-        // Allow POST for registration, settings, and social interactions
+        // Allow POST for registration, settings, transport, and social interactions
         const isPublicPost = req.method === 'POST' && ([
           'users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 
           'voter_outreach', 'alumnae_members', 'invoices', 'receipts', 'event_participants', 'event_pledges', 
@@ -256,15 +260,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'suppliers', 'requisitions', 'lpos', 'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
           'visitors', 'security_alerts', 'security_logs', 'gate_passes', 'student_gate_passes',
           'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
-          'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions'
+          'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
+          'vehicles', 'transport_onboarding', 'vehicle_logs'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
+          'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
           'system_settings', 'institution_module_states', 'building_visitor_logs'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
+        const isPublicDelete = req.method === 'DELETE' && ([
+          'vehicles', 'transport_onboarding', 'vehicle_logs'
+        ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
-        if (!user && !isPublicGet && !isPublicPost && !isPublicPatch && !isSocialInteraction) {
+        if (!user && !isPublicGet && !isPublicPost && !isPublicPatch && !isPublicDelete && !isSocialInteraction) {
             const tokenSnippet = authHeader ? `${authHeader.substring(0, 15)}... (len: ${authHeader.length})` : 'NONE';
             return res.status(401).json({ 
                 success: false, 
@@ -2001,6 +2010,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
+            } else if (moduleName === 'vehicles') {
+                const cleanVehicleRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (copy.plateNumber && !copy.plate_number) copy.plate_number = copy.plateNumber;
+                    if (copy.vehicleType && !copy.vehicle_type) copy.vehicle_type = copy.vehicleType;
+                    if (copy.driverId && !copy.driver_id) copy.driver_id = copy.driverId;
+                    if (copy.assistantId && !copy.assistant_id) copy.assistant_id = copy.assistantId;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+
+                    if (!copy.driver_id || copy.driver_id === '') copy.driver_id = null;
+                    if (!copy.assistant_id || copy.assistant_id === '') copy.assistant_id = null;
+                    if (!copy.institution_id || copy.institution_id === '') copy.institution_id = null;
+
+                    if (copy.capacity !== undefined && copy.capacity !== null) {
+                        copy.capacity = Number(copy.capacity) || 14;
+                    } else {
+                        copy.capacity = 14;
+                    }
+                    if (!copy.status) copy.status = 'active';
+
+                    delete copy.plateNumber;
+                    delete copy.vehicleType;
+                    delete copy.driverId;
+                    delete copy.assistantId;
+                    delete copy.institutionId;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanVehicleRecord) : cleanVehicleRecord(currentPayload);
+            } else if (moduleName === 'transport_onboarding') {
+                const cleanOnboardingRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.driverId && !copy.user_id) copy.user_id = copy.driverId;
+                    if (copy.vehicleId && !copy.vehicle_id) copy.vehicle_id = copy.vehicleId;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+
+                    if (!copy.user_id || copy.user_id === '') copy.user_id = null;
+                    if (!copy.vehicle_id || copy.vehicle_id === '') copy.vehicle_id = null;
+                    if (!copy.institution_id || copy.institution_id === '') copy.institution_id = null;
+
+                    delete copy.userId;
+                    delete copy.driverId;
+                    delete copy.vehicleId;
+                    delete copy.institutionId;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanOnboardingRecord) : cleanOnboardingRecord(currentPayload);
+            } else if (moduleName === 'vehicle_logs') {
+                const cleanLogRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (copy.vehicleId && !copy.vehicle_id) copy.vehicle_id = copy.vehicleId;
+                    if (copy.driverId && !copy.driver_id) copy.driver_id = copy.driverId;
+                    if (copy.securityId && !copy.security_id) copy.security_id = copy.securityId;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+
+                    if (!copy.vehicle_id || copy.vehicle_id === '') copy.vehicle_id = null;
+                    if (!copy.driver_id || copy.driver_id === '') copy.driver_id = null;
+                    if (!copy.security_id || copy.security_id === '') copy.security_id = null;
+                    if (!copy.institution_id || copy.institution_id === '') copy.institution_id = null;
+
+                    delete copy.vehicleId;
+                    delete copy.driverId;
+                    delete copy.securityId;
+                    delete copy.institutionId;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanLogRecord) : cleanLogRecord(currentPayload);
             }
 
             if (moduleName === 'school_remedial_rate_settings') {
@@ -2459,9 +2538,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...currentUpdateData };
                     const meta = { ...(copy.metadata || {}) };
 
-                    const vehicleIdVal = copy.vehicle_id || copy.vehicleId || copy.assigned_vehicle_id || copy.assignedVehicleId;
-                    if (vehicleIdVal) {
-                        meta.vehicleId = vehicleIdVal;
+                    const hasVehicleField = 'vehicle_id' in copy || 'vehicleId' in copy || 'assigned_vehicle_id' in copy || 'assignedVehicleId' in copy;
+                    if (hasVehicleField) {
+                        const rawVId = copy.vehicle_id !== undefined ? copy.vehicle_id : (copy.vehicleId !== undefined ? copy.vehicleId : (copy.assigned_vehicle_id !== undefined ? copy.assigned_vehicle_id : copy.assignedVehicleId));
+                        const effectiveVId = (rawVId && String(rawVId).trim() !== '' && String(rawVId).toLowerCase() !== 'unassigned') ? String(rawVId).trim() : null;
+                        meta.vehicleId = effectiveVId;
+                        meta.assignedVehicleId = effectiveVId;
+                        copy.vehicle_id = effectiveVId;
                     }
                     const driverTypeVal = copy.driver_type || copy.driverType;
                     if (driverTypeVal) {
@@ -2491,7 +2574,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     copy.metadata = meta;
 
-                    delete copy.vehicle_id;
                     delete copy.vehicleId;
                     delete copy.assigned_vehicle_id;
                     delete copy.assignedVehicleId;
@@ -2654,6 +2736,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
                     if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
                     if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    currentUpdateData = copy;
+                } else if (moduleName === 'vehicles' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    if ('plateNumber' in copy) { copy.plate_number = copy.plateNumber; delete copy.plateNumber; }
+                    if ('vehicleType' in copy) { copy.vehicle_type = copy.vehicleType; delete copy.vehicleType; }
+                    if ('driverId' in copy) { copy.driver_id = copy.driverId; delete copy.driverId; }
+                    if ('assistantId' in copy) { copy.assistant_id = copy.assistantId; delete copy.assistantId; }
+                    if ('institutionId' in copy) { copy.institution_id = copy.institutionId; delete copy.institutionId; }
+                    if ('driver_id' in copy && (!copy.driver_id || copy.driver_id === '')) copy.driver_id = null;
+                    if ('assistant_id' in copy && (!copy.assistant_id || copy.assistant_id === '')) copy.assistant_id = null;
+                    if ('capacity' in copy && copy.capacity !== undefined && copy.capacity !== null) copy.capacity = Number(copy.capacity) || 14;
+                    currentUpdateData = copy;
+                } else if (moduleName === 'transport_onboarding' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    if ('userId' in copy) { copy.user_id = copy.userId; delete copy.userId; }
+                    if ('driverId' in copy) { copy.user_id = copy.driverId; delete copy.driverId; }
+                    if ('vehicleId' in copy) { copy.vehicle_id = copy.vehicleId; delete copy.vehicleId; }
+                    if ('institutionId' in copy) { copy.institution_id = copy.institutionId; delete copy.institutionId; }
+                    if ('user_id' in copy && (!copy.user_id || copy.user_id === '')) copy.user_id = null;
+                    if ('vehicle_id' in copy && (!copy.vehicle_id || copy.vehicle_id === '')) copy.vehicle_id = null;
+                    currentUpdateData = copy;
+                } else if (moduleName === 'vehicle_logs' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    if ('vehicleId' in copy) { copy.vehicle_id = copy.vehicleId; delete copy.vehicleId; }
+                    if ('driverId' in copy) { copy.driver_id = copy.driverId; delete copy.driverId; }
+                    if ('securityId' in copy) { copy.security_id = copy.securityId; delete copy.securityId; }
+                    if ('institutionId' in copy) { copy.institution_id = copy.institutionId; delete copy.institutionId; }
+                    if ('vehicle_id' in copy && (!copy.vehicle_id || copy.vehicle_id === '')) copy.vehicle_id = null;
+                    if ('driver_id' in copy && (!copy.driver_id || copy.driver_id === '')) copy.driver_id = null;
+                    if ('security_id' in copy && (!copy.security_id || copy.security_id === '')) copy.security_id = null;
                     currentUpdateData = copy;
                 }
                 let data: any = null;
