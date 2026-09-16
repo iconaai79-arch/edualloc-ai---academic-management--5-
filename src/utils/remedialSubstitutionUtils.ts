@@ -88,6 +88,92 @@ export function isTimeRangeOverlapping(start1: string, end1: string, start2: str
 }
 
 /**
+ * Strict validator to ensure only authentic academic teaching staff are included
+ * in remedial management, timetables, rosters, and auto-substitutions.
+ * Explicitly rejects non-academic support staff (drivers, cooks, librarians, security, accountants, etc.)
+ */
+export const isAcademicTeacher = (u: any): boolean => {
+    if (!u) return false;
+
+    // 1. Normalize primary role & roles array
+    const primaryRole = (u.role || '').trim().toLowerCase();
+    const roles: string[] = Array.isArray(u.roles)
+        ? u.roles.map((r: any) => String(r).trim().toLowerCase())
+        : [];
+    const meta = u.metadata || {};
+    const staffType = (meta.staffType || meta.staff_type || meta.category || '').trim().toLowerCase();
+
+    // 2. Explicit support staff metadata flags
+    if (staffType === 'support_staff' || staffType === 'support' || meta.isSupportStaff === true) {
+        return false;
+    }
+
+    // 3. Known Support Staff and Non-Teaching Roles
+    const supportRoles = [
+        'support_staff', 'staff', 'subordinate', 'subordinate_staff',
+        'librarian', 'library_assistant',
+        'security', 'security_guard', 'watchman', 'guard',
+        'info_desk', 'reception', 'receptionist', 'front_desk',
+        'store', 'stores', 'storekeeper', 'store_keeper', 'inventory_manager',
+        'finance', 'finance_officer', 'accountant', 'accounts_clerk', 'bursar', 'cashier',
+        'procurement', 'procurement_officer', 'purchasing_officer',
+        'boarding_master', 'matron', 'house_parent', 'hostel_warden',
+        'driver', 'transport_assistant', 'transport_manager', 'bus_driver',
+        'event_manager', 'managing_director', 'hoi',
+        'nurse', 'doctor', 'clinic', 'medic',
+        'hr_officer', 'human_resource',
+        'cateress', 'catering', 'chef', 'cook', 'kitchen', 'mess', 'waiter',
+        'cleaner', 'janitor', 'grounds', 'groundskeeper', 'gardener',
+        'caretaker', 'maintenance', 'artisan', 'plumber', 'electrician', 'carpenter', 'mason',
+        'lab_technician', 'lab_tech', 'technician',
+        'secretary', 'worker', 'attendant',
+        'student', 'parent', 'customer', 'lead', 'member', 'reseller', 'vendor', 'visitor'
+    ];
+
+    if (supportRoles.includes(primaryRole)) {
+        return false;
+    }
+
+    // If roles contains support staff role, exclude unless primary is explicitly an academic leader
+    if (roles.some(r => supportRoles.includes(r)) && !['teacher', 'lecturer', 'instructor', 'dos', 'hod'].includes(primaryRole)) {
+        return false;
+    }
+
+    // 4. Department filter if set
+    const dept = (u.department || meta.department || meta.departmentName || '').toLowerCase();
+    if (dept && (
+        dept.includes('support') || dept.includes('kitchen') || dept.includes('security') || 
+        dept.includes('transport') || dept.includes('clean') || dept.includes('catering') || 
+        dept.includes('maintenance') || dept.includes('ground') || dept.includes('sanitation')
+    )) {
+        return false;
+    }
+
+    // 5. Valid Academic Teaching Roles
+    const academicTeachingRoles = [
+        'teacher',
+        'lecturer',
+        'instructor',
+        'hod',
+        'dos',
+        'director_of_studies',
+        'deputy',
+        'deputy_principal',
+        'deputy_head',
+        'academics_officer',
+        'class_supervisor',
+        'tto',
+        'practice_teacher',
+        'county_teacher'
+    ];
+
+    const hasAcademicPrimary = academicTeachingRoles.includes(primaryRole);
+    const hasAcademicInRoles = roles.some(r => academicTeachingRoles.includes(r));
+
+    return hasAcademicPrimary || hasAcademicInRoles;
+};
+
+/**
  * Priority-based auto-reassignment engine:
  * Evaluates all candidate teachers in the school, checks collisions and quota limits,
  * scores subject competence and preferred day availability, and ranks the candidates.
@@ -137,9 +223,8 @@ export function rankSubstituteCandidates(params: {
             continue;
         }
 
-        // Check if teacher is a teaching staff
-        const isTeachingRole = teacher.role === 'teacher' || teacher.role === 'lecturer' || (teacher.role as string) === 'instructor';
-        if (!isTeachingRole) {
+        // Check if teacher is authentic teaching staff (strictly excluding support staff)
+        if (!isAcademicTeacher(teacher)) {
             continue;
         }
 

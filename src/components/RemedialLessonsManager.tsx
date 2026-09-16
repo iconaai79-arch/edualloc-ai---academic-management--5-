@@ -12,7 +12,7 @@ import {
     Send, Megaphone, Share2, CheckSquare
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired } from '../utils/remedialSubstitutionUtils';
+import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
 import {
     generateTeacherPayoutLedgerPdf,
     generatePrefectAuditReportPdf,
@@ -414,7 +414,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (!users || users.length === 0) return;
         const newMap: Record<string, string> = {};
         users.forEach(u => {
-            if (u) {
+            if (u && isAcademicTeacher(u)) {
                 const explicit = u.teacherCode || u.code || u.metadata?.teacherCode || u.metadata?.remedialTeacherCode || u.staffId;
                 if (explicit && !teacherCodes[u.id]) {
                     newMap[u.id] = String(explicit).trim();
@@ -426,9 +426,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     }, [users]);
 
-    // Teachers and Prefects Lists
+    // Teachers and Prefects Lists (strictly verified academic teachers, excluding non-academic support staff)
     const teachersList = useMemo(() => {
-        return (enrichedUsers || []).filter(u => u && (u.role === 'teacher' || u.role === 'lecturer' || (u.role as string) === 'instructor' || u.role === 'academics_officer' || (u.roles && (u.roles.includes('teacher') || u.roles.includes('lecturer')))));
+        return (enrichedUsers || []).filter(u => isAcademicTeacher(u));
     }, [enrichedUsers]);
 
     // Filtered teachers for Teachers Tab
@@ -437,7 +437,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const teacherName = (teacher.name || '').toLowerCase();
             const teacherEmail = (teacher.email || '').toLowerCase();
             const teacherPhone = (teacher.phoneNumber || '').toLowerCase();
-            const currentCode = (teacherCodes[teacher.id] || getTeacherCode(teacher.id, teacher.name, enrichedUsers)).toLowerCase();
+            const currentCode = (teacherCodes[teacher.id] || getTeacherCode(teacher.id, teacher.name, teachersList)).toLowerCase();
             const q = teacherSearchQuery.toLowerCase().trim();
 
             const matchesSearch = !q || teacherName.includes(q) || teacherEmail.includes(q) || teacherPhone.includes(q) || currentCode.includes(q);
@@ -2829,7 +2829,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     institution: currentInstitution,
                     allocations,
                     courses,
-                    users: enrichedUsers,
+                    users: teachersList,
                     rateSetting,
                     termName: timetableTerm,
                     weekName: timetableWeek,
@@ -2887,7 +2887,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     fileName: `${timetableStage ? `${timetableStage}_` : ''}${timetableWeek.replace(/\s+/g, '_')}_${timetableTerm.replace(/\s+/g, '_')}_${timetableYear}_Remedial_Timetable`,
                     allocations,
                     courses,
-                    users: enrichedUsers,
+                    users: teachersList,
                     termName: timetableTerm,
                     weekName: timetableWeek,
                     yearName: timetableYear,
@@ -4516,7 +4516,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {filteredTeachers.map(teacher => {
                             const teacherAllocs = allocations.filter(a => a.teacherId === teacher.id);
-                            const currentCode = teacherCodes[teacher.id] || getTeacherCode(teacher.id, teacher.name, enrichedUsers);
+                            const currentCode = teacherCodes[teacher.id] || getTeacherCode(teacher.id, teacher.name, teachersList);
                             const isEditingCode = editingTeacherCodeId === teacher.id;
                             const completedHours = sessions
                                 .filter(s => s.teacherId === teacher.id && (s.status === 'Approved' || s.status === 'Paid'))
@@ -9454,10 +9454,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                             >
                                 <option value="">-- Select Teacher --</option>
-                                {users
-                                    .filter(u => u.role === 'lecturer' || u.role === 'teacher')
-                                    .map(u => <option key={u.id} value={u.id}>{u.name}</option>)
-                                }
+                                {teachersList.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
                             </select>
                         </div>
 
