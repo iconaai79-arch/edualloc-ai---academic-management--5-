@@ -3027,7 +3027,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('institution_module_states', {
-                id: `broadsheets_${currentInstitution.id}`,
+                id: `ims_exam_broadsheets_${currentInstitution.id}`,
                 institution_id: currentInstitution.id,
                 institutionId: currentInstitution.id,
                 module_id: 'exam_broadsheets',
@@ -3367,7 +3367,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // Save to institution_module_states in Supabase so broadsheet is persistent across devices
         if (currentInstitution?.id && newStatus === 'published' && rowsToSave.length > 0) {
             apiService.saveModuleRecord('institution_module_states', {
-                id: `broadsheets_${currentInstitution.id}`,
+                id: `ims_exam_broadsheets_${currentInstitution.id}`,
                 institution_id: currentInstitution.id,
                 institutionId: currentInstitution.id,
                 module_id: 'exam_broadsheets',

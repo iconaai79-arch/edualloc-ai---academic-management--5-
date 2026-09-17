@@ -2537,50 +2537,105 @@ export const apiService = {
         }
 
         if (module === 'institution_module_states') {
-            if (_supabase) {
-                try {
-                    const instId = payload.institution_id || payload.institutionId || payload.institution;
-                    const modId = payload.module_id || payload.moduleId;
+            const instId = payload.institution_id || payload.institutionId || payload.institution;
+            const modId = payload.module_id || payload.moduleId;
 
-                    // Check if an existing row exists for (institution_id, module_id) or canonical ID
-                    let existingId: string | null = null;
-                    const canonicalId = `ims_${modId}_${instId}`;
-                    if (instId && modId) {
-                        try {
-                            const { data: existingRows } = await _supabase
-                                .from('institution_module_states')
-                                .select('id')
-                                .or(`id.eq.${canonicalId},and(institution_id.eq.${instId},module_id.eq.${modId})`)
-                                .limit(1);
-                            if (existingRows && existingRows.length > 0 && existingRows[0].id) {
-                                existingId = existingRows[0].id;
-                            }
-                        } catch (_) {}
+            if (_supabase && instId && modId) {
+                try {
+                    // Check if an existing row exists for (institution_id, module_id)
+                    let existingRow: any = null;
+                    const { data: existingRows, error: findErr } = await _supabase
+                        .from('institution_module_states')
+                        .select('id, data, status, activated_at, trial_ends_at, subscription_ends_at')
+                        .eq('institution_id', instId)
+                        .eq('module_id', modId)
+                        .limit(1);
+
+                    if (!findErr && existingRows && existingRows.length > 0 && existingRows[0].id) {
+                        existingRow = existingRows[0];
+                    } else if (payload.id) {
+                        const { data: byIdRows } = await _supabase
+                            .from('institution_module_states')
+                            .select('id, data, status, activated_at, trial_ends_at, subscription_ends_at')
+                            .eq('id', payload.id)
+                            .limit(1);
+                        if (byIdRows && byIdRows.length > 0 && byIdRows[0].id) {
+                            existingRow = byIdRows[0];
+                        }
                     }
 
-                    const targetId = payload.id || existingId || canonicalId;
+                    const canonicalId = `ims_${modId}_${instId}`;
+                    // CRITICAL: If an existing row exists for (institution_id, module_id), we MUST preserve its id
+                    // to prevent violating unique constraint "institution_module_states_institution_id_module_id_key"
+                    const targetId = existingRow?.id || payload.id || canonicalId;
+
                     const cleanPayload: any = {
                         id: targetId,
                         institution_id: instId,
                         module_id: modId,
-                        status: payload.status || 'active',
-                        data: payload.data || payload,
-                        activated_at: payload.activated_at || payload.activatedAt || new Date().toISOString(),
-                        trial_ends_at: payload.trial_ends_at || payload.trialEndsAt || null,
-                        subscription_ends_at: payload.subscription_ends_at || payload.subscriptionEndsAt || null,
-                        updated_at: payload.updated_at || payload.updatedAt || new Date().toISOString()
+                        status: payload.status || existingRow?.status || 'active',
+                        data: payload.data || payload.settings || payload.stateData || payload.state_data || existingRow?.data || payload,
+                        activated_at: payload.activated_at || payload.activatedAt || existingRow?.activated_at || new Date().toISOString(),
+                        trial_ends_at: payload.trial_ends_at || payload.trialEndsAt || existingRow?.trial_ends_at || null,
+                        subscription_ends_at: payload.subscription_ends_at || payload.subscriptionEndsAt || existingRow?.subscription_ends_at || null,
+                        updated_at: new Date().toISOString()
                     };
 
                     // Strip any undefined keys
                     Object.keys(cleanPayload).forEach(k => cleanPayload[k] === undefined && delete cleanPayload[k]);
 
-                    // Upsert directly on primary key 'id'
-                    let { data: imsData, error: imsErr } = await _supabase
-                        .from('institution_module_states')
-                        .upsert(cleanPayload, { onConflict: 'id' })
-                        .select();
+                    let imsData: any = null;
+                    let imsErr: any = null;
 
-                    // If column missing error occurs, retry with core columns only
+                    if (existingRow?.id) {
+                        // 1. If row already exists in DB, update directly by id to prevent unique constraint conflicts
+                        const updateRes = await _supabase
+                            .from('institution_module_states')
+                            .update(cleanPayload)
+                            .eq('id', existingRow.id)
+                            .select();
+                        imsData = updateRes.data;
+                        imsErr = updateRes.error;
+                    } else {
+                        // 2. Otherwise upsert on (institution_id, module_id) compound unique constraint
+                        const upsertRes = await _supabase
+                            .from('institution_module_states')
+                            .upsert(cleanPayload, { onConflict: 'institution_id,module_id' })
+                            .select();
+                        imsData = upsertRes.data;
+                        imsErr = upsertRes.error;
+
+                        if (imsErr && (imsErr.message?.includes('ON CONFLICT') || imsErr.code === '42P10')) {
+                            // Fallback to id on conflict if index syntax differs
+                            const retryId = await _supabase
+                                .from('institution_module_states')
+                                .upsert(cleanPayload, { onConflict: 'id' })
+                                .select();
+                            imsData = retryId.data;
+                            imsErr = retryId.error;
+                        }
+                    }
+
+                    // 3. Fallback for unique constraint violation: re-check and perform update by matched row ID
+                    if (imsErr && (imsErr.code === '23505' || String(imsErr.code) === '23505' || imsErr.message?.includes('unique constraint') || imsErr.message?.includes('duplicate key'))) {
+                        const { data: latestRows } = await _supabase
+                            .from('institution_module_states')
+                            .select('id')
+                            .eq('institution_id', instId)
+                            .eq('module_id', modId)
+                            .limit(1);
+                        if (latestRows && latestRows.length > 0 && latestRows[0].id) {
+                            const latestUpdate = await _supabase
+                                .from('institution_module_states')
+                                .update(cleanPayload)
+                                .eq('id', latestRows[0].id)
+                                .select();
+                            imsData = latestUpdate.data;
+                            imsErr = latestUpdate.error;
+                        }
+                    }
+
+                    // 4. If column missing error occurs, retry with core columns only
                     if (imsErr && (imsErr.message?.includes('column') || (imsErr as any).code === '42703' || (imsErr as any).code === 'PGRST204')) {
                         const minimalPayload = {
                             id: cleanPayload.id,
@@ -2591,10 +2646,20 @@ export const apiService = {
                         };
                         const retryRes = await _supabase
                             .from('institution_module_states')
-                            .upsert(minimalPayload, { onConflict: 'id' })
+                            .update(minimalPayload)
+                            .eq('institution_id', instId)
+                            .eq('module_id', modId)
                             .select();
                         imsData = retryRes.data;
                         imsErr = retryRes.error;
+                        if (imsErr) {
+                            const retryUpsert = await _supabase
+                                .from('institution_module_states')
+                                .upsert(minimalPayload, { onConflict: 'id' })
+                                .select();
+                            imsData = retryUpsert.data;
+                            imsErr = retryUpsert.error;
+                        }
                     }
 
                     if (!imsErr && imsData && imsData.length > 0) {

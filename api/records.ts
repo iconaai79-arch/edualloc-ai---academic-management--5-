@@ -2206,6 +2206,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         }
                     } catch (_) {}
+            if (moduleName === 'institution_module_states' || targetDbTable === 'institution_module_states') {
+                const checkItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
+                const instId = checkItem?.institution_id || checkItem?.institutionId;
+                const modId = checkItem?.module_id || checkItem?.moduleId;
+                if (instId && modId) {
+                    try {
+                        const { data: existingImsRows } = await supabase
+                            .from('institution_module_states')
+                            .select('id')
+                            .eq('institution_id', instId)
+                            .eq('module_id', modId)
+                            .limit(1);
+                        if (existingImsRows && existingImsRows.length > 0 && existingImsRows[0].id) {
+                            const existingId = existingImsRows[0].id;
+                            if (Array.isArray(currentPayload)) {
+                                currentPayload.forEach(p => { p.id = existingId; });
+                            } else if (currentPayload && typeof currentPayload === 'object') {
+                                currentPayload.id = existingId;
+                            }
+                        }
+                    } catch (_) {}
                 }
             }
 
@@ -2320,6 +2341,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isUniqueViolation = error.code === '23505' || String(error.code) === '23505' || message.includes('unique constraint') || message.includes('duplicate key');
                 
                 if (isUniqueViolation) {
+                    if (targetDbTable === 'institution_module_states' || moduleName === 'institution_module_states') {
+                        const checkItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
+                        const instId = checkItem?.institution_id || checkItem?.institutionId;
+                        const modId = checkItem?.module_id || checkItem?.moduleId;
+                        if (instId && modId) {
+                            try {
+                                const { data: matchRows } = await supabase
+                                    .from('institution_module_states')
+                                    .select('id')
+                                    .eq('institution_id', instId)
+                                    .eq('module_id', modId)
+                                    .limit(1);
+                                if (matchRows && matchRows.length > 0 && matchRows[0].id) {
+                                    const updateRes = await supabase
+                                        .from('institution_module_states')
+                                        .update(checkItem)
+                                        .eq('id', matchRows[0].id)
+                                        .select();
+                                    if (!updateRes.error && updateRes.data) {
+                                        return res.status(200).json({ success: true, data: updateRes.data });
+                                    }
+                                }
+                            } catch (_) {}
+                        }
+                    }
+
                     if (moduleName === 'users') {
                         let field = 'record';
                         if (message.includes('email')) field = 'email address';
