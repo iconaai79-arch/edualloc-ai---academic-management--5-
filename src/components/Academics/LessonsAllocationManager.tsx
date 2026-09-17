@@ -910,6 +910,10 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 .then(dbAllocations => {
                     if (dbAllocations && dbAllocations.length > 0) {
                         setAllocations(dbAllocations);
+                        try {
+                            localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(dbAllocations));
+                            localStorage.setItem('eduai_subject_allocations', JSON.stringify(dbAllocations));
+                        } catch (e) {}
                     }
                 })
                 .catch(err => console.log('Using initial allocation records:', err));
@@ -957,6 +961,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         }
 
         setAllocations(updatedAllocations);
+        try {
+            if (currentInstitution?.id) {
+                localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(updatedAllocations));
+                localStorage.setItem('eduai_subject_allocations', JSON.stringify(updatedAllocations));
+            }
+        } catch (e) {}
         const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className.toLowerCase().trim() === (classNameOverride || '').toLowerCase().trim() && a.subjectName.toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim()));
         if (targetRecord && currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});

@@ -2555,10 +2555,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // 4. Dispatch live SMS notification to host phone
             const targetHost = (users || []).find(u => u.id === targetHostId);
-            const hostPhone = targetHost?.phoneNumber || (targetHost as any)?.phone || (targetHost as any)?.telephone;
-            if (hostPhone) {
+            const hostPhone = newVisitor.hostPhone || (newVisitor as any).hostPhoneNumber || targetHost?.phoneNumber || (targetHost as any)?.phone || (targetHost as any)?.telephone;
+            const isSmsEnabled = activeInstitution?.notifyHostOnVisitorArrival !== false && newVisitor.notifyHostSms !== false;
+
+            if (hostPhone && isSmsEnabled) {
                 const link = `${window.location.origin}/?view=visitor-auth&id=${newVisitor.id}`;
-                const smsMsg = `Hi ${targetHost?.name || 'Host'}, visitor ${visitorName} has arrived at the security gate${newVisitor.purpose ? ` for ${newVisitor.purpose}` : ''}. Tap here to authorize: ${link}`;
+                const hostDisplayName = targetHost?.name || newVisitor.hostName || 'Host';
+                let smsMsg = `Hi ${hostDisplayName}, visitor ${visitorName} has arrived at the security gate${newVisitor.purpose ? ` for ${newVisitor.purpose}` : ''}. Tap here to authorize: ${link}`;
+
+                if (activeInstitution?.visitorArrivalSmsTemplate) {
+                    smsMsg = activeInstitution.visitorArrivalSmsTemplate
+                        .replace(/\{host\}/gi, hostDisplayName)
+                        .replace(/\{visitor\}/gi, visitorName)
+                        .replace(/\{purpose\}/gi, newVisitor.purpose || 'Visit')
+                        .replace(/\{institution\}/gi, activeInstitution?.name || 'Security')
+                        .replace(/\{link\}/gi, link);
+                }
+
                 const smsCfg = activeInstitution?.smsConfig || companyDetails?.smsConfig;
                 const instId = activeInstitution?.id || currentUser?.institutionId || '';
                 apiService.sendSms(hostPhone, smsMsg, smsCfg, 1, instId)
@@ -2588,7 +2601,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             institutionId: currentUser?.institutionId 
         });
         loadData();
-    }, [currentUser, loadData]);
+    }, [loadData, currentUser?.institutionId]);
+
+    const handleUpdateAppointmentStatus = useCallback(async (id: string, status: string | 'confirmed' | 'cancelled') => {
+        const apt = (appointments || []).find(a => a.id === id);
+        if (apt) {
+            await apiService.saveModuleRecord('appointments', { ...apt, status });
+            await handleLogAction(`Updated appointment status for ${apt.visitorName || (apt as any).guestName || 'guest'} to ${status}`);
+        }
+        loadData();
+    }, [appointments, loadData, handleLogAction]);
 
     const handleUpdateVisitor = useCallback(async (id: string, data: Partial<Visitor>) => {
         const existing = (visitors || []).find(v => v.id === id);
@@ -2626,40 +2648,66 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             }
         }
         // Notify host / office tenant if matched
-        if (v.officeId) {
-            const targetOffice = (buildingOffices || []).find(o => o.id === v.officeId);
-            const hostUser = (users || []).find(u => 
-                (u.metadata?.officeId === v.officeId) ||
-                (targetOffice?.tenantName && u.name && u.name.trim().toLowerCase() === targetOffice.tenantName.trim().toLowerCase())
-            );
-            if (hostUser) {
-                const notifMsg = `You have a visitor: ${v.visitorName} has registered at building security for ${targetOffice?.tenantName || 'your office'}.`;
-                const notifMeta = {
+        const targetOffice = v.officeId ? (buildingOffices || []).find(o => o.id === v.officeId) : null;
+        const hostUser = (users || []).find(u => 
+            (v.hostId && u.id === v.hostId) ||
+            (v.officeId && u.metadata?.officeId === v.officeId) ||
+            (targetOffice?.tenantName && u.name && u.name.trim().toLowerCase() === targetOffice.tenantName.trim().toLowerCase())
+        );
+
+        if (hostUser) {
+            const notifMsg = `You have a visitor: ${v.visitorName} has registered at building security for ${targetOffice?.tenantName || 'your office'}.`;
+            const notifMeta = {
+                visitorName: v.visitorName,
+                purpose: targetOffice?.tenantName ? `Visit to ${targetOffice.tenantName}` : 'Office visit',
+                hostId: hostUser.id
+            };
+            apiService.createNotification(hostUser.id, notifMsg, 'guest_arrival', notifMeta).catch(console.error);
+            if (currentUser && currentUser.id === hostUser.id) {
+                setNotifications(prev => [{
+                    id: `notif_${Date.now()}`,
+                    userId: hostUser.id,
                     visitorName: v.visitorName,
-                    purpose: targetOffice?.tenantName ? `Visit to ${targetOffice.tenantName}` : 'Office visit',
-                    hostId: hostUser.id
-                };
-                apiService.createNotification(hostUser.id, notifMsg, 'guest_arrival', notifMeta).catch(console.error);
-                if (currentUser && currentUser.id === hostUser.id) {
-                    setNotifications(prev => [{
-                        id: `notif_${Date.now()}`,
-                        userId: hostUser.id,
-                        visitorName: v.visitorName,
-                        metadata: notifMeta,
-                        message: notifMsg,
-                        type: 'guest_arrival',
-                        isRead: false,
-                        timestamp: new Date().toISOString()
-                    }, ...prev]);
-                }
-                window.dispatchEvent(new CustomEvent('app_notification_created', {
-                    detail: { userId: hostUser.id, message: notifMsg, type: 'guest_arrival', visitorName: v.visitorName, metadata: notifMeta }
-                }));
+                    metadata: notifMeta,
+                    message: notifMsg,
+                    type: 'guest_arrival',
+                    isRead: false,
+                    timestamp: new Date().toISOString()
+                }, ...prev]);
             }
+            window.dispatchEvent(new CustomEvent('app_notification_created', {
+                detail: { userId: hostUser.id, message: notifMsg, type: 'guest_arrival', visitorName: v.visitorName, metadata: notifMeta }
+            }));
+        }
+
+        // Live SMS dispatch to host / office tenant contact phone
+        const hostPhone = v.hostPhone || hostUser?.phoneNumber || (hostUser as any)?.phone || targetOffice?.contactPhone;
+        const isSmsEnabled = activeInstitution?.notifyHostOnVisitorArrival !== false && v.notifyHostSms !== false;
+
+        if (hostPhone && isSmsEnabled) {
+            const link = `${window.location.origin}/?view=visitor-auth&id=${logId}`;
+            const hostDisplayName = hostUser?.name || targetOffice?.contactPersonName || targetOffice?.tenantName || v.hostName || 'Host';
+            const locationName = targetOffice ? `${targetOffice.officeNumber} (${targetOffice.tenantName})` : (activeInstitution?.name || 'Reception');
+            let smsMsg = `Hi ${hostDisplayName}, visitor ${v.visitorName} has checked in at building security for ${locationName} (${v.purpose}). Tap to view/verify: ${link}`;
+
+            if (activeInstitution?.visitorArrivalSmsTemplate) {
+                smsMsg = activeInstitution.visitorArrivalSmsTemplate
+                    .replace(/\{host\}/gi, hostDisplayName)
+                    .replace(/\{visitor\}/gi, v.visitorName)
+                    .replace(/\{purpose\}/gi, v.purpose || 'Office visit')
+                    .replace(/\{institution\}/gi, activeInstitution?.name || 'Security')
+                    .replace(/\{link\}/gi, link);
+            }
+
+            const smsCfg = activeInstitution?.smsConfig || companyDetails?.smsConfig;
+            const instId = activeInstitution?.id || currentUser?.institutionId || '';
+            apiService.sendSms(hostPhone, smsMsg, smsCfg, 1, instId)
+                .then(() => console.info('[Building Security] Sent SMS arrival notification to host:', hostPhone))
+                .catch(err => console.warn('[Building Security] Failed to send SMS to host:', err));
         }
 
         loadData();
-    }, [loadData, buildingOffices, users, currentUser, setNotifications]);
+    }, [loadData, buildingOffices, users, currentUser, setNotifications, activeInstitution, companyDetails]);
 
     const handleUpdateBuildingVisitorLog = useCallback(async (id: string, data: Partial<BuildingVisitorLog>) => {
         const existing = (buildingVisitorLogs || []).find(v => v.id === id);
@@ -2696,14 +2744,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         }
     }, [securityAlerts, loadData]);
 
-    const handleUpdateAppointmentStatus = useCallback(async (id: string, status: string) => {
-        const apt = (appointments || []).find(a => a.id === id);
-        if (apt) {
-            await apiService.saveModuleRecord('appointments', { ...apt, status });
-            await handleLogAction(`Updated appointment status for ${apt.guestName} to ${status}`);
-        }
-        loadData();
-    }, [appointments, loadData, handleLogAction]);
+
 
     const handleAddStoreItem = useCallback(async (item: any) => {
         await apiService.saveModuleRecord('inventory', { 

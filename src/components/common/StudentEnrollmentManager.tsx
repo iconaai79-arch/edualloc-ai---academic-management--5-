@@ -892,15 +892,49 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 apiService.fetchAcademicLevels(currentInstitution.id).catch(() => [])
             ]);
             
-            setEnrollments(enrollmentsData.filter(e => e.enrollmentType === context));
+            const filteredEnrs = enrollmentsData.filter(e => e.enrollmentType === context);
+            setEnrollments(filteredEnrs);
+            const userMap = new Map();
+            (usersData || []).forEach(u => userMap.set(u.id, u));
             setUsers(prev => {
-                const userMap = new Map();
-                (usersData || []).forEach(u => userMap.set(u.id, u));
                 prev.forEach(u => {
                     if (!userMap.has(u.id)) userMap.set(u.id, u);
                 });
                 return Array.from(userMap.values());
             });
+
+            const hydrated = enrollmentsData.map(e => {
+                const u: any = userMap.get(e.userId) || (e.userId ? (usersData || []).find(usr => usr.id === e.userId) : null) || {};
+                const name = u.name || e.metadata?.studentName || e.metadata?.name || (e as any).name || '';
+                const adm = e.admissionNumber || u.admissionNumber || e.metadata?.admissionNumber || '';
+                const gLvl = e.metadata?.gradeLevel || u.studentClass || (e as any).studentClass || '';
+                const strm = e.metadata?.stream || u.stream || (e as any).stream || '';
+                const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
+                return {
+                    ...e,
+                    name: name || (e as any).name || '',
+                    studentName: name,
+                    admissionNumber: adm,
+                    admNo: adm,
+                    studentClass: fullCls,
+                    gradeLevel: gLvl,
+                    stream: strm,
+                    streamName: strm,
+                    metadata: {
+                        ...(e.metadata || {}),
+                        studentName: name,
+                        gradeLevel: gLvl,
+                        stream: strm
+                    }
+                };
+            });
+            try {
+                if (currentInstitution?.id) {
+                    localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(hydrated));
+                    localStorage.setItem('eduai_student_enrollments', JSON.stringify(hydrated));
+                    localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(hydrated));
+                }
+            } catch (e) {}
             setInstructors(usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
             setCourses(coursesData);
             setSubjects(subjectsData);

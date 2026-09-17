@@ -22,6 +22,7 @@ export const SecurityKiosk: React.FC<SecurityKioskProps> = ({ institution, onRef
         idNumber: '',
         purpose: 'Official',
         hostName: '',
+        hostPhone: '',
         vehiclePlate: ''
     });
 
@@ -104,6 +105,7 @@ export const SecurityKiosk: React.FC<SecurityKioskProps> = ({ institution, onRef
                 idNumber: formData.idNumber,
                 purpose: formData.purpose,
                 hostName: formData.hostName,
+                hostPhone: formData.hostPhone || undefined,
                 vehiclePlate: formData.vehiclePlate.toUpperCase(),
                 status: 'checked_in',
                 timeIn: new Date().toISOString(),
@@ -123,6 +125,51 @@ export const SecurityKiosk: React.FC<SecurityKioskProps> = ({ institution, onRef
                 console.error("Auto-printing visitor pass failed:", printErr);
             }
 
+            // Dispatch live host SMS notification if enabled
+            if ((formData.hostPhone || formData.hostName) && institution?.notifyHostOnVisitorArrival !== false) {
+                (async () => {
+                    try {
+                        let targetHostPhone = formData.hostPhone?.trim();
+                        let hostDisplayName = formData.hostName?.trim() || 'Host';
+
+                        if (!targetHostPhone && formData.hostName) {
+                            const hostSearch = formData.hostName.trim().toLowerCase();
+                            const instUsers = await apiService.fetchModuleRecords<any>('users', institution.id).catch(() => []);
+                            const matchedHost = (instUsers || []).find((u: any) => 
+                                u.name && (
+                                    u.name.trim().toLowerCase() === hostSearch ||
+                                    hostSearch.includes(u.name.trim().toLowerCase()) ||
+                                    u.name.trim().toLowerCase().includes(hostSearch)
+                                )
+                            );
+                            if (matchedHost) {
+                                targetHostPhone = matchedHost.phoneNumber || matchedHost.phone || matchedHost.telephone;
+                                hostDisplayName = matchedHost.name;
+                            }
+                        }
+
+                        if (targetHostPhone) {
+                            const link = `${window.location.origin}/?view=visitor-auth&id=${newVisitor.id}`;
+                            let smsMsg = `Hi ${hostDisplayName}, visitor ${newVisitor.name} has checked in at the gate kiosk for ${newVisitor.purpose || 'a visit'}. Tap here to authorize: ${link}`;
+
+                            if (institution?.visitorArrivalSmsTemplate) {
+                                smsMsg = institution.visitorArrivalSmsTemplate
+                                    .replace(/\{host\}/gi, hostDisplayName)
+                                    .replace(/\{visitor\}/gi, newVisitor.name || 'Visitor')
+                                    .replace(/\{purpose\}/gi, newVisitor.purpose || 'Visit')
+                                    .replace(/\{institution\}/gi, institution.name || 'Security')
+                                    .replace(/\{link\}/gi, link);
+                            }
+
+                            await apiService.sendSms(targetHostPhone, smsMsg, institution.smsConfig, 1, institution.id);
+                            console.info('[Security Kiosk] Sent visitor arrival SMS to host:', targetHostPhone);
+                        }
+                    } catch (smsErr) {
+                        console.warn('[Security Kiosk] Failed to dispatch host SMS:', smsErr);
+                    }
+                })();
+            }
+
             setView('success');
             
             // Reset Form
@@ -132,6 +179,7 @@ export const SecurityKiosk: React.FC<SecurityKioskProps> = ({ institution, onRef
                 idNumber: '',
                 purpose: 'Official',
                 hostName: '',
+                hostPhone: '',
                 vehiclePlate: ''
             });
 
@@ -432,17 +480,31 @@ export const SecurityKiosk: React.FC<SecurityKioskProps> = ({ institution, onRef
 
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
-                                        Vehicle Plate (Optional)
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                        Host Phone for SMS Alert (Optional)
                                     </label>
                                     <input
-                                        type="text"
-                                        value={formData.vehiclePlate}
-                                        onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value })}
-                                        placeholder="e.g. KAA 123A"
+                                        type="tel"
+                                        value={formData.hostPhone}
+                                        onChange={(e) => setFormData({ ...formData, hostPhone: e.target.value })}
+                                        placeholder="e.g. 0712345678"
                                         className="w-full bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-850 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-950 outline-none transition-all h-14"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
+                                    Vehicle Plate (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.vehiclePlate}
+                                    onChange={(e) => setFormData({ ...formData, vehiclePlate: e.target.value })}
+                                    placeholder="e.g. KAA 123A"
+                                    className="w-full bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-850 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-950 outline-none transition-all h-14"
+                                />
                             </div>
 
                             <button

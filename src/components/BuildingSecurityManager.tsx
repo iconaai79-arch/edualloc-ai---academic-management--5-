@@ -107,6 +107,8 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
     const [visitorPlate, setVisitorPlate] = useState('');
     const [visitorPurpose, setVisitorPurpose] = useState('');
     const [visitorOfficeId, setVisitorOfficeId] = useState('');
+    const [notifyHostSms, setNotifyHostSms] = useState(true);
+    const [customHostPhone, setCustomHostPhone] = useState('');
     
     // Luggage Asset States inside checkin form
     const [checkinAssets, setCheckinAssets] = useState<{ itemName: string; serialNumber: string; notes: string }[]>([]);
@@ -201,6 +203,9 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
         }
         setIsSavingVisitor(true);
         try {
+            const selectedOffice = offices.find(o => o.id === visitorOfficeId);
+            const targetPhone = customHostPhone.trim() || selectedOffice?.contactPhone || '';
+
             await onAddVisitorLog({
                 institutionId: institution?.id || 'default_inst',
                 officeId: visitorOfficeId || undefined,
@@ -210,7 +215,9 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
                 vehiclePlate: visitorPlate || undefined,
                 purpose: visitorPurpose,
                 status: 'registered',
-                authorizedByHost: false
+                authorizedByHost: false,
+                hostPhone: targetPhone || undefined,
+                notifyHostSms
             }, checkinAssets);
 
             alert("Visitor registered successfully! An entry pass can now be printed at the checkpoints.");
@@ -221,6 +228,8 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
             setVisitorPlate('');
             setVisitorPurpose('');
             setVisitorOfficeId('');
+            setCustomHostPhone('');
+            setNotifyHostSms(true);
             setCheckinAssets([]);
             if (onRefreshData) await onRefreshData();
         } catch (err: any) {
@@ -1443,6 +1452,41 @@ export const BuildingSecurityManager: React.FC<BuildingSecurityManagerProps> = (
                                     />
                                 </div>
                             </div>
+
+                            {/* SMS Arrival Alert to Office Tenant */}
+                            {(() => {
+                                const selectedOffice = offices.find(o => o.id === visitorOfficeId);
+                                return (
+                                    <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <input
+                                                type="checkbox"
+                                                id="bldg-notify-sms"
+                                                checked={notifyHostSms}
+                                                onChange={(e) => setNotifyHostSms(e.target.checked)}
+                                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                                            />
+                                            <label htmlFor="bldg-notify-sms" className="text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer flex flex-wrap items-center gap-1.5">
+                                                <span>📱 Notify Tenant / Host via SMS upon arrival</span>
+                                                {notifyHostSms && (customHostPhone || selectedOffice?.contactPhone) && (
+                                                    <span className="text-[10px] font-mono font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">
+                                                        {customHostPhone || selectedOffice?.contactPhone}
+                                                    </span>
+                                                )}
+                                            </label>
+                                        </div>
+                                        {notifyHostSms && (
+                                            <input
+                                                type="tel"
+                                                placeholder={selectedOffice?.contactPhone ? `Override: ${selectedOffice.contactPhone}` : "Tenant mobile phone..."}
+                                                value={customHostPhone}
+                                                onChange={(e) => setCustomHostPhone(e.target.value)}
+                                                className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-mono w-full sm:w-44"
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
                             {/* Assets Luggage Adding */}
                             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 p-6 space-y-4">

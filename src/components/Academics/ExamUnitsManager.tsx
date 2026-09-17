@@ -60,6 +60,7 @@ interface ExamUnitsManagerProps {
     marks?: AssessmentMark[];
     courses?: Course[];
     academicLevels?: AcademicLevel[];
+    allocations?: any[];
     onAddAssessment?: (assessment: any) => void;
     onUpdateAssessment?: (id: string, data: any) => void;
 }
@@ -72,7 +73,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     assessments = [],
     marks = [],
     courses = [],
-    academicLevels = []
+    academicLevels = [],
+    allocations = []
 }) => {
     // Storage Key Helper
     const instId = currentInstitution?.id || 'default_inst';
@@ -282,7 +284,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             });
         }
 
-        // 4. From currentInstitution object (classes, streamDefinitions, streams)
+        // 4. From local enrollments & students cache (e.g. Grade 8 West, Form 3 East)
+        try {
+            const cachedEnrRaw = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                                 localStorage.getItem('eduai_student_enrollments') ||
+                                 localStorage.getItem(`eduai_students_${instId}`) ||
+                                 localStorage.getItem('eduai_students');
+            if (cachedEnrRaw) {
+                const parsedEnr = JSON.parse(cachedEnrRaw);
+                if (Array.isArray(parsedEnr)) {
+                    parsedEnr.forEach(enr => {
+                        if (!enr) return;
+                        const gLvl = enr.metadata?.gradeLevel || enr.gradeLevel || enr.studentClass || enr.className || (enr as any).class;
+                        const strm = enr.metadata?.stream || enr.stream || enr.streamName || (enr as any).classStream;
+                        if (gLvl && typeof gLvl === 'string' && gLvl.trim()) {
+                            const cleanG = gLvl.trim();
+                            if (strm && typeof strm === 'string' && strm.trim() && !cleanG.toLowerCase().includes(strm.trim().toLowerCase())) {
+                                classSet.add(`${cleanG} ${strm.trim()}`);
+                            } else {
+                                classSet.add(cleanG);
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (e) {}
+
+        // 5. From currentInstitution object (classes, streamDefinitions, streams)
         if (currentInstitution) {
             const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
             if (Array.isArray(instClasses)) {
@@ -313,13 +341,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         }
 
-        // 5. Fallback defaults if empty
+        // 6. Fallback defaults if empty
         if (classSet.size === 0) {
             ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central', 'Grade 1 Central'].forEach(c => classSet.add(c));
         }
 
         return Array.from(classSet);
-    }, [courses, academicLevels, users, currentInstitution]);
+    }, [courses, academicLevels, users, currentInstitution, instId]);
 
     // Step 2 Wizard States:
     const [targetStudentSearch, setTargetStudentSearch] = useState('');
@@ -389,6 +417,25 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
     });
 
+    // Subject teacher allocations (from Lessons & Allocation manager)
+    const [subjectAllocations, setSubjectAllocations] = useState<any[]>(() => {
+        try {
+            const saved = localStorage.getItem(`eduai_subject_allocations_${instId}`) ||
+                          localStorage.getItem('eduai_subject_allocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {}
+        return allocations || [];
+    });
+
+    useEffect(() => {
+        if (allocations && Array.isArray(allocations) && allocations.length > 0) {
+            setSubjectAllocations(allocations);
+        }
+    }, [allocations]);
+
     // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
     useEffect(() => {
         const handleSync = (e?: any) => {
@@ -407,6 +454,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     if (parsed && typeof parsed === 'object') setClassAllocationsStore(parsed);
                 }
             } catch (e) { }
+            try {
+                const savedSubAlloc = localStorage.getItem(`eduai_subject_allocations_${instId}`) ||
+                                      localStorage.getItem('eduai_subject_allocations');
+                if (savedSubAlloc) {
+                    const parsed = JSON.parse(savedSubAlloc);
+                    if (Array.isArray(parsed)) setSubjectAllocations(parsed);
+                }
+            } catch (e) {}
         };
         window.addEventListener('eduai_academics_synced', handleSync);
         return () => window.removeEventListener('eduai_academics_synced', handleSync);
@@ -440,6 +495,18 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     }
                 })
                 .catch(() => { });
+
+            apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id)
+                .then(records => {
+                    if (records && Array.isArray(records) && records.length > 0) {
+                        setSubjectAllocations(records);
+                        try {
+                            localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(records));
+                            localStorage.setItem('eduai_subject_allocations', JSON.stringify(records));
+                        } catch (e) {}
+                    }
+                })
+                .catch(() => {});
         }
     }, [currentInstitution]);
 
@@ -948,7 +1015,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (enrRaw) cachedEnr = JSON.parse(enrRaw) || [];
         } catch (e) {}
 
-        (cachedEnr || []).forEach(enr => {
+        (cachedEnr || []).forEach((enr, enrIdx) => {
             if (!enr) return;
             const adm = enr.admissionNumber || enr.admission_number || enr.admNo || enr.metadata?.admissionNumber || enr.id;
             const name = enr.studentName || enr.student_name || enr.name || enr.metadata?.studentName || enr.metadata?.name;
@@ -957,12 +1024,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const normStrm = normalizeStreamName(rawStrm);
             const fullCls = normStrm && rawCls && !rawCls.toLowerCase().includes(normStrm.toLowerCase())
                 ? `${rawCls} ${normStrm}`
-                : rawCls;
+                : (rawCls || normStrm);
 
             const stObj = {
                 ...enr,
                 role: 'student',
-                name: name || 'Student',
+                name: name || `Student ${enrIdx + 1}`,
+                studentName: name || `Student ${enrIdx + 1}`,
                 admissionNumber: adm,
                 admNo: adm,
                 studentClass: fullCls,
@@ -970,7 +1038,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 streamName: normStrm,
                 gradeLevel: rawCls
             };
-            const k = getStudentDedupKey(stObj) || `adm_${adm}`;
+            const k = getStudentDedupKey(stObj) || (adm ? `adm_${adm}` : (enr.id ? `enr_${enr.id}` : `idx_${enrIdx}`));
             if (k) map.set(k, stObj);
         });
 
@@ -1116,6 +1184,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (!stOrClass || !targetClasses || targetClasses.length === 0) return false;
         if (targetClasses.includes('all') || targetClasses.includes('All Classes')) return true;
 
+        // Direct exact match
+        const directClass = typeof stOrClass === 'string'
+            ? stOrClass.trim().toLowerCase()
+            : (stOrClass.studentClass || stOrClass.className || stOrClass.classLevel || '').trim().toLowerCase();
+        if (directClass && targetClasses.some(tc => tc.trim().toLowerCase() === directClass)) {
+            return true;
+        }
+
         const { grade: stGrade, stream: stStream } = getStudentStreamAndGrade(stOrClass);
         const stGradeNorm = stGrade.toLowerCase().replace(/[^a-z0-9]/g, '');
         const stStreamNorm = stStream.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1126,11 +1202,22 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         };
         const stNum = extractNum(stGradeNorm);
 
+        const expandStreamAlias = (s: string) => {
+            if (s === 'w') return 'west';
+            if (s === 'e') return 'east';
+            if (s === 'n') return 'north';
+            if (s === 's') return 'south';
+            if (s === 'c') return 'central';
+            return s;
+        };
+        const stStreamExpanded = expandStreamAlias(stStreamNorm);
+
         return targetClasses.some(tc => {
             if (!tc || tc === 'all' || tc === 'All Classes') return true;
             const { grade: tcGrade, stream: tcStream } = getStudentStreamAndGrade(tc);
             const tcGradeNorm = tcGrade.toLowerCase().replace(/[^a-z0-9]/g, '');
             const tcStreamNorm = tcStream.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const tcStreamExpanded = expandStreamAlias(tcStreamNorm);
             const tcNum = extractNum(tcGradeNorm);
 
             // 1. If both define grades and they do not match, reject
@@ -1145,9 +1232,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
 
             // 2. If target class specifies a specific stream (e.g. "NORTH", "EAST", "WEST")
-            if (tcStreamNorm) {
-                if (stStreamNorm) {
-                    return stStreamNorm === tcStreamNorm;
+            if (tcStreamExpanded) {
+                if (stStreamExpanded) {
+                    return stStreamExpanded === tcStreamExpanded;
                 }
                 // Target has a stream, student has no stream
                 return false;
@@ -1287,10 +1374,22 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
             ]).then(([enrRecords, stRecords, userRecords]) => {
-                if (enrRecords && Array.isArray(enrRecords) && enrRecords.length > 0) {
-                    setEnrollmentsRegistry(enrRecords);
+                let effectiveEnrs: any[] = (enrRecords && Array.isArray(enrRecords) && enrRecords.length > 0) ? enrRecords : [];
+                try {
+                    const cachedEnrRaw = localStorage.getItem(`eduai_student_enrollments_${currentInstitution.id}`) ||
+                                         localStorage.getItem('eduai_student_enrollments');
+                    if (cachedEnrRaw) {
+                        const parsed = JSON.parse(cachedEnrRaw);
+                        if (Array.isArray(parsed) && parsed.length > effectiveEnrs.length) {
+                            effectiveEnrs = parsed;
+                        }
+                    }
+                } catch (e) {}
+
+                if (effectiveEnrs.length > 0) {
+                    setEnrollmentsRegistry(effectiveEnrs);
                     try {
-                        localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(enrRecords));
+                        localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(effectiveEnrs));
                     } catch (e) {}
                 }
 
@@ -1302,7 +1401,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
 
                 // Hydrate enrollment records: inject name, adm, class and STREAM
-                const hydratedEnrollments: any[] = (enrRecords || []).map((enr: any) => {
+                const hydratedEnrollments: any[] = (effectiveEnrs || []).map((enr: any) => {
                     if (!enr) return null;
                     const linkedUser = (enr.userId ? userById.get(enr.userId) : null) || (enr.user_id ? userById.get(enr.user_id) : null);
                     const resolvedName =
@@ -1328,8 +1427,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
                     // Resolve stream
                     const resolvedStream = (
-                        resolveRealStudentStream(enr, enrRecords) ||
-                        (linkedUser ? resolveRealStudentStream(linkedUser, enrRecords) : '') ||
+                        resolveRealStudentStream(enr, effectiveEnrs) ||
+                        (linkedUser ? resolveRealStudentStream(linkedUser, effectiveEnrs) : '') ||
                         enr.stream || enr.streamName || enr.classStream ||
                         enr.metadata?.stream || enr.metadata?.streamName || enr.metadata?.classStream ||
                         linkedUser?.stream || linkedUser?.streamName ||
@@ -1359,9 +1458,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const unifiedStudentMap = new Map<string, any>();
 
                 // 1. Process enrollment records first (primary source for active class enrollment)
-                hydratedEnrollments.forEach((enr: any) => {
+                hydratedEnrollments.forEach((enr: any, enrIdx: number) => {
                     if (!enr) return;
-                    const key = getStudentDedupKey(enr);
+                    const key = getStudentDedupKey(enr) || (enr.admissionNumber ? `adm_${enr.admissionNumber}` : (enr.id ? `enr_${enr.id}` : `idx_${enrIdx}`));
                     if (key) unifiedStudentMap.set(key, enr);
                 });
 
@@ -1535,25 +1634,40 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     useEffect(() => {
         if (!selectedExamId) return;
 
-        const activeStList = allRealStudents.length > 0
+        let activeStList = allRealStudents.length > 0
             ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+            : (propStudents && propStudents.length > 0 ? propStudents : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student')));
+
+        if (activeStList.length === 0 || activeStList.length < 10) {
+            try {
+                const cached = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                               localStorage.getItem('eduai_student_enrollments') ||
+                               localStorage.getItem(`eduai_students_${instId}`);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > activeStList.length) {
+                        activeStList = parsed;
+                    }
+                }
+            } catch (e) {}
+        }
 
         const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : ['Form 3 Central'];
 
         // Filter real students strictly for this active exam's target classes
         const matchingRealStudents = activeStList.filter(st => {
             const stClass = getStudentClass(st);
-            return isStudentInTargetClasses(stClass, targetClasses);
+            return isStudentInTargetClasses(stClass || st, targetClasses);
         });
+
+        const dummyNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau', 'Maxine Jelimo', 'Dennis Kiplagat'];
 
         // 1. Check in-memory store
         if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
             const existingRows = examMarksStore[selectedExamId];
             const hasGenericStudentNames = existingRows.some(r => r.name && r.name.toLowerCase().startsWith('student '));
-            const dummyNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau', 'Maxine Jelimo', 'Dennis Kiplagat'];
-            const isDummyRows = existingRows.every(r => (!r.admNo || r.admNo === 'N/A') && dummyNames.includes(r.name));
-            const hasFewerRowsThanReal = matchingRealStudents.length > existingRows.length && existingRows.length <= 15 && isDummyRows;
+            const isDummyRows = existingRows.some(r => dummyNames.includes(r.name));
+            const hasFewerRowsThanReal = matchingRealStudents.length > existingRows.length && (isDummyRows || existingRows.length <= 15);
 
             // If store contains generic "Student 1" names or dummy placeholder rows and real students are available, refresh with real student names
             if ((hasGenericStudentNames || isDummyRows || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
@@ -1576,8 +1690,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
                 setBroadsheetStudentRows(freshSource);
                 setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
+                setExams(prev => prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex));
                 try {
                     localStorage.setItem(`eduai_exam_broadsheet_${selectedExamId}`, JSON.stringify(freshSource));
+                    if (currentInstitution?.id) {
+                        const stored = JSON.parse(localStorage.getItem(`eduai_exam_units_${currentInstitution.id}`) || '[]');
+                        if (Array.isArray(stored)) {
+                            localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(
+                                stored.map((ex: any) => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex)
+                            ));
+                        }
+                    }
                 } catch (e) { }
                 return;
             }
@@ -1592,14 +1715,49 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (savedBroadsheet) {
                 const parsed = JSON.parse(savedBroadsheet);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    const dummyNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau', 'Maxine Jelimo', 'Dennis Kiplagat'];
-                    const isDummyRows = parsed.every((r: any) => (!r.admNo || r.admNo === 'N/A') && dummyNames.includes(r.name));
-                    if (!isDummyRows || matchingRealStudents.length === 0) {
-                        const sanitized = sanitizeBroadsheetRows(parsed);
-                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
-                        setBroadsheetStudentRows(sanitized);
+                    const hasGenericStudentNames = parsed.some((r: any) => r.name && r.name.toLowerCase().startsWith('student '));
+                    const isDummyRows = parsed.some((r: any) => dummyNames.includes(r.name));
+                    const hasFewerRowsThanReal = matchingRealStudents.length > parsed.length && (isDummyRows || parsed.length <= 15);
+
+                    if ((hasGenericStudentNames || isDummyRows || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
+                        const freshSource = matchingRealStudents.map((st, idx) => {
+                            const adm = resolveCleanAdmNo(st, idx);
+                            const cleanName = resolveCleanStudentName(st, idx);
+                            const existingRow = parsed.find((r: any) => (adm && r.admNo === adm) || (r.name && r.name.toLowerCase().trim() === cleanName.toLowerCase().trim()));
+                            return {
+                                ...(existingRow || {}),
+                                admNo: adm,
+                                name: cleanName,
+                                class: getStudentClass(st) || targetClasses[0],
+                                mathP1: existingRow?.mathP1 || 0,
+                                mathP2: existingRow?.mathP2 || 0,
+                                engP1: existingRow?.engP1 || 0,
+                                engP2: existingRow?.engP2 || 0,
+                                kiswP1: existingRow?.kiswP1 || 0,
+                                bioP1: existingRow?.bioP1 || 0
+                            };
+                        });
+                        setBroadsheetStudentRows(freshSource);
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
+                        setExams(prev => prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex));
+                        try {
+                            localStorage.setItem(`eduai_exam_broadsheet_${selectedExamId}`, JSON.stringify(freshSource));
+                            if (currentInstitution?.id) {
+                                const stored = JSON.parse(localStorage.getItem(`eduai_exam_units_${currentInstitution.id}`) || '[]');
+                                if (Array.isArray(stored)) {
+                                    localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(
+                                        stored.map((ex: any) => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex)
+                                    ));
+                                }
+                            }
+                        } catch (e) { }
                         return;
                     }
+
+                    const sanitized = sanitizeBroadsheetRows(parsed);
+                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                    setBroadsheetStudentRows(sanitized);
+                    return;
                 }
             }
         } catch (e) { }
@@ -1609,15 +1767,41 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             apiService.fetchModuleRecords<any>('exam_broadsheets', currentInstitution.id)
                 .then(records => {
                     const match = (records || []).find(r => r.id === selectedExamId || r.examId === selectedExamId);
-                    if (match && match.rows) {
+                    if (match && match.rows && Array.isArray(match.rows)) {
                         const dummyNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau', 'Maxine Jelimo', 'Dennis Kiplagat'];
-                        const isDummyRows = Array.isArray(match.rows) && match.rows.every((r: any) => (!r.admNo || r.admNo === 'N/A') && dummyNames.includes(r.name));
-                        if (!isDummyRows || matchingRealStudents.length === 0) {
-                            const sanitized = sanitizeBroadsheetRows(match.rows);
-                            setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
-                            setBroadsheetStudentRows(sanitized);
+                        const isDummyRows = match.rows.some((r: any) => dummyNames.includes(r.name));
+                        const hasFewerRowsThanReal = matchingRealStudents.length > match.rows.length && (isDummyRows || match.rows.length <= 15);
+                        if ((isDummyRows || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
+                            const freshSource = matchingRealStudents.map((st, idx) => {
+                                const adm = resolveCleanAdmNo(st, idx);
+                                const cleanName = resolveCleanStudentName(st, idx);
+                                const existingRow = match.rows.find((r: any) => (adm && r.admNo === adm) || (r.name && r.name.toLowerCase().trim() === cleanName.toLowerCase().trim()));
+                                return {
+                                    ...(existingRow || {}),
+                                    admNo: adm,
+                                    name: cleanName,
+                                    class: getStudentClass(st) || targetClasses[0],
+                                    mathP1: existingRow?.mathP1 || 0,
+                                    mathP2: existingRow?.mathP2 || 0,
+                                    engP1: existingRow?.engP1 || 0,
+                                    engP2: existingRow?.engP2 || 0,
+                                    kiswP1: existingRow?.kiswP1 || 0,
+                                    bioP1: existingRow?.bioP1 || 0
+                                };
+                            });
+                            setBroadsheetStudentRows(freshSource);
+                            setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
+                            setExams(prev => prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex));
+                            try {
+                                localStorage.setItem(`eduai_exam_broadsheet_${selectedExamId}`, JSON.stringify(freshSource));
+                            } catch (e) { }
                             return;
                         }
+
+                        const sanitized = sanitizeBroadsheetRows(match.rows);
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                        setBroadsheetStudentRows(sanitized);
+                        return;
                     }
                 })
                 .catch(() => { });
@@ -2512,6 +2696,76 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         reader.readAsText(file);
     }, [broadsheetStudentRows, selectedSubjectFilter, modalAvailableSubjects, getSubjectPapers, activeExam, currentInstitution]);
 
+    // Dynamic resolver to match the exact assigned teacher for a given subject in a specific class
+    const getSubjectTeacherForClass = useCallback((subName: string, className: string, paperName?: string): string => {
+        if (!subName) return 'Subject Teacher';
+        const cleanSub = subName.trim().toLowerCase();
+        const cleanClass = (className || '').trim().toLowerCase();
+        const { grade: targetGrade, stream: targetStream } = getStudentStreamAndGrade(className);
+        const targetGradeNorm = targetGrade.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const targetStreamNorm = targetStream.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        const allAllocations = [...(subjectAllocations || []), ...(allocations || [])];
+
+        // Priority 1: Exact class & subject match from allocations
+        const exactAlloc = allAllocations.find(a => {
+            if (!a) return false;
+            const aSub = (a.subjectName || a.subject || '').trim().toLowerCase();
+            const aClass = (a.className || a.class || '').trim().toLowerCase();
+            if (aSub !== cleanSub) return false;
+
+            if (aClass === cleanClass) return true;
+            const { grade: aGrade, stream: aStream } = getStudentStreamAndGrade(aClass);
+            const aGradeNorm = aGrade.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const aStreamNorm = aStream.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return targetGradeNorm && aGradeNorm === targetGradeNorm && (!targetStreamNorm || aStreamNorm === targetStreamNorm);
+        });
+
+        if (exactAlloc) {
+            const teacherName = exactAlloc.teacherName || exactAlloc.teacher?.name || exactAlloc.instructorName;
+            if (teacherName && teacherName.trim()) return teacherName.trim();
+            if (exactAlloc.teacherId) {
+                const matchedUser = (users || []).find(u => u.id === exactAlloc.teacherId);
+                if (matchedUser?.name) return matchedUser.name;
+            }
+        }
+
+        // Priority 2: Allocation matching subject and base grade (if stream not specifically assigned)
+        const gradeAlloc = allAllocations.find(a => {
+            if (!a) return false;
+            const aSub = (a.subjectName || a.subject || '').trim().toLowerCase();
+            if (aSub !== cleanSub) return false;
+            const aClass = (a.className || a.class || '').trim().toLowerCase();
+            const { grade: aGrade } = getStudentStreamAndGrade(aClass);
+            return targetGradeNorm && aGrade.toLowerCase().replace(/[^a-z0-9]/g, '') === targetGradeNorm;
+        });
+
+        if (gradeAlloc) {
+            const teacherName = gradeAlloc.teacherName || gradeAlloc.teacher?.name || gradeAlloc.instructorName;
+            if (teacherName && teacherName.trim()) return teacherName.trim();
+            if (gradeAlloc.teacherId) {
+                const matchedUser = (users || []).find(u => u.id === gradeAlloc.teacherId);
+                if (matchedUser?.name) return matchedUser.name;
+            }
+        }
+
+        // Priority 3: Teacher from users array whose assigned subject / allocatedSubjects matches this subject
+        const matchedTeacher = (users || []).find(u => {
+            if (!u || (u.role !== 'teacher' && (u.role as string) !== 'instructor' && (u.role as string) !== 'lecturer')) return false;
+            const uSub = ((u as any).subject || '').trim().toLowerCase();
+            if (uSub === cleanSub) return true;
+            const allocatedSubs: string[] = (u as any).allocatedSubjects || (u as any).teachingSubjects || (u as any).subjects || [];
+            if (Array.isArray(allocatedSubs) && allocatedSubs.some(s => typeof s === 'string' && s.trim().toLowerCase() === cleanSub)) {
+                return true;
+            }
+            return false;
+        });
+
+        if (matchedTeacher?.name) return matchedTeacher.name;
+
+        return 'Subject Teacher';
+    }, [subjectAllocations, allocations, users, getStudentStreamAndGrade]);
+
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
         // 1. Get classAllocationsStore (Ground truth per-class subjects from Manage Subjects per Class Stream)
@@ -2630,8 +2884,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     progress = activeExam.submittedPercent;
                 }
 
-                const teacherObj = users.find(u => (u.role === 'teacher' || (u.role as string) === 'instructor') && ((u as any).subject === subName || (u as any).allocatedSubjects?.includes(subName) || u.name));
-                const teacherName = teacherObj ? teacherObj.name : `Subject Teacher`;
+                const teacherName = getSubjectTeacherForClass(subName, cName, item.paperName);
 
                 return {
                     id: `p_${cIdx}_${sIdx}`,
@@ -2655,7 +2908,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 papers
             };
         });
-    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark]);
+    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark, getSubjectTeacherForClass]);
 
     const displayClassPaperRows = useMemo(() => {
         if (!dashboardGradeFilter || dashboardGradeFilter === 'all') return classPaperRows;
@@ -2808,13 +3061,28 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         const targetClasses = selectedClasses;
-        const realStudents = allRealStudents.length > 0
+        let realStudents = allRealStudents.length > 0
             ? allRealStudents
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
 
+        if (realStudents.length === 0 || realStudents.length < 10) {
+            try {
+                const cached = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                               localStorage.getItem('eduai_student_enrollments') ||
+                               localStorage.getItem(`eduai_students_${instId}`) ||
+                               localStorage.getItem('eduai_students');
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > realStudents.length) {
+                        realStudents = parsed;
+                    }
+                }
+            } catch (e) {}
+        }
+
         const matchedStudents = realStudents.filter(st => {
             const cl = getStudentClass(st);
-            return isStudentInTargetClasses(cl, targetClasses);
+            return isStudentInTargetClasses(cl || st, targetClasses);
         });
 
         const studentCount = matchedStudents.length > 0 ? matchedStudents.length : broadsheetStudentRows.length;
@@ -2968,10 +3236,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (matchedStudents.length > 0) {
             freshRows = matchedStudents.map((st, idx) => ({
                 admNo: resolveCleanAdmNo(st, idx),
-                name: st.name || `Student ${idx + 1}`,
-                class: (st as any).studentClass || (st as any).classLevel || (st as any).class_name || (st as any).class || targetClasses[0],
+                name: resolveCleanStudentName(st, idx),
+                class: getStudentClass(st) || targetClasses[0],
                 mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0
             }));
+            newExam.studentsEnrolled = freshRows.length;
+            newExam.missingMarks = freshRows.length * (cleanTested.filter(p => p.enabled).length || 7);
         } else {
             targetClasses.forEach((cName, cIdx) => {
                 const sampleNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau'];

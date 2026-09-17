@@ -277,7 +277,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
     const [isRegistering, setIsRegistering] = useState(false);
     const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'found' | 'none'>('idle');
     const [customHostName, setCustomHostName] = useState('');
-    const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '', company: '' });
+    const [walkInForm, setWalkInForm] = useState({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', hostPhone: '', notifyHostSms: true, vehiclePlate: '', vehicleModel: '', company: '' });
     const [walkInSuccess, setWalkInSuccess] = useState(false);
     const [hostSearch, setHostSearch] = useState('');
     const [showHostDropdown, setShowHostDropdown] = useState(false);
@@ -466,6 +466,8 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 purpose: finalPurpose,
                 hostId: finalHostId,
                 hostName: finalHostName || undefined,
+                hostPhone: walkInForm.hostPhone || undefined,
+                notifyHostSms: walkInForm.notifyHostSms,
                 vehiclePlate: walkInForm.vehiclePlate.toUpperCase(),
                 vehicleModel: walkInForm.vehicleModel,
                 idNumber: walkInForm.idNumber,
@@ -584,7 +586,7 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                 const c = ref.current;
                 if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
             });
-            setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', vehiclePlate: '', vehicleModel: '', company: '' });
+            setWalkInForm({ name: '', phone: '', idNumber: '', purpose: '', hostId: '', hostPhone: '', notifyHostSms: true, vehiclePlate: '', vehicleModel: '', company: '' });
 
             // Show brief inline success toast instead of blocking alert
             setWalkInSuccess(true);
@@ -1824,7 +1826,11 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                                             type="button"
                                                             onMouseDown={(e) => e.preventDefault()}
                                                             onClick={() => {
-                                                                setWalkInForm({ ...walkInForm, hostId: u.id });
+                                                                setWalkInForm({
+                                                                    ...walkInForm,
+                                                                    hostId: u.id,
+                                                                    hostPhone: u.phoneNumber || (u as any).phone || (u as any).telephone || ''
+                                                                });
                                                                 setHostSearch(`${u.name} (${formatRoleDisplayName(u.role, props.currentInstitution)})`);
                                                                 setShowHostDropdown(false);
                                                             }}
@@ -1861,18 +1867,60 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                                 <input type="text" required value={walkInForm.hostId} onChange={() => {}} className="sr-only" aria-hidden />
                             </div>
                             {walkInForm.hostId === 'other_custom' && (
-                                <div className="animate-fade-in-up">
-                                    <label className="block text-[10px] font-black uppercase text-slate-450 mb-2 ml-1">Custom Host Name</label>
-                                    <input
-                                        type="text"
-                                        value={customHostName}
-                                        onChange={(e) => setCustomHostName(e.target.value)}
-                                        className="form-input"
-                                        placeholder="Type name of the person to see..."
-                                        required={walkInForm.hostId === 'other_custom'}
-                                    />
+                                <div className="grid grid-cols-2 gap-4 animate-fade-in-up">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Custom Host Name</label>
+                                        <input
+                                            type="text"
+                                            value={customHostName}
+                                            onChange={(e) => setCustomHostName(e.target.value)}
+                                            className="form-input"
+                                            placeholder="Type name of the person to see..."
+                                            required={walkInForm.hostId === 'other_custom'}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Host Phone Number (For SMS Alert)</label>
+                                        <input
+                                            type="tel"
+                                            value={walkInForm.hostPhone}
+                                            onChange={(e) => setWalkInForm({ ...walkInForm, hostPhone: e.target.value })}
+                                            className="form-input"
+                                            placeholder="e.g. 0712345678"
+                                        />
+                                    </div>
                                 </div>
                             )}
+
+                            {/* Host Arrival SMS Alert Checkbox & Summary */}
+                            <div className="p-3.5 bg-indigo-50/60 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5">
+                                    <input
+                                        type="checkbox"
+                                        id="walkin-notify-sms"
+                                        checked={walkInForm.notifyHostSms}
+                                        onChange={(e) => setWalkInForm({ ...walkInForm, notifyHostSms: e.target.checked })}
+                                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                                    />
+                                    <label htmlFor="walkin-notify-sms" className="text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer flex flex-wrap items-center gap-1.5">
+                                        <span>📱 Notify Host via SMS text on check-in</span>
+                                        {walkInForm.notifyHostSms && walkInForm.hostPhone && (
+                                            <span className="text-[10px] font-mono font-normal bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">
+                                                {walkInForm.hostPhone}
+                                            </span>
+                                        )}
+                                    </label>
+                                </div>
+                                {walkInForm.notifyHostSms && (!walkInForm.hostPhone || walkInForm.hostId === 'other_custom') && (
+                                    <input
+                                        type="tel"
+                                        placeholder="Enter host mobile phone..."
+                                        value={walkInForm.hostPhone}
+                                        onChange={(e) => setWalkInForm({ ...walkInForm, hostPhone: e.target.value })}
+                                        className="px-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl outline-none font-mono w-full sm:w-44"
+                                    />
+                                )}
+                            </div>
                             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 ml-1">Vehicle Plate (Optional)</label>

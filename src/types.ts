@@ -719,6 +719,8 @@ export interface Institution {
     kioskStatus?: 'active' | 'locked';
     visitorAutoFinalizeEnabled?: boolean;
     visitorAutoFinalizeTime?: string; // HH:MM, e.g. "18:00"
+    notifyHostOnVisitorArrival?: boolean; // Enable SMS notification to host upon visitor check-in
+    visitorArrivalSmsTemplate?: string; // Custom SMS message template for visitor arrival
     classExamConfigs?: any[];
     treeGradingNodes?: Record<string, any>;
     classTeacherCommentsConfig?: any[];
@@ -1781,6 +1783,8 @@ export interface Visitor {
     idNumber?: string;
     checkIn?: string;
     status?: string;
+    hostPhone?: string;
+    notifyHostSms?: boolean;
 }
 
 export interface Requisition {
@@ -6600,6 +6604,10 @@ export interface BuildingVisitorLog {
     securityNotes?: string;
     exitLoggedBy?: string;
     timeOut?: string;
+    hostId?: string;
+    hostName?: string;
+    hostPhone?: string;
+    notifyHostSms?: boolean;
     createdAt?: string;
 }
 

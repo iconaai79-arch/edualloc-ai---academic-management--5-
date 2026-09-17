@@ -383,7 +383,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
         kioskStatus: props.currentInstitution?.kioskStatus || 'active',
         visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? false,
-        visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00'
+        visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00',
+        notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? true,
+        visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || ''
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -415,7 +417,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 kioskSecurityPin: props.currentInstitution.kioskSecurityPin || '1234',
                 kioskStatus: props.currentInstitution.kioskStatus || 'active',
                 visitorAutoFinalizeEnabled: props.currentInstitution.visitorAutoFinalizeEnabled ?? false,
-                visitorAutoFinalizeTime: props.currentInstitution.visitorAutoFinalizeTime || '18:00'
+                visitorAutoFinalizeTime: props.currentInstitution.visitorAutoFinalizeTime || '18:00',
+                notifyHostOnVisitorArrival: props.currentInstitution.notifyHostOnVisitorArrival ?? true,
+                visitorArrivalSmsTemplate: props.currentInstitution.visitorArrivalSmsTemplate || ''
             });
         }
     }, [props.currentInstitution]);
@@ -513,7 +517,9 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
             kioskStatus: props.currentInstitution?.kioskStatus || 'active',
             visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? false,
-            visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00'
+            visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00',
+            notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? true,
+            visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || ''
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
@@ -4488,6 +4494,46 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Visitor Arrival SMS Notifications to Host */}
+                                    <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-4 mt-2 animate-fade-in">
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="checkbox"
+                                                id="notify-host-visitor-arrival"
+                                                checked={instProfile.notifyHostOnVisitorArrival}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, notifyHostOnVisitorArrival: e.target.checked })}
+                                                className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <div>
+                                                <label htmlFor="notify-host-visitor-arrival" className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                    📱 Notify Host via SMS upon Visitor Arrival
+                                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">Security Gate SMS</span>
+                                                </label>
+                                                <p className="text-xs text-slate-400">
+                                                    Automatically send an SMS text message to the staff member or office tenant as soon as a visitor checks in at the gate, checkpoint, or self-service kiosk.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {instProfile.notifyHostOnVisitorArrival && (
+                                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-fade-in">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-slate-500 mb-1">Custom SMS Message Template (Optional)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={instProfile.visitorArrivalSmsTemplate || ''}
+                                                        placeholder="Hi {host}, visitor {visitor} has arrived at the security gate for {purpose}. Tap here to authorize: {link}"
+                                                        onChange={(e) => setInstProfile({ ...instProfile, visitorArrivalSmsTemplate: e.target.value })}
+                                                        className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
+                                                    />
+                                                    <p className="text-[10px] text-slate-400 mt-1">Available placeholders: <code className="text-indigo-500 font-bold">{'{host}'}</code>, <code className="text-indigo-500 font-bold">{'{visitor}'}</code>, <code className="text-indigo-500 font-bold">{'{purpose}'}</code>, <code className="text-indigo-500 font-bold">{'{institution}'}</code>, <code className="text-indigo-500 font-bold">{'{link}'}</code></p>
+                                                </div>
+                                                <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 text-[11px] text-slate-600 dark:text-slate-300">
+                                                    Ensure your <strong>Institution SMS Gateway</strong> (Zettatel, Sematime, or ABMIS) has an active credit balance under the <em>SMS Gateway</em> settings tab.
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="mt-8 flex justify-end">
                                     <button onClick={handleSaveInstitutionProfile} className="btn-primary h-12 px-8 shadow-lg shadow-indigo-100">Synchronize Policies</button>
@@ -5110,6 +5156,18 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                     <div>
                                         <h3 className="text-xl font-black uppercase tracking-tight">Institution SMS Gateway</h3>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase">Override the system-wide gateway with your own credentials</p>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 flex items-start gap-3">
+                                    <InformationCircleIcon className="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" />
+                                    <div className="text-xs">
+                                        <p className="font-bold text-slate-800 dark:text-slate-200">Security Gate &amp; Visitor Arrival SMS Notifications</p>
+                                        <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                                            When visitors check in at Security, automatic SMS text messages are sent to the host via this gateway. You can toggle this on/off or customize the SMS template under{' '}
+                                            <button type="button" onClick={() => setGeneralSubTab('security_policy')} className="font-bold text-indigo-600 hover:underline">
+                                                Security Policy Settings &rarr;
+                                            </button>
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
