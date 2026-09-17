@@ -3,6 +3,7 @@ import { MpesaIcon } from './icons/MpesaIcon';
 import { NcbaIcon } from './icons/NcbaIcon';
 import type { MpesaConfig, TransactionStatus, NcbaConfig } from '../types';
 import { apiService } from '../services/apiService';
+import { formatPhoneNumber } from '../utils/stringUtils';
 
 interface BuySMSModalProps {
     isOpen: boolean;
@@ -74,8 +75,9 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
             return;
         }
 
-        if (!/^(254)\d{9}$/.test(phoneNumber)) {
-            alert('Please enter a valid phone number in the format 254xxxxxxxxx.');
+        const formattedPhone = formatPhoneNumber(phoneNumber);
+        if (!/^(254)\d{9}$/.test(formattedPhone)) {
+            alert('Please enter a valid phone number (e.g. 0725272487, 725272487, or 254725272487).');
             return;
         }
 
@@ -89,12 +91,12 @@ export const BuySMSModal: React.FC<BuySMSModalProps> = ({
                 institutionCode,
                 institutionName,
                 requesterId,
-                payerPhoneNumber: phoneNumber,
+                payerPhoneNumber: formattedPhone,
                 provider
             };
 
             const config = provider === 'mpesa' ? mpesaConfig : (provider === 'airtel' ? airtelMoneyConfig : (provider === 'ncba' ? ncbaConfig : intasendConfig));
-            const result: any = await apiService.initiatePayment(provider, calculatedTotal, phoneNumber, metadata, config);
+            const result: any = await apiService.initiatePayment(provider, calculatedTotal, formattedPhone, metadata, config);
 
             if (result.success && (result.data?.CheckoutRequestID || result.checkoutRequestId || result.url)) {
                 if (result.url) {

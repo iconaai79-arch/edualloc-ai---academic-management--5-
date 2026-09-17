@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { NcbaIcon } from './icons/NcbaIcon';
 import type { TransactionStatus, InvoiceItem, MpesaConfig, NcbaConfig } from '../types';
 import { apiService } from '../services/apiService';
+import { formatPhoneNumber } from '../utils/stringUtils';
 
 interface PayNowModalProps {
     isOpen?: boolean;
@@ -55,8 +55,9 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
     const isCompletedRef = React.useRef(false);
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!/^(254)\d{9}$/.test(phoneNumber)) {
-            alert('Please enter a valid phone number in the format 254xxxxxxxxx.');
+        const formattedPhone = formatPhoneNumber(phoneNumber);
+        if (!/^(254)\d{9}$/.test(formattedPhone)) {
+            alert('Please enter a valid phone number (e.g. 0725272487, 725272487, or 254725272487).');
             return;
         }
 
@@ -81,13 +82,13 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
 
             let initiateResult;
             if (provider === 'mpesa') {
-                initiateResult = await apiService.initiateMpesaPayment(amount, phoneNumber, metadata, mpesaConfig);
+                initiateResult = await apiService.initiateMpesaPayment(amount, formattedPhone, metadata, mpesaConfig);
             } else if (provider === 'airtel') {
-                initiateResult = await apiService.initiatePayment('airtel', amount, phoneNumber, metadata, airtelMoneyConfig);
+                initiateResult = await apiService.initiatePayment('airtel', amount, formattedPhone, metadata, airtelMoneyConfig);
             } else if (provider === 'ncba') {
-                initiateResult = await apiService.initiateNcbaPayment(amount, phoneNumber, metadata, ncbaConfig);
+                initiateResult = await apiService.initiateNcbaPayment(amount, formattedPhone, metadata, ncbaConfig);
             } else {
-                initiateResult = await apiService.initiatePayment('intasend', amount, phoneNumber, metadata, intasendConfig);
+                initiateResult = await apiService.initiatePayment('intasend', amount, formattedPhone, metadata, intasendConfig);
             }
 
             if (initiateResult.success && (initiateResult.data?.CheckoutRequestID || initiateResult.checkoutRequestId || initiateResult.url)) {

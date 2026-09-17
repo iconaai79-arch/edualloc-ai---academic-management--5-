@@ -1173,7 +1173,18 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     }, [users, currentInstitution?.id]);
 
     const students = useMemo(() => institutionUsers.filter(u => u.role === 'student'), [institutionUsers]);
-    const drivers = useMemo(() => institutionUsers.filter(u => u.role === 'driver' || u.roles?.includes('driver')), [institutionUsers]);
+    const drivers = useMemo(() => {
+        return institutionUsers.filter(u => {
+            const roleStr = String(u.role || '').toLowerCase();
+            const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
+            const jobTitleStr = String((u as any).jobTitle || '').toLowerCase();
+            return roleStr === 'driver' || 
+                   roleStr === 'county_driver' || 
+                   u.roles?.some(r => String(r).toLowerCase().includes('driver')) ||
+                   staffRoleStr.includes('driver') ||
+                   jobTitleStr.includes('driver');
+        });
+    }, [institutionUsers]);
     const assistants = useMemo(() => institutionUsers.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant') || u.role === 'staff'), [institutionUsers]);
 
     // Strictly scope courses and enrollments to current institution
@@ -1295,6 +1306,106 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         }
         return [];
     }, [dbVehicles, currentInstitution?.id]);
+
+    // Drivers selectable from support staff with driver role/designation, plus vehicle drivers
+    const availableDrivers = useMemo(() => {
+        const list: { id: string; name: string; detail?: string }[] = [];
+        const seenNames = new Set<string>();
+
+        // 1. Support staff list with the role driver
+        drivers.forEach(u => {
+            if (u.name && !seenNames.has(u.name.trim().toLowerCase())) {
+                seenNames.add(u.name.trim().toLowerCase());
+                const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
+                const roleLabel = staffRoleStr.includes('driver') ? 'Support Staff (Driver)' : 'Driver';
+                const detail = u.phoneNumber ? `${u.phoneNumber} • ${roleLabel}` : roleLabel;
+                list.push({ id: u.id, name: u.name.trim(), detail });
+            }
+        });
+
+        // 2. Also drivers linked to registered vehicles
+        availableVehicleOptions.forEach(v => {
+            if (v.driver && v.driver.trim() && !seenNames.has(v.driver.trim().toLowerCase()) && v.driver.trim().toUpperCase() !== 'TBD') {
+                seenNames.add(v.driver.trim().toLowerCase());
+                list.push({ id: `veh_drv_${v.id}`, name: v.driver.trim(), detail: `Vehicle: ${v.label}` });
+            }
+        });
+
+        // 3. Fallback demo drivers for demo institutions
+        if (list.length === 0 && currentInstitution?.id?.startsWith('demo_')) {
+            list.push(
+                { id: 'drv_demo_1', name: 'Douglas Omwamba', detail: '0712345678 • Driver' },
+                { id: 'drv_demo_2', name: 'James Kamau', detail: '0722345678 • Driver' }
+            );
+        }
+
+        return list;
+    }, [drivers, availableVehicleOptions, currentInstitution?.id]);
+
+    // Attendants: teachers & academic staff
+    const teacherAttendants = useMemo(() => {
+        const teacherRoles = ['teacher', 'head_teacher', 'deputy', 'dos', 'hod', 'lecturer', 'academics_officer', 'class_supervisor', 'instructor'];
+        const list: { id: string; name: string; detail?: string }[] = [];
+        const seenNames = new Set<string>();
+
+        institutionUsers.forEach(u => {
+            const roleStr = String(u.role || '').toLowerCase();
+            const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
+            const isTeacher = teacherRoles.includes(roleStr) || 
+                              u.roles?.some(r => teacherRoles.includes(String(r).toLowerCase())) ||
+                              teacherRoles.some(r => staffRoleStr.includes(r));
+
+            if (isTeacher && u.name && !seenNames.has(u.name.trim().toLowerCase())) {
+                seenNames.add(u.name.trim().toLowerCase());
+                const cleanRole = roleStr === 'teacher' ? 'Teacher' : (roleStr.replace(/_/g, ' ') || 'Teacher');
+                const detail = u.phoneNumber ? `${u.phoneNumber} • ${cleanRole}` : cleanRole;
+                list.push({ id: u.id, name: u.name.trim(), detail });
+            }
+        });
+
+        if (list.length === 0 && currentInstitution?.id?.startsWith('demo_')) {
+            list.push(
+                { id: 'tch_demo_1', name: 'Madam Beatrice Chebet', detail: 'Teacher' },
+                { id: 'tch_demo_2', name: 'Mr. David Kiprop', detail: 'Teacher' }
+            );
+        }
+
+        return list;
+    }, [institutionUsers, currentInstitution?.id]);
+
+    // Attendants: support staff & assistants
+    const supportAttendants = useMemo(() => {
+        const nonStaffRoles = ['student', 'parent', 'guardian', 'alumni', 'alumna', 'voter'];
+        const teacherRoles = ['teacher', 'head_teacher', 'deputy', 'dos', 'hod', 'lecturer', 'academics_officer', 'class_supervisor', 'instructor'];
+        const list: { id: string; name: string; detail?: string }[] = [];
+        const seenNames = new Set<string>();
+
+        institutionUsers.forEach(u => {
+            const roleStr = String(u.role || '').toLowerCase();
+            if (nonStaffRoles.includes(roleStr)) return;
+            const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
+            const isTeacher = teacherRoles.includes(roleStr) || 
+                              u.roles?.some(r => teacherRoles.includes(String(r).toLowerCase())) ||
+                              teacherRoles.some(r => staffRoleStr.includes(r));
+            if (isTeacher) return;
+
+            if (u.name && !seenNames.has(u.name.trim().toLowerCase())) {
+                seenNames.add(u.name.trim().toLowerCase());
+                const staffLabel = (u as any).staffRole || ((u.role as string) === 'staff' ? 'Support Staff' : String(u.role || 'Staff').replace(/_/g, ' '));
+                const detail = u.phoneNumber ? `${u.phoneNumber} • ${staffLabel}` : staffLabel;
+                list.push({ id: u.id, name: u.name.trim(), detail });
+            }
+        });
+
+        if (list.length === 0 && currentInstitution?.id?.startsWith('demo_')) {
+            list.push(
+                { id: 'att_demo_1', name: 'Sarah Wanjiku', detail: 'Support Staff' },
+                { id: 'att_demo_2', name: 'Mary Atieno', detail: 'Transport Assistant' }
+            );
+        }
+
+        return list;
+    }, [institutionUsers, currentInstitution?.id]);
 
     const displayStudents = useMemo(() => {
         const rawStudents = students.length > 0 ? students : (currentInstitution?.id?.startsWith('demo_') ? [
@@ -1970,7 +2081,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                                 const val = e.target.value;
                                                                 setNewRouteBus(val);
                                                                 const matched = availableVehicleOptions.find(o => o.label === val || o.plate === val);
-                                                                if (matched?.driver && !newRouteDriver) {
+                                                                if (matched?.driver && (!newRouteDriver || newRouteDriver === 'TBD')) {
                                                                     setNewRouteDriver(matched.driver);
                                                                 }
                                                             }}
@@ -1996,23 +2107,76 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Driver</label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={newRouteDriver}
-                                                        onChange={e => setNewRouteDriver(e.target.value)}
-                                                        placeholder="Douglas Omwamba"
-                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
-                                                    />
+                                                    {availableDrivers.length > 0 ? (
+                                                        <select 
+                                                            value={newRouteDriver}
+                                                            onChange={e => setNewRouteDriver(e.target.value)}
+                                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                        >
+                                                            <option value="">Select driver from support staff...</option>
+                                                            <option value="TBD">TBD (To Be Determined)</option>
+                                                            {newRouteDriver && newRouteDriver !== 'TBD' && !availableDrivers.some(d => d.name.toLowerCase() === newRouteDriver.toLowerCase()) && (
+                                                                <option value={newRouteDriver}>{newRouteDriver}</option>
+                                                            )}
+                                                            {availableDrivers.map(d => (
+                                                                <option key={d.id} value={d.name}>
+                                                                    {d.name} {d.detail ? `(${d.detail})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <input 
+                                                            type="text" 
+                                                            value={newRouteDriver}
+                                                            onChange={e => setNewRouteDriver(e.target.value)}
+                                                            placeholder="Douglas Omwamba"
+                                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                        />
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Attendant</label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={newRouteAttendant}
-                                                        onChange={e => setNewRouteAttendant(e.target.value)}
-                                                        placeholder="Sarah Wanjiku"
-                                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
-                                                    />
+                                                    {(teacherAttendants.length > 0 || supportAttendants.length > 0) ? (
+                                                        <select 
+                                                            value={newRouteAttendant}
+                                                            onChange={e => setNewRouteAttendant(e.target.value)}
+                                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                        >
+                                                            <option value="">Select attendant (Teacher or Support Staff)...</option>
+                                                            <option value="TBD">TBD (To Be Determined)</option>
+                                                            {newRouteAttendant && newRouteAttendant !== 'TBD' && 
+                                                             !teacherAttendants.some(t => t.name.toLowerCase() === newRouteAttendant.toLowerCase()) && 
+                                                             !supportAttendants.some(s => s.name.toLowerCase() === newRouteAttendant.toLowerCase()) && (
+                                                                <option value={newRouteAttendant}>{newRouteAttendant}</option>
+                                                            )}
+                                                            {teacherAttendants.length > 0 && (
+                                                                <optgroup label="Teachers & Academic Staff">
+                                                                    {teacherAttendants.map(t => (
+                                                                        <option key={t.id} value={t.name}>
+                                                                            {t.name} {t.detail ? `(${t.detail})` : ''}
+                                                                        </option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            )}
+                                                            {supportAttendants.length > 0 && (
+                                                                <optgroup label="Support Staff & Assistants">
+                                                                    {supportAttendants.map(s => (
+                                                                        <option key={s.id} value={s.name}>
+                                                                            {s.name} {s.detail ? `(${s.detail})` : ''}
+                                                                        </option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            )}
+                                                        </select>
+                                                    ) : (
+                                                        <input 
+                                                            type="text" 
+                                                            value={newRouteAttendant}
+                                                            onChange={e => setNewRouteAttendant(e.target.value)}
+                                                            placeholder="Sarah Wanjiku"
+                                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs"
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
