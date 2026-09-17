@@ -1172,20 +1172,43 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         });
     }, [users, currentInstitution?.id]);
 
+    // Safe helper to check roles whether u.roles is an array, a string, or undefined
+    const hasAnyRole = (u: any, targetRoles: string[]): boolean => {
+        if (!u) return false;
+        const roleStr = String(u.role || '').toLowerCase();
+        if (targetRoles.some(tr => tr === roleStr)) return true;
+
+        if (Array.isArray(u.roles)) {
+            if (u.roles.some(r => targetRoles.includes(String(r).toLowerCase()))) return true;
+        } else if (typeof u.roles === 'string' && u.roles.trim()) {
+            const raw = u.roles.toLowerCase();
+            if (targetRoles.some(tr => raw.includes(tr))) return true;
+        }
+
+        const staffRoleStr = String(u.staffRole || u.metadata?.staffRole || '').toLowerCase();
+        if (staffRoleStr && targetRoles.some(tr => staffRoleStr.includes(tr))) return true;
+
+        const jobTitleStr = String(u.jobTitle || u.metadata?.jobTitle || '').toLowerCase();
+        if (jobTitleStr && targetRoles.some(tr => jobTitleStr.includes(tr))) return true;
+
+        return false;
+    };
+
     const students = useMemo(() => institutionUsers.filter(u => u.role === 'student'), [institutionUsers]);
     const drivers = useMemo(() => {
         return institutionUsers.filter(u => {
             const roleStr = String(u.role || '').toLowerCase();
-            const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
-            const jobTitleStr = String((u as any).jobTitle || '').toLowerCase();
             return roleStr === 'driver' || 
                    roleStr === 'county_driver' || 
-                   u.roles?.some(r => String(r).toLowerCase().includes('driver')) ||
-                   staffRoleStr.includes('driver') ||
-                   jobTitleStr.includes('driver');
+                   hasAnyRole(u, ['driver', 'county_driver']);
         });
     }, [institutionUsers]);
-    const assistants = useMemo(() => institutionUsers.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant') || u.role === 'staff'), [institutionUsers]);
+    const assistants = useMemo(() => institutionUsers.filter(u => {
+        const roleStr = String(u.role || '').toLowerCase();
+        return roleStr === 'transport_assistant' || 
+               roleStr === 'staff' || 
+               hasAnyRole(u, ['transport_assistant', 'assistant']);
+    }), [institutionUsers]);
 
     // Strictly scope courses and enrollments to current institution
     const institutionCourses = useMemo(() => {
@@ -1349,14 +1372,11 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         const seenNames = new Set<string>();
 
         institutionUsers.forEach(u => {
-            const roleStr = String(u.role || '').toLowerCase();
-            const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
-            const isTeacher = teacherRoles.includes(roleStr) || 
-                              u.roles?.some(r => teacherRoles.includes(String(r).toLowerCase())) ||
-                              teacherRoles.some(r => staffRoleStr.includes(r));
+            const isTeacher = hasAnyRole(u, teacherRoles);
 
             if (isTeacher && u.name && !seenNames.has(u.name.trim().toLowerCase())) {
                 seenNames.add(u.name.trim().toLowerCase());
+                const roleStr = String(u.role || '').toLowerCase();
                 const cleanRole = roleStr === 'teacher' ? 'Teacher' : (roleStr.replace(/_/g, ' ') || 'Teacher');
                 const detail = u.phoneNumber ? `${u.phoneNumber} • ${cleanRole}` : cleanRole;
                 list.push({ id: u.id, name: u.name.trim(), detail });
@@ -1383,11 +1403,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         institutionUsers.forEach(u => {
             const roleStr = String(u.role || '').toLowerCase();
             if (nonStaffRoles.includes(roleStr)) return;
-            const staffRoleStr = String((u as any).staffRole || (u as any).metadata?.staffRole || '').toLowerCase();
-            const isTeacher = teacherRoles.includes(roleStr) || 
-                              u.roles?.some(r => teacherRoles.includes(String(r).toLowerCase())) ||
-                              teacherRoles.some(r => staffRoleStr.includes(r));
-            if (isTeacher) return;
+            if (hasAnyRole(u, teacherRoles)) return;
 
             if (u.name && !seenNames.has(u.name.trim().toLowerCase())) {
                 seenNames.add(u.name.trim().toLowerCase());
@@ -2115,10 +2131,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                         >
                                                             <option value="">Select driver from support staff...</option>
                                                             <option value="TBD">TBD (To Be Determined)</option>
-                                                            {newRouteDriver && newRouteDriver !== 'TBD' && !availableDrivers.some(d => d.name.toLowerCase() === newRouteDriver.toLowerCase()) && (
+                                                            {newRouteDriver && newRouteDriver !== 'TBD' && !availableDrivers?.some(d => String(d?.name || '').toLowerCase() === newRouteDriver.toLowerCase()) && (
                                                                 <option value={newRouteDriver}>{newRouteDriver}</option>
                                                             )}
-                                                            {availableDrivers.map(d => (
+                                                            {availableDrivers?.map(d => (
                                                                 <option key={d.id} value={d.name}>
                                                                     {d.name} {d.detail ? `(${d.detail})` : ''}
                                                                 </option>
@@ -2136,7 +2152,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                 </div>
                                                 <div>
                                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Attendant</label>
-                                                    {(teacherAttendants.length > 0 || supportAttendants.length > 0) ? (
+                                                    {((teacherAttendants?.length || 0) > 0 || (supportAttendants?.length || 0) > 0) ? (
                                                         <select 
                                                             value={newRouteAttendant}
                                                             onChange={e => setNewRouteAttendant(e.target.value)}
@@ -2145,8 +2161,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                             <option value="">Select attendant (Teacher or Support Staff)...</option>
                                                             <option value="TBD">TBD (To Be Determined)</option>
                                                             {newRouteAttendant && newRouteAttendant !== 'TBD' && 
-                                                             !teacherAttendants.some(t => t.name.toLowerCase() === newRouteAttendant.toLowerCase()) && 
-                                                             !supportAttendants.some(s => s.name.toLowerCase() === newRouteAttendant.toLowerCase()) && (
+                                                             !teacherAttendants?.some(t => String(t?.name || '').toLowerCase() === newRouteAttendant.toLowerCase()) && 
+                                                             !supportAttendants?.some(s => String(s?.name || '').toLowerCase() === newRouteAttendant.toLowerCase()) && (
                                                                 <option value={newRouteAttendant}>{newRouteAttendant}</option>
                                                             )}
                                                             {teacherAttendants.length > 0 && (
