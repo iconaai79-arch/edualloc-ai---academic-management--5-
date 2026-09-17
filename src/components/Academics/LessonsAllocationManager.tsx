@@ -14,7 +14,7 @@ import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../../utils/academicSubjectUtils';
-import { extractClassAndStream, normalizeStreamName } from '../../utils/academicUtils';
+import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream } from '../../utils/academicUtils';
 import { extractStreamOnly } from './BroadsheetReportView';
 
 /**
@@ -310,17 +310,81 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 } catch(e) {}
 
                 const map = new Map<string, any>();
+                const admToKeyMap = new Map<string, string>();
+                const userToKeyMap = new Map<string, string>();
+
                 combined.forEach(st => {
-                    if (!st) return;
-                    const idKey = String(st.id || st.userId || st.admissionNumber || st.admissionNo || st.admNo || '').trim();
+                    if (!st || typeof st !== 'object') return;
                     const role = st.role || (st.roles && st.roles[0]) || 'student';
                     const isStudent = role === 'student' || Boolean(st.studentClass) || Boolean(st.admissionNumber) || Boolean(st.admissionNo) || Boolean(st.admNo) || Boolean(st.metadata?.gradeLevel) || Boolean(st.metadata?.studentClass);
-                    if (idKey && isStudent && !map.has(idKey.toLowerCase())) {
-                        map.set(idKey.toLowerCase(), st);
+                    if (!isStudent) return;
+
+                    const adm = String(st.admissionNumber || st.admissionNo || st.admNo || st.metadata?.admissionNumber || '').toLowerCase().trim();
+                    const uId = String(st.userId || st.user_id || '').toLowerCase().trim();
+                    const id = String(st.id || '').toLowerCase().trim();
+
+                    // Find existing canonical key across admission number, userId, and record id
+                    let existingKey: string | null = null;
+                    if (adm && admToKeyMap.has(adm)) {
+                        existingKey = admToKeyMap.get(adm)!;
+                    } else if (uId && userToKeyMap.has(uId)) {
+                        existingKey = userToKeyMap.get(uId)!;
+                    } else if (id && userToKeyMap.has(id)) {
+                        existingKey = userToKeyMap.get(id)!;
+                    } else if (id && map.has(id)) {
+                        existingKey = id;
+                    } else if (uId && map.has(uId)) {
+                        existingKey = uId;
+                    }
+
+                    const canonicalKey = existingKey || id || uId || adm || `st_${map.size}`;
+                    const existing = map.get(canonicalKey);
+
+                    // Extract and normalize stream
+                    const extractedStreamFromClass = extractClassAndStream(st.studentClass || st.classLevel || st.class_name || st.class || st.metadata?.studentClass).stream ||
+                        extractStreamOnly(st.studentClass || st.classLevel || st.class_name || st.class || st.metadata?.studentClass);
+                    
+                    const resolvedFromEnr = resolveRealStudentStream(st, combined);
+
+                    const rawStream = resolvedFromEnr ||
+                        st.stream || st.streamName || st.stream_name || st.classStream || st.class_stream ||
+                        st.level || st.levelName || st.courseLevel ||
+                        st.metadata?.stream || st.metadata?.streamName || st.metadata?.classStream ||
+                        extractedStreamFromClass ||
+                        (existing ? (existing.stream || existing.streamName || existing.metadata?.stream) : '');
+
+                    const cleanStream = rawStream ? normalizeStreamName(String(rawStream)) : '';
+
+                    // Extract studentClass
+                    const rawClass = st.studentClass || st.classLevel || st.class_name || st.class || st.metadata?.studentClass || st.metadata?.gradeLevel || (existing ? (existing.studentClass || existing.classLevel) : '');
+
+                    const merged = {
+                        ...(existing || {}),
+                        ...st,
+                        id: (existing && existing.id) || st.id || st.userId || canonicalKey,
+                        userId: st.userId || st.user_id || (existing && existing.userId) || st.id,
+                        admissionNumber: st.admissionNumber || st.admissionNo || st.admNo || (existing && existing.admissionNumber) || '',
+                        stream: cleanStream || (existing && existing.stream) || '',
+                        streamName: cleanStream || (existing && existing.streamName) || '',
+                        studentClass: rawClass || (existing && existing.studentClass) || '',
+                        metadata: {
+                            ...(existing?.metadata || {}),
+                            ...(st.metadata || {}),
+                            stream: cleanStream || existing?.metadata?.stream || '',
+                            gradeLevel: st.metadata?.gradeLevel || existing?.metadata?.gradeLevel || ''
+                        }
+                    };
+
+                    map.set(canonicalKey, merged);
+                    if (adm) admToKeyMap.set(adm, canonicalKey);
+                    if (uId) userToKeyMap.set(uId, canonicalKey);
+                    if (id) {
+                        map.set(id, merged);
+                        userToKeyMap.set(id, canonicalKey);
                     }
                 });
 
-                const uniqueList = Array.from(map.values());
+                const uniqueList = Array.from(new Set(map.values()));
                 if (uniqueList.length > 0) {
                     setAllRegisteredStudents(uniqueList);
                 }
@@ -370,11 +434,17 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         const targetClean = clsName.toLowerCase().trim();
         const targetNumber = targetClean.replace(/^(form|grade|class|year)\s*/i, '').trim();
 
-        // 1. Build rapid User Map for cross-referencing userId
+        // 1. Build rapid User Map & Adm Map for cross-referencing
         const userMap = new Map<string, any>();
+        const admMap = new Map<string, any>();
         [...users, ...allRegisteredStudents].forEach(u => {
-            if (u && u.id) userMap.set(String(u.id).toLowerCase().trim(), u);
-            if (u && u.userId) userMap.set(String(u.userId).toLowerCase().trim(), u);
+            if (!u) return;
+            const uId = String(u.id || '').toLowerCase().trim();
+            const userId = String(u.userId || u.user_id || '').toLowerCase().trim();
+            const adm = String(u.admissionNumber || u.admissionNo || u.admNo || u.metadata?.admissionNumber || '').toLowerCase().trim();
+            if (uId) userMap.set(uId, u);
+            if (userId) userMap.set(userId, u);
+            if (adm) admMap.set(adm, u);
         });
 
         // Helper to validate student names
@@ -465,12 +535,48 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     resolvedName = `Student ${admNo}`;
                 }
 
+                // Cross-reference linked record to ensure stream is never lost
+                const sAdm = admNo.toLowerCase().trim();
+                const sId = String(s.id || '').toLowerCase().trim();
+                const sUId = String(s.userId || s.user_id || '').toLowerCase().trim();
+                const linked = (sId && userMap.get(sId)) || (sUId && userMap.get(sUId)) || (sAdm && admMap.get(sAdm)) || null;
+
+                const rawStream = s.stream ||
+                                  s.streamName ||
+                                  s.classStream ||
+                                  s.stream_name ||
+                                  s.level ||
+                                  s.levelName ||
+                                  s.courseLevel ||
+                                  s.metadata?.stream ||
+                                  s.metadata?.streamName ||
+                                  s.metadata?.classStream ||
+                                  extractClassAndStream(s.studentClass || s.classLevel || s.class_name || s.class || s.metadata?.studentClass).stream ||
+                                  extractStreamOnly(s.studentClass || s.classLevel || s.class_name || s.class || s.metadata?.studentClass, clsName) ||
+                                  linked?.stream ||
+                                  linked?.streamName ||
+                                  linked?.metadata?.stream ||
+                                  extractClassAndStream(linked?.studentClass).stream ||
+                                  extractStreamOnly(linked?.studentClass, clsName) ||
+                                  '';
+
+                const resolvedStream = (resolveRealStudentStream(s, allRegisteredStudents) ||
+                                        (linked ? resolveRealStudentStream(linked, allRegisteredStudents) : '') ||
+                                        (rawStream ? normalizeStreamName(String(rawStream)) : '')).toUpperCase().trim();
+
                 return {
                     id: String(s.id || s.userId || `st_${idx}`),
                     name: resolvedName,
                     admissionNumber: admNo,
                     gender: s.gender || s.metadata?.gender || 'Student',
-                    studentClass: clsName
+                    stream: resolvedStream,
+                    streamName: resolvedStream,
+                    studentClass: resolvedStream ? `${clsName} ${resolvedStream}` : (s.studentClass || clsName),
+                    metadata: {
+                        ...(s.metadata || {}),
+                        stream: resolvedStream,
+                        gradeLevel: clsName
+                    }
                 };
             });
         }
@@ -508,6 +614,39 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         ];
     }, [allRegisteredStudents, users, registryNameMap]);
 
+    // Stream helper functions for consistent student stream matching across tabs
+    const getStudentStream = useCallback((student: any, baseClassName?: string): string => {
+        if (!student) return '';
+        const resolved = resolveRealStudentStream(student);
+        if (resolved) return normalizeStreamName(resolved).toUpperCase();
+
+        const direct = String(student.stream || student.streamName || student.metadata?.stream || '').trim();
+        if (direct) return normalizeStreamName(direct).toUpperCase();
+
+        const sClass = String(student.studentClass || student.classLevel || student.metadata?.studentClass || '').trim();
+        if (sClass) {
+            const fromExtract = extractStreamOnly(sClass, baseClassName);
+            if (fromExtract) return normalizeStreamName(fromExtract).toUpperCase();
+            const parsed = extractClassAndStream(sClass);
+            if (parsed.stream) return normalizeStreamName(parsed.stream).toUpperCase();
+        }
+        return '';
+    }, []);
+
+    const isStudentInStream = useCallback((student: any, targetStream: string, baseClassName?: string): boolean => {
+        if (!student || !targetStream) return false;
+        if (targetStream.toLowerCase().trim() === 'all') return true;
+
+        const cleanTarget = targetStream.toUpperCase().trim();
+        const stStream = getStudentStream(student, baseClassName);
+
+        if (cleanTarget === 'UNASSIGNED') {
+            return !stStream;
+        }
+
+        return stStream === cleanTarget || stStream === cleanTarget.replace(/^STREAM\s+/i, '');
+    }, [getStudentStream]);
+
     // Handle Toggling Student Subject Enrollment (Auto-enrolled by default unless exempted)
     const handleToggleStudentEnrollment = async (studentId: string, subjectName: string, currentlyEnrolled: boolean) => {
         const key = `${studentId}_${subjectName.toLowerCase().trim()}`;
@@ -538,9 +677,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
-    // Handle Resetting All Students in Class to Default Enrolled
-    const handleResetAllToDefault = async (clsName: string, targetSubjectName?: string) => {
-        const studentsInCls = getStudentsForClass(clsName);
+    // Handle Resetting All Students in Class to Default Enrolled (optionally scoped to a specific stream)
+    const handleResetAllToDefault = async (clsName: string, targetSubjectName?: string, targetStream?: string) => {
+        const allStudentsInCls = getStudentsForClass(clsName);
+        const studentsInCls = (targetStream && targetStream.toLowerCase() !== 'all')
+            ? allStudentsInCls.filter(s => isStudentInStream(s, targetStream, clsName))
+            : allStudentsInCls;
         const studentIds = new Set(studentsInCls.map(s => s.id));
 
         setExemptionsStore(prev => {
@@ -562,7 +704,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         });
 
         window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'enrollment_reset' } }));
-        setSaveToast(`Reset all students in ${clsName} to Default Auto-Enrolled`);
+        const streamLabel = (targetStream && targetStream.toLowerCase() !== 'all') ? ` (${targetStream} Stream)` : '';
+        setSaveToast(`Reset all students in ${clsName}${streamLabel} to Default Auto-Enrolled`);
         setTimeout(() => setSaveToast(null), 3000);
     };
 
@@ -1001,7 +1144,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
     // Automatically reset selectedStream to 'all' when switching to a class that does not have that stream assigned
     useEffect(() => {
-        if (selectedStream !== 'all') {
+        if (selectedStream !== 'all' && selectedStream !== 'unassigned') {
             const hasStream = availableStreamsForClass.some(s => s.toLowerCase() === selectedStream.toLowerCase());
             if (!hasStream) {
                 setSelectedStream('all');
@@ -1829,14 +1972,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             {viewMode === 'student_enrollment' && (() => {
                 const rawClassStudents = getStudentsForClass(selectedClass);
                 const classStudents = isStreamSpecific
-                    ? rawClassStudents.filter(st => {
-                        const targetStr = selectedStream.toLowerCase().trim();
-                        const sClass = (st.studentClass || '').toLowerCase().trim();
-                        const sStream = extractStreamOnly(sClass, selectedClass).toLowerCase().trim() || ((st as any).stream ? String((st as any).stream).toLowerCase().trim() : '');
-                        return sStream === targetStr || extractClassAndStream(sClass).stream?.toLowerCase().trim() === targetStr;
-                    })
+                    ? rawClassStudents.filter(st => isStudentInStream(st, selectedStream, selectedClass))
                     : rawClassStudents;
-                const classApplicableSubjects = getApplicableSubjectsForClass(selectedClass);
+                const classApplicableSubjects = getApplicableSubjectsForClass(
+                    isStreamSpecific ? `${selectedClass} ${selectedStream}` : selectedClass
+                );
 
                 // Filter displayed subjects based on selection
                 const displayedSubjects = enrollmentSelectedSubject === 'all'
@@ -1885,7 +2025,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                         Automatic Class Subject Enrollment
                                     </h3>
                                     <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                                        By default, every subject assigned to <strong className="text-emerald-300 font-bold">{selectedClass}</strong> automatically enrolls all <strong className="text-white font-bold">{classStudents.length} students</strong> in that class stream. Teachers can click <strong className="text-rose-300">"De-enroll"</strong> on specific students to grant subject exemptions or manage opt-out electives.
+                                        By default, every subject assigned to <strong className="text-emerald-300 font-bold">{selectedClass}{isStreamSpecific ? ` (${selectedStream} Stream)` : ''}</strong> automatically enrolls all <strong className="text-white font-bold">{classStudents.length} students</strong> in that class stream. Teachers can click <strong className="text-rose-300">"De-enroll"</strong> on specific students to grant subject exemptions or manage opt-out electives.
                                     </p>
                                 </div>
                             </div>
@@ -1893,7 +2033,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
                                 <button
                                     type="button"
-                                    onClick={() => handleResetAllToDefault(selectedClass, enrollmentSelectedSubject)}
+                                    onClick={() => handleResetAllToDefault(selectedClass, enrollmentSelectedSubject, selectedStream)}
                                     className="w-full md:w-auto px-5 py-3 bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95"
                                 >
                                     <ArrowPathIcon className="w-4 h-4 text-emerald-400" /> Reset All to Default Enrolled
@@ -1947,11 +2087,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 All Streams ({rawClassStudents.length})
                             </button>
                             {availableStreamsForClass.map(st => {
-                                const isSel = selectedStream.toLowerCase() === st.toLowerCase();
-                                const countInStream = rawClassStudents.filter(s => {
-                                    const strClean = extractStreamOnly(s.studentClass || '', selectedClass).toLowerCase().trim() || ((s as any).stream ? String((s as any).stream).toLowerCase().trim() : '');
-                                    return strClean === st.toLowerCase().trim() || extractClassAndStream(s.studentClass || '').stream?.toLowerCase().trim() === st.toLowerCase().trim();
-                                }).length;
+                                const isSel = selectedStream.toLowerCase().trim() === st.toLowerCase().trim();
+                                const countInStream = rawClassStudents.filter(s => isStudentInStream(s, st, selectedClass)).length;
                                 return (
                                     <button
                                         key={st}
@@ -1970,6 +2107,29 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                     </button>
                                 );
                             })}
+                            {(() => {
+                                const unassignedCount = rawClassStudents.filter(s => !getStudentStream(s, selectedClass)).length;
+                                if (unassignedCount > 0 && availableStreamsForClass.length > 0) {
+                                    const isSel = selectedStream.toLowerCase().trim() === 'unassigned';
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedStream('unassigned')}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                isSel
+                                                    ? 'bg-amber-600 text-white shadow-sm'
+                                                    : 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 hover:border-amber-400'
+                                            }`}
+                                        >
+                                            <span>Unassigned</span>
+                                            <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isSel ? 'bg-amber-700 text-amber-100' : 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300'}`}>
+                                                {unassignedCount}
+                                            </span>
+                                        </button>
+                                    );
+                                }
+                                return null;
+                            })()}
                             {availableStreamsForClass.length === 0 && (
                                 <span className="text-[11px] font-bold text-slate-400 italic px-2">
                                     (No streams assigned to {selectedClass})
@@ -2030,10 +2190,10 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/40 flex-wrap gap-4">
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
-                                        <UserGroupIcon className="w-5 h-5 text-indigo-500" /> {selectedClass} Student Subject Registry
+                                        <UserGroupIcon className="w-5 h-5 text-indigo-500" /> {selectedClass}{isStreamSpecific ? ` (${selectedStream} Stream)` : ''} Student Subject Registry
                                     </h3>
                                     <p className="text-xs text-slate-500">
-                                        Showing {filteredStudents.length} student(s) in {selectedClass}. Default status is <span className="font-bold text-emerald-600 dark:text-emerald-400">Enrolled (Auto)</span>.
+                                        Showing {filteredStudents.length} student(s) in {selectedClass}{isStreamSpecific ? ` (${selectedStream} Stream)` : ''}. Default status is <span className="font-bold text-emerald-600 dark:text-emerald-400">Enrolled (Auto)</span>.
                                     </p>
                                 </div>
 
@@ -2088,8 +2248,15 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                                                     {st.name.charAt(0)}
                                                                 </div>
                                                                 <div>
-                                                                    <div className="font-black text-slate-900 dark:text-white">{st.name}</div>
-                                                                    <div className="text-[10px] text-slate-400 font-mono">{st.gender || 'Student'}</div>
+                                                                    <div className="font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                        <span>{st.name}</span>
+                                                                        {st.stream && (
+                                                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                                                                                {st.stream}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400 font-mono">{st.gender || 'Student'} • {st.studentClass}</div>
                                                                 </div>
                                                             </div>
                                                         </td>

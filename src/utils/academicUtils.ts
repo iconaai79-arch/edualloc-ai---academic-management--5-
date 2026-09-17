@@ -695,9 +695,15 @@ export const resolveRealStudentStream = (
         student.stream,
         student.streamName,
         student.stream_name,
+        student.classStream,
+        student.class_stream,
+        student.level,
+        student.levelName,
+        student.courseLevel,
         student.metadata?.stream,
         student.metadata?.streamName,
-        student.metadata?.stream_name
+        student.metadata?.stream_name,
+        student.metadata?.classStream
     ];
 
     for (const val of streamCandidates) {
@@ -713,7 +719,8 @@ export const resolveRealStudentStream = (
         student.grade_level,
         student.studentClass,
         student.metadata?.className,
-        student.metadata?.gradeLevel
+        student.metadata?.gradeLevel,
+        student.metadata?.studentClass
     ];
     for (const val of classCandidates) {
         const parsed = extractClassAndStream(val);
@@ -722,16 +729,33 @@ export const resolveRealStudentStream = (
 
     // Check enrollments
     if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
-        const sId = student.id || student.userId || student.user_id;
-        const enr = enrollments.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
+        const sId = String(student.id || student.userId || student.user_id || '').toLowerCase().trim();
+        const sAdm = String(student.admissionNumber || student.admissionNo || student.admNo || student.metadata?.admissionNumber || '').toLowerCase().trim();
+
+        const enr = enrollments.find((e: any) => {
+            if (!e) return false;
+            const eId = String(e.id || '').toLowerCase().trim();
+            const eUId = String(e.userId || e.user_id || '').toLowerCase().trim();
+            const eSId = String(e.studentId || e.student_id || '').toLowerCase().trim();
+            const eAdm = String(e.admissionNumber || e.admissionNo || e.admNo || e.metadata?.admissionNumber || '').toLowerCase().trim();
+
+            return (sId && (eUId === sId || eSId === sId || eId === sId)) ||
+                   (sAdm && eAdm === sAdm);
+        });
+
         if (enr) {
             const enrStreamCandidates = [
                 enr.stream,
                 enr.streamName,
                 enr.stream_name,
+                enr.classStream,
+                enr.class_stream,
+                enr.level,
+                enr.levelName,
                 enr.metadata?.stream,
                 enr.metadata?.streamName,
-                enr.metadata?.stream_name
+                enr.metadata?.stream_name,
+                enr.metadata?.classStream
             ];
             for (const val of enrStreamCandidates) {
                 const st = normalizeStreamName(val);
@@ -742,8 +766,10 @@ export const resolveRealStudentStream = (
                 enr.class_name,
                 enr.gradeLevel,
                 enr.grade_level,
+                enr.studentClass,
                 enr.metadata?.className,
-                enr.metadata?.gradeLevel
+                enr.metadata?.gradeLevel,
+                enr.metadata?.studentClass
             ];
             for (const val of enrClassCandidates) {
                 const parsed = extractClassAndStream(val);
