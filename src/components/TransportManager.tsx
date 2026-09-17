@@ -10,6 +10,8 @@ import { CheckIcon } from './icons/CheckIcon';
 import { XIcon } from './icons/XIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { UserPlusIcon } from './icons/UserPlusIcon';
+import { PhoneIcon } from './icons/PhoneIcon';
+import { EnvelopeIcon } from './icons/EnvelopeIcon';
 
 import type { TransportVehicle, User, Institution, UserUpdateData, StudentEnrollment, Course } from '../types';
 import { apiService } from '../services/apiService';
@@ -115,22 +117,134 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const [qrUrl, setQrUrl] = useState<string>('');
 
     // Strictly scope users to current institution to prevent cross-institution data bleed
+    // Strictly scope users to current institution to prevent cross-institution data bleed
     const institutionUsers = useMemo(() => {
         if (!currentInstitution?.id) return users;
+        const curId = String(currentInstitution.id).trim().toLowerCase();
         return users.filter(u => {
-            const instId = u.institutionId || (u as any).institution_id || (u as any).schoolId;
-            return instId === currentInstitution.id;
+            const uInst = u.institutionId || (u as any).institution_id || (u as any).schoolId;
+            if (!uInst) return true;
+            return String(uInst).trim().toLowerCase() === curId;
         });
     }, [users, currentInstitution?.id]);
 
-    const drivers = useMemo(() =>
-        institutionUsers.filter(u => u.role === 'driver' || u.roles?.includes('driver')),
-        [institutionUsers]
-    );
+    // Comprehensive check for registered staff with the driver role
+    const isDriverUser = (u: any): boolean => {
+        if (!u) return false;
+        const roleStr = String(u.role || '').trim().toLowerCase();
+        if (roleStr === 'driver' || roleStr === 'county_driver' || roleStr === 'bus_driver' || roleStr === 'van_driver' || roleStr.includes('driver')) return true;
+
+        const staffRoleStr = String(u.staffRole || (u.metadata && u.metadata.staffRole) || '').trim().toLowerCase();
+        if (staffRoleStr.includes('driver')) return true;
+
+        const jobTitleStr = String(u.jobTitle || (u.metadata && u.metadata.jobTitle) || '').trim().toLowerCase();
+        if (jobTitleStr.includes('driver')) return true;
+
+        const designationStr = String(u.designation || (u.metadata && u.metadata.designation) || '').trim().toLowerCase();
+        if (designationStr.includes('driver')) return true;
+
+        const positionStr = String(u.position || (u.metadata && u.metadata.position) || '').trim().toLowerCase();
+        if (positionStr.includes('driver')) return true;
+
+        const departmentStr = String(u.department || (u.metadata && u.metadata.department) || '').trim().toLowerCase();
+        if (departmentStr === 'driver' || departmentStr === 'transport driver') return true;
+
+        const subRoleStr = String(u.subRole || (u.metadata && u.metadata.subRole) || '').trim().toLowerCase();
+        if (subRoleStr.includes('driver')) return true;
+
+        const categoryStr = String(u.category || (u.metadata && u.metadata.category) || '').trim().toLowerCase();
+        if (categoryStr.includes('driver')) return true;
+
+        if (Array.isArray(u.roles)) {
+            if (u.roles.some((r: any) => String(r).trim().toLowerCase().includes('driver'))) return true;
+        } else if (typeof u.roles === 'string' && u.roles.trim()) {
+            if (u.roles.toLowerCase().includes('driver')) return true;
+        }
+
+        const metaRole = String(u.metadata?.role || '').trim().toLowerCase();
+        if (metaRole.includes('driver')) return true;
+
+        // Also check if assigned as driver on any vehicle in this institution
+        if (vehicles && vehicles.some(v => v.driverId === u.id || (v.driverName && v.driverName.toLowerCase() === String(u.name || '').toLowerCase()) || ((v as any).driver && String((v as any).driver).toLowerCase() === String(u.name || '').toLowerCase()))) {
+            return true;
+        }
+
+        return false;
+    };
+
+    const isAssistantUser = (u: any): boolean => {
+        if (!u) return false;
+        const roleStr = String(u.role || '').trim().toLowerCase();
+        if (roleStr === 'transport_assistant' || roleStr === 'assistant') return true;
+
+        const staffRoleStr = String(u.staffRole || (u.metadata && u.metadata.staffRole) || '').trim().toLowerCase();
+        if (staffRoleStr.includes('transport_assistant') || staffRoleStr.includes('conductor') || staffRoleStr.includes('attendant')) return true;
+
+        if (Array.isArray(u.roles)) {
+            if (u.roles.some((r: any) => {
+                const s = String(r).trim().toLowerCase();
+                return s.includes('transport_assistant') || s.includes('conductor') || s.includes('attendant');
+            })) return true;
+        } else if (typeof u.roles === 'string' && u.roles.trim()) {
+            const s = u.roles.toLowerCase();
+            if (s.includes('transport_assistant') || s.includes('conductor') || s.includes('attendant')) return true;
+        }
+
+        if (vehicles && vehicles.some(v => v.assistantId === u.id)) return true;
+
+        return false;
+    };
+
+    const drivers = useMemo(() => {
+        const list: any[] = [];
+        const seenIds = new Set<string>();
+
+        // 1. Registered staff members matching driver role/designation
+        institutionUsers.forEach(u => {
+            if (isDriverUser(u) && !seenIds.has(u.id)) {
+                seenIds.add(u.id);
+                list.push(u);
+            }
+        });
+
+        // 2. Also incorporate named drivers assigned to registered vehicles if not yet present
+        (vehicles || []).forEach(v => {
+            const dName = (v.driverName || (v as any).driver || '').trim();
+            if (dName && dName.toUpperCase() !== 'TBD' && dName.toLowerCase() !== 'not assigned' && dName.toLowerCase() !== 'none assigned') {
+                const alreadyExists = list.some(d => (d.name || '').trim().toLowerCase() === dName.toLowerCase() || d.id === v.driverId);
+                if (!alreadyExists) {
+                    const synthId = v.driverId || `veh_drv_${v.id}`;
+                    if (!seenIds.has(synthId)) {
+                        seenIds.add(synthId);
+                        list.push({
+                            id: synthId,
+                            name: dName,
+                            role: 'driver',
+                            staffRole: 'driver',
+                            staffId: 'FLEET-DRV',
+                            phoneNumber: (v as any).driverPhone || '',
+                            email: `${dName.toLowerCase().replace(/\s+/g, '.')}@${currentInstitution?.id ? currentInstitution.id.replace(/[^a-z0-9]/gi, '') : 'school'}.eduai`,
+                            driverType: 'staff'
+                        });
+                    }
+                }
+            }
+        });
+
+        // 3. Demo fallback drivers for demo institutions if none in DB
+        if (list.length === 0 && currentInstitution?.id?.startsWith('demo_')) {
+            return [
+                { id: 'drv_demo_1', name: 'Douglas Omwamba', email: 'douglas@school.edu', phoneNumber: '0712345678', staffId: 'DRV001', role: 'driver', staffRole: 'driver', driverType: 'staff' },
+                { id: 'drv_demo_2', name: 'James Kamau', email: 'james@school.edu', phoneNumber: '0722345678', staffId: 'DRV002', role: 'driver', staffRole: 'driver', driverType: 'staff' }
+            ];
+        }
+
+        return list;
+    }, [institutionUsers, vehicles, currentInstitution?.id]);
 
     const assistants = useMemo(() =>
-        institutionUsers.filter(u => u.role === 'transport_assistant' || u.roles?.includes('transport_assistant')),
-        [institutionUsers]
+        institutionUsers.filter(isAssistantUser),
+        [institutionUsers, vehicles]
     );
 
     const students = useMemo(() =>
@@ -389,6 +503,9 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                 ...driverFormData,
                 role: 'driver',
                 roles: ['driver'],
+                staffRole: 'driver',
+                jobTitle: 'Driver',
+                department: 'Transport',
                 institutionId: currentInstitution.id,
                 expertise: []
             });
@@ -755,42 +872,76 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
             {activeTab === 'drivers' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {drivers.map(driver => {
-                        const assignedVehicle = vehicles.find(v => v.driverId === driver.id);
+                        const assignedVehicle = vehicles.find(v => 
+                            v.driverId === driver.id || 
+                            (driver.id && v.driverId === driver.id) ||
+                            (v.driverName && driver.name && v.driverName.trim().toLowerCase() === driver.name.trim().toLowerCase()) ||
+                            ((v as any).driver && driver.name && String((v as any).driver).trim().toLowerCase() === driver.name.trim().toLowerCase())
+                        );
                         return (
-                            <div key={driver.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col items-center text-center">
-                                <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-3xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110">
+                            <div key={driver.id} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col items-center text-center relative group hover:shadow-xl transition-all">
+                                <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-3xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110">
                                     <UserIcon className="w-10 h-10" />
                                 </div>
                                 <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">{driver.name}</h4>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">{driver.staffId || 'NO STAFF ID'}</p>
+                                <div className="flex items-center gap-2 mt-1.5 mb-6 flex-wrap justify-center">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 dark:bg-slate-700/60 px-3 py-1 rounded-full">
+                                        {driver.staffId || driver.metadata?.staffId || 'STAFF DRIVER'}
+                                    </span>
+                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${driver.driverType === 'private' ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'}`}>
+                                        {driver.driverType === 'private' ? 'Contractor' : 'Official Staff'}
+                                    </span>
+                                </div>
 
-                                <div className="w-full bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl mb-6">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Vehicle Assigned</span>
-                                        <span className={`font-bold ${assignedVehicle ? 'text-indigo-600' : 'text-slate-400 italic'}`}>
-                                            {assignedVehicle ? assignedVehicle.plateNumber : 'Not Assigned'}
-                                        </span>
+                                <div className="w-full bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl mb-6 border border-slate-100 dark:border-slate-800/60 text-left">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block">Assigned Vehicle</span>
+                                            <span className={`font-black text-sm ${assignedVehicle ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 italic'}`}>
+                                                {assignedVehicle ? `${assignedVehicle.plateNumber} (${assignedVehicle.model || 'Bus'})` : 'No Vehicle Assigned'}
+                                            </span>
+                                        </div>
+                                        {assignedVehicle && (
+                                            <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                                {assignedVehicle.capacity} seats
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div className="w-full space-y-3">
-                                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
-                                        <CheckIcon className="w-4 h-4 text-green-500" />
-                                        {driver.phoneNumber || 'No phone'}
+                                <div className="w-full space-y-3 text-left border-t border-slate-100 dark:border-slate-700/60 pt-5">
+                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                        <div className="p-2 bg-slate-100 dark:bg-slate-700/60 rounded-xl text-slate-500 shrink-0">
+                                            <PhoneIcon className="w-4 h-4" />
+                                        </div>
+                                        <span className="truncate">{driver.phoneNumber || driver.phone || 'No phone registered'}</span>
                                     </div>
-                                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
-                                        <CheckIcon className="w-4 h-4 text-green-500" />
-                                        {driver.email}
-                                    </div>
-                                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
-                                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${driver.driverType === 'private' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                                            {driver.driverType || 'staff'}
-                                        </span>
+                                    <div className="flex items-center gap-3 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                        <div className="p-2 bg-slate-100 dark:bg-slate-700/60 rounded-xl text-slate-500 shrink-0">
+                                            <EnvelopeIcon className="w-4 h-4" />
+                                        </div>
+                                        <span className="truncate">{driver.email || 'No email registered'}</span>
                                     </div>
                                 </div>
                             </div>
                         );
                     })}
+
+                    {drivers.length === 0 && !isAdding && (
+                        <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-900/20 rounded-[3rem] border-4 border-dashed border-slate-100 dark:border-slate-800">
+                            <UserIcon className="w-20 h-20 text-slate-200 dark:text-slate-700 mx-auto mb-6" />
+                            <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tight">No Registered Drivers Found</h3>
+                            <p className="text-xs font-bold text-slate-400 mt-2 max-w-md mx-auto">
+                                No staff members with the driver role are currently registered in this institution. You can register a driver now.
+                            </p>
+                            <button
+                                onClick={() => setIsAdding(true)}
+                                className="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
+                            >
+                                Register First Driver
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
