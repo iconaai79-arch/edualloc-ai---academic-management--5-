@@ -293,7 +293,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('users', currentInstitution.id).catch(() => [])
             ]).then(([enrRecords, stRecords, userRecords]) => {
-                const combined = [...(enrRecords || []), ...(stRecords || []), ...(userRecords || [])];
+                const combined = [...(enrRecords || []), ...(stRecords || []), ...(userRecords || []), ...(users || [])];
                 
                 try {
                     const instIdKey = currentInstitution.id;
@@ -305,6 +305,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     const cachedEnr = localStorage.getItem(`eduai_student_enrollments_${instIdKey}`);
                     if (cachedEnr) {
                         const parsed = JSON.parse(cachedEnr);
+                        if (Array.isArray(parsed)) combined.push(...parsed);
+                    }
+                    const cachedUsers = localStorage.getItem(`eduai_users_${instIdKey}`) || localStorage.getItem(`eduai_users`);
+                    if (cachedUsers) {
+                        const parsed = JSON.parse(cachedUsers);
                         if (Array.isArray(parsed)) combined.push(...parsed);
                     }
                 } catch(e) {}
@@ -358,18 +363,33 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     // Extract studentClass
                     const rawClass = st.studentClass || st.classLevel || st.class_name || st.class || st.metadata?.studentClass || st.metadata?.gradeLevel || (existing ? (existing.studentClass || existing.classLevel) : '');
 
+                    // Extract name carefully to never overwrite a valid name with an empty or placeholder name
+                    const isNameBad = (n?: string | null): boolean => {
+                        if (!n) return true;
+                        const cl = String(n).trim().toLowerCase();
+                        return cl === '' || cl === 'unknown student' || cl === 'unknown' || cl === 'student' || cl === 'unnamed student' || cl === 'null' || cl === 'undefined' || /^student\s+\d+$/i.test(cl);
+                    };
+
+                    const existingName = existing ? (existing.fullName || existing.name || existing.studentName || existing.student_name || (existing.firstName ? `${existing.firstName} ${existing.lastName || ''}`.trim() : '') || existing.metadata?.studentName || existing.metadata?.name || existing.metadata?.fullName) : '';
+                    const currentName = st ? (st.fullName || st.name || st.studentName || st.student_name || (st.firstName ? `${st.firstName} ${st.lastName || ''}`.trim() : '') || st.metadata?.studentName || st.metadata?.name || st.metadata?.fullName) : '';
+                    const resolvedStudentName = (!isNameBad(currentName) ? currentName : (!isNameBad(existingName) ? existingName : '')).trim();
+
                     const merged = {
                         ...(existing || {}),
                         ...st,
                         id: (existing && existing.id) || st.id || st.userId || canonicalKey,
                         userId: st.userId || st.user_id || (existing && existing.userId) || st.id,
                         admissionNumber: st.admissionNumber || st.admissionNo || st.admNo || (existing && existing.admissionNumber) || '',
+                        name: resolvedStudentName || (existing && existing.name) || st.name || '',
+                        fullName: resolvedStudentName || (existing && existing.fullName) || st.fullName || '',
+                        studentName: resolvedStudentName || (existing && existing.studentName) || st.studentName || '',
                         stream: cleanStream || (existing && existing.stream) || '',
                         streamName: cleanStream || (existing && existing.streamName) || '',
                         studentClass: rawClass || (existing && existing.studentClass) || '',
                         metadata: {
                             ...(existing?.metadata || {}),
                             ...(st.metadata || {}),
+                            studentName: resolvedStudentName || existing?.metadata?.studentName || st.metadata?.studentName || '',
                             stream: cleanStream || existing?.metadata?.stream || '',
                             gradeLevel: st.metadata?.gradeLevel || existing?.metadata?.gradeLevel || ''
                         }
@@ -437,22 +457,43 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         // 1. Build rapid User Map & Adm Map for cross-referencing
         const userMap = new Map<string, any>();
         const admMap = new Map<string, any>();
-        [...users, ...allRegisteredStudents].forEach(u => {
-            if (!u) return;
-            const uId = String(u.id || '').toLowerCase().trim();
-            const userId = String(u.userId || u.user_id || '').toLowerCase().trim();
-            const adm = String(u.admissionNumber || u.admissionNo || u.admNo || u.metadata?.admissionNumber || '').toLowerCase().trim();
-            if (uId) userMap.set(uId, u);
-            if (userId) userMap.set(userId, u);
-            if (adm) admMap.set(adm, u);
-        });
 
         // Helper to validate student names
         const isNameInvalid = (n?: string | null): boolean => {
             if (!n) return true;
             const clean = String(n).trim().toLowerCase();
-            return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'unnamed student' || clean === 'null' || clean === 'undefined';
+            return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'unnamed student' || clean === 'null' || clean === 'undefined' || /^student\s+\d+$/i.test(clean);
         };
+
+        const recordHasBetterName = (newRec: any, oldRec: any): boolean => {
+            if (!oldRec) return true;
+            const oldName = oldRec.fullName || oldRec.name || oldRec.studentName || oldRec.student_name || oldRec.metadata?.studentName || oldRec.metadata?.name;
+            const newName = newRec.fullName || newRec.name || newRec.studentName || newRec.student_name || newRec.metadata?.studentName || newRec.metadata?.name;
+            return !isNameInvalid(newName) && isNameInvalid(oldName);
+        };
+
+        [...allRegisteredStudents, ...users].forEach(u => {
+            if (!u) return;
+            const uId = String(u.id || '').toLowerCase().trim();
+            const userId = String(u.userId || u.user_id || '').toLowerCase().trim();
+            const adm = String(u.admissionNumber || u.admissionNo || u.admNo || u.regNo || u.registrationNumber || u.staffId || u.metadata?.admissionNumber || u.metadata?.admNo || '').toLowerCase().trim();
+
+            const putInMap = (m: Map<string, any>, key: string) => {
+                if (!key) return;
+                const existing = m.get(key);
+                if (!existing) {
+                    m.set(key, u);
+                } else if (recordHasBetterName(u, existing)) {
+                    m.set(key, { ...existing, ...u });
+                } else {
+                    m.set(key, { ...u, ...existing });
+                }
+            };
+
+            if (uId) putInMap(userMap, uId);
+            if (userId) putInMap(userMap, userId);
+            if (adm) putInMap(admMap, adm);
+        });
 
         // Helper to extract student name from any record
         const extractStudentName = (s: any): string => {
@@ -464,19 +505,27 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
             // Metadata nested name properties (standard format in student_enrollments)
             if (s.metadata && typeof s.metadata === 'object') {
-                const metaName = s.metadata.studentName || s.metadata.name || s.metadata.fullName || s.metadata.student_name;
+                const metaName = s.metadata.studentName || s.metadata.name || s.metadata.fullName || s.metadata.student_name || (s.metadata.firstName ? `${s.metadata.firstName} ${s.metadata.lastName || ''}`.trim() : '');
                 if (!isNameInvalid(metaName)) return String(metaName).trim();
             }
 
-            // User map lookup via userId
+            // User map lookup via userId or id
             const uId = s.userId || s.user_id || s.id;
-            if (uId && userMap.has(String(uId).toLowerCase())) {
-                const u = userMap.get(String(uId).toLowerCase());
+            if (uId && userMap.has(String(uId).toLowerCase().trim())) {
+                const u = userMap.get(String(uId).toLowerCase().trim());
                 if (u) {
-                    const uName = u.name || u.fullName || u.studentName || (u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : '');
+                    const uName = u.fullName || u.name || u.studentName || u.student_name || (u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : '') || u.metadata?.studentName || u.metadata?.name || u.metadata?.fullName;
                     if (!isNameInvalid(uName)) return String(uName).trim();
-                    if (u.metadata?.studentName && !isNameInvalid(u.metadata.studentName)) return String(u.metadata.studentName).trim();
-                    if (u.metadata?.name && !isNameInvalid(u.metadata.name)) return String(u.metadata.name).trim();
+                }
+            }
+
+            // Admission Number lookup via admMap (CRITICAL: resolves real name for student records without direct userId link)
+            const adm = String(s.admissionNumber || s.admissionNo || s.admNo || s.regNo || s.registrationNumber || s.staffId || s.metadata?.admissionNumber || s.metadata?.admNo || '').toLowerCase().trim();
+            if (adm && admMap.has(adm)) {
+                const u = admMap.get(adm);
+                if (u) {
+                    const uName = u.fullName || u.name || u.studentName || u.student_name || (u.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : '') || u.metadata?.studentName || u.metadata?.name || u.metadata?.fullName;
+                    if (!isNameInvalid(uName)) return String(uName).trim();
                 }
             }
 
@@ -490,20 +539,20 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
         // 2. Combine all registered student sources (DB, localStorage, and users prop)
         const combinedPool = [...allRegisteredStudents, ...users];
-        const seenIds = new Set<string>();
+        const studentMap = new Map<string, any>();
 
-        const matchedStudents = combinedPool.filter(u => {
-            if (!u) return false;
+        combinedPool.forEach(u => {
+            if (!u) return;
             const uRole = u.role || (u.roles && u.roles[0]) || 'student';
             const roleMatch = uRole === 'student' || Boolean(u.studentClass) || Boolean(u.admissionNumber) || Boolean(u.admissionNo) || Boolean(u.admNo) || Boolean(u.metadata?.gradeLevel) || Boolean(u.metadata?.studentClass);
-            if (!roleMatch) return false;
+            if (!roleMatch) return;
 
             const uClass = String(
                 u.studentClass || u.classLevel || u.class_name || u.class ||
                 u.metadata?.studentClass || u.metadata?.gradeLevel || u.metadata?.stream || u.gradeLevel || ''
             ).toLowerCase().trim();
 
-            if (!uClass) return false;
+            if (!uClass) return;
 
             const uClassNumber = uClass.replace(/^(form|grade|class|year)\s*/i, '').trim();
 
@@ -513,13 +562,49 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             uClass.includes(targetClean) ||
                             (targetNumber && uClassNumber === targetNumber);
 
-            if (!isMatch) return false;
+            if (!isMatch) return;
 
-            const uniqueKey = String(u.id || u.userId || u.admissionNumber || u.admissionNo || u.admNo || extractStudentName(u)).toLowerCase().trim();
-            if (seenIds.has(uniqueKey)) return false;
-            seenIds.add(uniqueKey);
-            return true;
+            const adm = String(u.admissionNumber || u.admissionNo || u.admNo || u.regNo || u.registrationNumber || u.metadata?.admissionNumber || u.metadata?.admNo || u.staffId || '').toLowerCase().trim();
+            const uId = String(u.userId || u.user_id || '').toLowerCase().trim();
+            const id = String(u.id || '').toLowerCase().trim();
+
+            let canonicalKey: string;
+            if (adm) canonicalKey = `adm_${adm}`;
+            else if (uId) canonicalKey = `uid_${uId}`;
+            else if (id) canonicalKey = `id_${id}`;
+            else canonicalKey = `anon_${studentMap.size}`;
+
+            const existing = studentMap.get(canonicalKey);
+            if (!existing) {
+                studentMap.set(canonicalKey, u);
+            } else {
+                const exName = extractStudentName(existing);
+                const incName = extractStudentName(u);
+                const chosenName = (!isNameInvalid(incName) ? incName : (!isNameInvalid(exName) ? exName : ''));
+
+                studentMap.set(canonicalKey, {
+                    ...existing,
+                    ...u,
+                    id: existing.id || u.id,
+                    userId: existing.userId || u.userId,
+                    admissionNumber: existing.admissionNumber || u.admissionNumber || adm,
+                    name: chosenName || existing.name || u.name,
+                    fullName: chosenName || existing.fullName || u.fullName,
+                    studentName: chosenName || existing.studentName || u.studentName,
+                    stream: existing.stream || u.stream,
+                    streamName: existing.streamName || u.streamName,
+                    studentClass: existing.studentClass || u.studentClass,
+                    metadata: {
+                        ...(existing.metadata || {}),
+                        ...(u.metadata || {}),
+                        studentName: chosenName || existing.metadata?.studentName || u.metadata?.studentName,
+                        stream: existing.metadata?.stream || u.metadata?.stream || existing.stream || u.stream
+                    }
+                });
+            }
         });
+
+        const matchedStudents = Array.from(studentMap.values());
 
         if (matchedStudents.length > 0) {
             return matchedStudents.map((s, idx) => {
