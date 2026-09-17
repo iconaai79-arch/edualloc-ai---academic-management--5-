@@ -1129,10 +1129,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
-                                                            {u.name.charAt(0).toUpperCase()}
+                                                            {(u.name || extractStudentName(u) || 'M').charAt(0).toUpperCase()}
                                                         </div>
                                                         <div>
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name}</p>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{u.name || extractStudentName(u) || 'Member'}</p>
                                                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{adm} {cl ? `• ${cl}` : ''}</p>
                                                         </div>
                                                     </div>
@@ -1165,10 +1165,10 @@ export const LibraryReports: React.FC<LibraryReportsProps> = ({
                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-slate-200 dark:border-slate-700">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-md">
-                                                    {selectedStatementUser.name.charAt(0).toUpperCase()}
+                                                    {(selectedStatementUser.name || extractStudentName(selectedStatementUser) || 'M').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name}</h4>
+                                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase">{selectedStatementUser.name || extractStudentName(selectedStatementUser) || 'Member'}</h4>
                                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                                                         ID / ADM: <strong className="text-indigo-600 dark:text-indigo-400">{adm}</strong> {cl ? `• ${cl}` : ''}
                                                     </p>

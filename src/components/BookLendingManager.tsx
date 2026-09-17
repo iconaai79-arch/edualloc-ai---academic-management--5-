@@ -1186,10 +1186,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 <td className="px-5 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-lg flex items-center justify-center font-black text-xs shrink-0">
-                                                            {getUserName(transaction.userId, transaction).charAt(0)}
+                                                            {(getUserName(transaction.userId, transaction) || 'M').charAt(0).toUpperCase()}
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[180px]">{getUserName(transaction.userId, transaction)}</p>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight truncate max-w-[180px]">{getUserName(transaction.userId, transaction) || 'Member'}</p>
                                                             <p className="text-[10px] font-bold text-slate-400">{getUserStaffId(transaction.userId, transaction)}</p>
                                                         </div>
                                                     </div>
@@ -1368,12 +1368,12 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                             {member.profilePhotoUrl ? (
                                                 <img loading="lazy"
                                                     src={member.profilePhotoUrl}
-                                                    alt={member.name}
+                                                    alt={member.name || 'Member'}
                                                     className="w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-slate-700 shadow-lg"
                                                 />
                                             ) : (
                                                 <div className="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-700">
-                                                    <span className="text-2xl font-black text-white">{member.name.charAt(0).toUpperCase()}</span>
+                                                    <span className="text-2xl font-black text-white">{(member.name || extractStudentName(member) || 'M').charAt(0).toUpperCase()}</span>
                                                 </div>
                                             )}
                                         </div>
@@ -1382,7 +1382,7 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                 <CheckCircleIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                                                 <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Member Identified</p>
                                             </div>
-                                            <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5 truncate">{member.name}</p>
+                                            <p className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5 truncate">{member.name || extractStudentName(member) || 'Member'}</p>
                                             <p className="text-xs font-bold text-slate-500 font-mono">
                                                 {member.admissionNumber || member.admission_number || member.staffId || 'No ID'}
                                                 {member.classStr ? ` • ${member.classStr}` : ''}
@@ -1499,10 +1499,10 @@ export const BookLendingManager: React.FC<BookLendingManagerProps> = ({
                                                         >
                                                             <div className="flex items-center gap-2.5 min-w-0">
                                                                 <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-black shrink-0">
-                                                                    {s.name.charAt(0).toUpperCase()}
+                                                                    {(s.name || extractStudentName(s) || 'M').charAt(0).toUpperCase()}
                                                                 </div>
                                                                 <div className="min-w-0">
-                                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-none truncate">{s.name}</p>
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase leading-none truncate">{s.name || extractStudentName(s) || 'Member'}</p>
                                                                     <p className="text-[10px] font-mono font-bold text-slate-500 mt-0.5 truncate">
                                                                         {idCode} {s.classStr ? `• ${s.classStr}` : ''}
                                                                     </p>

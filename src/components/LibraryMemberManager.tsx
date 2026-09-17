@@ -470,15 +470,23 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
     }, [classFilter, courses, studentUserList, enrollments, institution]);
 
     const groupedMembers = useMemo(() => {
-        const eligibleStaff = users.filter(u => u.role !== 'super_admin' && u.role !== 'student');
+        const eligibleStaff = users
+            .filter(u => u && u.role !== 'super_admin' && u.role !== 'student')
+            .map(u => ({
+                ...u,
+                name: extractStudentName(u) || u.name || (u as any).fullName || u.email || 'Staff Member',
+                role: u.role || 'staff'
+            }));
         const eligibleUsers = [...eligibleStaff, ...studentUserList];
 
         const processed = eligibleUsers.map(user => {
             const userTrans = transactions.filter(t => t.userId === user.id);
             const userFines = fines.filter(f => f.userId === user.id);
+            const resolvedName = user.name || extractStudentName(user) || (user as any).fullName || (user as any).email || 'Member';
 
             return {
                 ...user,
+                name: resolvedName,
                 activeLoans: userTrans.filter(t => t.status === 'issued' || t.status === 'overdue').length,
                 overdueCount: userTrans.filter(t => t.status === 'overdue').length,
                 totalFines: userFines.reduce((acc, f) => acc + (f.amount - f.paidAmount), 0)
@@ -489,7 +497,8 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             const adm = (u.admissionNumber || (u as any).admission_number || u.staffId || '').toLowerCase();
             const sClass = ((u as any).gradeLevel || '').toLowerCase();
             const sStream = ((u as any).stream || '').toLowerCase();
-            return u.name.toLowerCase().includes(term) ||
+            const uName = (u.name || '').toLowerCase();
+            return uName.includes(term) ||
                    adm.includes(term) ||
                    (u.staffId && u.staffId.toLowerCase().includes(term)) ||
                    sClass.includes(term) ||
@@ -564,33 +573,38 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
         }
     };
 
-    const renderMemberRow = (member: any) => (
-        <div
-            key={member.id}
-            className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 last:border-0 transition-colors cursor-pointer group"
-            onClick={() => setSelectedMember(member)}
-        >
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm border border-indigo-100/50 dark:border-indigo-800/50">
-                    {member.name.charAt(0)}
-                </div>
-                <div className="min-w-0">
-                    <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{member.name}</h4>
-                    <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 font-mono uppercase tracking-widest">
-                            {member.role === 'student' ? (member.admissionNumber || member.admission_number || 'No ADM') : (member.staffId || 'No ID')}
-                        </p>
-                        {member.role === 'student' && (member.gradeLevel || member.stream) && (
-                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                • {member.gradeLevel} {member.stream}
+    const renderMemberRow = (member: any) => {
+        const memberName = member?.name || extractStudentName(member) || member?.fullName || member?.email || 'Member';
+        const initial = memberName ? memberName.charAt(0).toUpperCase() : 'M';
+        const roleDisplay = (member?.role || 'member').replace(/_/g, ' ');
+
+        return (
+            <div
+                key={member.id}
+                className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 last:border-0 transition-colors cursor-pointer group"
+                onClick={() => setSelectedMember(member)}
+            >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm border border-indigo-100/50 dark:border-indigo-800/50">
+                        {initial}
+                    </div>
+                    <div className="min-w-0">
+                        <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase truncate tracking-tight">{memberName}</h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 font-mono uppercase tracking-widest">
+                                {member.role === 'student' ? (member.admissionNumber || member.admission_number || 'No ADM') : (member.staffId || 'No ID')}
                             </p>
-                        )}
-                        <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-[7px] font-black text-slate-500 rounded uppercase tracking-tighter">
-                            {member.role.replace('_', ' ')}
-                        </span>
+                            {member.role === 'student' && (member.gradeLevel || member.stream) && (
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                    • {member.gradeLevel} {member.stream}
+                                </p>
+                            )}
+                            <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-[7px] font-black text-slate-500 rounded uppercase tracking-tighter">
+                                {roleDisplay}
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
             <div className="flex items-center gap-8 ml-4">
                 <div className="text-right min-w-[60px]">
@@ -609,6 +623,7 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             </div>
         </div>
     );
+};
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -731,27 +746,35 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Drawer Header */}
-                        <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-indigo-600 text-white flex justify-between items-center relative overflow-hidden">
-                            <div className="relative z-10 flex items-center gap-6">
-                                <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2rem] flex items-center justify-center font-black text-3xl">
-                                    {selectedMember.name.charAt(0)}
+                        {(() => {
+                            const drawerMemberName = selectedMember.name || extractStudentName(selectedMember) || (selectedMember as any).fullName || (selectedMember as any).email || 'Member';
+                            const drawerInitial = drawerMemberName ? drawerMemberName.charAt(0).toUpperCase() : 'M';
+                            const drawerRole = (selectedMember.role || 'member').replace(/_/g, ' ');
+
+                            return (
+                                <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-indigo-600 text-white flex justify-between items-center relative overflow-hidden">
+                                    <div className="relative z-10 flex items-center gap-6">
+                                        <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2rem] flex items-center justify-center font-black text-3xl">
+                                            {drawerInitial}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl font-black uppercase tracking-tighter leading-none">{drawerMemberName}</h3>
+                                            <p className="text-sm font-bold text-indigo-100 uppercase tracking-widest mt-2">
+                                                Member Reference: {selectedMember.role === 'student' ? (selectedMember.admissionNumber || selectedMember.admission_number || 'N/A') : (selectedMember.staffId || 'N/A')}
+                                                {selectedMember.role === 'student' && ((selectedMember as any).gradeLevel || (selectedMember as any).stream) ? ` • ${(selectedMember as any).gradeLevel} ${(selectedMember as any).stream}` : ''}
+                                            </p>
+                                            <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">{drawerRole} Registry</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setSelectedMember(null)} className="p-3 bg-white/10 hover:bg-white/30 rounded-2xl transition-all relative z-10">
+                                        <XIcon className="w-6 h-6" />
+                                    </button>
+                                    <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
+                                        <UserIcon className="w-48 h-48" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-2xl font-black uppercase tracking-tighter leading-none">{selectedMember.name}</h3>
-                                    <p className="text-sm font-bold text-indigo-100 uppercase tracking-widest mt-2">
-                                        Member Reference: {selectedMember.role === 'student' ? (selectedMember.admissionNumber || selectedMember.admission_number || 'N/A') : (selectedMember.staffId || 'N/A')}
-                                        {selectedMember.role === 'student' && ((selectedMember as any).gradeLevel || (selectedMember as any).stream) ? ` • ${(selectedMember as any).gradeLevel} ${(selectedMember as any).stream}` : ''}
-                                    </p>
-                                    <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">{selectedMember.role.replace('_', ' ')} Registry</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedMember(null)} className="p-3 bg-white/10 hover:bg-white/30 rounded-2xl transition-all relative z-10">
-                                <XIcon className="w-6 h-6" />
-                            </button>
-                            <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
-                                <UserIcon className="w-48 h-48" />
-                            </div>
-                        </div>
+                            );
+                        })()}
 
                         {/* Drawer Content */}
                         <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
