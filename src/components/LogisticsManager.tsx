@@ -3998,6 +3998,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         onAddAlert={handleAddAlert}
                         onResolveAlert={handleResolveAlert}
                         onAcknowledge={handleAcknowledgeAlert}
+                        vehicles={dbVehicles}
+                        routes={busRoutes}
+                        users={users}
+                        institutionId={currentInstitution?.id}
                     />
                 )}
                 {activeTab === 'billing' && isEduTransport && (

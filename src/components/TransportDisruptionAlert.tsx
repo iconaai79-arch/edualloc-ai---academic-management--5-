@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     AlertTriangle, Bus, CheckCircle2, Clock, Bell, BellRing,
     Plus, X, ChevronRight, ShieldCheck, Wrench, UserX,
@@ -27,6 +27,7 @@ export interface TransportDisruption {
 }
 
 interface FleetVehicle {
+    id?: string;
     name: string;
     reg: string;
     route: string;
@@ -43,9 +44,13 @@ interface TransportDisruptionAlertProps {
     onAcknowledge?: (id: string, parentId: string) => void;
     parentId?: string;
     parentChildRoutes?: string[]; // route names for this parent's children
+    vehicles?: any[];
+    routes?: any[];
+    users?: any[];
+    institutionId?: string;
 }
 
-// ─── Demo fleet data shared between admin and parent views ───────────────────
+// ─── Demo fleet data fallback ─────────────────────────────────────────────────
 
 const DEMO_FLEET: FleetVehicle[] = [
     { name: 'Bus 04', reg: 'KDC 992P', route: 'Route A – Kilimani & Hurlingham', driver: 'Douglas Omwamba', status: 'active', capacity: 30 },
@@ -74,21 +79,22 @@ const AI_MESSAGES: Record<DisruptionReason, string> = {
 // ─── Admin: Log Disruption Form ───────────────────────────────────────────────
 
 const LogDisruptionForm: React.FC<{
+    fleet: FleetVehicle[];
     onSubmit: (alert: TransportDisruption) => void;
     onCancel: () => void;
-}> = ({ onSubmit, onCancel }) => {
+}> = ({ fleet, onSubmit, onCancel }) => {
     const [affectedBus, setAffectedBus] = useState('');
     const [reason, setReason] = useState<DisruptionReason>('breakdown');
     const [message, setMessage] = useState('');
     const [replacementBus, setReplacementBus] = useState('');
     const [aiUsed, setAiUsed] = useState(false);
 
-    const selectedFleet = DEMO_FLEET.find(f => f.reg === affectedBus);
+    const selectedFleet = fleet.find(f => f.reg === affectedBus || (f.id && f.id === affectedBus));
     // Only buses NOT matching the affected one AND not in maintenance are valid replacements
-    const availableReplacement = DEMO_FLEET.filter(
-        f => f.reg !== affectedBus && f.status !== 'maintenance'
+    const availableReplacement = fleet.filter(
+        f => f.reg !== affectedBus && (!f.id || f.id !== affectedBus) && f.status !== 'maintenance'
     );
-    const selectedReplacement = DEMO_FLEET.find(f => f.reg === replacementBus);
+    const selectedReplacement = fleet.find(f => f.reg === replacementBus || (f.id && f.id === replacementBus));
 
     const handleUseAiMessage = () => {
         setMessage(AI_MESSAGES[reason]);
@@ -102,12 +108,12 @@ const LogDisruptionForm: React.FC<{
         const alert: TransportDisruption = {
             id: `alert_${Date.now()}`,
             affectedBusName: selectedFleet?.name || affectedBus,
-            affectedBusReg: affectedBus,
-            affectedRoute: selectedFleet?.route || 'Unknown Route',
+            affectedBusReg: selectedFleet?.reg || affectedBus,
+            affectedRoute: selectedFleet?.route || 'School Transit Route',
             reason,
             message,
             replacementBusName: selectedReplacement?.name,
-            replacementBusReg: replacementBus || undefined,
+            replacementBusReg: selectedReplacement?.reg || replacementBus || undefined,
             replacementDriver: selectedReplacement?.driver,
             affectedStudentCount: selectedFleet?.capacity || 30,
             status: 'active',
@@ -133,9 +139,9 @@ const LogDisruptionForm: React.FC<{
                         className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 text-sm font-bold focus:ring-2 focus:ring-rose-400 dark:text-white transition-all outline-none"
                     >
                         <option value="">Select bus...</option>
-                        {DEMO_FLEET.map(f => (
-                            <option key={f.reg} value={f.reg}>
-                                {f.name} ({f.reg}) — {f.route}
+                        {fleet.map(f => (
+                            <option key={f.id || f.reg} value={f.reg}>
+                                {f.name} ({f.reg}) {f.route ? `— ${f.route}` : ''} {f.driver && f.driver !== 'Not Assigned' ? `• Driver: ${f.driver}` : ''}
                             </option>
                         ))}
                     </select>
@@ -257,9 +263,103 @@ export const TransportDisruptionAlert: React.FC<TransportDisruptionAlertProps> =
     onAcknowledge,
     parentId = 'parent_user',
     parentChildRoutes = [],
+    vehicles,
+    routes,
+    users,
+    institutionId,
 }) => {
     const [showForm, setShowForm] = useState(false);
     const [resolvedJustNow, setResolvedJustNow] = useState<string[]>([]);
+
+    // Dynamically resolve real institutional fleet, falling back gracefully if empty
+    const fleet: FleetVehicle[] = useMemo(() => {
+        // 1. Check passed vehicles
+        let rawVehicles: any[] = Array.isArray(vehicles) && vehicles.length > 0 ? vehicles : [];
+
+        // 2. If not passed as props, check localStorage for this institution
+        if (rawVehicles.length === 0) {
+            const instKey = institutionId ? `eduai_vehicles_${institutionId}` : null;
+            const savedInst = instKey ? localStorage.getItem(instKey) : null;
+            if (savedInst) {
+                try {
+                    const parsed = JSON.parse(savedInst);
+                    if (Array.isArray(parsed) && parsed.length > 0) rawVehicles = parsed;
+                } catch (_) {}
+            }
+        }
+
+        // 3. Check generic cached vehicles if still empty
+        if (rawVehicles.length === 0) {
+            try {
+                const savedGlobal = localStorage.getItem('eduai_vehicles');
+                if (savedGlobal) {
+                    const parsed = JSON.parse(savedGlobal);
+                    if (Array.isArray(parsed) && parsed.length > 0) rawVehicles = parsed;
+                }
+            } catch (_) {}
+        }
+
+        // 4. If real vehicles exist, map them with route and driver details
+        if (rawVehicles.length > 0) {
+            let resolvedRoutes: any[] = Array.isArray(routes) && routes.length > 0 ? routes : [];
+            if (resolvedRoutes.length === 0 && institutionId) {
+                try {
+                    const rSaved = localStorage.getItem(`eduai_transport_bus_routes_${institutionId}`) || localStorage.getItem(`eduai_transport_route_fee_settings_${institutionId}`);
+                    if (rSaved) {
+                        const parsed = JSON.parse(rSaved);
+                        if (Array.isArray(parsed)) resolvedRoutes = parsed;
+                    }
+                } catch (_) {}
+            }
+
+            return rawVehicles.map((v, index) => {
+                const reg = (v.plateNumber || v.registrationNumber || v.plate || v.reg || `BUS-${index + 1}`).trim().toUpperCase();
+                const name = (v.model || v.name || `Bus ${reg}`).trim();
+
+                // Driver resolution
+                let driver = (v.driverName || v.driver || '').trim();
+                if (!driver && v.driverId && Array.isArray(users)) {
+                    const matchedUser = users.find(u => u.id === v.driverId);
+                    if (matchedUser?.name) driver = matchedUser.name.trim();
+                }
+                if (!driver) driver = 'Not Assigned';
+
+                // Route resolution
+                let route = (v.route || v.routeName || '').trim();
+                if (!route && resolvedRoutes.length > 0) {
+                    const matchedRoute = resolvedRoutes.find(r => 
+                        r.id === v.routeId ||
+                        r.routeId === v.routeId ||
+                        (r.bus && (r.bus.toUpperCase().includes(reg) || (name && r.bus.toLowerCase().includes(name.toLowerCase()))))
+                    );
+                    if (matchedRoute) {
+                        route = matchedRoute.name || matchedRoute.routeName || '';
+                    }
+                }
+                if (!route) {
+                    route = `Route ${String.fromCharCode(65 + (index % 26))}`;
+                }
+
+                const capacity = Number(v.capacity || v.seats || 30);
+                const status = (v.status === 'maintenance' || v.status === 'repair') 
+                    ? 'maintenance' 
+                    : (v.status === 'idle' ? 'idle' : 'active');
+
+                return {
+                    id: v.id || `veh_${reg}`,
+                    name,
+                    reg,
+                    route,
+                    driver,
+                    status,
+                    capacity: isNaN(capacity) || capacity <= 0 ? 30 : capacity
+                };
+            });
+        }
+
+        // 5. If demo institution with no vehicles yet, use demo fleet
+        return DEMO_FLEET;
+    }, [vehicles, routes, users, institutionId]);
 
     const handleSubmit = useCallback((alert: TransportDisruption) => {
         onAddAlert?.(alert);
@@ -421,7 +521,7 @@ export const TransportDisruptionAlert: React.FC<TransportDisruptionAlertProps> =
                             <X className="w-5 h-5 text-slate-400" />
                         </button>
                     </div>
-                    <LogDisruptionForm onSubmit={handleSubmit} onCancel={() => setShowForm(false)} />
+                    <LogDisruptionForm fleet={fleet} onSubmit={handleSubmit} onCancel={() => setShowForm(false)} />
                 </div>
             )}
 

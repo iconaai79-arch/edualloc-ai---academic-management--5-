@@ -700,6 +700,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                             onAcknowledge={props.onAcknowledgeAlert}
                             parentId={user?.id || 'parent_user'}
                             parentChildRoutes={[]}
+                            institutionId={user?.institutionId}
                         />
                     </div>
                 )}
@@ -864,6 +865,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
                                 onAcknowledge={props.onAcknowledgeAlert}
                                 parentId={user?.id || 'parent_user'}
                                 parentChildRoutes={[]}
+                                institutionId={user?.institutionId}
                             />
                         </div>
                     )}
