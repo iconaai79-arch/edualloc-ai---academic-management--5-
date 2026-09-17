@@ -41,7 +41,7 @@ const guessHeaderMapping = (headers: string[]): Record<BookMappingField, string 
 };
 
 export const SmartLibraryImporterModal: React.FC<SmartLibraryImporterModalProps> = ({
-    onClose, onImport, institutionId
+    onClose, onImport, institutionId, existingBooks = []
 }) => {
     const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing' | 'finalizing' | 'success' | 'error'>('upload');
     const [fileHeaders, setFileHeaders] = useState<string[]>([]);

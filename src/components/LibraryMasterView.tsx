@@ -14,6 +14,7 @@ import type {
 import { ActivityLogPanel } from './common/ActivityLogPanel';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { apiService } from '../services/apiService';
+import { localDb } from '../services/localDb';
 
 // Sub-components
 import { BookInventoryManager } from './BookInventoryManager';
@@ -88,34 +89,68 @@ export const LibraryMasterView: React.FC<LibraryMasterViewProps> = ({
     const loadLibraryData = async () => {
         setLoading(true);
         try {
-            const [statRecords, transData, finesData, resData, booksData, enrData, auditData] = await Promise.all([
+            const [statRecords, transData, finesData, resData, booksData, enrData, auditData, idbBooks] = await Promise.all([
                 apiService.fetchModuleRecords<any>('v_library_statistics', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<LibraryFine>('library_fines', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<BookReservation>('book_reservations', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<Book>('books', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<ActivityLog>('activity_log', currentInstitution.id).catch(() => [])
+                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<LibraryFine>('library_fines', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<BookReservation>('book_reservations', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<Book>('books', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<ActivityLog>('activity_log', currentInstitution.id, undefined, { limit: 2000 }).catch(() => []),
+                localDb.getAll<any>('books').catch(() => [])
             ]);
 
-            if (statRecords && statRecords.length > 0) {
-                setStats(statRecords[0]);
+            // Combine remote & local cached books
+            const cachedBooksRaw = localStorage.getItem(`eduai_books_${currentInstitution.id}`);
+            let cachedBooks: any[] = [];
+            if (cachedBooksRaw) {
+                try { cachedBooks = JSON.parse(cachedBooksRaw); } catch(_) {}
+            }
+
+            const bookMap = new Map<string, Book>();
+            (booksData || []).forEach((b: any) => { if (b && b.id) bookMap.set(b.id, b); });
+            (idbBooks || []).forEach((b: any) => {
+                if (b && b.id && (!b.institution_id || b.institution_id === currentInstitution.id || b.institutionId === currentInstitution.id)) {
+                    bookMap.set(b.id, { ...(bookMap.get(b.id) || {}), ...b });
+                }
+            });
+            cachedBooks.forEach((b: any) => {
+                if (b && b.id && (!b.institution_id || b.institution_id === currentInstitution.id || b.institutionId === currentInstitution.id)) {
+                    bookMap.set(b.id, { ...(bookMap.get(b.id) || {}), ...b });
+                }
+            });
+
+            const allResolvedBooks = Array.from(bookMap.values());
+            const computedTotalTitles = allResolvedBooks.length;
+            const computedTotalCopies = allResolvedBooks.reduce((sum, b: any) => sum + Number(b.quantity || b.total_copies || 1), 0);
+            const computedAvailableCopies = allResolvedBooks.reduce((sum, b: any) => sum + Number(b.available ?? b.available_copies ?? b.quantity ?? 1), 0);
+            const activeLoansCount = (transData || []).filter(t => t.status === 'issued' || t.status === 'overdue').length;
+            const overdueLoansCount = (transData || []).filter(t => (t.status === 'issued' || t.status === 'overdue') && new Date(t.dueDate) < new Date()).length;
+            const pendingResCount = (resData || []).filter(r => r.status === 'pending').length;
+
+            if (statRecords && statRecords.length > 0 && Number(statRecords[0].total_books || 0) > 0) {
+                setStats({
+                    ...statRecords[0],
+                    total_books: Math.max(Number(statRecords[0].total_books || 0), computedTotalTitles),
+                    total_copies: Math.max(Number(statRecords[0].total_copies || 0), computedTotalCopies),
+                    available_copies: Math.max(Number(statRecords[0].available_copies || 0), computedAvailableCopies)
+                });
             } else {
                 setStats({
                     institution_id: currentInstitution.id,
-                    total_books: 0,
-                    total_copies: 0,
-                    available_copies: 0,
-                    active_loans: 0,
-                    overdue_loans: 0,
-                    pending_reservations: 0
+                    total_books: computedTotalTitles,
+                    total_copies: computedTotalCopies,
+                    available_copies: computedAvailableCopies,
+                    active_loans: activeLoansCount,
+                    overdue_loans: overdueLoansCount,
+                    pending_reservations: pendingResCount
                 });
             }
 
             setTransactions(transData || []);
             setFines(finesData || []);
             setReservations(resData || []);
-            setBooks(booksData || []);
+            setBooks(allResolvedBooks);
             setEnrollments(enrData || []);
             setDbLogs(auditData || []);
         } catch (error) {

@@ -20,6 +20,7 @@ import { XIcon } from './icons/XIcon';
 import { FileTextIcon } from './icons/FileTextIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { apiService } from '../services/apiService';
+import { localDb } from '../services/localDb';
 import { getNextAccessionNumber, isAccessionNumberUnique, getDuplicateAccessionGroups, normAcc } from '../utils/accessionUtils';
 
 import { BookQrCodeModal } from './BookQrCodeModal';
@@ -112,7 +113,23 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
         const isbn = String(raw.isbn || raw.isbn_number || raw.barcode || raw.code || 'N/A').trim();
         const category = String(raw.category || raw.classification || raw.genre || raw.subject || 'General').trim();
         const location = String(raw.location || raw.shelf || raw.shelf_location || raw.rack || '').trim();
-        const addedDate = String(raw.addedDate || raw.added_date || raw.created_at || raw.createdAt || new Date().toISOString());
+
+        // Stable addedDate extraction
+        let addedDate = String(raw.addedDate || raw.added_date || raw.created_at || raw.createdAt || '');
+        if (!addedDate) {
+            const match = id.match(/bk_(\d{10,13})/);
+            if (match) {
+                const ts = Number(match[1]);
+                if (!isNaN(ts) && ts > 1000000000000) {
+                    addedDate = new Date(ts).toISOString();
+                } else if (!isNaN(ts) && ts > 1000000000) {
+                    addedDate = new Date(ts * 1000).toISOString();
+                }
+            }
+        }
+        if (!addedDate) {
+            addedDate = '2024-01-01T00:00:00.000Z';
+        }
 
         const qty = Math.max(1, Number(raw.quantity ?? raw.total_copies ?? raw.copies ?? raw.qty ?? 1));
 
@@ -146,29 +163,110 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const loadBooks = async () => {
         setLoading(true);
         try {
-            const [rawBooks, rawTrans] = await Promise.all([
-                apiService.fetchModuleRecords<any>('books', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId).catch(() => [])
+            // 1. Fetch remote records & transactions with unlimited limit
+            const [rawBooks, rawTrans, idbBooks] = await Promise.all([
+                apiService.fetchModuleRecords<any>('books', institutionId, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchModuleRecords<LibraryTransaction>('library_transactions', institutionId, undefined, { limit: 100000 }).catch(() => []),
+                localDb.getAll<any>('books').catch(() => [])
             ]);
 
             const transList = Array.isArray(rawTrans) ? rawTrans : [];
             setTransactions(transList);
 
-            let bookList: any[] = Array.isArray(rawBooks) ? rawBooks : [];
-            
-            // Check local cached fallback if empty
-            if (bookList.length === 0) {
+            // 2. Read from localStorage caches
+            const localCaches: any[] = [];
+            const cacheKeys = [
+                `eduai_books_${institutionId}`,
+                'eduai_books',
+                'books'
+            ];
+            for (const key of cacheKeys) {
                 try {
-                    const cached = localStorage.getItem(`eduai_books_${institutionId}`);
-                    if (cached) {
-                        const parsed = JSON.parse(cached);
-                        if (Array.isArray(parsed) && parsed.length > 0) bookList = parsed;
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) {
+                            localCaches.push(...parsed);
+                        }
                     }
-                } catch (e) {}
+                } catch (_) {}
             }
 
-            const normalized = bookList.map(b => normalizeBook(b, transList));
-            setBooks(normalized);
+            // 3. Institution match filter helper
+            const matchesInst = (r: any) => {
+                if (!r || typeof r !== 'object') return false;
+                const inst = String(r.institutionId || r.institution_id || '').trim();
+                if (!inst || !institutionId || institutionId === 'ALL') return true;
+                return inst.toLowerCase() === institutionId.toLowerCase();
+            };
+
+            // 4. Union & deduplicate: remote, IndexedDB, and localStorage
+            const bookMap = new Map<string, any>();
+            const accToIdMap = new Map<string, string>();
+
+            const registerRecord = (rec: any) => {
+                if (!matchesInst(rec)) return;
+                const normRec = normalizeBook(rec, transList);
+                const accKey = normAcc(normRec.accessionNumber);
+
+                // Check if already in map by primary ID
+                if (bookMap.has(normRec.id)) {
+                    const existing = bookMap.get(normRec.id);
+                    bookMap.set(normRec.id, {
+                        ...existing,
+                        ...normRec,
+                        quantity: normRec.quantity || existing.quantity,
+                        available: normRec.available ?? existing.available,
+                        addedDate: existing.addedDate || normRec.addedDate
+                    });
+                    return;
+                }
+
+                // Check if already in map by normalized accession number
+                if (accKey && accToIdMap.has(accKey)) {
+                    const existingId = accToIdMap.get(accKey)!;
+                    const existing = bookMap.get(existingId);
+                    if (existing) {
+                        bookMap.set(existingId, {
+                            ...existing,
+                            ...normRec,
+                            id: existing.id // preserve canonical id
+                        });
+                        return;
+                    }
+                }
+
+                // New unique entry
+                bookMap.set(normRec.id, normRec);
+                if (accKey) {
+                    accToIdMap.set(accKey, normRec.id);
+                }
+            };
+
+            // Register records in order of authority (remote -> idb -> local caches)
+            if (Array.isArray(rawBooks)) {
+                rawBooks.forEach(b => registerRecord(b));
+            }
+            if (Array.isArray(idbBooks)) {
+                idbBooks.forEach(b => registerRecord(b));
+            }
+            localCaches.forEach(b => registerRecord(b));
+
+            const finalBooks = Array.from(bookMap.values());
+
+            // 5. Sort newest first (descending by addedDate)
+            finalBooks.sort((a, b) => {
+                const timeA = new Date(a.addedDate || 0).getTime() || 0;
+                const timeB = new Date(b.addedDate || 0).getTime() || 0;
+                return timeB - timeA;
+            });
+
+            setBooks(finalBooks);
+
+            // 6. Update local cache with complete merged catalogue
+            try {
+                localStorage.setItem(`eduai_books_${institutionId}`, JSON.stringify(finalBooks));
+            } catch (_) {}
         } catch (error) {
             console.error('Error loading books:', error);
         } finally {
@@ -351,6 +449,7 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     : (newBook.available ?? editingBook.available))
                 : (newBook.available ?? qty);
 
+            const nowIso = new Date().toISOString();
             const bookData: any = editingBook
                 ? {
                     ...editingBook,
@@ -381,15 +480,43 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     available: qty,
                     institutionId,
                     institution_id: institutionId,
-                    addedDate: new Date().toISOString(),
-                    added_date: new Date().toISOString()
+                    addedDate: nowIso,
+                    added_date: nowIso
                 };
 
+            // 1. Optimistic state update so added book immediately appears at top of inventory
+            const normalizedSaved = normalizeBook(bookData, transactions);
+            setBooks(prev => {
+                const existingIdx = prev.findIndex(b => b.id === normalizedSaved.id || normAcc(b.accessionNumber) === normAcc(normalizedSaved.accessionNumber));
+                let nextList: Book[];
+                if (existingIdx >= 0) {
+                    nextList = [...prev];
+                    nextList[existingIdx] = normalizedSaved;
+                } else {
+                    nextList = [normalizedSaved, ...prev];
+                }
+                nextList.sort((a, b) => (new Date(b.addedDate || 0).getTime() || 0) - (new Date(a.addedDate || 0).getTime() || 0));
+                try {
+                    localStorage.setItem(`eduai_books_${institutionId}`, JSON.stringify(nextList));
+                } catch (_) {}
+                return nextList;
+            });
+
+            // 2. Direct IndexedDB write
+            try {
+                await localDb.upsert('books', bookData);
+            } catch (_) {}
+
+            // 3. Persist to API / Database
             await apiService.saveModuleRecord('books', bookData);
             await onLogAction(`${editingBook ? 'Updated' : 'Catalogued'} book: ${bookData.title} (${accNo})`);
+
             setIsAddingBook(false);
             setEditingBook(null);
             setNewBook({ title: '', author: '', isbn: '', accessionNumber: '', quantity: 1, available: 1, category: '', location: '' });
+            setCurrentPage(1); // Jump to page 1 where newly added book is located
+
+            // 4. Background refresh to reconcile with server state
             await loadBooks();
             onDataChange();
         } catch (error: any) {
@@ -400,18 +527,46 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
 
     const handleImportBooks = async (items: any[]) => {
         try {
-            for (const item of items) {
-                const normalizedItem = {
-                    ...item,
-                    accession_number: item.accessionNumber || item.accession_number,
-                    institution_id: item.institutionId || item.institution_id || institutionId,
-                    quantity: item.quantity || 1,
-                    available: item.available ?? item.quantity ?? 1
-                };
-                await apiService.saveModuleRecord('books', normalizedItem);
+            const nowIso = new Date().toISOString();
+            const normalizedItems = items.map((item, idx) => ({
+                ...item,
+                id: item.id || `bk_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 6)}`,
+                accession_number: item.accessionNumber || item.accession_number,
+                institution_id: item.institutionId || item.institution_id || institutionId,
+                quantity: item.quantity || 1,
+                available: item.available ?? item.quantity ?? 1,
+                addedDate: item.addedDate || item.added_date || nowIso,
+                added_date: item.addedDate || item.added_date || nowIso
+            }));
+
+            // 1. Optimistic state update with imported books
+            const importedNormBooks = normalizedItems.map(it => normalizeBook(it, transactions));
+            setBooks(prev => {
+                const map = new Map<string, Book>();
+                prev.forEach(b => map.set(b.id, b));
+                importedNormBooks.forEach(b => map.set(b.id, b));
+                const merged = Array.from(map.values()).sort((a, b) => 
+                    (new Date(b.addedDate || 0).getTime() || 0) - (new Date(a.addedDate || 0).getTime() || 0)
+                );
+                try {
+                    localStorage.setItem(`eduai_books_${institutionId}`, JSON.stringify(merged));
+                } catch (_) {}
+                return merged;
+            });
+
+            // 2. Persist to IndexedDB bulk
+            try {
+                await localDb.bulkPut('books', normalizedItems);
+            } catch (_) {}
+
+            // 3. Save each record via API
+            for (const item of normalizedItems) {
+                await apiService.saveModuleRecord('books', item);
             }
+
             await onLogAction(`Batch imported ${items.length} book titles into inventory`);
             setIsImportModalOpen(false);
+            setCurrentPage(1);
             await loadBooks();
             onDataChange();
         } catch (error: any) {
@@ -423,6 +578,17 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
     const handleDeleteBook = async (id: string) => {
         if (!confirm('Are you sure you want to delete this resource record? All associated lending history will be affected.')) return;
         try {
+            // Optimistic removal from state
+            setBooks(prev => {
+                const nextList = prev.filter(b => b.id !== id);
+                try {
+                    localStorage.setItem(`eduai_books_${institutionId}`, JSON.stringify(nextList));
+                } catch (_) {}
+                return nextList;
+            });
+            try {
+                await localDb.delete('books', id);
+            } catch (_) {}
             await apiService.deleteModuleRecord('books', id);
             await onLogAction('Deleted resource record from catalogue registry');
             await loadBooks();
@@ -523,10 +689,13 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                     </select>
                     <button
                         onClick={loadBooks}
-                        className="p-2.5 bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all"
-                        title="Reload Inventory"
+                        className="px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-indigo-600 rounded-2xl transition-all flex items-center gap-2 cursor-pointer border border-slate-100 dark:border-slate-800"
+                        title="Reload Inventory across Cloud & Local Storage"
                     >
-                        <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                            {books.length} Loaded
+                        </span>
                     </button>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -726,6 +895,8 @@ export const BookInventoryManager: React.FC<BookInventoryManagerProps> = ({
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
                                     <option value={100}>100</option>
+                                    <option value={500}>500</option>
+                                    <option value={5000}>All (up to 5,000)</option>
                                 </select>
                             </div>
                         </div>
