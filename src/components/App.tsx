@@ -3282,12 +3282,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }, [timeOffRequests, loadData]);
 
     const onUpdateInstitution = useCallback(async (id: string, data: any) => {
-        const inst = institutions.find(i => i.id === id);
+        const inst = institutions.find(i => i.id === id) || (activeInstitution?.id === id ? activeInstitution : null);
         if (inst) {
-            await apiService.saveInstitution({ ...inst, ...data });
+            const updated = { ...inst, ...data };
+            setInstitutions(prev => prev.map(i => i.id === id ? updated : i));
+            await apiService.saveInstitution(updated);
             loadData();
         }
-    }, [institutions, loadData]);
+    }, [institutions, activeInstitution, loadData]);
 
     const handleLogGateAction = useCallback(async (vehicleId: string, eventType: 'entry' | 'exit', notes?: string) => {
         if (!activeInstitution || !currentUser) return;
@@ -3509,10 +3511,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         if (!currentUser?.id || !activeInstitution) return;
 
         const runAutoFinalize = async () => {
-            if (!activeInstitution?.visitorAutoFinalizeEnabled) return;
+            const isEnabled = activeInstitution?.visitorAutoFinalizeEnabled ?? (activeInstitution as any)?.visitor_auto_finalize_enabled;
+            if (!isEnabled) return;
             if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
-            const cutoffTime = activeInstitution?.visitorAutoFinalizeTime || '18:00';
+            const cutoffTime = activeInstitution?.visitorAutoFinalizeTime || (activeInstitution as any)?.visitor_auto_finalize_time || '18:00';
             const now = new Date();
             const todayKey = now.toDateString();
             const [cutHour, cutMin] = cutoffTime.split(':').map(Number);

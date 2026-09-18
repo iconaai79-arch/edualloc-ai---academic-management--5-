@@ -700,6 +700,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'institutions') {
+                const records = Array.isArray(data) ? data : (data ? [data] : []);
+                await Promise.all(records.map(async (inst: any) => {
+                    if (!inst || !inst.id) return;
+                    if (inst.visitor_auto_finalize_time === undefined || inst.visitor_auto_finalize_enabled === undefined) {
+                        try {
+                            const { data: vState } = await supabase
+                                .from('institution_module_states')
+                                .select('data')
+                                .eq('id', `${inst.id}_visitor_settings`)
+                                .maybeSingle();
+                            if (vState && vState.data) {
+                                const vd = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
+                                if (inst.visitor_auto_finalize_enabled === undefined) {
+                                    inst.visitor_auto_finalize_enabled = vd.visitor_auto_finalize_enabled ?? vd.visitorAutoFinalizeEnabled;
+                                }
+                                if (!inst.visitor_auto_finalize_time) {
+                                    inst.visitor_auto_finalize_time = vd.visitor_auto_finalize_time || vd.visitorAutoFinalizeTime;
+                                }
+                                if (inst.notify_host_on_visitor_arrival === undefined) {
+                                    inst.notify_host_on_visitor_arrival = vd.notify_host_on_visitor_arrival ?? vd.notifyHostOnVisitorArrival;
+                                }
+                                if (!inst.visitor_arrival_sms_template) {
+                                    inst.visitor_arrival_sms_template = vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate;
+                                }
+                            }
+                        } catch (_) {}
+                    }
+                    if (inst.metadata) {
+                        const meta = typeof inst.metadata === 'string' ? JSON.parse(inst.metadata) : inst.metadata;
+                        if (inst.visitor_auto_finalize_enabled === undefined && (meta.visitor_auto_finalize_enabled !== undefined || meta.visitorAutoFinalizeEnabled !== undefined)) {
+                            inst.visitor_auto_finalize_enabled = meta.visitor_auto_finalize_enabled ?? meta.visitorAutoFinalizeEnabled;
+                        }
+                        if (!inst.visitor_auto_finalize_time && (meta.visitor_auto_finalize_time || meta.visitorAutoFinalizeTime)) {
+                            inst.visitor_auto_finalize_time = meta.visitor_auto_finalize_time || meta.visitorAutoFinalizeTime;
+                        }
+                        if (inst.notify_host_on_visitor_arrival === undefined && (meta.notify_host_on_visitor_arrival !== undefined || meta.notifyHostOnVisitorArrival !== undefined)) {
+                            inst.notify_host_on_visitor_arrival = meta.notify_host_on_visitor_arrival ?? meta.notifyHostOnVisitorArrival;
+                        }
+                        if (!inst.visitor_arrival_sms_template && (meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate)) {
+                            inst.visitor_arrival_sms_template = meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate;
+                        }
+                    }
+                    if (inst.visitor_auto_finalize_enabled !== undefined && inst.visitorAutoFinalizeEnabled === undefined) {
+                        inst.visitorAutoFinalizeEnabled = inst.visitor_auto_finalize_enabled;
+                    }
+                    if (inst.visitor_auto_finalize_time && !inst.visitorAutoFinalizeTime) {
+                        inst.visitorAutoFinalizeTime = inst.visitor_auto_finalize_time;
+                    }
+                    if (inst.notify_host_on_visitor_arrival !== undefined && inst.notifyHostOnVisitorArrival === undefined) {
+                        inst.notifyHostOnVisitorArrival = inst.notify_host_on_visitor_arrival;
+                    }
+                    if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
+                        inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
+                    }
+                }));
+            }
+
             return res.status(200).json(data || []);
         }
 
@@ -2330,6 +2388,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         data: savedItem,
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'id' })).catch(() => {});
+                }
+            }
+
+            if (moduleName === 'institutions') {
+                const savedItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
+                const rawRecord = Array.isArray(recordData) ? recordData[0] : recordData;
+                const instId = savedItem?.id || rawRecord?.id || user?.institutionId;
+                if (instId) {
+                    const vEnabled = savedItem?.visitor_auto_finalize_enabled ?? rawRecord?.visitorAutoFinalizeEnabled ?? rawRecord?.visitor_auto_finalize_enabled;
+                    const vTime = savedItem?.visitor_auto_finalize_time || rawRecord?.visitorAutoFinalizeTime || rawRecord?.visitor_auto_finalize_time;
+                    const nHost = savedItem?.notify_host_on_visitor_arrival ?? rawRecord?.notifyHostOnVisitorArrival ?? rawRecord?.notify_host_on_visitor_arrival;
+                    const sTemplate = savedItem?.visitor_arrival_sms_template || rawRecord?.visitorArrivalSmsTemplate || rawRecord?.visitor_arrival_sms_template;
+
+                    if (vTime !== undefined || vEnabled !== undefined || nHost !== undefined || sTemplate !== undefined) {
+                        Promise.resolve(supabase.from('institution_module_states').upsert({
+                            id: `${instId}_visitor_settings`,
+                            institution_id: instId,
+                            module_id: 'visitor_settings',
+                            status: 'active',
+                            data: {
+                                visitorAutoFinalizeEnabled: vEnabled,
+                                visitorAutoFinalizeTime: vTime,
+                                notifyHostOnVisitorArrival: nHost,
+                                visitorArrivalSmsTemplate: sTemplate,
+                                visitor_auto_finalize_enabled: vEnabled,
+                                visitor_auto_finalize_time: vTime,
+                                notify_host_on_visitor_arrival: nHost,
+                                visitor_arrival_sms_template: sTemplate
+                            },
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'id' })).catch((e: any) => console.warn('[api/records] visitor_settings fallback save error:', e));
+                    }
                 }
             }
 

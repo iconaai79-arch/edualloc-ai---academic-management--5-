@@ -382,10 +382,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         useSubdomain: props.currentInstitution?.useSubdomain ?? false,
         kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
         kioskStatus: props.currentInstitution?.kioskStatus || 'active',
-        visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? false,
-        visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00',
-        notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? true,
-        visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || ''
+        visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? (props.currentInstitution as any)?.visitor_auto_finalize_enabled ?? false,
+        visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || (props.currentInstitution as any)?.visitor_auto_finalize_time || '18:00',
+        notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? (props.currentInstitution as any)?.notify_host_on_visitor_arrival ?? true,
+        visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || (props.currentInstitution as any)?.visitor_arrival_sms_template || ''
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -416,10 +416,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 useSubdomain: props.currentInstitution.useSubdomain ?? false,
                 kioskSecurityPin: props.currentInstitution.kioskSecurityPin || '1234',
                 kioskStatus: props.currentInstitution.kioskStatus || 'active',
-                visitorAutoFinalizeEnabled: props.currentInstitution.visitorAutoFinalizeEnabled ?? false,
-                visitorAutoFinalizeTime: props.currentInstitution.visitorAutoFinalizeTime || '18:00',
-                notifyHostOnVisitorArrival: props.currentInstitution.notifyHostOnVisitorArrival ?? true,
-                visitorArrivalSmsTemplate: props.currentInstitution.visitorArrivalSmsTemplate || ''
+                visitorAutoFinalizeEnabled: props.currentInstitution.visitorAutoFinalizeEnabled ?? (props.currentInstitution as any).visitor_auto_finalize_enabled ?? false,
+                visitorAutoFinalizeTime: props.currentInstitution.visitorAutoFinalizeTime || (props.currentInstitution as any).visitor_auto_finalize_time || '18:00',
+                notifyHostOnVisitorArrival: props.currentInstitution.notifyHostOnVisitorArrival ?? (props.currentInstitution as any).notify_host_on_visitor_arrival ?? true,
+                visitorArrivalSmsTemplate: props.currentInstitution.visitorArrivalSmsTemplate || (props.currentInstitution as any).visitor_arrival_sms_template || ''
             });
         }
     }, [props.currentInstitution]);
@@ -516,10 +516,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             useSubdomain: props.currentInstitution?.useSubdomain ?? false,
             kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
             kioskStatus: props.currentInstitution?.kioskStatus || 'active',
-            visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? false,
-            visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || '18:00',
-            notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? true,
-            visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || ''
+            visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? (props.currentInstitution as any)?.visitor_auto_finalize_enabled ?? false,
+            visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || (props.currentInstitution as any)?.visitor_auto_finalize_time || '18:00',
+            notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? (props.currentInstitution as any)?.notify_host_on_visitor_arrival ?? true,
+            visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || (props.currentInstitution as any)?.visitor_arrival_sms_template || ''
         });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
@@ -590,6 +590,10 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         try {
             const finalProfile = {
                 ...instProfile,
+                visitorAutoFinalizeEnabled: Boolean(instProfile.visitorAutoFinalizeEnabled),
+                visitorAutoFinalizeTime: instProfile.visitorAutoFinalizeTime || '18:00',
+                notifyHostOnVisitorArrival: instProfile.notifyHostOnVisitorArrival ?? true,
+                visitorArrivalSmsTemplate: instProfile.visitorArrivalSmsTemplate || '',
                 kioskUrl: instProfile.kioskUrl?.trim() || (
                     instProfile.useSubdomain && instProfile.customSubdomain
                         ? `https://${instProfile.customSubdomain}.eduai.co.ke/kiosk`

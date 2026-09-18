@@ -99,7 +99,14 @@ CREATE TABLE IF NOT EXISTS institutions (
     coop_settings JSONB,
     stream_definitions TEXT[] DEFAULT '{}',
     custom_module_pricing JSONB,
-    sms_balance INTEGER DEFAULT 0
+    sms_balance INTEGER DEFAULT 0,
+    visitor_auto_finalize_enabled BOOLEAN DEFAULT FALSE,
+    visitor_auto_finalize_time TEXT DEFAULT '18:00',
+    notify_host_on_visitor_arrival BOOLEAN DEFAULT TRUE,
+    visitor_arrival_sms_template TEXT,
+    kiosk_security_pin TEXT DEFAULT '1234',
+    kiosk_status TEXT DEFAULT 'active',
+    metadata JSONB DEFAULT '{}'::jsonb
 );
 
 -- Ensure all new columns exist on institutions table for backward compatibility
@@ -123,6 +130,13 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_settings JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions TEXT[] DEFAULT '{}';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_module_pricing JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance INTEGER DEFAULT 0;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS visitor_auto_finalize_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS visitor_auto_finalize_time TEXT DEFAULT '18:00';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS notify_host_on_visitor_arrival BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS visitor_arrival_sms_template TEXT;
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_security_pin TEXT DEFAULT '1234';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_status TEXT DEFAULT 'active';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS counties (
     id TEXT PRIMARY KEY,

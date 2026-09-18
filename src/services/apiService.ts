@@ -1214,6 +1214,53 @@ export const apiService = {
                             inst.othersExamSettings = parsed;
                             inst.others_exam_settings = parsed;
                         }
+
+                        // Hydrate visitor auto-finalize settings
+                        if (inst.visitor_auto_finalize_enabled !== undefined && inst.visitorAutoFinalizeEnabled === undefined) {
+                            inst.visitorAutoFinalizeEnabled = inst.visitor_auto_finalize_enabled;
+                        }
+                        if (inst.visitor_auto_finalize_time && !inst.visitorAutoFinalizeTime) {
+                            inst.visitorAutoFinalizeTime = inst.visitor_auto_finalize_time;
+                        }
+                        if (inst.notify_host_on_visitor_arrival !== undefined && inst.notifyHostOnVisitorArrival === undefined) {
+                            inst.notifyHostOnVisitorArrival = inst.notify_host_on_visitor_arrival;
+                        }
+                        if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
+                            inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
+                        }
+
+                        const cachedInsts = ls.get('institutions') || [];
+                        const cached = Array.isArray(cachedInsts) ? cachedInsts.find((ci: any) => ci.id === inst.id) : null;
+                        if (cached) {
+                            if (inst.visitorAutoFinalizeEnabled === undefined && (cached.visitorAutoFinalizeEnabled !== undefined || cached.visitor_auto_finalize_enabled !== undefined)) {
+                                inst.visitorAutoFinalizeEnabled = cached.visitorAutoFinalizeEnabled ?? cached.visitor_auto_finalize_enabled;
+                            }
+                            if (!inst.visitorAutoFinalizeTime && (cached.visitorAutoFinalizeTime || cached.visitor_auto_finalize_time)) {
+                                inst.visitorAutoFinalizeTime = cached.visitorAutoFinalizeTime || cached.visitor_auto_finalize_time;
+                            }
+                            if (inst.notifyHostOnVisitorArrival === undefined && (cached.notifyHostOnVisitorArrival !== undefined || cached.notify_host_on_visitor_arrival !== undefined)) {
+                                inst.notifyHostOnVisitorArrival = cached.notifyHostOnVisitorArrival ?? cached.notify_host_on_visitor_arrival;
+                            }
+                            if (!inst.visitorArrivalSmsTemplate && (cached.visitorArrivalSmsTemplate || cached.visitor_arrival_sms_template)) {
+                                inst.visitorArrivalSmsTemplate = cached.visitorArrivalSmsTemplate || cached.visitor_arrival_sms_template;
+                            }
+                        }
+
+                        if (inst.metadata) {
+                            const meta = typeof inst.metadata === 'string' ? JSON.parse(inst.metadata) : inst.metadata;
+                            if (inst.visitorAutoFinalizeEnabled === undefined && (meta.visitorAutoFinalizeEnabled !== undefined || meta.visitor_auto_finalize_enabled !== undefined)) {
+                                inst.visitorAutoFinalizeEnabled = meta.visitorAutoFinalizeEnabled ?? meta.visitor_auto_finalize_enabled;
+                            }
+                            if (!inst.visitorAutoFinalizeTime && (meta.visitorAutoFinalizeTime || meta.visitor_auto_finalize_time)) {
+                                inst.visitorAutoFinalizeTime = meta.visitorAutoFinalizeTime || meta.visitor_auto_finalize_time;
+                            }
+                            if (inst.notifyHostOnVisitorArrival === undefined && (meta.notifyHostOnVisitorArrival !== undefined || meta.notify_host_on_visitor_arrival !== undefined)) {
+                                inst.notifyHostOnVisitorArrival = meta.notifyHostOnVisitorArrival ?? meta.notify_host_on_visitor_arrival;
+                            }
+                            if (!inst.visitorArrivalSmsTemplate && (meta.visitorArrivalSmsTemplate || meta.visitor_arrival_sms_template)) {
+                                inst.visitorArrivalSmsTemplate = meta.visitorArrivalSmsTemplate || meta.visitor_arrival_sms_template;
+                            }
+                        }
                     });
                 }
                 if (module === 'courses' && Array.isArray(finalResult)) {
@@ -1486,6 +1533,53 @@ export const apiService = {
                             const parsed = typeof oSettings === 'string' ? JSON.parse(oSettings) : oSettings;
                             inst.othersExamSettings = parsed;
                             inst.others_exam_settings = parsed;
+                        }
+
+                        // Hydrate visitor auto-finalize settings
+                        if (inst.visitor_auto_finalize_enabled !== undefined && inst.visitorAutoFinalizeEnabled === undefined) {
+                            inst.visitorAutoFinalizeEnabled = inst.visitor_auto_finalize_enabled;
+                        }
+                        if (inst.visitor_auto_finalize_time && !inst.visitorAutoFinalizeTime) {
+                            inst.visitorAutoFinalizeTime = inst.visitor_auto_finalize_time;
+                        }
+                        if (inst.notify_host_on_visitor_arrival !== undefined && inst.notifyHostOnVisitorArrival === undefined) {
+                            inst.notifyHostOnVisitorArrival = inst.notify_host_on_visitor_arrival;
+                        }
+                        if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
+                            inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
+                        }
+
+                        const cachedInsts = ls.get('institutions') || [];
+                        const cached = Array.isArray(cachedInsts) ? cachedInsts.find((ci: any) => ci.id === inst.id) : null;
+                        if (cached) {
+                            if (inst.visitorAutoFinalizeEnabled === undefined && (cached.visitorAutoFinalizeEnabled !== undefined || cached.visitor_auto_finalize_enabled !== undefined)) {
+                                inst.visitorAutoFinalizeEnabled = cached.visitorAutoFinalizeEnabled ?? cached.visitor_auto_finalize_enabled;
+                            }
+                            if (!inst.visitorAutoFinalizeTime && (cached.visitorAutoFinalizeTime || cached.visitor_auto_finalize_time)) {
+                                inst.visitorAutoFinalizeTime = cached.visitorAutoFinalizeTime || cached.visitor_auto_finalize_time;
+                            }
+                            if (inst.notifyHostOnVisitorArrival === undefined && (cached.notifyHostOnVisitorArrival !== undefined || cached.notify_host_on_visitor_arrival !== undefined)) {
+                                inst.notifyHostOnVisitorArrival = cached.notifyHostOnVisitorArrival ?? cached.notify_host_on_visitor_arrival;
+                            }
+                            if (!inst.visitorArrivalSmsTemplate && (cached.visitorArrivalSmsTemplate || cached.visitor_arrival_sms_template)) {
+                                inst.visitorArrivalSmsTemplate = cached.visitorArrivalSmsTemplate || cached.visitor_arrival_sms_template;
+                            }
+                        }
+
+                        if (inst.metadata) {
+                            const meta = typeof inst.metadata === 'string' ? JSON.parse(inst.metadata) : inst.metadata;
+                            if (inst.visitorAutoFinalizeEnabled === undefined && (meta.visitorAutoFinalizeEnabled !== undefined || meta.visitor_auto_finalize_enabled !== undefined)) {
+                                inst.visitorAutoFinalizeEnabled = meta.visitorAutoFinalizeEnabled ?? meta.visitor_auto_finalize_enabled;
+                            }
+                            if (!inst.visitorAutoFinalizeTime && (meta.visitorAutoFinalizeTime || meta.visitor_auto_finalize_time)) {
+                                inst.visitorAutoFinalizeTime = meta.visitorAutoFinalizeTime || meta.visitor_auto_finalize_time;
+                            }
+                            if (inst.notifyHostOnVisitorArrival === undefined && (meta.notifyHostOnVisitorArrival !== undefined || meta.notify_host_on_visitor_arrival !== undefined)) {
+                                inst.notifyHostOnVisitorArrival = meta.notifyHostOnVisitorArrival ?? meta.notify_host_on_visitor_arrival;
+                            }
+                            if (!inst.visitorArrivalSmsTemplate && (meta.visitorArrivalSmsTemplate || meta.visitor_arrival_sms_template)) {
+                                inst.visitorArrivalSmsTemplate = meta.visitorArrivalSmsTemplate || meta.visitor_arrival_sms_template;
+                            }
                         }
                     });
                 }
@@ -3199,7 +3293,36 @@ export const apiService = {
             await apiService.saveModuleRecord('institution_module_states', moduleState);
         }
     },
-    async fetchInstitutions(institutionId?: string): Promise<Institution[]> { return apiService.fetchModuleRecords('institutions', institutionId); },
+    async fetchInstitutions(institutionId?: string): Promise<Institution[]> { 
+        const insts = await apiService.fetchModuleRecords<Institution>('institutions', institutionId);
+        try {
+            const states = await apiService.fetchModuleRecords<any>('institution_module_states', institutionId).catch(() => []);
+            if (Array.isArray(states) && states.length > 0) {
+                insts.forEach(inst => {
+                    const vState = states.find((s: any) => 
+                        (s.moduleId === 'visitor_settings' || s.module_id === 'visitor_settings') && 
+                        (s.institutionId === inst.id || s.institution_id === inst.id)
+                    );
+                    if (vState && vState.data) {
+                        const d = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
+                        if (inst.visitorAutoFinalizeEnabled === undefined && (d.visitorAutoFinalizeEnabled !== undefined || d.visitor_auto_finalize_enabled !== undefined)) {
+                            inst.visitorAutoFinalizeEnabled = d.visitorAutoFinalizeEnabled ?? d.visitor_auto_finalize_enabled;
+                        }
+                        if (!inst.visitorAutoFinalizeTime && (d.visitorAutoFinalizeTime || d.visitor_auto_finalize_time)) {
+                            inst.visitorAutoFinalizeTime = d.visitorAutoFinalizeTime || d.visitor_auto_finalize_time;
+                        }
+                        if (inst.notifyHostOnVisitorArrival === undefined && (d.notifyHostOnVisitorArrival !== undefined || d.notify_host_on_visitor_arrival !== undefined)) {
+                            inst.notifyHostOnVisitorArrival = d.notifyHostOnVisitorArrival ?? d.notify_host_on_visitor_arrival;
+                        }
+                        if (!inst.visitorArrivalSmsTemplate && (d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template)) {
+                            inst.visitorArrivalSmsTemplate = d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template;
+                        }
+                    }
+                });
+            }
+        } catch (_) {}
+        return insts;
+    },
 
     async saveInstitution(inst: Institution): Promise<void> { 
         const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, classExamConfigs, class_exam_configs, classTeacherCommentsConfig, class_teacher_comments_config, classRankingConfigs, class_ranking_configs, othersExamSettings, others_exam_settings, imConfig, im_config, ...rest } = inst as any;
@@ -3215,6 +3338,52 @@ export const apiService = {
         // Merge imConfig (camelCase from frontend) and im_config (snake_case from DB read)
         const finalImConfig = imConfig || im_config || undefined;
 
+        const visitorAutoFinalizeEnabled = inst.visitorAutoFinalizeEnabled ?? (inst as any).visitor_auto_finalize_enabled;
+        const visitorAutoFinalizeTime = inst.visitorAutoFinalizeTime || (inst as any).visitor_auto_finalize_time;
+        const notifyHostOnVisitorArrival = inst.notifyHostOnVisitorArrival ?? (inst as any).notify_host_on_visitor_arrival;
+        const visitorArrivalSmsTemplate = inst.visitorArrivalSmsTemplate || (inst as any).visitor_arrival_sms_template;
+
+        // Immediately update localStorage for instant persistence across page refreshes
+        const currentLsInsts = ls.get('institutions') || [];
+        if (Array.isArray(currentLsInsts) && inst.id) {
+            const updatedLs = currentLsInsts.map((i: any) => i.id === inst.id ? { 
+                ...i, 
+                ...inst, 
+                visitorAutoFinalizeEnabled, 
+                visitorAutoFinalizeTime,
+                notifyHostOnVisitorArrival,
+                visitorArrivalSmsTemplate,
+                visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
+                visitor_auto_finalize_time: visitorAutoFinalizeTime,
+                notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
+                visitor_arrival_sms_template: visitorArrivalSmsTemplate
+            } : i);
+            ls.set('institutions', updatedLs);
+        }
+
+        // Save visitor settings backup to institution_module_states
+        if (inst.id && (visitorAutoFinalizeTime !== undefined || visitorAutoFinalizeEnabled !== undefined)) {
+            apiService.saveModuleRecord('institution_module_states', {
+                id: `${inst.id}_visitor_settings`,
+                institution_id: inst.id,
+                institutionId: inst.id,
+                module_id: 'visitor_settings',
+                moduleId: 'visitor_settings',
+                status: 'active',
+                data: {
+                    visitorAutoFinalizeEnabled,
+                    visitorAutoFinalizeTime,
+                    notifyHostOnVisitorArrival,
+                    visitorArrivalSmsTemplate,
+                    visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
+                    visitor_auto_finalize_time: visitorAutoFinalizeTime,
+                    notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
+                    visitor_arrival_sms_template: visitorArrivalSmsTemplate
+                },
+                updated_at: new Date().toISOString()
+            }).catch(() => {});
+        }
+
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
             coop_settings,
@@ -3229,7 +3398,15 @@ export const apiService = {
             others_exam_settings: finalOthersSettings,
             othersExamSettings: finalOthersSettings,
             im_config: finalImConfig,
-            county_id: countyId
+            county_id: countyId,
+            visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
+            visitorAutoFinalizeEnabled: visitorAutoFinalizeEnabled,
+            visitor_auto_finalize_time: visitorAutoFinalizeTime,
+            visitorAutoFinalizeTime: visitorAutoFinalizeTime,
+            notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
+            notifyHostOnVisitorArrival: notifyHostOnVisitorArrival,
+            visitor_arrival_sms_template: visitorArrivalSmsTemplate,
+            visitorArrivalSmsTemplate: visitorArrivalSmsTemplate
         }); 
     },
     async fetchUsers(institutionId?: string): Promise<User[]> { return apiService.fetchModuleRecords('users', institutionId); },
