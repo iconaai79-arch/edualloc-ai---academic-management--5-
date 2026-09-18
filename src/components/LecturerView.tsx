@@ -17,6 +17,7 @@ import {
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
     isConfirmationExpired, getNextOccurrenceDate 
 } from '../utils/remedialSubstitutionUtils';
+import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -115,6 +116,7 @@ const renderTabIcon = (tab: string, className = "w-5 h-5") => {
 
 interface LecturerViewProps {
     user?: User;
+    activeRole?: any;
     users?: User[];
     subjects?: Subject[];
     departments?: Department[];
@@ -238,6 +240,197 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             setTeacherClearances(local);
         } catch (_) {}
     }, [currentInstitution?.id, user?.institutionId]);
+
+    // Subject teacher allocations (from Lessons & Allocation manager)
+    const [subjectAllocations, setSubjectAllocations] = useState<any[]>(() => {
+        try {
+            const instId = currentInstitution?.id || user?.institutionId;
+            const saved = localStorage.getItem(`eduai_subject_allocations_${instId}`) ||
+                          localStorage.getItem('eduai_subject_allocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {}
+        return [];
+    });
+
+    useEffect(() => {
+        const instId = currentInstitution?.id || user?.institutionId;
+        if (instId) {
+            apiService.fetchModuleRecords<any>('subject_allocations', instId)
+                .then(records => {
+                    if (records && Array.isArray(records) && records.length > 0) {
+                        setSubjectAllocations(records);
+                        try {
+                            localStorage.setItem(`eduai_subject_allocations_${instId}`, JSON.stringify(records));
+                            localStorage.setItem('eduai_subject_allocations', JSON.stringify(records));
+                        } catch (_) {}
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [currentInstitution?.id, user?.institutionId]);
+
+    // Role check for Director of Studies (DOS)
+    const isDos = useMemo(() => {
+        if (!user) return false;
+        const role = ((props as any).activeRole || user.role || '').toLowerCase();
+        const roles: string[] = Array.isArray((user as any)?.roles)
+            ? (user as any).roles.map((r: any) => String(r).toLowerCase())
+            : [];
+        const title = ((user as any)?.jobTitle || (user as any)?.designation || (user as any)?.title || '').toLowerCase();
+        return (
+            role === 'dos' ||
+            role === 'director_of_studies' ||
+            role === 'academics_officer' ||
+            role === 'admin' ||
+            role === 'super_admin' ||
+            role === 'head_teacher' ||
+            role === 'deputy' ||
+            roles.includes('dos') ||
+            roles.includes('director_of_studies') ||
+            roles.includes('academics_officer') ||
+            roles.includes('admin') ||
+            roles.includes('head_teacher') ||
+            title.includes('director of studies') ||
+            title.includes('dos') ||
+            title.includes('academic officer')
+        );
+    }, [user, (props as any).activeRole]);
+
+    // Teacher's assigned subjects (only assigned subjects if teacher, all subjects if DOS)
+    const teacherAllocatedSubjects = useMemo(() => {
+        if (isDos) {
+            return subjects || [];
+        }
+
+        const matchedSubjectIds = new Set<string>();
+        const matchedSubjectNames = new Set<string>();
+        const uId = user?.id;
+        const uName = (user?.name || '').toLowerCase().trim();
+
+        // 1. From subjectAllocations (Lessons & Allocations manager)
+        (subjectAllocations || []).forEach(a => {
+            const isMatch = a && (
+                a.teacherId === uId ||
+                (uName && a.teacherName && a.teacherName.toLowerCase().trim() === uName)
+            );
+            if (isMatch) {
+                if (a.subjectId) matchedSubjectIds.add(a.subjectId);
+                const sName = (a.subjectName || a.subject || '').trim().toLowerCase();
+                if (sName) matchedSubjectNames.add(sName);
+                if (a.subjectCode) matchedSubjectNames.add(a.subjectCode.trim().toLowerCase());
+            }
+        });
+
+        // 2. From allocations (AllocationRequest records)
+        (allocations || []).forEach((a: any) => {
+            const isMatch = a && (a.lecturerId === uId || a.teacherId === uId);
+            if (isMatch) {
+                if (a.subjectId) matchedSubjectIds.add(a.subjectId);
+                if (Array.isArray(a.subjectIds)) a.subjectIds.forEach((id: string) => matchedSubjectIds.add(id));
+                const sName = (a.subjectName || a.subject || '').trim().toLowerCase();
+                if (sName) matchedSubjectNames.add(sName);
+            }
+        });
+
+        // 3. From user profile fields
+        const directSubs: string[] = (user as any)?.allocatedSubjects || (user as any)?.teachingSubjects || (user as any)?.subjects || [];
+        if (Array.isArray(directSubs)) {
+            directSubs.forEach(s => {
+                if (typeof s === 'string' && s.trim()) {
+                    matchedSubjectIds.add(s);
+                    matchedSubjectNames.add(s.trim().toLowerCase());
+                }
+            });
+        }
+        const singleSub = ((user as any)?.subject || '').trim().toLowerCase();
+        if (singleSub) matchedSubjectNames.add(singleSub);
+
+        // 4. From generatedTimetable
+        (generatedTimetable || []).filter(e => e && e.lecturerId === uId).forEach(e => {
+            if (e.subjectId) matchedSubjectIds.add(e.subjectId);
+        });
+
+        // Match against all available subjects
+        const allocated = (subjects || []).filter(s =>
+            matchedSubjectIds.has(s.id) ||
+            matchedSubjectNames.has(s.name.trim().toLowerCase()) ||
+            matchedSubjectNames.has((s.code || '').trim().toLowerCase())
+        );
+
+        return allocated;
+    }, [isDos, subjects, subjectAllocations, allocations, user, generatedTimetable]);
+
+    // Teacher's allocated grades (grades/classes based on allocated subjects)
+    const teacherAllocatedGrades = useMemo(() => {
+        if (isDos) {
+            const allGrades = new Set<string>();
+            (courses || []).forEach(c => {
+                (c.levels || []).forEach(l => { if (l.name) allGrades.add(l.name.trim()); });
+            });
+            (props.users || []).filter(u => u.role === 'student').forEach(st => {
+                const cls = resolveRealStudentClass(st, [], courses, '');
+                if (cls && cls !== 'Unclassified') allGrades.add(cls);
+            });
+            return naturalClassSort(Array.from(allGrades));
+        }
+
+        const gradesSet = new Set<string>();
+        const uId = user?.id;
+        const uName = (user?.name || '').toLowerCase().trim();
+
+        // 1. From subjectAllocations (className in Lessons & Allocations)
+        (subjectAllocations || []).forEach(a => {
+            const isMatch = a && (
+                a.teacherId === uId ||
+                (uName && a.teacherName && a.teacherName.toLowerCase().trim() === uName)
+            );
+            if (isMatch) {
+                const cName = (a.className || a.class || '').trim();
+                if (cName) gradesSet.add(cName);
+            }
+        });
+
+        // 2. From allocations (AllocationRequest records)
+        (allocations || []).forEach((a: any) => {
+            if (a && (a.lecturerId === uId || a.teacherId === uId)) {
+                const cName = (a.className || a.class || '').trim();
+                if (cName) gradesSet.add(cName);
+                if (a.courseLevelSelections && typeof a.courseLevelSelections === 'object') {
+                    Object.values(a.courseLevelSelections).flat().forEach((lvl: any) => {
+                        if (typeof lvl === 'string' && lvl.trim()) gradesSet.add(lvl.trim());
+                    });
+                }
+            }
+        });
+
+        // 3. From courses whose levels include the teacher's allocated subjects
+        const allocatedSubjectIds = new Set(teacherAllocatedSubjects.map(s => s.id));
+        (courses || []).forEach(c => {
+            (c.levels || []).forEach(l => {
+                if (l.subjectIds && l.subjectIds.some(id => allocatedSubjectIds.has(id))) {
+                    if (l.name) gradesSet.add(l.name.trim());
+                }
+            });
+        });
+
+        // 4. From students in users who have these subjects in their course/grade
+        (props.users || []).filter(u => u.role === 'student').forEach(st => {
+            const cls = resolveRealStudentClass(st, [], courses, '');
+            if (cls && cls !== 'Unclassified') {
+                const matchesCourse = (courses || []).some(c =>
+                    c.id === st.courseId && (c.levels || []).some(l => l.id === st.courseLevelId && l.subjectIds && l.subjectIds.some(id => allocatedSubjectIds.has(id)))
+                );
+                if (matchesCourse) {
+                    gradesSet.add(cls);
+                }
+            }
+        });
+
+        return naturalClassSort(Array.from(gradesSet));
+    }, [isDos, courses, props.users, subjectAllocations, allocations, user, teacherAllocatedSubjects]);
 
     useEffect(() => {
         loadTeacherClearances();
@@ -613,9 +806,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-3">Record Marks & Assessments</h4>
                                         <AssessmentManager
                                             user={user}
+                                            isDos={isDos}
                                             assessments={props.assessments || []}
                                             assessmentMarks={props.assessmentMarks || []}
-                                            allocatedSubjects={(allocations || []).map(a => a && a.subjectId ? getSubjectById(a.subjectId)! : null).filter(Boolean) as Subject[]}
+                                            allocatedSubjects={teacherAllocatedSubjects}
+                                            allocatedGrades={teacherAllocatedGrades}
                                             users={props.users || []}
                                             courses={courses}
                                             onAddAssessment={props.onAddAssessment || (() => { })}
@@ -628,10 +823,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-3">Generate Documents & Results</h4>
                                         <AssessmentReports
                                             currentUser={user}
+                                            isDos={isDos}
                                             assessments={props.assessments || []}
                                             assessmentMarks={props.assessmentMarks || []}
                                             users={props.users || []}
-                                            subjects={subjects}
+                                            subjects={teacherAllocatedSubjects}
                                             courses={courses}
                                             departments={departments}
                                             letterheadConfig={props.letterheadConfig || {} as LetterheadConfig}

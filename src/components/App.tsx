@@ -5483,6 +5483,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         academicYears,
         semesters,
         requests,
+        allocations,
         generatedTimetable,
         getSubjectById,
         getRoomById,
@@ -5510,7 +5511,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onDeleteTask: handleDeleteTask,
         onSaveAttendance: handleSaveAttendance,
         onAccessAlumnaPortal: handleAccessAlumnaPortal
-    }), [currentUser, users, courses, subjects, rooms, academicYears, semesters, requests, generatedTimetable, getSubjectById, getRoomById, timetableSettings, assignments, submissions, teacherCheckIns, observationNotes, timeOffRequests, userTasks, assessments, assessmentMarks, studentAttendances, handleAddRequest, handleUpdateRequest, handleWithdrawRequest, handleAddAssignment, handleDeleteAssignment, handleAddFeedback, handleTeacherLessonCheckIn, handleAddObservationNote, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleAccessAlumnaPortal]);
+    }), [currentUser, users, courses, subjects, rooms, academicYears, semesters, requests, allocations, generatedTimetable, getSubjectById, getRoomById, timetableSettings, assignments, submissions, teacherCheckIns, observationNotes, timeOffRequests, userTasks, assessments, assessmentMarks, studentAttendances, handleAddRequest, handleUpdateRequest, handleWithdrawRequest, handleAddAssignment, handleDeleteAssignment, handleAddFeedback, handleTeacherLessonCheckIn, handleAddObservationNote, handleAddTimeOffRequest, handleAddTask, handleUpdateTask, handleDeleteTask, handleSaveAttendance, handleAccessAlumnaPortal]);
 
     const parentProps = useMemo<Partial<ParentProps>>(() => ({
         user: currentUser || undefined,
@@ -7566,6 +7567,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         academicYears,
                                         semesters,
                                         requests,
+                                        allocations,
                                         generatedTimetable,
                                         onSubmitRequest: async (subjectIds: string[], justification: string, signatureUrl: string | null, priority: Priority, academicYearId: string, semesterId: string, preferences: any, levels: any) => {
                                             await apiService.saveModuleRecord('allocation_requests', {

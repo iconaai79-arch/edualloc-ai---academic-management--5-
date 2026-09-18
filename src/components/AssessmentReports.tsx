@@ -9,6 +9,7 @@ import type { User, Assessment, AssessmentMark, Subject, Course, Department, Let
 
 interface AssessmentReportsProps {
     currentUser: User;
+    isDos?: boolean;
     assessments: Assessment[];
     assessmentMarks: AssessmentMark[];
     users: User[];
@@ -37,6 +38,14 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => {
 
 export const AssessmentReports: React.FC<AssessmentReportsProps> = (props) => {
     const { currentUser, assessments, assessmentMarks, users, subjects, courses, departments, currentInstitution } = props;
+    const isDos = props.isDos ?? (
+        currentUser.role === 'dos' ||
+        currentUser.role === 'director_of_studies' ||
+        currentUser.role === 'academics_officer' ||
+        currentUser.role === 'admin' ||
+        currentUser.role === 'super_admin' ||
+        currentUser.role === 'head_teacher'
+    );
     const [selectedCourseId, setSelectedCourseId] = useState<string>('all');
     const [selectedSubjectId, setSelectedSubjectId] = useState<string>('all');
     const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('all');
@@ -50,30 +59,36 @@ export const AssessmentReports: React.FC<AssessmentReportsProps> = (props) => {
         return currentInstitution.gradingSystems?.find(s => s.id === currentInstitution.activeGradingSystemId) || currentInstitution.gradingSystems?.[0] || null;
     }, [currentInstitution]);
 
-    const visibleCourses = useMemo(() => {
-        if ((currentUser.role === 'hod' || currentUser.role === 'tto') && currentUser.departmentId) {
-            return courses.filter(c => c.departmentId === currentUser.departmentId);
-        }
-        return courses;
-    }, [currentUser, courses]);
-
     const visibleSubjects = useMemo(() => {
+        if (isDos) {
+            return subjects;
+        }
         if ((currentUser.role === 'hod' || currentUser.role === 'tto') && currentUser.departmentId) {
             return subjects.filter(s => s.departmentId === currentUser.departmentId);
         }
         return subjects;
-    }, [currentUser, subjects]);
+    }, [isDos, currentUser, subjects]);
+
+    const visibleCourses = useMemo(() => {
+        if (isDos) {
+            return courses;
+        }
+        if ((currentUser.role === 'hod' || currentUser.role === 'tto') && currentUser.departmentId) {
+            return courses.filter(c => c.departmentId === currentUser.departmentId);
+        }
+        const subjectIds = new Set(visibleSubjects.map(s => s.id));
+        const matching = courses.filter(c => c.levels && c.levels.some(l => l.subjectIds && l.subjectIds.some(id => subjectIds.has(id))));
+        return matching.length > 0 ? matching : courses;
+    }, [isDos, currentUser, courses, visibleSubjects]);
 
     const visibleAssessments = useMemo(() => {
-        let filtered = assessments;
+        const subjectIds = new Set(visibleSubjects.map(s => s.id));
+        let filtered = isDos ? assessments : assessments.filter(a => subjectIds.has(a.subjectId));
         if (selectedSubjectId !== 'all') {
             filtered = filtered.filter(a => a.subjectId === selectedSubjectId);
-        } else if ((currentUser.role === 'hod' || currentUser.role === 'tto') && currentUser.departmentId) {
-            const subjectIds = new Set(visibleSubjects.map(s => s.id));
-            filtered = filtered.filter(a => subjectIds.has(a.subjectId));
         }
         return filtered;
-    }, [assessments, selectedSubjectId, currentUser, visibleSubjects]);
+    }, [assessments, selectedSubjectId, isDos, visibleSubjects]);
 
     const reportData = useMemo(() => {
         if (selectedAssessmentId === 'all') return [];
