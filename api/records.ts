@@ -704,30 +704,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const records = Array.isArray(data) ? data : (data ? [data] : []);
                 await Promise.all(records.map(async (inst: any) => {
                     if (!inst || !inst.id) return;
-                    if (inst.visitor_auto_finalize_time === undefined || inst.visitor_auto_finalize_enabled === undefined) {
-                        try {
-                            const { data: vState } = await supabase
+                    try {
+                        let vState: any = null;
+                        const { data: q1 } = await supabase
+                            .from('institution_module_states')
+                            .select('data')
+                            .eq('institution_id', inst.id)
+                            .eq('module_id', 'visitor_settings')
+                            .maybeSingle();
+                        if (q1) {
+                            vState = q1;
+                        } else {
+                            const { data: q2 } = await supabase
                                 .from('institution_module_states')
                                 .select('data')
-                                .eq('id', `${inst.id}_visitor_settings`)
+                                .or(`id.eq.${inst.id}_visitor_settings,id.eq.ims_visitor_settings_${inst.id}`)
                                 .maybeSingle();
-                            if (vState && vState.data) {
-                                const vd = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
-                                if (inst.visitor_auto_finalize_enabled === undefined) {
-                                    inst.visitor_auto_finalize_enabled = vd.visitor_auto_finalize_enabled ?? vd.visitorAutoFinalizeEnabled;
+                            vState = q2;
+                        }
+
+                        if (vState && vState.data) {
+                            const vd = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
+                            if (vd) {
+                                const vEnabled = vd.visitor_auto_finalize_enabled ?? vd.visitorAutoFinalizeEnabled;
+                                if (vEnabled !== undefined && vEnabled !== null) {
+                                    inst.visitor_auto_finalize_enabled = Boolean(vEnabled);
                                 }
-                                if (!inst.visitor_auto_finalize_time) {
-                                    inst.visitor_auto_finalize_time = vd.visitor_auto_finalize_time || vd.visitorAutoFinalizeTime;
+                                const savedTime = vd.visitor_auto_finalize_time || vd.visitorAutoFinalizeTime;
+                                if (savedTime) {
+                                    inst.visitor_auto_finalize_time = savedTime;
                                 }
-                                if (inst.notify_host_on_visitor_arrival === undefined) {
-                                    inst.notify_host_on_visitor_arrival = vd.notify_host_on_visitor_arrival ?? vd.notifyHostOnVisitorArrival;
+                                const nHost = vd.notify_host_on_visitor_arrival ?? vd.notifyHostOnVisitorArrival;
+                                if (nHost !== undefined && nHost !== null) {
+                                    inst.notify_host_on_visitor_arrival = Boolean(nHost);
                                 }
-                                if (!inst.visitor_arrival_sms_template) {
+                                if (vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate) {
                                     inst.visitor_arrival_sms_template = vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate;
                                 }
                             }
-                        } catch (_) {}
-                    }
+                        }
+                    } catch (_) {}
+
                     if (inst.metadata) {
                         const meta = typeof inst.metadata === 'string' ? JSON.parse(inst.metadata) : inst.metadata;
                         if (inst.visitor_auto_finalize_enabled === undefined && (meta.visitor_auto_finalize_enabled !== undefined || meta.visitorAutoFinalizeEnabled !== undefined)) {
@@ -743,6 +760,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             inst.visitor_arrival_sms_template = meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate;
                         }
                     }
+
+                    if (inst.visitor_auto_finalize_time && typeof inst.visitor_auto_finalize_time === 'string') {
+                        inst.visitor_auto_finalize_time = inst.visitor_auto_finalize_time.trim().slice(0, 5);
+                    }
+                    if (inst.visitorAutoFinalizeTime && typeof inst.visitorAutoFinalizeTime === 'string') {
+                        inst.visitorAutoFinalizeTime = inst.visitorAutoFinalizeTime.trim().slice(0, 5);
+                    }
+
                     if (inst.visitor_auto_finalize_enabled !== undefined && inst.visitorAutoFinalizeEnabled === undefined) {
                         inst.visitorAutoFinalizeEnabled = inst.visitor_auto_finalize_enabled;
                     }
@@ -2520,6 +2545,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     if (returned.maxWeekendLessonsPerDay === undefined) {
                         returned.maxWeekendLessonsPerDay = returned.max_weekend_lessons_per_day ?? fallbackWeekend;
+                    }
+                }
+                return res.status(200).json(returned);
+            }
+
+            if (moduleName === 'institutions') {
+                const returned = data?.[0] || recordData;
+                if (returned && typeof returned === 'object') {
+                    const rawRecord = Array.isArray(recordData) ? recordData[0] : recordData;
+                    if (returned.visitor_auto_finalize_enabled === undefined) {
+                        returned.visitor_auto_finalize_enabled = rawRecord?.visitor_auto_finalize_enabled ?? rawRecord?.visitorAutoFinalizeEnabled;
+                    }
+                    if (returned.visitorAutoFinalizeEnabled === undefined) {
+                        returned.visitorAutoFinalizeEnabled = returned.visitor_auto_finalize_enabled;
+                    }
+                    if (!returned.visitor_auto_finalize_time) {
+                        returned.visitor_auto_finalize_time = rawRecord?.visitor_auto_finalize_time || rawRecord?.visitorAutoFinalizeTime;
+                    }
+                    if (!returned.visitorAutoFinalizeTime) {
+                        returned.visitorAutoFinalizeTime = returned.visitor_auto_finalize_time;
+                    }
+                    if (returned.notify_host_on_visitor_arrival === undefined) {
+                        returned.notify_host_on_visitor_arrival = rawRecord?.notify_host_on_visitor_arrival ?? rawRecord?.notifyHostOnVisitorArrival;
+                    }
+                    if (returned.notifyHostOnVisitorArrival === undefined) {
+                        returned.notifyHostOnVisitorArrival = returned.notify_host_on_visitor_arrival;
+                    }
+                    if (!returned.visitor_arrival_sms_template) {
+                        returned.visitor_arrival_sms_template = rawRecord?.visitor_arrival_sms_template || rawRecord?.visitorArrivalSmsTemplate;
+                    }
+                    if (!returned.visitorArrivalSmsTemplate) {
+                        returned.visitorArrivalSmsTemplate = returned.visitor_arrival_sms_template;
                     }
                 }
                 return res.status(200).json(returned);

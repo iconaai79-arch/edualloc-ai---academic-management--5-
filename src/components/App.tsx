@@ -656,10 +656,82 @@ export const App: React.FC = () => {
     const activeInstitution = useMemo(() => {
         if (!Array.isArray(institutions)) return null;
 
-        const mergeModules = (inst: Institution) => ({
-            ...inst,
-            moduleStates: (institutionModuleStates || []).filter(m => (m.institutionId || (m as any).institution_id) === inst.id)
-        });
+        const mergeModules = (inst: Institution) => {
+            const states = (institutionModuleStates || []).filter(m => (m.institutionId || (m as any).institution_id) === inst.id);
+            const vState = states.find(m => m.moduleId === 'visitor_settings' || (m as any).module_id === 'visitor_settings');
+            let vData: any = null;
+            if (vState?.data) {
+                try {
+                    vData = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
+                } catch (_) {}
+            }
+
+            let localSaved: any = null;
+            try {
+                const raw = localStorage.getItem(`eduai_visitor_settings_${inst.id}`) || localStorage.getItem('eduai_visitor_settings');
+                if (raw) localSaved = JSON.parse(raw);
+            } catch (_) {}
+
+            const cleanTime = (val: any) => {
+                if (!val || typeof val !== 'string') return '';
+                const t = val.trim();
+                if (/^\d{1,2}:\d{2}/.test(t)) {
+                    return t.slice(0, 5);
+                }
+                return t;
+            };
+
+            const localTime = cleanTime(localSaved?.visitorAutoFinalizeTime || localSaved?.visitor_auto_finalize_time);
+            const modTime = cleanTime(vData?.visitorAutoFinalizeTime || vData?.visitor_auto_finalize_time);
+            const instTime = cleanTime(inst.visitorAutoFinalizeTime || (inst as any)?.visitor_auto_finalize_time);
+
+            let visitorAutoFinalizeTime = '18:00';
+            if (localTime) {
+                visitorAutoFinalizeTime = localTime;
+            } else if (modTime) {
+                visitorAutoFinalizeTime = modTime;
+            } else if (instTime) {
+                visitorAutoFinalizeTime = instTime;
+            }
+
+            let visitorAutoFinalizeEnabled = false;
+            if (localSaved && (localSaved.visitorAutoFinalizeEnabled !== undefined || localSaved.visitor_auto_finalize_enabled !== undefined)) {
+                visitorAutoFinalizeEnabled = Boolean(localSaved.visitorAutoFinalizeEnabled ?? localSaved.visitor_auto_finalize_enabled);
+            } else if (vData && (vData.visitorAutoFinalizeEnabled !== undefined || vData.visitor_auto_finalize_enabled !== undefined)) {
+                visitorAutoFinalizeEnabled = Boolean(vData.visitorAutoFinalizeEnabled ?? vData.visitor_auto_finalize_enabled);
+            } else if (inst.visitorAutoFinalizeEnabled !== undefined || (inst as any)?.visitor_auto_finalize_enabled !== undefined) {
+                visitorAutoFinalizeEnabled = Boolean(inst.visitorAutoFinalizeEnabled ?? (inst as any)?.visitor_auto_finalize_enabled);
+            }
+
+            const notifyHostOnVisitorArrival = localSaved?.notifyHostOnVisitorArrival ?? 
+                                               localSaved?.notify_host_on_visitor_arrival ?? 
+                                               vData?.notifyHostOnVisitorArrival ?? 
+                                               vData?.notify_host_on_visitor_arrival ?? 
+                                               inst.notifyHostOnVisitorArrival ?? 
+                                               (inst as any)?.notify_host_on_visitor_arrival ?? 
+                                               true;
+
+            const visitorArrivalSmsTemplate = localSaved?.visitorArrivalSmsTemplate || 
+                                              localSaved?.visitor_arrival_sms_template || 
+                                              vData?.visitorArrivalSmsTemplate || 
+                                              vData?.visitor_arrival_sms_template || 
+                                              inst.visitorArrivalSmsTemplate || 
+                                              (inst as any)?.visitor_arrival_sms_template || 
+                                              '';
+
+            return {
+                ...inst,
+                visitorAutoFinalizeEnabled,
+                visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
+                visitorAutoFinalizeTime,
+                visitor_auto_finalize_time: visitorAutoFinalizeTime,
+                notifyHostOnVisitorArrival,
+                notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
+                visitorArrivalSmsTemplate,
+                visitor_arrival_sms_template: visitorArrivalSmsTemplate,
+                moduleStates: states
+            };
+        };
 
         const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
 
@@ -3285,6 +3357,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         const inst = institutions.find(i => i.id === id) || (activeInstitution?.id === id ? activeInstitution : null);
         if (inst) {
             const updated = { ...inst, ...data };
+            if (data.visitorAutoFinalizeTime !== undefined || data.visitor_auto_finalize_time !== undefined || data.visitorAutoFinalizeEnabled !== undefined || data.visitor_auto_finalize_enabled !== undefined) {
+                try {
+                    const vTime = data.visitorAutoFinalizeTime || data.visitor_auto_finalize_time || inst.visitorAutoFinalizeTime || (inst as any)?.visitor_auto_finalize_time || '18:00';
+                    const vEnabled = data.visitorAutoFinalizeEnabled ?? (data as any)?.visitor_auto_finalize_enabled ?? inst.visitorAutoFinalizeEnabled ?? (inst as any)?.visitor_auto_finalize_enabled ?? false;
+                    const nHost = data.notifyHostOnVisitorArrival ?? (data as any)?.notify_host_on_visitor_arrival ?? inst.notifyHostOnVisitorArrival ?? true;
+                    const sTemplate = data.visitorArrivalSmsTemplate || (data as any)?.visitor_arrival_sms_template || inst.visitorArrivalSmsTemplate || '';
+                    const payload = {
+                        visitorAutoFinalizeEnabled: vEnabled,
+                        visitorAutoFinalizeTime: vTime,
+                        visitor_auto_finalize_enabled: vEnabled,
+                        visitor_auto_finalize_time: vTime,
+                        notifyHostOnVisitorArrival: nHost,
+                        notify_host_on_visitor_arrival: nHost,
+                        visitorArrivalSmsTemplate: sTemplate,
+                        visitor_arrival_sms_template: sTemplate
+                    };
+                    localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
+                    localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
+                } catch (_) {}
+            }
             setInstitutions(prev => prev.map(i => i.id === id ? updated : i));
             await apiService.saveInstitution(updated);
             loadData();

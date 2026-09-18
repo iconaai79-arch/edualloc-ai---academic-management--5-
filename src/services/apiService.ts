@@ -3297,29 +3297,44 @@ export const apiService = {
         const insts = await apiService.fetchModuleRecords<Institution>('institutions', institutionId);
         try {
             const states = await apiService.fetchModuleRecords<any>('institution_module_states', institutionId).catch(() => []);
-            if (Array.isArray(states) && states.length > 0) {
-                insts.forEach(inst => {
-                    const vState = states.find((s: any) => 
-                        (s.moduleId === 'visitor_settings' || s.module_id === 'visitor_settings') && 
-                        (s.institutionId === inst.id || s.institution_id === inst.id)
-                    );
-                    if (vState && vState.data) {
-                        const d = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
-                        if (inst.visitorAutoFinalizeEnabled === undefined && (d.visitorAutoFinalizeEnabled !== undefined || d.visitor_auto_finalize_enabled !== undefined)) {
-                            inst.visitorAutoFinalizeEnabled = d.visitorAutoFinalizeEnabled ?? d.visitor_auto_finalize_enabled;
-                        }
-                        if (!inst.visitorAutoFinalizeTime && (d.visitorAutoFinalizeTime || d.visitor_auto_finalize_time)) {
-                            inst.visitorAutoFinalizeTime = d.visitorAutoFinalizeTime || d.visitor_auto_finalize_time;
-                        }
-                        if (inst.notifyHostOnVisitorArrival === undefined && (d.notifyHostOnVisitorArrival !== undefined || d.notify_host_on_visitor_arrival !== undefined)) {
-                            inst.notifyHostOnVisitorArrival = d.notifyHostOnVisitorArrival ?? d.notify_host_on_visitor_arrival;
-                        }
-                        if (!inst.visitorArrivalSmsTemplate && (d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template)) {
-                            inst.visitorArrivalSmsTemplate = d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template;
-                        }
+            insts.forEach(inst => {
+                let localSaved: any = null;
+                try {
+                    const raw = localStorage.getItem(`eduai_visitor_settings_${inst.id}`) || localStorage.getItem('eduai_visitor_settings');
+                    if (raw) localSaved = JSON.parse(raw);
+                } catch (_) {}
+
+                const vState = Array.isArray(states) ? states.find((s: any) => 
+                    (s.moduleId === 'visitor_settings' || s.module_id === 'visitor_settings' || s.id === `${inst.id}_visitor_settings` || s.id === `ims_visitor_settings_${inst.id}`) && 
+                    (!s.institutionId || s.institutionId === inst.id || s.institution_id === inst.id)
+                ) : null;
+                let d = localSaved;
+                if (vState && vState.data) {
+                    try {
+                        const parsed = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
+                        d = { ...(parsed || {}), ...(localSaved || {}) };
+                    } catch (_) {}
+                }
+                if (d) {
+                    const enabled = d.visitorAutoFinalizeEnabled ?? d.visitor_auto_finalize_enabled;
+                    if (enabled !== undefined && enabled !== null) {
+                        inst.visitorAutoFinalizeEnabled = Boolean(enabled);
                     }
-                });
-            }
+                    const sTime = d.visitorAutoFinalizeTime || d.visitor_auto_finalize_time;
+                    if (sTime && typeof sTime === 'string') {
+                        inst.visitorAutoFinalizeTime = sTime.trim().slice(0, 5);
+                    } else if (!inst.visitorAutoFinalizeTime) {
+                        inst.visitorAutoFinalizeTime = '18:00';
+                    }
+                    const nHost = d.notifyHostOnVisitorArrival ?? d.notify_host_on_visitor_arrival;
+                    if (nHost !== undefined && nHost !== null) {
+                        inst.notifyHostOnVisitorArrival = Boolean(nHost);
+                    }
+                    if (d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template) {
+                        inst.visitorArrivalSmsTemplate = d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template;
+                    }
+                }
+            });
         } catch (_) {}
         return insts;
     },
@@ -3343,43 +3358,53 @@ export const apiService = {
         const notifyHostOnVisitorArrival = inst.notifyHostOnVisitorArrival ?? (inst as any).notify_host_on_visitor_arrival;
         const visitorArrivalSmsTemplate = inst.visitorArrivalSmsTemplate || (inst as any).visitor_arrival_sms_template;
 
+        const visitorPayload = {
+            visitorAutoFinalizeEnabled,
+            visitorAutoFinalizeTime,
+            notifyHostOnVisitorArrival,
+            visitorArrivalSmsTemplate,
+            visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
+            visitor_auto_finalize_time: visitorAutoFinalizeTime,
+            notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
+            visitor_arrival_sms_template: visitorArrivalSmsTemplate
+        };
+
+        // Dedicated local storage write-through
+        try {
+            if (inst.id) {
+                localStorage.setItem(`eduai_visitor_settings_${inst.id}`, JSON.stringify(visitorPayload));
+            }
+            localStorage.setItem('eduai_visitor_settings', JSON.stringify(visitorPayload));
+        } catch (_) {}
+
         // Immediately update localStorage for instant persistence across page refreshes
-        const currentLsInsts = ls.get('institutions') || [];
-        if (Array.isArray(currentLsInsts) && inst.id) {
-            const updatedLs = currentLsInsts.map((i: any) => i.id === inst.id ? { 
-                ...i, 
-                ...inst, 
-                visitorAutoFinalizeEnabled, 
-                visitorAutoFinalizeTime,
-                notifyHostOnVisitorArrival,
-                visitorArrivalSmsTemplate,
-                visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
-                visitor_auto_finalize_time: visitorAutoFinalizeTime,
-                notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
-                visitor_arrival_sms_template: visitorArrivalSmsTemplate
-            } : i);
-            ls.set('institutions', updatedLs);
+        let currentLsInsts = ls.get('institutions') || [];
+        if (!Array.isArray(currentLsInsts)) currentLsInsts = [];
+        if (inst.id) {
+            const idx = currentLsInsts.findIndex((i: any) => i.id === inst.id);
+            const enriched = {
+                ...(idx >= 0 ? currentLsInsts[idx] : {}),
+                ...inst,
+                ...visitorPayload
+            };
+            if (idx >= 0) {
+                currentLsInsts[idx] = enriched;
+            } else {
+                currentLsInsts.push(enriched);
+            }
+            ls.set('institutions', currentLsInsts);
         }
 
         // Save visitor settings backup to institution_module_states
         if (inst.id && (visitorAutoFinalizeTime !== undefined || visitorAutoFinalizeEnabled !== undefined)) {
             apiService.saveModuleRecord('institution_module_states', {
-                id: `${inst.id}_visitor_settings`,
+                id: `ims_visitor_settings_${inst.id}`,
                 institution_id: inst.id,
                 institutionId: inst.id,
                 module_id: 'visitor_settings',
                 moduleId: 'visitor_settings',
                 status: 'active',
-                data: {
-                    visitorAutoFinalizeEnabled,
-                    visitorAutoFinalizeTime,
-                    notifyHostOnVisitorArrival,
-                    visitorArrivalSmsTemplate,
-                    visitor_auto_finalize_enabled: visitorAutoFinalizeEnabled,
-                    visitor_auto_finalize_time: visitorAutoFinalizeTime,
-                    notify_host_on_visitor_arrival: notifyHostOnVisitorArrival,
-                    visitor_arrival_sms_template: visitorArrivalSmsTemplate
-                },
+                data: visitorPayload,
                 updated_at: new Date().toISOString()
             }).catch(() => {});
         }

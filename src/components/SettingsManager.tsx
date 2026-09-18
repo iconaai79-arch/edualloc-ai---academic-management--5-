@@ -363,29 +363,101 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         value: 2
     });
 
+    const resolveVisitorSettings = useCallback((inst?: Institution | null) => {
+        const instId = inst?.id;
+        let localSaved: any = null;
+        try {
+            const raw = (instId && localStorage.getItem(`eduai_visitor_settings_${instId}`)) || localStorage.getItem('eduai_visitor_settings');
+            if (raw) localSaved = JSON.parse(raw);
+        } catch (_) {}
+
+        // Also check if moduleStates has visitor_settings
+        const vState = inst?.moduleStates?.find((m: any) => (m.moduleId === 'visitor_settings' || m.module_id === 'visitor_settings'));
+        let modData: any = null;
+        if (vState?.data) {
+            try {
+                modData = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
+            } catch (_) {}
+        }
+
+        const cleanTime = (val: any) => {
+            if (!val || typeof val !== 'string') return '';
+            const t = val.trim();
+            if (/^\d{1,2}:\d{2}/.test(t)) {
+                return t.slice(0, 5);
+            }
+            return t;
+        };
+
+        const localTime = cleanTime(localSaved?.visitorAutoFinalizeTime || localSaved?.visitor_auto_finalize_time);
+        const modTime = cleanTime(modData?.visitorAutoFinalizeTime || modData?.visitor_auto_finalize_time);
+        const instTime = cleanTime(inst?.visitorAutoFinalizeTime || (inst as any)?.visitor_auto_finalize_time);
+
+        // Determine enabled state: localSaved (user preference on device) takes top priority
+        let enabled = false;
+        if (localSaved && (localSaved.visitorAutoFinalizeEnabled !== undefined || localSaved.visitor_auto_finalize_enabled !== undefined)) {
+            enabled = Boolean(localSaved.visitorAutoFinalizeEnabled ?? localSaved.visitor_auto_finalize_enabled);
+        } else if (modData && (modData.visitorAutoFinalizeEnabled !== undefined || modData.visitor_auto_finalize_enabled !== undefined)) {
+            enabled = Boolean(modData.visitorAutoFinalizeEnabled ?? modData.visitor_auto_finalize_enabled);
+        } else if (inst && (inst.visitorAutoFinalizeEnabled !== undefined || (inst as any)?.visitor_auto_finalize_enabled !== undefined)) {
+            enabled = Boolean(inst.visitorAutoFinalizeEnabled ?? (inst as any)?.visitor_auto_finalize_enabled);
+        }
+
+        // Determine time: prioritize explicit saved user time
+        let time = '18:00';
+        if (localTime) {
+            time = localTime;
+        } else if (modTime) {
+            time = modTime;
+        } else if (instTime) {
+            time = instTime;
+        }
+
+        const notifyHost = localSaved?.notifyHostOnVisitorArrival ?? 
+                           localSaved?.notify_host_on_visitor_arrival ?? 
+                           modData?.notifyHostOnVisitorArrival ?? 
+                           modData?.notify_host_on_visitor_arrival ?? 
+                           inst?.notifyHostOnVisitorArrival ?? 
+                           (inst as any)?.notify_host_on_visitor_arrival ?? 
+                           true;
+
+        const smsTemplate = localSaved?.visitorArrivalSmsTemplate || 
+                            localSaved?.visitor_arrival_sms_template || 
+                            modData?.visitorArrivalSmsTemplate || 
+                            modData?.visitor_arrival_sms_template || 
+                            inst?.visitorArrivalSmsTemplate || 
+                            (inst as any)?.visitor_arrival_sms_template || 
+                            '';
+
+        return { enabled: Boolean(enabled), time: time || '18:00', notifyHost: Boolean(notifyHost), smsTemplate };
+    }, []);
+
     // --- Institution Profile State ---
-    const [instProfile, setInstProfile] = useState({
-        email: props.currentInstitution?.email || '',
-        phoneNumber: props.currentInstitution?.phoneNumber || '',
-        useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
-        aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
-        isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
-        parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
-        farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
-        slug: props.currentInstitution?.slug || '',
-        googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
-        storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
-        storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
-        storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
-        kioskUrl: props.currentInstitution?.kioskUrl || '',
-        customSubdomain: props.currentInstitution?.customSubdomain || '',
-        useSubdomain: props.currentInstitution?.useSubdomain ?? false,
-        kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
-        kioskStatus: props.currentInstitution?.kioskStatus || 'active',
-        visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? (props.currentInstitution as any)?.visitor_auto_finalize_enabled ?? false,
-        visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || (props.currentInstitution as any)?.visitor_auto_finalize_time || '18:00',
-        notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? (props.currentInstitution as any)?.notify_host_on_visitor_arrival ?? true,
-        visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || (props.currentInstitution as any)?.visitor_arrival_sms_template || ''
+    const [instProfile, setInstProfile] = useState(() => {
+        const initialVisitor = resolveVisitorSettings(props.currentInstitution);
+        return {
+            email: props.currentInstitution?.email || '',
+            phoneNumber: props.currentInstitution?.phoneNumber || '',
+            useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
+            aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
+            isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
+            parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
+            farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
+            slug: props.currentInstitution?.slug || '',
+            googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
+            storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
+            storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
+            storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
+            kioskUrl: props.currentInstitution?.kioskUrl || '',
+            customSubdomain: props.currentInstitution?.customSubdomain || '',
+            useSubdomain: props.currentInstitution?.useSubdomain ?? false,
+            kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
+            kioskStatus: props.currentInstitution?.kioskStatus || 'active',
+            visitorAutoFinalizeEnabled: initialVisitor.enabled,
+            visitorAutoFinalizeTime: initialVisitor.time,
+            notifyHostOnVisitorArrival: initialVisitor.notifyHost,
+            visitorArrivalSmsTemplate: initialVisitor.smsTemplate
+        };
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -398,31 +470,33 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
     useEffect(() => { setLocalExamSettings(props.examTimetableSettings); }, [props.examTimetableSettings]);
     useEffect(() => {
         if (props.currentInstitution) {
-            setInstProfile({
-                email: props.currentInstitution.email || '',
-                phoneNumber: props.currentInstitution.phoneNumber || '',
-                useAllocationRequests: props.currentInstitution.useAllocationRequests ?? true,
-                aiModelTier: props.currentInstitution.aiModelTier || 'premium',
-                isOtpEnabled: props.currentInstitution.isOtpEnabled ?? false,
-                parentAbsenceNotificationsEnabled: props.currentInstitution.parentAbsenceNotificationsEnabled ?? false,
-                farmerSmsBillingEnabled: props.currentInstitution.farmerSmsBillingEnabled ?? false,
-                slug: props.currentInstitution.slug || '',
-                googleDriveConfig: props.currentInstitution.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
-                storeHoursEnforced: props.currentInstitution.storeHoursEnforced ?? false,
-                storeOpenTime: props.currentInstitution.storeOpenTime || '08:00',
-                storeCloseTime: props.currentInstitution.storeCloseTime || '17:05',
-                kioskUrl: props.currentInstitution.kioskUrl || '',
-                customSubdomain: props.currentInstitution.customSubdomain || '',
-                useSubdomain: props.currentInstitution.useSubdomain ?? false,
-                kioskSecurityPin: props.currentInstitution.kioskSecurityPin || '1234',
-                kioskStatus: props.currentInstitution.kioskStatus || 'active',
-                visitorAutoFinalizeEnabled: props.currentInstitution.visitorAutoFinalizeEnabled ?? (props.currentInstitution as any).visitor_auto_finalize_enabled ?? false,
-                visitorAutoFinalizeTime: props.currentInstitution.visitorAutoFinalizeTime || (props.currentInstitution as any).visitor_auto_finalize_time || '18:00',
-                notifyHostOnVisitorArrival: props.currentInstitution.notifyHostOnVisitorArrival ?? (props.currentInstitution as any).notify_host_on_visitor_arrival ?? true,
-                visitorArrivalSmsTemplate: props.currentInstitution.visitorArrivalSmsTemplate || (props.currentInstitution as any).visitor_arrival_sms_template || ''
-            });
+            const v = resolveVisitorSettings(props.currentInstitution);
+            setInstProfile(prev => ({
+                ...prev,
+                email: props.currentInstitution?.email || '',
+                phoneNumber: props.currentInstitution?.phoneNumber || '',
+                useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
+                aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
+                isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
+                parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
+                farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
+                slug: props.currentInstitution?.slug || '',
+                googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
+                storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
+                storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
+                storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
+                kioskUrl: props.currentInstitution?.kioskUrl || '',
+                customSubdomain: props.currentInstitution?.customSubdomain || '',
+                useSubdomain: props.currentInstitution?.useSubdomain ?? false,
+                kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
+                kioskStatus: props.currentInstitution?.kioskStatus || 'active',
+                visitorAutoFinalizeEnabled: v.enabled,
+                visitorAutoFinalizeTime: v.time,
+                notifyHostOnVisitorArrival: v.notifyHost,
+                visitorArrivalSmsTemplate: v.smsTemplate
+            }));
         }
-    }, [props.currentInstitution]);
+    }, [props.currentInstitution, resolveVisitorSettings]);
 
     // Per-institution SMS gateway config state (for admin SMS Gateway sub-tab)
     const [localInstSmsConfig, setLocalInstSmsConfig] = useState<SmsConfig>(
@@ -493,34 +567,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     useEffect(() => {
         setLocalInstSmsConfig(props.currentInstitution?.smsConfig || { provider: 'Zettatel', apiKey: '', apiSecret: '', fromNumber: '' });
-
         setLocalInstMpesaConfig(props.currentInstitution?.mpesaConfig || { paybillNumber: '', accountNumber: '', consumerKey: '', consumerSecret: '', passkey: '', environment: 'sandbox' });
         setLocalInstNcbaConfig(props.currentInstitution?.ncbaConfig || { clientId: '', clientSecret: '', username: '', password: '', baseUrl: 'https://sandbox.ncbagroup.com', environment: 'sandbox' });
-        
-        // Sync instProfile
-        setInstProfile({
-            email: props.currentInstitution?.email || '',
-            phoneNumber: props.currentInstitution?.phoneNumber || '',
-            useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
-            aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
-            isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
-            parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
-            farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
-            slug: props.currentInstitution?.slug || '',
-            googleDriveConfig: props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false },
-            storeHoursEnforced: props.currentInstitution?.storeHoursEnforced ?? false,
-            storeOpenTime: props.currentInstitution?.storeOpenTime || '08:00',
-            storeCloseTime: props.currentInstitution?.storeCloseTime || '17:00',
-            kioskUrl: props.currentInstitution?.kioskUrl || '',
-            customSubdomain: props.currentInstitution?.customSubdomain || '',
-            useSubdomain: props.currentInstitution?.useSubdomain ?? false,
-            kioskSecurityPin: props.currentInstitution?.kioskSecurityPin || '1234',
-            kioskStatus: props.currentInstitution?.kioskStatus || 'active',
-            visitorAutoFinalizeEnabled: props.currentInstitution?.visitorAutoFinalizeEnabled ?? (props.currentInstitution as any)?.visitor_auto_finalize_enabled ?? false,
-            visitorAutoFinalizeTime: props.currentInstitution?.visitorAutoFinalizeTime || (props.currentInstitution as any)?.visitor_auto_finalize_time || '18:00',
-            notifyHostOnVisitorArrival: props.currentInstitution?.notifyHostOnVisitorArrival ?? (props.currentInstitution as any)?.notify_host_on_visitor_arrival ?? true,
-            visitorArrivalSmsTemplate: props.currentInstitution?.visitorArrivalSmsTemplate || (props.currentInstitution as any)?.visitor_arrival_sms_template || ''
-        });
         setLocalInstGoogleDriveConfig(props.currentInstitution?.googleDriveConfig || { clientId: '', clientSecret: '', refreshToken: '', isActive: false });
     }, [props.currentInstitution]);
 
@@ -588,12 +636,39 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
         if (!props.currentInstitution) return;
         setIsSavingProfile(true);
         try {
+            const visitorCutoff = instProfile.visitorAutoFinalizeTime || '18:00';
+            const visitorEnabled = Boolean(instProfile.visitorAutoFinalizeEnabled);
+            const notifyHost = instProfile.notifyHostOnVisitorArrival ?? true;
+            const visitorTemplate = instProfile.visitorArrivalSmsTemplate || '';
+
+            // Synchronously backup visitor settings to local storage immediately
+            try {
+                const visitorPayload = {
+                    visitorAutoFinalizeEnabled: visitorEnabled,
+                    visitorAutoFinalizeTime: visitorCutoff,
+                    notifyHostOnVisitorArrival: notifyHost,
+                    visitorArrivalSmsTemplate: visitorTemplate,
+                    visitor_auto_finalize_enabled: visitorEnabled,
+                    visitor_auto_finalize_time: visitorCutoff,
+                    notify_host_on_visitor_arrival: notifyHost,
+                    visitor_arrival_sms_template: visitorTemplate
+                };
+                if (props.currentInstitution.id) {
+                    localStorage.setItem(`eduai_visitor_settings_${props.currentInstitution.id}`, JSON.stringify(visitorPayload));
+                }
+                localStorage.setItem('eduai_visitor_settings', JSON.stringify(visitorPayload));
+            } catch (_) {}
+
             const finalProfile = {
                 ...instProfile,
-                visitorAutoFinalizeEnabled: Boolean(instProfile.visitorAutoFinalizeEnabled),
-                visitorAutoFinalizeTime: instProfile.visitorAutoFinalizeTime || '18:00',
-                notifyHostOnVisitorArrival: instProfile.notifyHostOnVisitorArrival ?? true,
-                visitorArrivalSmsTemplate: instProfile.visitorArrivalSmsTemplate || '',
+                visitorAutoFinalizeEnabled: visitorEnabled,
+                visitorAutoFinalizeTime: visitorCutoff,
+                visitor_auto_finalize_enabled: visitorEnabled,
+                visitor_auto_finalize_time: visitorCutoff,
+                notifyHostOnVisitorArrival: notifyHost,
+                notify_host_on_visitor_arrival: notifyHost,
+                visitorArrivalSmsTemplate: visitorTemplate,
+                visitor_arrival_sms_template: visitorTemplate,
                 kioskUrl: instProfile.kioskUrl?.trim() || (
                     instProfile.useSubdomain && instProfile.customSubdomain
                         ? `https://${instProfile.customSubdomain}.eduai.co.ke/kiosk`
@@ -4477,7 +4552,24 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 type="checkbox"
                                                 id="visitor-auto-finalize"
                                                 checked={instProfile.visitorAutoFinalizeEnabled}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, visitorAutoFinalizeEnabled: e.target.checked })}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    const checked = e.target.checked;
+                                                    setInstProfile(prev => ({ ...prev, visitorAutoFinalizeEnabled: checked }));
+                                                    try {
+                                                        const id = props.currentInstitution?.id;
+                                                        const existingRaw = (id && localStorage.getItem(`eduai_visitor_settings_${id}`)) || localStorage.getItem('eduai_visitor_settings');
+                                                        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+                                                        const payload = {
+                                                            ...existing,
+                                                            visitorAutoFinalizeEnabled: checked,
+                                                            visitor_auto_finalize_enabled: checked,
+                                                            visitorAutoFinalizeTime: instProfile.visitorAutoFinalizeTime || '18:00',
+                                                            visitor_auto_finalize_time: instProfile.visitorAutoFinalizeTime || '18:00'
+                                                        };
+                                                        if (id) localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
+                                                        localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
+                                                    } catch (_) {}
+                                                }}
                                                 className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                             />
                                             <div>
@@ -4490,8 +4582,25 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 <label className="block text-xs font-bold text-slate-500 mb-1">Daily Cutoff Time</label>
                                                 <input
                                                     type="time"
-                                                    value={instProfile.visitorAutoFinalizeTime}
-                                                    onChange={(e) => setInstProfile({ ...instProfile, visitorAutoFinalizeTime: e.target.value })}
+                                                    value={instProfile.visitorAutoFinalizeTime || '18:00'}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setInstProfile(prev => ({ ...prev, visitorAutoFinalizeTime: val }));
+                                                        try {
+                                                            const id = props.currentInstitution?.id;
+                                                            const existingRaw = (id && localStorage.getItem(`eduai_visitor_settings_${id}`)) || localStorage.getItem('eduai_visitor_settings');
+                                                            const existing = existingRaw ? JSON.parse(existingRaw) : {};
+                                                            const payload = {
+                                                                ...existing,
+                                                                visitorAutoFinalizeTime: val,
+                                                                visitor_auto_finalize_time: val,
+                                                                visitorAutoFinalizeEnabled: instProfile.visitorAutoFinalizeEnabled,
+                                                                visitor_auto_finalize_enabled: instProfile.visitorAutoFinalizeEnabled
+                                                            };
+                                                            if (id) localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
+                                                            localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
+                                                        } catch (_) {}
+                                                    }}
                                                     className="w-40 h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                                                 />
                                                 <p className="text-[10px] text-slate-400 mt-1">All visitors still active after this time will be auto-checked-out by the system.</p>
@@ -4506,7 +4615,22 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 type="checkbox"
                                                 id="notify-host-visitor-arrival"
                                                 checked={instProfile.notifyHostOnVisitorArrival}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInstProfile({ ...instProfile, notifyHostOnVisitorArrival: e.target.checked })}
+                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                    const checked = e.target.checked;
+                                                    setInstProfile(prev => ({ ...prev, notifyHostOnVisitorArrival: checked }));
+                                                    try {
+                                                        const id = props.currentInstitution?.id;
+                                                        const existingRaw = (id && localStorage.getItem(`eduai_visitor_settings_${id}`)) || localStorage.getItem('eduai_visitor_settings');
+                                                        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+                                                        const payload = {
+                                                            ...existing,
+                                                            notifyHostOnVisitorArrival: checked,
+                                                            notify_host_on_visitor_arrival: checked
+                                                        };
+                                                        if (id) localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
+                                                        localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
+                                                    } catch (_) {}
+                                                }}
                                                 className="h-6 w-6 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                             />
                                             <div>
@@ -4527,7 +4651,22 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         type="text"
                                                         value={instProfile.visitorArrivalSmsTemplate || ''}
                                                         placeholder="Hi {host}, visitor {visitor} has arrived at the security gate for {purpose}. Tap here to authorize: {link}"
-                                                        onChange={(e) => setInstProfile({ ...instProfile, visitorArrivalSmsTemplate: e.target.value })}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setInstProfile(prev => ({ ...prev, visitorArrivalSmsTemplate: val }));
+                                                            try {
+                                                                const id = props.currentInstitution?.id;
+                                                                const existingRaw = (id && localStorage.getItem(`eduai_visitor_settings_${id}`)) || localStorage.getItem('eduai_visitor_settings');
+                                                                const existing = existingRaw ? JSON.parse(existingRaw) : {};
+                                                                const payload = {
+                                                                    ...existing,
+                                                                    visitorArrivalSmsTemplate: val,
+                                                                    visitor_arrival_sms_template: val
+                                                                };
+                                                                if (id) localStorage.setItem(`eduai_visitor_settings_${id}`, JSON.stringify(payload));
+                                                                localStorage.setItem('eduai_visitor_settings', JSON.stringify(payload));
+                                                            } catch (_) {}
+                                                        }}
                                                         className="w-full h-10 px-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none text-xs"
                                                     />
                                                     <p className="text-[10px] text-slate-400 mt-1">Available placeholders: <code className="text-indigo-500 font-bold">{'{host}'}</code>, <code className="text-indigo-500 font-bold">{'{visitor}'}</code>, <code className="text-indigo-500 font-bold">{'{purpose}'}</code>, <code className="text-indigo-500 font-bold">{'{institution}'}</code>, <code className="text-indigo-500 font-bold">{'{link}'}</code></p>
