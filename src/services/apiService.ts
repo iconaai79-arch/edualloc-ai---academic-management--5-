@@ -2549,13 +2549,19 @@ export const apiService = {
         if (module === 'invoices' && data && (data as any).studentId && ((data as any).status === 'pending' || !(data as any).status)) {
             const invData = data as any;
             try {
-                // Fetch student receipts
-                const allReceipts = await apiService.fetchModuleRecords<any>('receipts').catch(() => []);
+                // Fetch student receipts (prefer local cache to avoid redundant network queries)
+                const lsReceipts = ls.get('receipts');
+                const allReceipts = (Array.isArray(lsReceipts) && lsReceipts.length > 0)
+                    ? lsReceipts
+                    : await apiService.fetchModuleRecords<any>('receipts', invData.institutionId || invData.institution_id).catch(() => []);
                 const studentReceipts = allReceipts.filter((r: any) => r.studentId === invData.studentId || r.student_id === invData.studentId);
                 const totalPaid = studentReceipts.reduce((sum, r) => sum + Number(r.amountPaid || 0), 0);
 
                 // Fetch student existing invoices (excluding this invoice if it already exists in DB)
-                const allInvoices = await apiService.fetchModuleRecords<any>('invoices').catch(() => []);
+                const lsInvoices = ls.get('invoices');
+                const allInvoices = (Array.isArray(lsInvoices) && lsInvoices.length > 0)
+                    ? lsInvoices
+                    : await apiService.fetchModuleRecords<any>('invoices', invData.institutionId || invData.institution_id).catch(() => []);
                 const studentInvoices = allInvoices.filter((i: any) => 
                     (i.studentId === invData.studentId || i.student_id === invData.studentId) && 
                     i.status !== 'cancelled' && 

@@ -1839,6 +1839,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     });
 
+                    if (moduleName === 'invoices') {
+                        const allowedInvoiceCols = new Set([
+                            'id', 'invoice_number', 'institution_id', 'branch_id',
+                            'issue_date', 'due_date', 'items', 'total_amount',
+                            'status', 'student_id', 'class_name', 'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedInvoiceCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        if (!copy.branch_id || copy.branch_id === copy.institution_id || copy.branch_id.startsWith('inst_')) {
+                            delete copy.branch_id;
+                        }
+                    } else if (moduleName === 'receipts') {
+                        const allowedReceiptCols = new Set([
+                            'id', 'receipt_number', 'institution_id', 'branch_id',
+                            'payment_date', 'amount_paid', 'paid_for', 'payment_method',
+                            'related_transaction_id', 'invoice_id', 'student_id',
+                            'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedReceiptCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        if (!copy.branch_id || copy.branch_id === copy.institution_id || copy.branch_id.startsWith('inst_')) {
+                            delete copy.branch_id;
+                        }
+                    }
+
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanBillingRecord) : cleanBillingRecord(currentPayload);
@@ -2727,6 +2758,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete copy[col];
                         }
                     });
+
+                    if (moduleName === 'invoices') {
+                        const allowedInvoiceCols = new Set([
+                            'id', 'invoice_number', 'institution_id', 'branch_id',
+                            'issue_date', 'due_date', 'items', 'total_amount',
+                            'status', 'student_id', 'class_name', 'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedInvoiceCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        if (!copy.branch_id || copy.branch_id === copy.institution_id || copy.branch_id.startsWith('inst_')) {
+                            delete copy.branch_id;
+                        }
+                    } else if (moduleName === 'receipts') {
+                        const allowedReceiptCols = new Set([
+                            'id', 'receipt_number', 'institution_id', 'branch_id',
+                            'payment_date', 'amount_paid', 'paid_for', 'payment_method',
+                            'related_transaction_id', 'invoice_id', 'student_id',
+                            'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedReceiptCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        if (!copy.branch_id || copy.branch_id === copy.institution_id || copy.branch_id.startsWith('inst_')) {
+                            delete copy.branch_id;
+                        }
+                    }
+
                     currentUpdateData = copy;
                 } else if (moduleName === 'visitors') {
                     const copy = { ...currentUpdateData };
