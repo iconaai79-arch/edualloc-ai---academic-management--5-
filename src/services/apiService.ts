@@ -2941,8 +2941,8 @@ export const apiService = {
             const attemptSave = async (currentPayload: any, retries: number = 5): Promise<any> => {
                 let response = await doSaveRequest(token, currentPayload);
 
-                if (response.status === 500) {
-                    console.log(`[apiService] Module '${module}' fallback saved locally.`);
+                if (response.status === 500 || response.status === 504 || response.status === 502 || response.status === 503) {
+                    console.log(`[apiService] Module '${module}' fallback saved locally (status ${response.status}).`);
                     return toCamelCase(currentPayload);
                 }
 

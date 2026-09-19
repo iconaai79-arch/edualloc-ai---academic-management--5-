@@ -393,6 +393,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     if (!moduleName) return res.status(400).json({ success: false, error: 'Module required' });
 
+    const requestStartTime = Date.now();
+    const MAX_SAFE_EXECUTION_MS = 7500;
+
     try {
         const supabase = getSupabase();
         if (!supabase) return res.status(503).json({ success: false, error: 'Supabase keys missing in environment' });
@@ -2382,10 +2385,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let data: any = null;
             let error: any = null;
-            let maxRetries = 15;
+            let maxRetries = 2;
             let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
             while (maxRetries >= 0) {
+                // Safety check: if function execution approaches timeout threshold, break immediately for offline fallback
+                if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
+                    console.warn(`[api/records] Execution approaching timeout (${MAX_SAFE_EXECUTION_MS}ms) for [${moduleName}]. Breaking to return local fallback.`);
+                    break;
+                }
+
                 const queryRes = await supabase.from(targetDbTable).upsert(currentPayload).select();
                 data = queryRes.data;
                 error = queryRes.error;
@@ -2399,6 +2408,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         tableSupportsMetadata = false;
                     }
                     console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
+                    
+                    if (moduleName === 'student_enrollments') {
+                        // Extended columns added in newer migrations: if one is missing from PostgREST cache,
+                        // strip ALL extended columns at once into metadata to prevent 5-6 sequential retries and 504 timeouts.
+                        const EXTENDED_ENR_COLS = ['course_id', 'class_id', 'leadership_position', 'date_of_birth', 'assessment_no'];
+                        const stripEnrollmentExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            EXTENDED_ENR_COLS.forEach(c => {
+                                if (copy[c] !== undefined && copy[c] !== null && copy[c] !== '') {
+                                    meta[c] = copy[c];
+                                    delete copy[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            } else {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripEnrollmentExtended) : stripEnrollmentExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     const stripCol = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
@@ -2420,6 +2456,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Handle Foreign Key violation (23503) by nullifying non-matching relational foreign keys
                 if ((error.code === '23503' || String(error.message || '').includes('foreign key constraint')) && maxRetries > 0) {
+                    if (targetDbTable === 'student_enrollments') {
+                        // user_id in student_enrollments is NOT NULL; nullifying it only triggers NOT NULL 23502.
+                        // Break immediately to return graceful offline fallback.
+                        console.warn(`[api/records] Foreign key constraint on student_enrollments (user/institution not found in DB). Triggering graceful offline fallback.`);
+                        break;
+                    }
                     console.warn(`[api/records] Foreign key constraint note on [${moduleName}]: nulling relational IDs and retrying...`);
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
@@ -2573,11 +2615,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        error.code === 'PGRST204' ||
                                        error.code === 'PGRST200' ||
                                        error.code === '23503' ||
+                                       error.code === '23502' ||
                                        error.code === '22P02' ||
+                                       (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) ||
                                        message.includes('schema cache') || 
                                        message.includes('column') ||
                                        message.includes('does not exist') ||
                                        message.includes('foreign key') ||
+                                       message.includes('not-null') ||
+                                       message.includes('null value in column') ||
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
@@ -3214,10 +3260,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 let data: any = null;
                 let error: any = null;
-                let patchRetries = 15;
+                let patchRetries = 2;
                 let patchTableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
                 while (patchRetries >= 0) {
+                    if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
+                        console.warn(`[api/records PATCH] Execution approaching timeout (${MAX_SAFE_EXECUTION_MS}ms) for [${moduleName}]. Breaking to return local fallback.`);
+                        break;
+                    }
+
                     let q = supabase.from(targetDbTable).update(currentUpdateData);
                     
                     if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
@@ -3291,7 +3342,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const isTableMissing = error.code === '42P01' || 
                                            error.code === 'PGRST205' || 
                                            error.code === 'PGRST204' ||
+                                           error.code === '23503' ||
+                                           error.code === '23502' ||
                                            error.code === '22P02' ||
+                                           (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) ||
                                            error.message?.includes('schema cache') || 
                                            error.message?.includes('invalid input syntax for type uuid') ||
                                            error.message?.includes('does not exist');

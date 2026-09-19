@@ -761,7 +761,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         try {
             setIsSavingLeader(true);
 
-            // 1. Update or create student enrollment
+            // 1. Update user record FIRST to ensure user exists in database for FK constraint
+            if (targetStudent) {
+                const updatedUser: User = {
+                    ...targetStudent,
+                    courseId: leaderModalTargetCourseId,
+                    phoneNumber: leaderModalContactPhone || targetStudent.phoneNumber,
+                    metadata: {
+                        ...(targetStudent.metadata || {}),
+                        leadershipPosition: finalRole,
+                        isPrefect: true,
+                        studentClass: targetCourse?.name || '',
+                        stream: finalStream || (targetStudent.metadata as any)?.stream || ''
+                    }
+                };
+                await apiService.saveModuleRecord('users', updatedUser);
+                setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+            }
+
+            // 2. Update or create student enrollment
             let existingEnr = (enrollments || []).find(e => e.userId === leaderModalSelectedStudentId);
             if (existingEnr) {
                 const updatedEnr: StudentEnrollment = {
@@ -803,23 +821,6 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
                 await apiService.saveModuleRecord('student_enrollments', newEnr);
                 setEnrollments(prev => [...prev, newEnr]);
-            }
-
-            // 2. Update user record
-            if (targetStudent) {
-                const updatedUser: User = {
-                    ...targetStudent,
-                    courseId: leaderModalTargetCourseId,
-                    phoneNumber: leaderModalContactPhone || targetStudent.phoneNumber,
-                    metadata: {
-                        ...(targetStudent.metadata || {}),
-                        leadershipPosition: finalRole,
-                        isPrefect: true,
-                        studentClass: targetCourse?.name || '',
-                        stream: finalStream || (targetStudent.metadata as any)?.stream || ''
-                    }
-                };
-                await apiService.saveModuleRecord('users', updatedUser);
             }
 
             setIsAssignLeaderModalOpen(false);
