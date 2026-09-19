@@ -1855,13 +1855,57 @@ export const apiService = {
             }
 
             if (module === 'users') {
+                const meta = typeof item.metadata === 'object' && item.metadata !== null ? { ...item.metadata } : {};
                 const tCode = item.teacherCode || item.teacher_code || item.code;
                 if (tCode) {
-                    const meta = typeof item.metadata === 'object' && item.metadata !== null ? { ...item.metadata } : {};
                     meta.teacherCode = tCode;
                     meta.remedialTeacherCode = tCode;
-                    item.metadata = meta;
                 }
+                const vId = item.vehicle_id || item.vehicleId || item.assigned_vehicle_id || item.assignedVehicleId;
+                if (vId) {
+                    meta.vehicleId = vId;
+                }
+                const dType = item.driver_type || item.driverType;
+                if (dType) {
+                    meta.driverType = dType;
+                }
+                const p2 = item.parent_phone2 || item.parentPhone2 || item.secondary_phone || item.secondaryPhone || item.guardian_phone2 || item.guardianPhone2;
+                if (p2) {
+                    meta.parentPhone2 = p2;
+                    meta.secondaryPhone = p2;
+                }
+                const pName = item.parent_name || item.parentName || item.guardian_name || item.guardianName;
+                if (pName) {
+                    meta.parentName = pName;
+                }
+                const pPhone = item.parent_phone || item.parentPhone || item.guardian_phone || item.guardianPhone;
+                if (pPhone) {
+                    meta.parentPhone = pPhone;
+                }
+                const sPhone = item.student_phone || item.studentPhone;
+                if (sPhone) {
+                    meta.studentPhone = sPhone;
+                }
+                const sClass = item.studentClass || item.student_class || item.className || item.class_name;
+                if (sClass) {
+                    meta.studentClass = sClass;
+                }
+                const admNo = item.admissionNumber || item.admission_number || item.admissionNo;
+                if (admNo) {
+                    meta.admissionNumber = admNo;
+                }
+                const assNo = item.assessmentNo || item.assessment_no || item.assessmentNumber || item.assessment_number;
+                if (assNo) {
+                    meta.assessmentNo = assNo;
+                }
+                const dob = item.dateOfBirth || item.date_of_birth || item.dob;
+                if (dob) {
+                    meta.dateOfBirth = dob;
+                    meta.dob = dob;
+                }
+
+                item.metadata = meta;
+
                 delete item.updated_at;
                 delete item.updatedAt;
                 delete item.created_at;
@@ -1869,6 +1913,37 @@ export const apiService = {
                 delete item.teacherCode;
                 delete item.teacher_code;
                 delete item.code;
+                delete item.vehicleId;
+                delete item.assigned_vehicle_id;
+                delete item.assignedVehicleId;
+                delete item.driver_type;
+                delete item.driverType;
+                delete item.parent_phone2;
+                delete item.parentPhone2;
+                delete item.secondary_phone;
+                delete item.secondaryPhone;
+                delete item.guardian_phone2;
+                delete item.guardianPhone2;
+                delete item.parent_phone_number2;
+                delete item.secondary_parent_phone;
+                delete item.student_phone;
+                delete item.studentPhone;
+                delete item.parent_name;
+                delete item.parentName;
+                delete item.guardian_name;
+                delete item.guardianName;
+                delete item.parent_phone;
+                delete item.parentPhone;
+                delete item.studentClass;
+                delete item.student_class;
+                delete item.admissionNumber;
+                delete item.admission_number;
+                delete item.admissionNo;
+                delete item.assessmentNo;
+                delete item.assessment_no;
+                delete item.dateOfBirth;
+                delete item.date_of_birth;
+                delete item.dob;
             } else if (module === 'students' || module === 'teachers') {
                 delete item.updated_at;
                 delete item.updatedAt;
@@ -2145,6 +2220,8 @@ export const apiService = {
                 const genderVal = item.gender;
                 const gradeVal = item.gradeLevel || item.grade_level;
                 const streamVal = item.stream;
+                const courseVal = item.courseId || item.course_id;
+                const classVal = item.classId || item.class_id;
                 
                 const meta = { ...(item.metadata || {}) };
                 if (dobVal) {
@@ -2154,6 +2231,12 @@ export const apiService = {
                 if (assVal) {
                     meta.assessmentNo = assVal;
                     meta.assessmentNumber = assVal;
+                }
+                if (courseVal) {
+                    meta.courseId = courseVal;
+                }
+                if (classVal) {
+                    meta.classId = classVal;
                 }
                 if (nameVal && !meta.fullName) meta.fullName = nameVal;
                 if (genderVal && !meta.gender) meta.gender = genderVal;
@@ -2182,6 +2265,8 @@ export const apiService = {
                 delete item.gradeLevel;
                 delete item.grade_level;
                 delete item.stream;
+                delete item.courseId;
+                delete item.classId;
                 delete item.parentName;
                 delete item.parent_name;
                 delete item.guardianName;
@@ -2202,6 +2287,9 @@ export const apiService = {
                 delete item.nemisNumber;
                 delete item.nemis_number;
                 delete item.subjects;
+                delete item.licenseTypeInterested;
+                delete item.licenseCategory;
+                delete item.preferredInstructorId;
             }
 
             // Subjects module normalization: strictly allow only core database columns

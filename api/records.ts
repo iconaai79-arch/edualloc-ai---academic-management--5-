@@ -1989,8 +1989,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanUserRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const copy = { ...item };
-                    const meta = { ...(copy.metadata || {}) };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
 
+                    // 1. Capture specific virtual/transient fields into metadata
                     const vehicleIdVal = copy.vehicle_id || copy.vehicleId || copy.assigned_vehicle_id || copy.assignedVehicleId;
                     if (vehicleIdVal) {
                         meta.vehicleId = vehicleIdVal;
@@ -2008,7 +2009,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (pName) {
                         meta.parentName = pName;
                     }
-                    const pPhone = copy.parent_phone || copy.parentPhone;
+                    const pPhone = copy.parent_phone || copy.parentPhone || copy.guardian_phone || copy.guardianPhone;
                     if (pPhone) {
                         meta.parentPhone = pPhone;
                     }
@@ -2021,38 +2022,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         meta.teacherCode = tCode;
                         meta.remedialTeacherCode = tCode;
                     }
+                    const sClass = copy.studentClass || copy.student_class || copy.className || copy.class_name;
+                    if (sClass) {
+                        meta.studentClass = sClass;
+                    }
+                    const admNo = copy.admissionNumber || copy.admission_number || copy.admissionNo;
+                    if (admNo) {
+                        meta.admissionNumber = admNo;
+                    }
+                    const assNo = copy.assessmentNo || copy.assessment_no || copy.assessmentNumber || copy.assessment_number;
+                    if (assNo) {
+                        meta.assessmentNo = assNo;
+                    }
+                    const dob = copy.dateOfBirth || copy.date_of_birth || copy.dob;
+                    if (dob) {
+                        meta.dateOfBirth = dob;
+                        meta.dob = dob;
+                    }
+
+                    // 2. Map camelCase aliases to snake_case column names
+                    if (copy.phoneNumber && !copy.phone_number) copy.phone_number = copy.phoneNumber;
+                    if (copy.staffId && !copy.staff_id) copy.staff_id = copy.staffId;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.branchId && !copy.branch_id) copy.branch_id = copy.branchId;
+                    if (copy.departmentId && !copy.department_id) copy.department_id = copy.departmentId;
+                    if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
+                    if (copy.courseLevelId && !copy.course_level_id) copy.course_level_id = copy.courseLevelId;
+                    if (copy.enrolledSubjectIds && !copy.enrolled_subject_ids) copy.enrolled_subject_ids = copy.enrolledSubjectIds;
+                    if (copy.parentIds && !copy.parent_ids) copy.parent_ids = copy.parentIds;
+                    if (copy.studentIds && !copy.student_ids) copy.student_ids = copy.studentIds;
+                    if (copy.profilePhotoUrl !== undefined && copy.profile_photo_url === undefined) copy.profile_photo_url = copy.profilePhotoUrl;
+                    if (copy.passwordLastUpdated && !copy.password_last_updated) copy.password_last_updated = copy.passwordLastUpdated;
+                    if (copy.passwordExpiresAt && !copy.password_expires_at) copy.password_expires_at = copy.passwordExpiresAt;
+                    if (copy.countyId && !copy.county_id) copy.county_id = copy.countyId;
+                    if (copy.vehicleId && !copy.vehicle_id) copy.vehicle_id = copy.vehicleId;
+                    if (copy.farmerId && !copy.farmer_id) copy.farmer_id = copy.farmerId;
+                    if (copy.riderId && !copy.rider_id) copy.rider_id = copy.riderId;
+                    if (copy.nationalId && !copy.national_id) copy.national_id = copy.nationalId;
+                    if (copy.employmentDate && !copy.employment_date) copy.employment_date = copy.employmentDate;
+                    if (copy.employmentTerms && !copy.employment_terms) copy.employment_terms = copy.employmentTerms;
+                    if (copy.basicSalary !== undefined && copy.basic_salary === undefined) copy.basic_salary = copy.basicSalary;
+                    if (copy.kraPin && !copy.kra_pin) copy.kra_pin = copy.kraPin;
+                    if (copy.nssfNo && !copy.nssf_no) copy.nssf_no = copy.nssfNo;
+                    if (copy.shifNumber && !copy.shif_number) copy.shif_number = copy.shifNumber;
+                    if (copy.bankName && !copy.bank_name) copy.bank_name = copy.bankName;
+                    if (copy.bankBranch && !copy.bank_branch) copy.bank_branch = copy.bankBranch;
+                    if (copy.bankAccountNumber && !copy.bank_account_number) copy.bank_account_number = copy.bankAccountNumber;
+
+                    // Clean invalid FK / branch values
+                    if (copy.branch_id && (copy.branch_id.startsWith('inst_') || copy.branch_id === copy.institution_id)) {
+                        delete copy.branch_id;
+                    }
+                    if (copy.department_id === '' || copy.department_id === 'null' || copy.department_id === 'undefined') copy.department_id = null;
+                    if (copy.course_id === '' || copy.course_id === 'null' || copy.course_id === 'undefined') copy.course_id = null;
+                    if (copy.county_id === '' || copy.county_id === 'null' || copy.county_id === 'undefined') copy.county_id = null;
+                    if (copy.farmer_id === '' || copy.farmer_id === 'null' || copy.farmer_id === 'undefined') copy.farmer_id = null;
+                    if (copy.rider_id === '' || copy.rider_id === 'null' || copy.rider_id === 'undefined') copy.rider_id = null;
+
+                    // 3. Strictly whitelist allowed DB columns, packing everything else safely into metadata
+                    const allowedUserCols = new Set([
+                        'id', 'name', 'email', 'phone_number', 'staff_id', 'role', 'roles',
+                        'institution_id', 'branch_id', 'password', 'department_id', 'expertise',
+                        'course_id', 'course_level_id', 'enrolled_subject_ids', 'parent_ids',
+                        'student_ids', 'gender', 'profile_photo_url', 'unavailability',
+                        'password_last_updated', 'password_expires_at', 'county_id',
+                        'vehicle_id', 'farmer_id', 'rider_id', 'reset_token', 'reset_token_expires',
+                        'reset_otp', 'reset_otp_expires', 'national_id', 'employment_date',
+                        'employment_terms', 'basic_salary', 'kra_pin', 'nssf_no', 'shif_number',
+                        'bank_name', 'bank_branch', 'bank_account_number', 'metadata',
+                        'created_at', 'updated_at'
+                    ]);
+
+                    const ignoredKeys = new Set(['updated_at', 'updatedAt', 'created_at', 'createdAt']);
+
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedUserCols.has(k)) {
+                            if (!ignoredKeys.has(k) && copy[k] !== undefined && copy[k] !== null && copy[k] !== '') {
+                                meta[k] = copy[k];
+                            }
+                            delete copy[k];
+                        }
+                    });
+
                     copy.metadata = meta;
-
-                    delete copy.vehicle_id;
-                    delete copy.vehicleId;
-                    delete copy.assigned_vehicle_id;
-                    delete copy.assignedVehicleId;
-                    delete copy.driver_type;
-                    delete copy.driverType;
-                    delete copy.parent_phone2;
-                    delete copy.parentPhone2;
-                    delete copy.secondary_phone;
-                    delete copy.secondaryPhone;
-                    delete copy.guardian_phone2;
-                    delete copy.guardianPhone2;
-                    delete copy.parent_phone_number2;
-                    delete copy.secondary_parent_phone;
-                    delete copy.student_phone;
-                    delete copy.studentPhone;
-                    delete copy.parent_name;
-                    delete copy.parentName;
-                    delete copy.guardian_name;
-                    delete copy.guardianName;
-                    delete copy.parent_phone;
-                    delete copy.parentPhone;
-                    delete copy.teacherCode;
-                    delete copy.teacher_code;
-                    delete copy.code;
-                    delete copy.updated_at;
-                    delete copy.updatedAt;
-                    delete copy.created_at;
-                    delete copy.createdAt;
-
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanUserRecord) : cleanUserRecord(currentPayload);
@@ -2060,18 +2112,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanEnrollmentRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const copy = { ...item };
-                    const meta = { ...(copy.metadata || {}) };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
 
-                    const dobVal = copy.date_of_birth || copy.dateOfBirth || copy.dob;
-                    if (dobVal) {
-                        meta.dateOfBirth = dobVal;
-                        meta.dob = dobVal;
-                    }
-                    const assVal = copy.assessment_no || copy.assessmentNo || copy.assessment_number || copy.assessmentNumber;
-                    if (assVal) {
-                        meta.assessmentNo = assVal;
-                        meta.assessmentNumber = assVal;
-                    }
+                    // 1. Map camelCase aliases to snake_case column names
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.enrollmentType && !copy.enrollment_type) copy.enrollment_type = copy.enrollmentType;
+                    if (copy.admissionNumber && !copy.admission_number) copy.admission_number = copy.admissionNumber;
+                    if (copy.assessmentNo && !copy.assessment_no) copy.assessment_no = copy.assessmentNo;
+                    if (copy.assessmentNumber && !copy.assessment_no) copy.assessment_no = copy.assessmentNumber;
+                    if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
+                    if (copy.dob && !copy.date_of_birth) copy.date_of_birth = copy.dob;
+                    if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
+                    if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
+                    if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
+                    if (copy.classId && !copy.class_id) copy.class_id = copy.classId;
+
+                    // 2. Ensure virtual attributes are preserved inside metadata
+                    if (copy.admission_number && !meta.admissionNumber) meta.admissionNumber = copy.admission_number;
+                    if (copy.assessment_no && !meta.assessmentNo) meta.assessmentNo = copy.assessment_no;
+                    if (copy.date_of_birth && !meta.dateOfBirth) meta.dateOfBirth = copy.date_of_birth;
+                    if (copy.leadership_position && !meta.leadershipPosition) meta.leadershipPosition = copy.leadership_position;
+                    if (copy.course_id && !meta.courseId) meta.courseId = copy.course_id;
+                    if (copy.class_id && !meta.classId) meta.classId = copy.class_id;
+
                     const nameVal = copy.full_name || copy.fullName || copy.name;
                     if (nameVal && !meta.fullName) meta.fullName = nameVal;
 
@@ -2084,44 +2148,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const streamVal = copy.stream;
                     if (streamVal && !meta.stream) meta.stream = streamVal;
 
+                    // 3. Allowed database columns for student_enrollments
+                    const allowedEnrollmentCols = new Set([
+                        'id', 'institution_id', 'user_id', 'enrollment_type', 'admission_number',
+                        'assessment_no', 'date_of_birth', 'status', 'enrollment_date',
+                        'course_id', 'class_id', 'leadership_position', 'metadata',
+                        'created_at', 'updated_at'
+                    ]);
+
+                    const ignoredKeys = new Set(['updated_at', 'updatedAt', 'created_at', 'createdAt']);
+
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedEnrollmentCols.has(k)) {
+                            if (!ignoredKeys.has(k) && copy[k] !== undefined && copy[k] !== null && copy[k] !== '') {
+                                meta[k] = copy[k];
+                            }
+                            delete copy[k];
+                        }
+                    });
+
                     copy.metadata = meta;
-
-                    // Strip virtual / non-column attributes to prevent schema cache stale warnings & retries
-                    delete copy.date_of_birth;
-                    delete copy.dateOfBirth;
-                    delete copy.dob;
-                    delete copy.assessment_no;
-                    delete copy.assessmentNo;
-                    delete copy.assessment_number;
-                    delete copy.assessmentNumber;
-                    delete copy.full_name;
-                    delete copy.fullName;
-                    delete copy.name;
-                    delete copy.gender;
-                    delete copy.grade_level;
-                    delete copy.gradeLevel;
-                    delete copy.stream;
-                    delete copy.parent_name;
-                    delete copy.parentName;
-                    delete copy.guardian_name;
-                    delete copy.guardianName;
-                    delete copy.parent_phone;
-                    delete copy.parentPhone;
-                    delete copy.parent_email;
-                    delete copy.parentEmail;
-                    delete copy.boarding_status;
-                    delete copy.boardingStatus;
-                    delete copy.upi;
-                    delete copy.upi_number;
-                    delete copy.upiNumber;
-                    delete copy.kcpe_score;
-                    delete copy.kcpeScore;
-                    delete copy.birth_certificate_no;
-                    delete copy.birthCertificateNo;
-                    delete copy.nemis_number;
-                    delete copy.nemisNumber;
-                    delete copy.subjects;
-
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
@@ -2196,22 +2242,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return clean;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanSubjectRecord) : cleanSubjectRecord(currentPayload);
-            } else if (moduleName === 'student_enrollments') {
-                const cleanEnrollmentRecord = (item: any) => {
-                    if (!item || typeof item !== 'object') return item;
-                    const copy = { ...item };
-                    if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
-                    if (copy.leadership_position && !copy.leadershipPosition) copy.leadershipPosition = copy.leadership_position;
-                    if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
-                    if (copy.assessmentNo && !copy.assessment_no) copy.assessment_no = copy.assessmentNo;
-                    if (copy.admissionNumber && !copy.admission_number) copy.admission_number = copy.admissionNumber;
-                    if (copy.enrollmentType && !copy.enrollment_type) copy.enrollment_type = copy.enrollmentType;
-                    if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
-                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
-                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
-                    return copy;
-                };
-                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanEnrollmentRecord) : cleanEnrollmentRecord(currentPayload);
+
             } else if (moduleName === 'vehicles') {
                 const cleanVehicleRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
@@ -2890,8 +2921,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentUpdateData = copy;
                 } else if (moduleName === 'users') {
                     const copy = { ...currentUpdateData };
-                    const meta = { ...(copy.metadata || {}) };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
 
+                    // 1. Capture specific virtual/transient fields into metadata
                     const hasVehicleField = 'vehicle_id' in copy || 'vehicleId' in copy || 'assigned_vehicle_id' in copy || 'assignedVehicleId' in copy;
                     if (hasVehicleField) {
                         const rawVId = copy.vehicle_id !== undefined ? copy.vehicle_id : (copy.vehicleId !== undefined ? copy.vehicleId : (copy.assigned_vehicle_id !== undefined ? copy.assigned_vehicle_id : copy.assignedVehicleId));
@@ -2913,7 +2945,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (pName) {
                         meta.parentName = pName;
                     }
-                    const pPhone = copy.parent_phone || copy.parentPhone;
+                    const pPhone = copy.parent_phone || copy.parentPhone || copy.guardian_phone || copy.guardianPhone;
                     if (pPhone) {
                         meta.parentPhone = pPhone;
                     }
@@ -2926,54 +2958,118 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         meta.teacherCode = tCode;
                         meta.remedialTeacherCode = tCode;
                     }
+                    const sClass = copy.studentClass || copy.student_class || copy.className || copy.class_name;
+                    if (sClass) {
+                        meta.studentClass = sClass;
+                    }
+                    const admNo = copy.admissionNumber || copy.admission_number || copy.admissionNo;
+                    if (admNo) {
+                        meta.admissionNumber = admNo;
+                    }
+                    const assNo = copy.assessmentNo || copy.assessment_no || copy.assessmentNumber || copy.assessment_number;
+                    if (assNo) {
+                        meta.assessmentNo = assNo;
+                    }
+                    const dob = copy.dateOfBirth || copy.date_of_birth || copy.dob;
+                    if (dob) {
+                        meta.dateOfBirth = dob;
+                        meta.dob = dob;
+                    }
+
+                    // 2. Map camelCase aliases to snake_case column names
+                    if (copy.phoneNumber && !copy.phone_number) copy.phone_number = copy.phoneNumber;
+                    if (copy.staffId && !copy.staff_id) copy.staff_id = copy.staffId;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.branchId && !copy.branch_id) copy.branch_id = copy.branchId;
+                    if (copy.departmentId && !copy.department_id) copy.department_id = copy.departmentId;
+                    if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
+                    if (copy.courseLevelId && !copy.course_level_id) copy.course_level_id = copy.courseLevelId;
+                    if (copy.enrolledSubjectIds && !copy.enrolled_subject_ids) copy.enrolled_subject_ids = copy.enrolledSubjectIds;
+                    if (copy.parentIds && !copy.parent_ids) copy.parent_ids = copy.parentIds;
+                    if (copy.studentIds && !copy.student_ids) copy.student_ids = copy.studentIds;
+                    if (copy.profilePhotoUrl !== undefined && copy.profile_photo_url === undefined) copy.profile_photo_url = copy.profilePhotoUrl;
+                    if (copy.passwordLastUpdated && !copy.password_last_updated) copy.password_last_updated = copy.passwordLastUpdated;
+                    if (copy.passwordExpiresAt && !copy.password_expires_at) copy.password_expires_at = copy.passwordExpiresAt;
+                    if (copy.countyId && !copy.county_id) copy.county_id = copy.countyId;
+                    if (copy.vehicleId && !copy.vehicle_id) copy.vehicle_id = copy.vehicleId;
+                    if (copy.farmerId && !copy.farmer_id) copy.farmer_id = copy.farmerId;
+                    if (copy.riderId && !copy.rider_id) copy.rider_id = copy.riderId;
+                    if (copy.nationalId && !copy.national_id) copy.national_id = copy.nationalId;
+                    if (copy.employmentDate && !copy.employment_date) copy.employment_date = copy.employmentDate;
+                    if (copy.employmentTerms && !copy.employment_terms) copy.employment_terms = copy.employmentTerms;
+                    if (copy.basicSalary !== undefined && copy.basic_salary === undefined) copy.basic_salary = copy.basicSalary;
+                    if (copy.kraPin && !copy.kra_pin) copy.kra_pin = copy.kraPin;
+                    if (copy.nssfNo && !copy.nssf_no) copy.nssf_no = copy.nssfNo;
+                    if (copy.shifNumber && !copy.shif_number) copy.shif_number = copy.shifNumber;
+                    if (copy.bankName && !copy.bank_name) copy.bank_name = copy.bankName;
+                    if (copy.bankBranch && !copy.bank_branch) copy.bank_branch = copy.bankBranch;
+                    if (copy.bankAccountNumber && !copy.bank_account_number) copy.bank_account_number = copy.bankAccountNumber;
+
+                    // Clean invalid FK / branch values
+                    if (copy.branch_id && (copy.branch_id.startsWith('inst_') || copy.branch_id === copy.institution_id)) {
+                        delete copy.branch_id;
+                    }
+                    if (copy.department_id === '' || copy.department_id === 'null' || copy.department_id === 'undefined') copy.department_id = null;
+                    if (copy.course_id === '' || copy.course_id === 'null' || copy.course_id === 'undefined') copy.course_id = null;
+                    if (copy.county_id === '' || copy.county_id === 'null' || copy.county_id === 'undefined') copy.county_id = null;
+                    if (copy.farmer_id === '' || copy.farmer_id === 'null' || copy.farmer_id === 'undefined') copy.farmer_id = null;
+                    if (copy.rider_id === '' || copy.rider_id === 'null' || copy.rider_id === 'undefined') copy.rider_id = null;
+
+                    // 3. Strictly whitelist allowed DB columns, packing everything else safely into metadata
+                    const allowedUserCols = new Set([
+                        'id', 'name', 'email', 'phone_number', 'staff_id', 'role', 'roles',
+                        'institution_id', 'branch_id', 'password', 'department_id', 'expertise',
+                        'course_id', 'course_level_id', 'enrolled_subject_ids', 'parent_ids',
+                        'student_ids', 'gender', 'profile_photo_url', 'unavailability',
+                        'password_last_updated', 'password_expires_at', 'county_id',
+                        'vehicle_id', 'farmer_id', 'rider_id', 'reset_token', 'reset_token_expires',
+                        'reset_otp', 'reset_otp_expires', 'national_id', 'employment_date',
+                        'employment_terms', 'basic_salary', 'kra_pin', 'nssf_no', 'shif_number',
+                        'bank_name', 'bank_branch', 'bank_account_number', 'metadata',
+                        'created_at', 'updated_at'
+                    ]);
+
+                    const ignoredKeys = new Set(['updated_at', 'updatedAt', 'created_at', 'createdAt']);
+
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedUserCols.has(k)) {
+                            if (!ignoredKeys.has(k) && copy[k] !== undefined && copy[k] !== null && copy[k] !== '') {
+                                meta[k] = copy[k];
+                            }
+                            delete copy[k];
+                        }
+                    });
+
                     copy.metadata = meta;
-
-                    delete copy.vehicleId;
-                    delete copy.assigned_vehicle_id;
-                    delete copy.assignedVehicleId;
-                    delete copy.driver_type;
-                    delete copy.driverType;
-                    delete copy.parent_phone2;
-                    delete copy.parentPhone2;
-                    delete copy.secondary_phone;
-                    delete copy.secondaryPhone;
-                    delete copy.guardian_phone2;
-                    delete copy.guardianPhone2;
-                    delete copy.parent_phone_number2;
-                    delete copy.secondary_parent_phone;
-                    delete copy.student_phone;
-                    delete copy.studentPhone;
-                    delete copy.parent_name;
-                    delete copy.parentName;
-                    delete copy.guardian_name;
-                    delete copy.guardianName;
-                    delete copy.parent_phone;
-                    delete copy.parentPhone;
-                    delete copy.teacherCode;
-                    delete copy.teacher_code;
-                    delete copy.code;
-                    delete copy.updated_at;
-                    delete copy.updatedAt;
-                    delete copy.created_at;
-                    delete copy.createdAt;
-
                     currentUpdateData = copy;
                 }
 
                 if (moduleName === 'student_enrollments' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
-                    const meta = { ...(copy.metadata || {}) };
+                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
 
-                    const dobVal = copy.date_of_birth || copy.dateOfBirth || copy.dob;
-                    if (dobVal) {
-                        meta.dateOfBirth = dobVal;
-                        meta.dob = dobVal;
-                    }
-                    const assVal = copy.assessment_no || copy.assessmentNo || copy.assessment_number || copy.assessmentNumber;
-                    if (assVal) {
-                        meta.assessmentNo = assVal;
-                        meta.assessmentNumber = assVal;
-                    }
+                    // 1. Map camelCase aliases to snake_case column names
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.enrollmentType && !copy.enrollment_type) copy.enrollment_type = copy.enrollmentType;
+                    if (copy.admissionNumber && !copy.admission_number) copy.admission_number = copy.admissionNumber;
+                    if (copy.assessmentNo && !copy.assessment_no) copy.assessment_no = copy.assessmentNo;
+                    if (copy.assessmentNumber && !copy.assessment_no) copy.assessment_no = copy.assessmentNumber;
+                    if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
+                    if (copy.dob && !copy.date_of_birth) copy.date_of_birth = copy.dob;
+                    if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
+                    if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
+                    if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
+                    if (copy.classId && !copy.class_id) copy.class_id = copy.classId;
+
+                    // 2. Ensure virtual attributes are preserved inside metadata
+                    if (copy.admission_number && !meta.admissionNumber) meta.admissionNumber = copy.admission_number;
+                    if (copy.assessment_no && !meta.assessmentNo) meta.assessmentNo = copy.assessment_no;
+                    if (copy.date_of_birth && !meta.dateOfBirth) meta.dateOfBirth = copy.date_of_birth;
+                    if (copy.leadership_position && !meta.leadershipPosition) meta.leadershipPosition = copy.leadership_position;
+                    if (copy.course_id && !meta.courseId) meta.courseId = copy.course_id;
+                    if (copy.class_id && !meta.classId) meta.classId = copy.class_id;
+
                     const nameVal = copy.full_name || copy.fullName || copy.name;
                     if (nameVal && !meta.fullName) meta.fullName = nameVal;
 
@@ -2986,44 +3082,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const streamVal = copy.stream;
                     if (streamVal && !meta.stream) meta.stream = streamVal;
 
+                    // 3. Allowed database columns for student_enrollments
+                    const allowedEnrollmentCols = new Set([
+                        'id', 'institution_id', 'user_id', 'enrollment_type', 'admission_number',
+                        'assessment_no', 'date_of_birth', 'status', 'enrollment_date',
+                        'course_id', 'class_id', 'leadership_position', 'metadata',
+                        'created_at', 'updated_at'
+                    ]);
+
+                    const ignoredKeys = new Set(['updated_at', 'updatedAt', 'created_at', 'createdAt']);
+
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedEnrollmentCols.has(k)) {
+                            if (!ignoredKeys.has(k) && copy[k] !== undefined && copy[k] !== null && copy[k] !== '') {
+                                meta[k] = copy[k];
+                            }
+                            delete copy[k];
+                        }
+                    });
+
                     copy.metadata = meta;
-
-                    // Strip virtual / non-column attributes to prevent schema cache stale warnings & retries
-                    delete copy.date_of_birth;
-                    delete copy.dateOfBirth;
-                    delete copy.dob;
-                    delete copy.assessment_no;
-                    delete copy.assessmentNo;
-                    delete copy.assessment_number;
-                    delete copy.assessmentNumber;
-                    delete copy.full_name;
-                    delete copy.fullName;
-                    delete copy.name;
-                    delete copy.gender;
-                    delete copy.grade_level;
-                    delete copy.gradeLevel;
-                    delete copy.stream;
-                    delete copy.parent_name;
-                    delete copy.parentName;
-                    delete copy.guardian_name;
-                    delete copy.guardianName;
-                    delete copy.parent_phone;
-                    delete copy.parentPhone;
-                    delete copy.parent_email;
-                    delete copy.parentEmail;
-                    delete copy.boarding_status;
-                    delete copy.boardingStatus;
-                    delete copy.upi;
-                    delete copy.upi_number;
-                    delete copy.upiNumber;
-                    delete copy.kcpe_score;
-                    delete copy.kcpeScore;
-                    delete copy.birth_certificate_no;
-                    delete copy.birthCertificateNo;
-                    delete copy.nemis_number;
-                    delete copy.nemisNumber;
-                    delete copy.subjects;
-
                     currentUpdateData = copy;
                 } else if (moduleName === 'visitors') {
                     const copy = { ...currentUpdateData };
