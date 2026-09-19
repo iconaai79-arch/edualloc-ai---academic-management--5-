@@ -5955,6 +5955,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return matchCourse && matchStream && matchSearch;
                 });
 
+                // Helper to calculate end time by adding minutes safely
+                const addMinutesToTime = (timeStr: string, minutes: number = 60): string => {
+                    if (!timeStr) return '';
+                    const parts = timeStr.split(':');
+                    const h = parseInt(parts[0], 10);
+                    const m = parseInt(parts[1] || '0', 10);
+                    if (isNaN(h)) return '';
+                    const totalMin = h * 60 + m + minutes;
+                    const newH = Math.floor((totalMin / 60) % 24);
+                    const newM = totalMin % 60;
+                    return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+                };
+
                 interface AscGridSlot {
                     periodNum: number;
                     startTime: string;
@@ -5991,7 +6004,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         allocations.filter(a => a.dayOfWeek === 'Saturday' && a.startTime).forEach(a => {
                             const match = satSlots.some(s => (!s.isBreak && a.startTime && s.startTime && s.endTime && a.startTime >= s.startTime && a.startTime < s.endTime) || a.startTime === s.startTime);
                             if (!match && a.startTime) {
-                                satSlots.push({ periodNum: satSlots.length + 1, startTime: a.startTime, endTime: a.endTime || '', label: `P${satSlots.length + 1} (${a.startTime})` });
+                                const endT = a.endTime || addMinutesToTime(a.startTime, 60);
+                                satSlots.push({ periodNum: satSlots.length + 1, startTime: a.startTime, endTime: endT, label: `P${satSlots.length + 1} (${a.startTime}-${endT})` });
                             }
                         });
                         return satSlots;
@@ -6015,6 +6029,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             { periodNum: 3, startTime: sundayBreakEndTime || '11:30', endTime: '12:30', label: 'P3 (11:30-12:30)' },
                             { periodNum: 4, startTime: '12:30', endTime: sundayEndTime || '13:30', label: 'P4 (12:30-13:30)' }
                         );
+
+                        // Check if any allocations have extra start times
+                        allocations.filter(a => a.dayOfWeek === 'Sunday' && a.startTime).forEach(a => {
+                            const match = sunSlots.some(s => (!s.isBreak && a.startTime && s.startTime && s.endTime && a.startTime >= s.startTime && a.startTime < s.endTime) || a.startTime === s.startTime);
+                            if (!match && a.startTime) {
+                                const endT = a.endTime || addMinutesToTime(a.startTime, 60);
+                                sunSlots.push({ periodNum: sunSlots.length + 1, startTime: a.startTime, endTime: endT, label: `P${sunSlots.length + 1} (${a.startTime}-${endT})` });
+                            }
+                        });
                         return sunSlots;
                     }
 
@@ -6025,22 +6048,35 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             .map(a => a.startTime as string)
                     )).sort();
 
-                    // Weekday slots (Mon - Fri): strictly 1 period per day rule
-                    const wStart = dayTimes[0] || weekdayStartTime || '16:00';
-                    const wEnd = weekdayEndTime || '18:00';
-                    return [
-                        { 
-                            periodNum: 1, 
-                            startTime: wStart, 
-                            endTime: wEnd, 
-                            label: `P1 (${wStart})` 
-                        }
-                    ];
+                    if (dayTimes.length <= 1) {
+                        const wStart = dayTimes[0] || weekdayStartTime || '16:00';
+                        const matchingAlloc = allocations.find(a => a.dayOfWeek === day && a.startTime === wStart && a.endTime);
+                        const wEnd = matchingAlloc?.endTime || weekdayEndTime || addMinutesToTime(wStart, 60);
+                        return [
+                            { 
+                                periodNum: 1, 
+                                startTime: wStart, 
+                                endTime: wEnd, 
+                                label: `P1 (${wStart}-${wEnd})` 
+                            }
+                        ];
+                    }
+
+                    return dayTimes.map((t, idx) => {
+                        const matchingAlloc = allocations.find(a => a.dayOfWeek === day && a.startTime === t && a.endTime);
+                        const endT = matchingAlloc?.endTime 
+                            || (t === (weekdayStartTime || '16:00') ? (weekdayEndTime || '18:00') : addMinutesToTime(t, 60));
+                        return {
+                            periodNum: idx + 1,
+                            startTime: t,
+                            endTime: endT,
+                            label: `P${idx + 1} (${t}-${endT})`
+                        };
+                    });
                 };
 
                 const matchAllocsForCell = (cls: { className: string; stream: string }, day: string, slot: AscGridSlot) => {
                     if (slot.isBreak) return [];
-                    const isWeekend = day === 'Saturday' || day === 'Sunday';
                     return allocations.filter(a => {
                         if (a.dayOfWeek !== day) return false;
                         const matchCourse = a.courseId === cls.className || a.className === cls.className;
@@ -6048,32 +6084,31 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const matchStream = matchAllocationStream(a, cls.stream);
                         if (!matchStream) return false;
 
-                        if (isWeekend) {
-                            if (slot.startTime && slot.endTime) {
-                                if (a.startTime) {
-                                    return a.startTime >= slot.startTime && a.startTime < slot.endTime;
-                                }
-                                return true;
-                            }
-                            if (slot.startTime) {
-                                return (a.startTime || '').startsWith(slot.startTime.slice(0, 4)) || a.startTime === slot.startTime;
+                        if (slot.startTime && slot.endTime) {
+                            if (a.startTime) {
+                                return a.startTime === slot.startTime || (a.startTime >= slot.startTime && a.startTime < slot.endTime);
                             }
                             return true;
                         }
+                        if (slot.startTime) {
+                            return (a.startTime || '').startsWith(slot.startTime.slice(0, 4)) || a.startTime === slot.startTime;
+                        }
 
-                        // Weekdays (Mon-Fri) strictly 1 period slot (P1)
                         return true;
                     });
                 };
 
                 const renderAscGridCell = (cls: { className: string; stream: string; shortCode: string }, day: string, slot: AscGridSlot) => {
                     if (slot.isBreak) {
+                        const startFmt = slot.startTime?.slice(0, 5) || '';
+                        const endFmt = slot.endTime?.slice(0, 5) || '';
+                        const breakRange = startFmt && endFmt ? `${startFmt} - ${endFmt}` : startFmt;
                         return (
                             <div className="w-full h-full min-h-[56px] bg-amber-100/60 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 flex flex-col items-center justify-center border border-dashed border-amber-300/80 dark:border-amber-800/60 rounded select-none">
                                 <span className="text-[8px] font-black uppercase tracking-widest flex items-center gap-0.5">
                                     <Coffee className="w-2.5 h-2.5 text-amber-600" /> RECESS
                                 </span>
-                                <span className="text-[7px] font-mono opacity-80">{slot.startTime?.slice(0, 5)}</span>
+                                <span className="text-[7px] font-mono opacity-80 whitespace-nowrap">{breakRange}</span>
                             </div>
                         );
                     }
@@ -6806,27 +6841,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                                             {/* HEADER 2: Period Numbers Row */}
                                             <tr className="border-b-2 border-slate-400 dark:border-slate-600 bg-slate-100 dark:bg-slate-850 select-none">
-                                                <th className="sticky left-0 z-30 bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 border-r-2 border-slate-400 dark:border-slate-600">
+                                                <th className="sticky left-0 z-30 bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 border-r-2 border-slate-400 dark:border-slate-600 shadow-xs">
                                                     Period
                                                 </th>
                                                 {daysForAscGrid.map(day => {
                                                     const slots = getAscSlotsForDay(day);
                                                     return slots.map((slot, sIdx) => {
                                                         const isBreak = slot.isBreak;
+                                                        const startFmt = slot.startTime?.slice(0, 5) || '';
+                                                        const endFmt = slot.endTime?.slice(0, 5) || (slot.startTime ? addMinutesToTime(slot.startTime, 60) : '');
+                                                        const timeRangeText = startFmt && endFmt ? `${startFmt} - ${endFmt}` : (startFmt || endFmt);
+
                                                         return (
                                                             <th
                                                                 key={`${day}_${sIdx}`}
-                                                                className={`px-1 py-1.5 text-center border-r border-slate-300 dark:border-slate-700/80 min-w-[76px] max-w-[95px] ${
+                                                                className={`px-1 py-1.5 text-center border-r border-slate-300 dark:border-slate-700/80 min-w-[80px] max-w-[105px] ${
                                                                     isBreak 
                                                                         ? 'bg-amber-200/70 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300' 
                                                                         : 'text-slate-700 dark:text-slate-300'
                                                                 }`}
+                                                                title={isBreak ? `Recess Break: ${timeRangeText}` : `Period ${slot.periodNum}: ${timeRangeText}`}
                                                             >
-                                                                <div className="text-[11px] font-black leading-none">
-                                                                    {isBreak ? '☕' : slot.periodNum}
+                                                                <div className="text-[11px] font-black leading-none flex items-center justify-center gap-1">
+                                                                    {isBreak ? (
+                                                                        <span className="text-[8.5px] uppercase tracking-wider font-black text-amber-900 dark:text-amber-200 flex items-center gap-0.5">
+                                                                            ☕ RECESS
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span>{slot.periodNum}</span>
+                                                                    )}
                                                                 </div>
-                                                                <div className="text-[7.5px] font-mono opacity-80 mt-0.5">
-                                                                    {slot.startTime?.slice(0, 5)}
+                                                                <div className="text-[8px] font-mono font-bold opacity-85 mt-0.5 tracking-tight whitespace-nowrap text-slate-700 dark:text-slate-200">
+                                                                    {timeRangeText}
                                                                 </div>
                                                             </th>
                                                         );
