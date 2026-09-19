@@ -82,6 +82,31 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
     const [activeTabView, setActiveTabView] = useState<'invoices' | 'statements'>('invoices');
     const [selectedStatementInstId, setSelectedStatementInstId] = useState<string>('');
 
+    const expectedDocNumber = useMemo(() => {
+        if (editingInvoice) return editingInvoice.invoiceNumber;
+        const isQuote = documentType === 'quote';
+        const rawPrefix = isQuote
+            ? (companyDetails?.globalQuotePrefix || 'QUO-').trim()
+            : (companyDetails?.globalInvoicePrefix || 'INV-').trim();
+        const cleanPrefix = rawPrefix.endsWith('-') || rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}-`;
+        
+        let maxSeq = 0;
+        invoices.forEach((inv: any) => {
+            const isDocQuote = inv.status === 'quote' || inv.isQuote || (inv.invoiceNumber && (inv.invoiceNumber.startsWith('QUO') || inv.invoiceNumber.startsWith('QT')));
+            if (isQuote ? isDocQuote : !isDocQuote) {
+                const digits = parseInt(String(inv.invoiceNumber || inv.invoice_number || '').replace(/\D/g, ''), 10);
+                if (!isNaN(digits) && digits > maxSeq && digits < 100000000) {
+                    maxSeq = digits;
+                }
+            }
+        });
+        const configuredStart = isQuote 
+            ? Number(companyDetails?.globalQuoteNextNumber || 1001)
+            : Number(companyDetails?.globalInvoiceNextNumber || 1001);
+        const nextSeq = Math.max(configuredStart, maxSeq > 0 ? maxSeq + 1 : configuredStart);
+        return `${cleanPrefix}${nextSeq}`;
+    }, [editingInvoice, documentType, companyDetails, invoices]);
+
     const fetchReceipts = async () => {
         try {
             const records = await apiService.fetchModuleRecords<Receipt>('receipts');
@@ -310,11 +335,28 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         if (!recordingPaymentFor) return;
         setIsSubmittingPayment(true);
         try {
-            const prefix = (companyDetails?.globalReceiptPrefix || 'RCT-').trim();
+            const rawPrefix = (companyDetails?.globalReceiptPrefix || 'RCT-').trim();
+            const cleanPrefix = rawPrefix.endsWith('-') || rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}-`;
+            let receiptNumber = '';
+            try {
+                receiptNumber = await apiService.getNextDocumentNumber('superadmin', 'receipt');
+            } catch (_) {}
+            if (!receiptNumber) {
+                const maxSeq = receipts.reduce((max, r: any) => {
+                    const digits = parseInt(String(r.receiptNumber || r.receipt_number || '').replace(/\D/g, ''), 10);
+                    return (!isNaN(digits) && digits > max && digits < 100000000) ? digits : max;
+                }, 0);
+                const startNum = Number(companyDetails?.globalReceiptNextNumber || 1001);
+                const nextSeq = Math.max(startNum, maxSeq > 0 ? maxSeq + 1 : startNum);
+                receiptNumber = `${cleanPrefix}${nextSeq}`;
+            }
+
             const receipt = {
                 id: `RCT_${Date.now()}`,
-                receiptNumber: `${prefix}${Date.now()}`,
+                receiptNumber: receiptNumber,
+                receipt_number: receiptNumber,
                 institutionId: recordingPaymentFor.institutionId,
+                institution_id: recordingPaymentFor.institutionId,
                 paymentDate: new Date(paymentDate).toISOString(),
                 amountPaid: Number(paymentAmount),
                 paidFor: `Platform Subscription Payment (Invoice ${recordingPaymentFor.invoiceNumber})`,
@@ -445,9 +487,16 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                     Quotation
                                 </button>
                             </div>
-                            <h4 className={`font-black text-lg uppercase tracking-tight ${documentType === 'quote' ? 'text-blue-600' : 'text-indigo-600'}`}>
-                                {editingInvoice ? `Edit ${documentType === 'quote' ? 'Quotation' : 'Invoice'} ${editingInvoice.invoiceNumber}` : `New ${documentType === 'quote' ? 'Quotation' : 'Invoice'}`}
-                            </h4>
+                            <div className="flex items-center gap-3">
+                                <h4 className={`font-black text-lg uppercase tracking-tight ${documentType === 'quote' ? 'text-blue-600' : 'text-indigo-600'}`}>
+                                    {editingInvoice ? `Edit ${documentType === 'quote' ? 'Quotation' : 'Invoice'} ${editingInvoice.invoiceNumber}` : `New ${documentType === 'quote' ? 'Quotation' : 'Invoice'}`}
+                                </h4>
+                                {!editingInvoice && (
+                                    <span className="text-[11px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-2.5 py-0.5 rounded-lg border border-indigo-200/60 dark:border-indigo-800/60">
+                                        Expected #{expectedDocNumber}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <button onClick={handleCancel} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
                             <XIcon className="w-5 h-5 text-slate-400" />

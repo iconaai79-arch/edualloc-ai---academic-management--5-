@@ -370,8 +370,37 @@ export const apiService = {
                 lpo: 'LPO-',
                 requisition: 'REQ-',
                 admission: 'ADM-',
-                student: 'ADM-'
+                student: 'ADM-',
+                quote: 'QUO-',
+                quotation: 'QUO-'
             };
+
+            let defaultNextNumber = 1001;
+            if (cleanInstId === 'superadmin' || cleanInstId === 'global') {
+                try {
+                    const sysSettings = ls.get('system_settings') as any;
+                    const settData = sysSettings?.data || sysSettings;
+                    if (settData) {
+                        if (settData.global_invoice_prefix || settData.globalInvoicePrefix) {
+                            defaultPrefixes.invoice = String(settData.global_invoice_prefix || settData.globalInvoicePrefix).trim();
+                        }
+                        if (settData.global_receipt_prefix || settData.globalReceiptPrefix) {
+                            defaultPrefixes.receipt = String(settData.global_receipt_prefix || settData.globalReceiptPrefix).trim();
+                        }
+                        if (settData.global_quote_prefix || settData.globalQuotePrefix) {
+                            defaultPrefixes.quote = String(settData.global_quote_prefix || settData.globalQuotePrefix).trim();
+                            defaultPrefixes.quotation = defaultPrefixes.quote;
+                        }
+                        if (docType === 'invoice' && (settData.global_invoice_next_number || settData.globalInvoiceNextNumber)) {
+                            defaultNextNumber = Number(settData.global_invoice_next_number || settData.globalInvoiceNextNumber);
+                        } else if (docType === 'receipt' && (settData.global_receipt_next_number || settData.globalReceiptNextNumber)) {
+                            defaultNextNumber = Number(settData.global_receipt_next_number || settData.globalReceiptNextNumber);
+                        } else if ((docType === 'quote' || docType === 'quotation') && (settData.global_quote_next_number || settData.globalQuoteNextNumber)) {
+                            defaultNextNumber = Number(settData.global_quote_next_number || settData.globalQuoteNextNumber);
+                        }
+                    }
+                } catch (_) {}
+            }
 
             // Try atomic RPC first to avoid concurrent/race-condition duplicate numbers
             if (!_rpcGetNextDocFailed) {
@@ -426,8 +455,8 @@ export const apiService = {
                     documentType: docType,
                     document_type: docType,
                     prefix: prefix,
-                    nextNumber: 1001,
-                    next_number: 1001,
+                    nextNumber: defaultNextNumber,
+                    next_number: defaultNextNumber,
                     updatedAt: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
@@ -441,7 +470,7 @@ export const apiService = {
                             institution_id: instId,
                             document_type: docType,
                             prefix: prefix,
-                            next_number: 1001,
+                            next_number: defaultNextNumber,
                             updated_at: new Date().toISOString()
                         }, { onConflict: 'institution_id,document_type' })
                         .select()

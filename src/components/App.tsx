@@ -5817,34 +5817,79 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         invoices,
         onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string, isQuote?: boolean, issueDate?: string) => {
             let invoiceNumber = '';
+            const docType = isQuote ? 'quote' : 'invoice';
             const rawPrefix = isQuote 
-                ? 'QT-' 
+                ? (companyDetails?.globalQuotePrefix || 'QUO-').trim()
                 : (companyDetails?.globalInvoicePrefix || 'INV-').trim();
             const cleanPrefix = rawPrefix.endsWith('-') || rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}-`;
 
             try {
-                const existingInvoices = await apiService.fetchModuleRecords<any>('invoices', institutionId) || [];
+                // Check all existing tenant invoices across the system (invoices without studentId)
+                const allTenantInvoices = (invoices || []).filter((inv: any) => !inv.studentId);
                 let maxSeq = 0;
-                
-                existingInvoices.forEach((inv: any) => {
-                    const numStr = String(inv.invoiceNumber || inv.invoice_number || '').trim();
-                    if (numStr) {
-                        const digitsOnly = numStr.replace(/\D/g, '');
-                        if (digitsOnly) {
-                            const parsed = parseInt(digitsOnly, 10);
-                            if (!isNaN(parsed) && parsed > maxSeq && parsed < 1000000) {
-                                maxSeq = parsed;
+
+                allTenantInvoices.forEach((inv: any) => {
+                    const isDocQuote = inv.status === 'quote' || inv.isQuote || (inv.invoiceNumber && (inv.invoiceNumber.startsWith('QUO') || inv.invoiceNumber.startsWith('QT')));
+                    if (isQuote ? isDocQuote : !isDocQuote) {
+                        const numStr = String(inv.invoiceNumber || inv.invoice_number || '').trim();
+                        if (numStr) {
+                            const digitsOnly = numStr.replace(/\D/g, '');
+                            if (digitsOnly) {
+                                const parsed = parseInt(digitsOnly, 10);
+                                if (!isNaN(parsed) && parsed > maxSeq && parsed < 100000000) {
+                                    maxSeq = parsed;
+                                }
                             }
                         }
                     }
                 });
 
-                const nextSeq = maxSeq + 1;
-                const paddedSeq = String(nextSeq).padStart(4, '0');
-                invoiceNumber = `${cleanPrefix}${paddedSeq}`;
+                const configuredStart = isQuote 
+                    ? Number(companyDetails?.globalQuoteNextNumber || 1001)
+                    : Number(companyDetails?.globalInvoiceNextNumber || 1001);
+
+                // Try atomic RPC or next document number via apiService with superadmin tenancy
+                let generatedNumber = '';
+                try {
+                    generatedNumber = await apiService.getNextDocumentNumber('superadmin', docType);
+                } catch (apiErr) {
+                    console.warn("[onManualInvoice] getNextDocumentNumber error:", apiErr);
+                }
+
+                if (generatedNumber) {
+                    const parsedGen = parseInt(generatedNumber.replace(/\D/g, ''), 10);
+                    // Ensure the generated number is at least maxSeq + 1 and >= configuredStart
+                    const targetSeq = Math.max(
+                        !isNaN(parsedGen) ? parsedGen : 1001,
+                        configuredStart,
+                        maxSeq > 0 ? maxSeq + 1 : configuredStart
+                    );
+                    invoiceNumber = `${cleanPrefix}${targetSeq}`;
+                } else {
+                    const nextSeq = Math.max(configuredStart, maxSeq > 0 ? maxSeq + 1 : configuredStart);
+                    invoiceNumber = `${cleanPrefix}${nextSeq}`;
+                }
             } catch (e) {
                 console.warn("Failed to calculate sequential invoice number, falling back:", e);
                 invoiceNumber = `${cleanPrefix}${Date.now().toString().slice(-6)}`;
+            }
+
+            // Sync updated next number in companyDetails and finance_numbering_configs so subsequent manual invoices increment
+            const extractedSeq = parseInt(invoiceNumber.replace(/\D/g, ''), 10);
+            if (!isNaN(extractedSeq)) {
+                const followingSeq = extractedSeq + 1;
+                if (isQuote) {
+                    setCompanyDetails(prev => ({ ...prev, globalQuoteNextNumber: followingSeq }));
+                } else {
+                    setCompanyDetails(prev => ({ ...prev, globalInvoiceNextNumber: followingSeq }));
+                }
+                apiService.updateModuleRecord('finance_numbering_configs', `num_cfg_${docType}_superadmin`, {
+                    institution_id: 'superadmin',
+                    document_type: docType,
+                    prefix: cleanPrefix,
+                    next_number: followingSeq,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
             }
 
             const resolvedIssueDate = issueDate ? (issueDate.includes('T') ? issueDate : new Date(issueDate).toISOString()) : new Date().toISOString();
@@ -5852,15 +5897,21 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const newInvoice = {
                 id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                 invoiceNumber,
+                invoice_number: invoiceNumber,
                 institutionId,
+                institution_id: institutionId,
                 items,
                 totalAmount,
+                total_amount: totalAmount,
                 dueDate,
                 due_date: dueDate,
                 issueDate: resolvedIssueDate,
                 issue_date: resolvedIssueDate,
                 status: isQuote ? 'quote' : 'pending',
+                isQuote: !!isQuote,
+                is_quote: !!isQuote,
                 createdAt: resolvedIssueDate,
+                created_at: resolvedIssueDate,
             };
             await apiService.saveModuleRecord('invoices', newInvoice);
             await handleLogAction(`Super Admin generated ${isQuote ? 'quote' : 'invoice'} ${invoiceNumber} for institution ${institutionId}`);

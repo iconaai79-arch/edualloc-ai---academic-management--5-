@@ -1424,7 +1424,11 @@ export interface CompanyDetails {
     airtelMoneyConfig?: AirtelMoneyConfig;
     intasendConfig?: IntasendConfig;
     globalInvoicePrefix?: string;
+    globalInvoiceNextNumber?: number;
     globalReceiptPrefix?: string;
+    globalReceiptNextNumber?: number;
+    globalQuotePrefix?: string;
+    globalQuoteNextNumber?: number;
     ncbaConfig?: NcbaConfig;
     kcbConfig?: KcbConfig;
     coopConfig?: CoopB2bConfig;

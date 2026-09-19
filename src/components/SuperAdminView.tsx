@@ -943,7 +943,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         enforceGlobalOtp: companyDetails?.enforceGlobalOtp ?? false,
         marketplaceConfig: companyDetails?.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
         globalInvoicePrefix: companyDetails?.globalInvoicePrefix || 'INV-',
+        globalInvoiceNextNumber: companyDetails?.globalInvoiceNextNumber || 1001,
         globalReceiptPrefix: companyDetails?.globalReceiptPrefix || 'RCT-',
+        globalReceiptNextNumber: companyDetails?.globalReceiptNextNumber || 1001,
+        globalQuotePrefix: companyDetails?.globalQuotePrefix || 'QUO-',
+        globalQuoteNextNumber: companyDetails?.globalQuoteNextNumber || 1001,
         paymentInstructions: companyDetails?.paymentInstructions || '',
         showcaseConfig: companyDetails?.showcaseConfig || { 
             enabled: true, 
@@ -998,7 +1002,11 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 enforceGlobalOtp: companyDetails.enforceGlobalOtp ?? false,
                 marketplaceConfig: companyDetails.marketplaceConfig || { pricingAmount: 150, customUrl: '' },
                 globalInvoicePrefix: companyDetails.globalInvoicePrefix || 'INV-',
+                globalInvoiceNextNumber: companyDetails.globalInvoiceNextNumber || 1001,
                 globalReceiptPrefix: companyDetails.globalReceiptPrefix || 'RCT-',
+                globalReceiptNextNumber: companyDetails.globalReceiptNextNumber || 1001,
+                globalQuotePrefix: companyDetails.globalQuotePrefix || 'QUO-',
+                globalQuoteNextNumber: companyDetails.globalQuoteNextNumber || 1001,
                 paymentInstructions: companyDetails.paymentInstructions || '',
                 showcaseConfig: companyDetails.showcaseConfig || { 
                     enabled: true, 
@@ -1096,9 +1104,22 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             };
 
             if (props.onUpdateCompanyDetails) {
+                const invPrefix = (localCompanyInfo.globalInvoicePrefix || 'INV-').trim();
+                const invNext = Number(localCompanyInfo.globalInvoiceNextNumber || 1001);
+                const recPrefix = (localCompanyInfo.globalReceiptPrefix || 'RCT-').trim();
+                const recNext = Number(localCompanyInfo.globalReceiptNextNumber || 1001);
+                const quoPrefix = (localCompanyInfo.globalQuotePrefix || 'QUO-').trim();
+                const quoNext = Number(localCompanyInfo.globalQuoteNextNumber || 1001);
+
                 await props.onUpdateCompanyDetails({
                     ...companyDetails,
                     ...localCompanyInfo,
+                    globalInvoicePrefix: invPrefix,
+                    globalInvoiceNextNumber: invNext,
+                    globalReceiptPrefix: recPrefix,
+                    globalReceiptNextNumber: recNext,
+                    globalQuotePrefix: quoPrefix,
+                    globalQuoteNextNumber: quoNext,
                     enabledGateways: localCompanyInfo.enabledGateways,
                     showcaseConfig: localCompanyInfo.showcaseConfig,
                     smsConfig: localSmsConfig,
@@ -1116,6 +1137,31 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                     ftpConfig: localFtpConfig,
                     googleDriveConfig: localGoogleDriveConfig
                 });
+
+                // Sync atomic configurations to finance_numbering_configs for superadmin tenancy
+                await Promise.all([
+                    apiService.updateModuleRecord('finance_numbering_configs', 'num_cfg_invoice_superadmin', {
+                        institution_id: 'superadmin',
+                        document_type: 'invoice',
+                        prefix: invPrefix,
+                        next_number: invNext,
+                        updated_at: new Date().toISOString()
+                    }).catch(() => {}),
+                    apiService.updateModuleRecord('finance_numbering_configs', 'num_cfg_quote_superadmin', {
+                        institution_id: 'superadmin',
+                        document_type: 'quote',
+                        prefix: quoPrefix,
+                        next_number: quoNext,
+                        updated_at: new Date().toISOString()
+                    }).catch(() => {}),
+                    apiService.updateModuleRecord('finance_numbering_configs', 'num_cfg_receipt_superadmin', {
+                        institution_id: 'superadmin',
+                        document_type: 'receipt',
+                        prefix: recPrefix,
+                        next_number: recNext,
+                        updated_at: new Date().toISOString()
+                    }).catch(() => {})
+                ]);
             }
             alert("Platform configurations updated successfully.");
         } catch (e) {
@@ -1139,16 +1185,35 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             });
 
             const prefix = (localCompanyInfo.globalInvoicePrefix || 'INV-').trim();
+            const startSeq = Number(localCompanyInfo.globalInvoiceNextNumber || 1001);
             let successCount = 0;
             for (let i = 0; i < sortedInvoices.length; i++) {
                 const invoice = sortedInvoices[i];
-                const newInvoiceNumber = `${prefix}${1001 + i}`;
+                const newInvoiceNumber = `${prefix}${startSeq + i}`;
                 await apiService.updateModuleRecord('invoices', invoice.id, {
                     invoiceNumber: newInvoiceNumber,
+                    invoice_number: newInvoiceNumber,
                     updatedAt: new Date().toISOString()
                 });
                 successCount++;
             }
+            const nextSeq = startSeq + sortedInvoices.length;
+            setLocalCompanyInfo(prev => ({ ...prev, globalInvoiceNextNumber: nextSeq }));
+            if (props.onUpdateCompanyDetails) {
+                await props.onUpdateCompanyDetails({
+                    ...companyDetails,
+                    globalInvoicePrefix: prefix,
+                    globalInvoiceNextNumber: nextSeq
+                });
+            }
+            await apiService.updateModuleRecord('finance_numbering_configs', 'num_cfg_invoice_superadmin', {
+                institution_id: 'superadmin',
+                document_type: 'invoice',
+                prefix: prefix,
+                next_number: nextSeq,
+                updated_at: new Date().toISOString()
+            }).catch(() => {});
+
             alert(`Successfully aligned ${successCount} invoices in sequential order!`);
             if (props.onRefreshData) await props.onRefreshData();
         } catch (err: any) {
@@ -1173,16 +1238,35 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
             });
 
             const prefix = (localCompanyInfo.globalReceiptPrefix || 'RCT-').trim();
+            const startSeq = Number(localCompanyInfo.globalReceiptNextNumber || 1001);
             let successCount = 0;
             for (let i = 0; i < sortedReceipts.length; i++) {
                 const receipt = sortedReceipts[i];
-                const newReceiptNumber = `${prefix}${1001 + i}`;
+                const newReceiptNumber = `${prefix}${startSeq + i}`;
                 await apiService.updateModuleRecord('receipts', receipt.id, {
                     receiptNumber: newReceiptNumber,
+                    receipt_number: newReceiptNumber,
                     updatedAt: new Date().toISOString()
                 });
                 successCount++;
             }
+            const nextSeq = startSeq + sortedReceipts.length;
+            setLocalCompanyInfo(prev => ({ ...prev, globalReceiptNextNumber: nextSeq }));
+            if (props.onUpdateCompanyDetails) {
+                await props.onUpdateCompanyDetails({
+                    ...companyDetails,
+                    globalReceiptPrefix: prefix,
+                    globalReceiptNextNumber: nextSeq
+                });
+            }
+            await apiService.updateModuleRecord('finance_numbering_configs', 'num_cfg_receipt_superadmin', {
+                institution_id: 'superadmin',
+                document_type: 'receipt',
+                prefix: prefix,
+                next_number: nextSeq,
+                updated_at: new Date().toISOString()
+            }).catch(() => {});
+
             alert(`Successfully aligned ${successCount} receipts in sequential order!`);
             if (props.onRefreshData) await props.onRefreshData();
         } catch (err: any) {
@@ -4789,26 +4873,92 @@ Please change it after login.`;
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Tenant Invoice Prefix</label>
-                                                        <input
-                                                            type="text"
-                                                            value={localCompanyInfo.globalInvoicePrefix || ''}
-                                                            onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalInvoicePrefix: e.target.value })}
-                                                            className="form-input h-12 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
-                                                            placeholder="e.g. INV-"
-                                                        />
+                                                <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-700/60 space-y-4">
+                                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                                        <div>
+                                                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Tenant Document Numbering &amp; Sequences</h5>
+                                                            <p className="text-[10px] text-slate-400">Configure prefixes and next serial numbers for tenant billing</p>
+                                                        </div>
+                                                        <div className="flex gap-2 flex-wrap">
+                                                            <span className="text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                                                                Next Inv: {(localCompanyInfo.globalInvoicePrefix || 'INV-').trim()}{localCompanyInfo.globalInvoiceNextNumber || 1001}
+                                                            </span>
+                                                            <span className="text-[9px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-lg border border-blue-200 dark:border-blue-800">
+                                                                Next Quo: {(localCompanyInfo.globalQuotePrefix || 'QUO-').trim()}{localCompanyInfo.globalQuoteNextNumber || 1001}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 ml-1">Tenant Receipt Prefix</label>
-                                                        <input
-                                                            type="text"
-                                                            value={localCompanyInfo.globalReceiptPrefix || ''}
-                                                            onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalReceiptPrefix: e.target.value })}
-                                                            className="form-input h-12 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
-                                                            placeholder="e.g. RCT-"
-                                                        />
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Tenant Invoice Prefix</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localCompanyInfo.globalInvoicePrefix || ''}
+                                                                onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalInvoicePrefix: e.target.value })}
+                                                                className="form-input h-11 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                                placeholder="e.g. INV-"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Next Invoice Number</label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={localCompanyInfo.globalInvoiceNextNumber ?? 1001}
+                                                                onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalInvoiceNextNumber: parseInt(e.target.value, 10) || 1001 })}
+                                                                className="form-input h-11 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                                placeholder="e.g. 1001"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Tenant Quotation Prefix</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localCompanyInfo.globalQuotePrefix || ''}
+                                                                onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalQuotePrefix: e.target.value })}
+                                                                className="form-input h-11 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                                placeholder="e.g. QUO-"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Next Quotation Number</label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={localCompanyInfo.globalQuoteNextNumber ?? 1001}
+                                                                onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalQuoteNextNumber: parseInt(e.target.value, 10) || 1001 })}
+                                                                className="form-input h-11 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                                placeholder="e.g. 1001"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Tenant Receipt Prefix</label>
+                                                            <input
+                                                                type="text"
+                                                                value={localCompanyInfo.globalReceiptPrefix || ''}
+                                                                onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalReceiptPrefix: e.target.value })}
+                                                                className="form-input h-11 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                                placeholder="e.g. RCT-"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1 ml-1">Next Receipt Number</label>
+                                                            <input
+                                                                type="number"
+                                                                min="1"
+                                                                value={localCompanyInfo.globalReceiptNextNumber ?? 1001}
+                                                                onChange={(e) => setLocalCompanyInfo({ ...localCompanyInfo, globalReceiptNextNumber: parseInt(e.target.value, 10) || 1001 })}
+                                                                className="form-input h-11 font-bold text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 w-full"
+                                                                placeholder="e.g. 1001"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
 
