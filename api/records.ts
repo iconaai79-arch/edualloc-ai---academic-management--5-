@@ -220,6 +220,164 @@ const isTableWithoutInstitutionId = (module: string) => {
   ].includes(module);
 };
 
+const cleanRemedialRateSettings = (rec: any) => {
+    if (!rec || typeof rec !== 'object') return rec;
+    const copy = { ...rec };
+    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+    if (copy.hourlyRate !== undefined && copy.hourly_rate === undefined) copy.hourly_rate = copy.hourlyRate;
+    if (copy.weekdayHourlyRate !== undefined && copy.weekday_hourly_rate === undefined) copy.weekday_hourly_rate = copy.weekdayHourlyRate;
+    if (copy.weekendHourlyRate !== undefined && copy.weekend_hourly_rate === undefined) copy.weekend_hourly_rate = copy.weekendHourlyRate;
+    if (copy.weekdayStartTime !== undefined && copy.weekday_start_time === undefined) copy.weekday_start_time = copy.weekdayStartTime;
+    if (copy.weekdayEndTime !== undefined && copy.weekday_end_time === undefined) copy.weekday_end_time = copy.weekdayEndTime;
+    if (copy.weekendStartTime !== undefined && copy.weekend_start_time === undefined) copy.weekend_start_time = copy.weekendStartTime;
+    if (copy.weekendEndTime !== undefined && copy.weekend_end_time === undefined) copy.weekend_end_time = copy.weekendEndTime;
+    if (copy.saturdayStartTime !== undefined && copy.saturday_start_time === undefined) copy.saturday_start_time = copy.saturdayStartTime;
+    if (copy.saturdayEndTime !== undefined && copy.saturday_end_time === undefined) copy.saturday_end_time = copy.saturdayEndTime;
+    if (copy.sundayStartTime !== undefined && copy.sunday_start_time === undefined) copy.sunday_start_time = copy.sundayStartTime;
+    if (copy.sundayEndTime !== undefined && copy.sunday_end_time === undefined) copy.sunday_end_time = copy.sundayEndTime;
+    if (copy.saturday_start_time !== undefined) {
+        meta.saturday_start_time = copy.saturday_start_time;
+        meta.saturdayStartTime = copy.saturday_start_time;
+    }
+    if (copy.saturday_end_time !== undefined) {
+        meta.saturday_end_time = copy.saturday_end_time;
+        meta.saturdayEndTime = copy.saturday_end_time;
+    }
+    if (copy.sunday_start_time !== undefined) {
+        meta.sunday_start_time = copy.sunday_start_time;
+        meta.sundayStartTime = copy.sunday_start_time;
+    }
+    if (copy.sunday_end_time !== undefined) {
+        meta.sunday_end_time = copy.sunday_end_time;
+        meta.sundayEndTime = copy.sunday_end_time;
+    }
+    if (copy.maxLessonsPerDay !== undefined && copy.max_lessons_per_day === undefined) copy.max_lessons_per_day = copy.maxLessonsPerDay;
+    if (copy.maxWeekendLessonsPerDay !== undefined && copy.max_weekend_lessons_per_day === undefined) copy.max_weekend_lessons_per_day = copy.maxWeekendLessonsPerDay;
+    if (copy.max_weekend_lessons_per_day !== undefined) {
+        meta.max_weekend_lessons_per_day = copy.max_weekend_lessons_per_day;
+        meta.maxWeekendLessonsPerDay = copy.max_weekend_lessons_per_day;
+    }
+    if (copy.cancellationCutoffHours !== undefined && copy.cancellation_cutoff_hours === undefined) copy.cancellation_cutoff_hours = copy.cancellationCutoffHours;
+    if (copy.cancellation_cutoff_hours !== undefined) {
+        meta.cancellation_cutoff_hours = copy.cancellation_cutoff_hours;
+        meta.cancellationCutoffHours = copy.cancellation_cutoff_hours;
+    }
+    if (copy.confirmationTimeoutMinutes !== undefined && copy.confirmation_timeout_minutes === undefined) copy.confirmation_timeout_minutes = copy.confirmationTimeoutMinutes;
+    if (copy.confirmation_timeout_minutes !== undefined) {
+        meta.confirmation_timeout_minutes = copy.confirmation_timeout_minutes;
+        meta.confirmationTimeoutMinutes = copy.confirmation_timeout_minutes;
+    }
+    if (copy.teacherPreferences !== undefined && copy.teacher_preferences === undefined) copy.teacher_preferences = copy.teacherPreferences;
+    if (copy.teacher_preferences !== undefined) {
+        meta.teacher_preferences = copy.teacher_preferences;
+        meta.teacherPreferences = copy.teacher_preferences;
+    }
+    if (copy.weekendBreakStartTime !== undefined && copy.weekend_break_start_time === undefined) copy.weekend_break_start_time = copy.weekendBreakStartTime;
+    if (copy.weekendBreakEndTime !== undefined && copy.weekend_break_end_time === undefined) copy.weekend_break_end_time = copy.weekendBreakEndTime;
+    if (copy.weekendBreakLabel !== undefined && copy.weekend_break_label === undefined) copy.weekend_break_label = copy.weekendBreakLabel;
+    if (copy.includeWeekendBreak !== undefined && copy.include_weekend_break === undefined) copy.include_weekend_break = copy.includeWeekendBreak;
+
+    if (copy.saturdayBreakStartTime !== undefined && copy.saturday_break_start_time === undefined) copy.saturday_break_start_time = copy.saturdayBreakStartTime;
+    if (copy.saturdayBreakEndTime !== undefined && copy.saturday_break_end_time === undefined) copy.saturday_break_end_time = copy.saturdayBreakEndTime;
+    if (copy.saturdayBreakLabel !== undefined && copy.saturday_break_label === undefined) copy.saturday_break_label = copy.saturdayBreakLabel;
+    if (copy.includeSaturdayBreak !== undefined && copy.include_saturday_break === undefined) copy.include_saturday_break = copy.includeSaturdayBreak;
+
+    if (copy.sundayBreakStartTime !== undefined && copy.sunday_break_start_time === undefined) copy.sunday_break_start_time = copy.sundayBreakStartTime;
+    if (copy.sundayBreakEndTime !== undefined && copy.sunday_break_end_time === undefined) copy.sunday_break_end_time = copy.sundayBreakEndTime;
+    if (copy.sundayBreakLabel !== undefined && copy.sunday_break_label === undefined) copy.sunday_break_label = copy.sundayBreakLabel;
+    if (copy.includeSundayBreak !== undefined && copy.include_sunday_break === undefined) copy.include_sunday_break = copy.includeSundayBreak;
+
+    if (copy.saturday_break_start_time !== undefined) {
+        meta.saturday_break_start_time = copy.saturday_break_start_time;
+        meta.saturdayBreakStartTime = copy.saturday_break_start_time;
+    }
+    if (copy.saturday_break_end_time !== undefined) {
+        meta.saturday_break_end_time = copy.saturday_break_end_time;
+        meta.saturdayBreakEndTime = copy.saturday_break_end_time;
+    }
+    if (copy.saturday_break_label !== undefined) {
+        meta.saturday_break_label = copy.saturday_break_label;
+        meta.saturdayBreakLabel = copy.saturday_break_label;
+    }
+    if (copy.include_saturday_break !== undefined) {
+        meta.include_saturday_break = copy.include_saturday_break;
+        meta.includeSaturdayBreak = copy.include_saturday_break;
+    }
+
+    if (copy.sunday_break_start_time !== undefined) {
+        meta.sunday_break_start_time = copy.sunday_break_start_time;
+        meta.sundayBreakStartTime = copy.sunday_break_start_time;
+    }
+    if (copy.sunday_break_end_time !== undefined) {
+        meta.sunday_break_end_time = copy.sunday_break_end_time;
+        meta.sundayBreakEndTime = copy.sunday_break_end_time;
+    }
+    if (copy.sunday_break_label !== undefined) {
+        meta.sunday_break_label = copy.sunday_break_label;
+        meta.sundayBreakLabel = copy.sunday_break_label;
+    }
+    if (copy.include_sunday_break !== undefined) {
+        meta.include_sunday_break = copy.include_sunday_break;
+        meta.includeSundayBreak = copy.include_sunday_break;
+    }
+
+    if (copy.weekend_break_start_time !== undefined) {
+        meta.weekend_break_start_time = copy.weekend_break_start_time;
+        meta.weekendBreakStartTime = copy.weekend_break_start_time;
+    }
+    if (copy.weekend_break_end_time !== undefined) {
+        meta.weekend_break_end_time = copy.weekend_break_end_time;
+        meta.weekendBreakEndTime = copy.weekend_break_end_time;
+    }
+    if (copy.weekend_break_label !== undefined) {
+        meta.weekend_break_label = copy.weekend_break_label;
+        meta.weekendBreakLabel = copy.weekend_break_label;
+    }
+    if (copy.include_weekend_break !== undefined) {
+        meta.include_weekend_break = copy.include_weekend_break;
+        meta.includeWeekendBreak = copy.include_weekend_break;
+    }
+    if (copy.feePerStudent !== undefined && copy.fee_per_student === undefined) copy.fee_per_student = copy.feePerStudent;
+    if (copy.termFee !== undefined && copy.term_fee === undefined) copy.term_fee = copy.termFee;
+    copy.updated_at = new Date().toISOString();
+    copy.metadata = meta;
+
+    delete copy.institutionId;
+    delete copy.hourlyRate;
+    delete copy.weekdayHourlyRate;
+    delete copy.weekendHourlyRate;
+    delete copy.weekdayStartTime;
+    delete copy.weekdayEndTime;
+    delete copy.weekendStartTime;
+    delete copy.weekendEndTime;
+    delete copy.saturdayStartTime;
+    delete copy.saturdayEndTime;
+    delete copy.sundayStartTime;
+    delete copy.sundayEndTime;
+    delete copy.maxLessonsPerDay;
+    delete copy.maxWeekendLessonsPerDay;
+    delete copy.cancellationCutoffHours;
+    delete copy.confirmationTimeoutMinutes;
+    delete copy.teacherPreferences;
+    delete copy.weekendBreakStartTime;
+    delete copy.weekendBreakEndTime;
+    delete copy.weekendBreakLabel;
+    delete copy.includeWeekendBreak;
+    delete copy.saturdayBreakStartTime;
+    delete copy.saturdayBreakEndTime;
+    delete copy.saturdayBreakLabel;
+    delete copy.includeSaturdayBreak;
+    delete copy.sundayBreakStartTime;
+    delete copy.sundayBreakEndTime;
+    delete copy.sundayBreakLabel;
+    delete copy.includeSundayBreak;
+    delete copy.feePerStudent;
+    delete copy.termFee;
+    return copy;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1312,163 +1470,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanDsStudent) : cleanDsStudent(currentPayload);
             }
             if (moduleName === 'school_remedial_rate_settings') {
-                const cleanRemedialRateSettings = (rec: any) => {
-                    if (!rec || typeof rec !== 'object') return rec;
-                    const copy = { ...rec };
-                    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
-
-                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
-                    if (copy.hourlyRate !== undefined && copy.hourly_rate === undefined) copy.hourly_rate = copy.hourlyRate;
-                    if (copy.weekdayHourlyRate !== undefined && copy.weekday_hourly_rate === undefined) copy.weekday_hourly_rate = copy.weekdayHourlyRate;
-                    if (copy.weekendHourlyRate !== undefined && copy.weekend_hourly_rate === undefined) copy.weekend_hourly_rate = copy.weekendHourlyRate;
-                    if (copy.weekdayStartTime !== undefined && copy.weekday_start_time === undefined) copy.weekday_start_time = copy.weekdayStartTime;
-                    if (copy.weekdayEndTime !== undefined && copy.weekday_end_time === undefined) copy.weekday_end_time = copy.weekdayEndTime;
-                    if (copy.weekendStartTime !== undefined && copy.weekend_start_time === undefined) copy.weekend_start_time = copy.weekendStartTime;
-                    if (copy.weekendEndTime !== undefined && copy.weekend_end_time === undefined) copy.weekend_end_time = copy.weekendEndTime;
-                    if (copy.saturdayStartTime !== undefined && copy.saturday_start_time === undefined) copy.saturday_start_time = copy.saturdayStartTime;
-                    if (copy.saturdayEndTime !== undefined && copy.saturday_end_time === undefined) copy.saturday_end_time = copy.saturdayEndTime;
-                    if (copy.sundayStartTime !== undefined && copy.sunday_start_time === undefined) copy.sunday_start_time = copy.sundayStartTime;
-                    if (copy.sundayEndTime !== undefined && copy.sunday_end_time === undefined) copy.sunday_end_time = copy.sundayEndTime;
-                    if (copy.saturday_start_time !== undefined) {
-                        meta.saturday_start_time = copy.saturday_start_time;
-                        meta.saturdayStartTime = copy.saturday_start_time;
-                    }
-                    if (copy.saturday_end_time !== undefined) {
-                        meta.saturday_end_time = copy.saturday_end_time;
-                        meta.saturdayEndTime = copy.saturday_end_time;
-                    }
-                    if (copy.sunday_start_time !== undefined) {
-                        meta.sunday_start_time = copy.sunday_start_time;
-                        meta.sundayStartTime = copy.sunday_start_time;
-                    }
-                    if (copy.sunday_end_time !== undefined) {
-                        meta.sunday_end_time = copy.sunday_end_time;
-                        meta.sundayEndTime = copy.sunday_end_time;
-                    }
-                    if (copy.maxLessonsPerDay !== undefined && copy.max_lessons_per_day === undefined) copy.max_lessons_per_day = copy.maxLessonsPerDay;
-                    if (copy.maxWeekendLessonsPerDay !== undefined && copy.max_weekend_lessons_per_day === undefined) copy.max_weekend_lessons_per_day = copy.maxWeekendLessonsPerDay;
-                    if (copy.max_weekend_lessons_per_day !== undefined) {
-                        meta.max_weekend_lessons_per_day = copy.max_weekend_lessons_per_day;
-                        meta.maxWeekendLessonsPerDay = copy.max_weekend_lessons_per_day;
-                    }
-                    if (copy.cancellationCutoffHours !== undefined && copy.cancellation_cutoff_hours === undefined) copy.cancellation_cutoff_hours = copy.cancellationCutoffHours;
-                    if (copy.cancellation_cutoff_hours !== undefined) {
-                        meta.cancellation_cutoff_hours = copy.cancellation_cutoff_hours;
-                        meta.cancellationCutoffHours = copy.cancellation_cutoff_hours;
-                    }
-                    if (copy.confirmationTimeoutMinutes !== undefined && copy.confirmation_timeout_minutes === undefined) copy.confirmation_timeout_minutes = copy.confirmationTimeoutMinutes;
-                    if (copy.confirmation_timeout_minutes !== undefined) {
-                        meta.confirmation_timeout_minutes = copy.confirmation_timeout_minutes;
-                        meta.confirmationTimeoutMinutes = copy.confirmation_timeout_minutes;
-                    }
-                    if (copy.teacherPreferences !== undefined && copy.teacher_preferences === undefined) copy.teacher_preferences = copy.teacherPreferences;
-                    if (copy.teacher_preferences !== undefined) {
-                        meta.teacher_preferences = copy.teacher_preferences;
-                        meta.teacherPreferences = copy.teacher_preferences;
-                    }
-                    if (copy.weekendBreakStartTime !== undefined && copy.weekend_break_start_time === undefined) copy.weekend_break_start_time = copy.weekendBreakStartTime;
-                    if (copy.weekendBreakEndTime !== undefined && copy.weekend_break_end_time === undefined) copy.weekend_break_end_time = copy.weekendBreakEndTime;
-                    if (copy.weekendBreakLabel !== undefined && copy.weekend_break_label === undefined) copy.weekend_break_label = copy.weekendBreakLabel;
-                    if (copy.includeWeekendBreak !== undefined && copy.include_weekend_break === undefined) copy.include_weekend_break = copy.includeWeekendBreak;
-
-                    if (copy.saturdayBreakStartTime !== undefined && copy.saturday_break_start_time === undefined) copy.saturday_break_start_time = copy.saturdayBreakStartTime;
-                    if (copy.saturdayBreakEndTime !== undefined && copy.saturday_break_end_time === undefined) copy.saturday_break_end_time = copy.saturdayBreakEndTime;
-                    if (copy.saturdayBreakLabel !== undefined && copy.saturday_break_label === undefined) copy.saturday_break_label = copy.saturdayBreakLabel;
-                    if (copy.includeSaturdayBreak !== undefined && copy.include_saturday_break === undefined) copy.include_saturday_break = copy.includeSaturdayBreak;
-
-                    if (copy.sundayBreakStartTime !== undefined && copy.sunday_break_start_time === undefined) copy.sunday_break_start_time = copy.sundayBreakStartTime;
-                    if (copy.sundayBreakEndTime !== undefined && copy.sunday_break_end_time === undefined) copy.sunday_break_end_time = copy.sundayBreakEndTime;
-                    if (copy.sundayBreakLabel !== undefined && copy.sunday_break_label === undefined) copy.sunday_break_label = copy.sundayBreakLabel;
-                    if (copy.includeSundayBreak !== undefined && copy.include_sunday_break === undefined) copy.include_sunday_break = copy.includeSundayBreak;
-
-                    if (copy.saturday_break_start_time !== undefined) {
-                        meta.saturday_break_start_time = copy.saturday_break_start_time;
-                        meta.saturdayBreakStartTime = copy.saturday_break_start_time;
-                    }
-                    if (copy.saturday_break_end_time !== undefined) {
-                        meta.saturday_break_end_time = copy.saturday_break_end_time;
-                        meta.saturdayBreakEndTime = copy.saturday_break_end_time;
-                    }
-                    if (copy.saturday_break_label !== undefined) {
-                        meta.saturday_break_label = copy.saturday_break_label;
-                        meta.saturdayBreakLabel = copy.saturday_break_label;
-                    }
-                    if (copy.include_saturday_break !== undefined) {
-                        meta.include_saturday_break = copy.include_saturday_break;
-                        meta.includeSaturdayBreak = copy.include_saturday_break;
-                    }
-
-                    if (copy.sunday_break_start_time !== undefined) {
-                        meta.sunday_break_start_time = copy.sunday_break_start_time;
-                        meta.sundayBreakStartTime = copy.sunday_break_start_time;
-                    }
-                    if (copy.sunday_break_end_time !== undefined) {
-                        meta.sunday_break_end_time = copy.sunday_break_end_time;
-                        meta.sundayBreakEndTime = copy.sunday_break_end_time;
-                    }
-                    if (copy.sunday_break_label !== undefined) {
-                        meta.sunday_break_label = copy.sunday_break_label;
-                        meta.sundayBreakLabel = copy.sunday_break_label;
-                    }
-                    if (copy.include_sunday_break !== undefined) {
-                        meta.include_sunday_break = copy.include_sunday_break;
-                        meta.includeSundayBreak = copy.include_sunday_break;
-                    }
-
-                    if (copy.weekend_break_start_time !== undefined) {
-                        meta.weekend_break_start_time = copy.weekend_break_start_time;
-                        meta.weekendBreakStartTime = copy.weekend_break_start_time;
-                    }
-                    if (copy.weekend_break_end_time !== undefined) {
-                        meta.weekend_break_end_time = copy.weekend_break_end_time;
-                        meta.weekendBreakEndTime = copy.weekend_break_end_time;
-                    }
-                    if (copy.weekend_break_label !== undefined) {
-                        meta.weekend_break_label = copy.weekend_break_label;
-                        meta.weekendBreakLabel = copy.weekend_break_label;
-                    }
-                    if (copy.include_weekend_break !== undefined) {
-                        meta.include_weekend_break = copy.include_weekend_break;
-                        meta.includeWeekendBreak = copy.include_weekend_break;
-                    }
-                    if (copy.feePerStudent !== undefined && copy.fee_per_student === undefined) copy.fee_per_student = copy.feePerStudent;
-                    if (copy.termFee !== undefined && copy.term_fee === undefined) copy.term_fee = copy.termFee;
-                    copy.updated_at = new Date().toISOString();
-                    copy.metadata = meta;
-
-                    delete copy.institutionId;
-                    delete copy.hourlyRate;
-                    delete copy.weekdayHourlyRate;
-                    delete copy.weekendHourlyRate;
-                    delete copy.weekdayStartTime;
-                    delete copy.weekdayEndTime;
-                    delete copy.weekendStartTime;
-                    delete copy.weekendEndTime;
-                    delete copy.saturdayStartTime;
-                    delete copy.saturdayEndTime;
-                    delete copy.sundayStartTime;
-                    delete copy.sundayEndTime;
-                    delete copy.maxLessonsPerDay;
-                    delete copy.maxWeekendLessonsPerDay;
-                    delete copy.cancellationCutoffHours;
-                    delete copy.confirmationTimeoutMinutes;
-                    delete copy.teacherPreferences;
-                    delete copy.weekendBreakStartTime;
-                    delete copy.weekendBreakEndTime;
-                    delete copy.weekendBreakLabel;
-                    delete copy.includeWeekendBreak;
-                    delete copy.saturdayBreakStartTime;
-                    delete copy.saturdayBreakEndTime;
-                    delete copy.saturdayBreakLabel;
-                    delete copy.includeSaturdayBreak;
-                    delete copy.sundayBreakStartTime;
-                    delete copy.sundayBreakEndTime;
-                    delete copy.sundayBreakLabel;
-                    delete copy.includeSundayBreak;
-                    delete copy.feePerStudent;
-                    delete copy.termFee;
-                    return copy;
-                };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialRateSettings) : cleanRemedialRateSettings(currentPayload);
             }
 
@@ -2325,6 +2326,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (moduleName === 'school_remedial_rate_settings') {
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialRateSettings) : cleanRemedialRateSettings(currentPayload);
                 const checkItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
                 const instId = checkItem?.institution_id;
                 if (instId) {
@@ -2351,6 +2353,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         }
                     } catch (_) {}
+                }
+            }
+
             if (moduleName === 'institution_module_states' || targetDbTable === 'institution_module_states') {
                 const checkItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
                 const instId = checkItem?.institution_id || checkItem?.institutionId;
@@ -2607,6 +2612,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     if (returned.maxWeekendLessonsPerDay === undefined) {
                         returned.maxWeekendLessonsPerDay = returned.max_weekend_lessons_per_day ?? fallbackWeekend;
+                    }
+                    const rawPrefs = (recordData as any)?.teacher_preferences ?? (recordData as any)?.teacherPreferences ?? returned?.teacher_preferences ?? returned?.teacherPreferences ?? returned?.metadata?.teacherPreferences ?? returned?.metadata?.teacher_preferences ?? {};
+                    if (returned.teacher_preferences === undefined) {
+                        returned.teacher_preferences = rawPrefs;
+                    }
+                    if (returned.teacherPreferences === undefined) {
+                        returned.teacherPreferences = rawPrefs;
                     }
                 }
                 return res.status(200).json(returned);

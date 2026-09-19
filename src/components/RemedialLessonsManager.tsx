@@ -137,6 +137,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [sundayBreakLabel, setSundayBreakLabel] = useState<string>('Sunday Recess Break');
     const [includeSundayBreak, setIncludeSundayBreak] = useState<boolean>(true);
     const [teacherPreferences, setTeacherPreferences] = useState<Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>>({});
+    const [isSavingTeacherPrefs, setIsSavingTeacherPrefs] = useState(false);
+    const [lastSavedPrefsTime, setLastSavedPrefsTime] = useState<string | null>(null);
     const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
     const [cancellationCutoffHours, setCancellationCutoffHours] = useState<number>(3);
     const [confirmationTimeoutMinutes, setConfirmationTimeoutMinutes] = useState<number>(45);
@@ -264,7 +266,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setSundayBreakLabel(sunBreakLabel);
         setIncludeSundayBreak(sunIncBreak !== false);
         const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
-        setTeacherPreferences(loadedTeacherPrefs);
+        if (loadedTeacherPrefs && typeof loadedTeacherPrefs === 'object' && Object.keys(loadedTeacherPrefs).length > 0) {
+            setTeacherPreferences(prev => ({ ...prev, ...loadedTeacherPrefs }));
+            if (institutionId) {
+                safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(loadedTeacherPrefs));
+            }
+        }
         const loadedCodes = r.teacherCodes || r.teacher_codes || r.metadata?.teacherCodes || r.metadata?.teacher_codes || {};
         if (loadedCodes && typeof loadedCodes === 'object' && Object.keys(loadedCodes).length > 0) {
             setTeacherCodes(prev => ({ ...loadedCodes, ...prev }));
@@ -282,6 +289,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 if (cachedRates) {
                     const parsed = JSON.parse(cachedRates);
                     if (Array.isArray(parsed) && parsed.length > 0) applyRateSettings(parsed[0]);
+                }
+                const cachedTeacherPrefs = safeLocalStorage.getItem(`remedial_teacher_prefs_${institutionId}`);
+                if (cachedTeacherPrefs) {
+                    const parsed = JSON.parse(cachedTeacherPrefs);
+                    if (parsed && typeof parsed === 'object') setTeacherPreferences(prev => ({ ...prev, ...parsed }));
                 }
                 const cachedTeacherCodes = safeLocalStorage.getItem(`remedial_teacher_codes_${institutionId}`);
                 if (cachedTeacherCodes) {
@@ -1576,20 +1588,68 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Teacher Day Preference Handlers
-    const handleToggleTeacherDay = (teacherId: string, day: string) => {
-        setTeacherPreferences(prev => {
-            const existing = prev[teacherId] || { preferredDays: [] };
-            const days = existing.preferredDays || [];
-            const newDays = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
-            return {
-                ...prev,
-                [teacherId]: {
-                    ...existing,
-                    preferredDays: newDays
+    // Teacher Day Preference Live-Saving Engine
+    const saveTeacherPreferencesLive = async (nextPrefs: Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>) => {
+        setTeacherPreferences(nextPrefs);
+        if (!institutionId) return;
+
+        // Instant optimistic cache in safeLocalStorage
+        safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(nextPrefs));
+        setIsSavingTeacherPrefs(true);
+
+        try {
+            const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
+            const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') ? rateSetting.metadata : {};
+            const payload: any = {
+                ...(rateSetting || {}),
+                id: stableId,
+                institutionId,
+                institution_id: institutionId,
+                teacherPreferences: nextPrefs,
+                teacher_preferences: nextPrefs,
+                metadata: {
+                    ...existingMeta,
+                    teacherPreferences: nextPrefs,
+                    teacher_preferences: nextPrefs
                 }
             };
-        });
+
+            setRateSetting(payload);
+
+            // Sync cached rate settings so page reloads immediately have the latest preferences
+            const cachedRates = safeLocalStorage.getItem(`remedial_rates_${institutionId}`);
+            if (cachedRates) {
+                try {
+                    const parsed = JSON.parse(cachedRates);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        parsed[0] = { ...parsed[0], ...payload };
+                        safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify(parsed));
+                    }
+                } catch (_) {}
+            }
+
+            await apiService.saveRemedialRateSetting(payload);
+            setLastSavedPrefsTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        } catch (err) {
+            console.warn('[Remedials] Live save teacher preferences warning:', err);
+        } finally {
+            setIsSavingTeacherPrefs(false);
+        }
+    };
+
+    // Teacher Day Preference Handlers (Auto-saves on every toggle or preset change)
+    const handleToggleTeacherDay = (teacherId: string, day: string) => {
+        const existing = teacherPreferences[teacherId] || { preferredDays: [] };
+        const days = existing.preferredDays || [];
+        const newDays = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
+        const nextPrefs = {
+            ...teacherPreferences,
+            [teacherId]: {
+                ...existing,
+                preferredDays: newDays
+            }
+        };
+        saveTeacherPreferencesLive(nextPrefs);
     };
 
     const handleSetTeacherDaysPreset = (teacherId: string, preset: 'weekdays' | 'weekends' | 'all' | 'clear') => {
@@ -1599,20 +1659,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             all: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
             clear: []
         };
-        setTeacherPreferences(prev => ({
-            ...prev,
+        const nextPrefs = {
+            ...teacherPreferences,
             [teacherId]: {
-                ...(prev[teacherId] || {}),
+                ...(teacherPreferences[teacherId] || {}),
                 preferredDays: dayMap[preset] as any
             }
-        }));
+        };
+        saveTeacherPreferencesLive(nextPrefs);
     };
 
     // Save Rate Settings (including teacher preferences)
     const handleSaveRates = async () => {
         try {
             safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerDay));
+            safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(teacherPreferences));
             const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
+            const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') ? rateSetting.metadata : {};
             const data: any = {
                 id: stableId,
                 hourlyRate: weekdayHourlyRate,
@@ -1672,6 +1735,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 sundayBreakLabel,
                 sunday_break_label: sundayBreakLabel,
                 metadata: {
+                    ...existingMeta,
                     saturdayStartTime,
                     saturday_start_time: saturdayStartTime,
                     saturdayEndTime,
@@ -1711,8 +1775,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sundayBreakLabel,
                     sunday_break_label: sundayBreakLabel,
                     teacherPreferences,
-                    teacher_preferences: teacherPreferences,
-                    ...(rateSetting?.metadata || {})
+                    teacher_preferences: teacherPreferences
                 },
                 feePerStudent,
                 fee_per_student: feePerStudent,
@@ -1723,6 +1786,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             };
             setRateSetting(data);
             await apiService.saveRemedialRateSetting(data);
+            setLastSavedPrefsTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
             onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Cutoff ${cancellationCutoffHours}h, Timeout ${confirmationTimeoutMinutes}m, Teacher Preferred Days configured`);
             alert('Remedial rates, rules, substitution window, and teacher preferred days updated successfully!');
             loadData();
@@ -2170,6 +2234,46 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
             }
 
+            if (!isWeekend) {
+                // Strict 1 period per day rule for weekdays (Monday through Friday)
+                const existingWeekdayClassAlloc = allocations.find(a => 
+                    a.id !== editingAlloc?.id &&
+                    a.dayOfWeek === allocDay &&
+                    (a.courseId === allocCourseId || a.className === course?.name) &&
+                    (
+                        a.stream === effectiveStream ||
+                        a.stream === 'All Streams' ||
+                        effectiveStream === 'All Streams' ||
+                        isJointAlloc ||
+                        a.isJoint
+                    )
+                );
+
+                if (existingWeekdayClassAlloc) {
+                    return alert(
+                        `Weekday Rule Violation:\n\n` +
+                        `${course?.name || 'This class'} (${effectiveStream}) already has a remedial period scheduled on ${allocDay}:\n` +
+                        `• ${existingWeekdayClassAlloc.subjectName} (${existingWeekdayClassAlloc.startTime} - ${existingWeekdayClassAlloc.endTime})\n\n` +
+                        `Weekdays strictly follow the 1 period per day rule per class.`
+                    );
+                }
+            }
+
+            // Teacher conflict check at the exact same day and time
+            const existingTeacherCollision = allocations.find(a =>
+                a.id !== editingAlloc?.id &&
+                a.teacherId === allocTeacherId &&
+                a.dayOfWeek === allocDay &&
+                a.startTime === allocStartTime
+            );
+            if (existingTeacherCollision) {
+                return alert(
+                    `Teacher Conflict:\n\n` +
+                    `${teacher?.name || 'Selected teacher'} is already allocated to teach ${existingTeacherCollision.className} (${existingTeacherCollision.subjectName}) on ${allocDay} at ${allocStartTime}.\n\n` +
+                    `Please select a different teacher or time slot.`
+                );
+            }
+
             const payloadAlloc: RemedialAllocation = {
                 ...(editingAlloc || {}),
                 id: editingAlloc?.id || `rem_alloc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2258,7 +2362,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             `• Weekly Occurrences: ${totalExpectedLessonsPerClass} total sessions planned per stream (High Priority subjects occur 2x/wk).\n` +
             `• Occurrence Spacing: Multiple sessions of the same subject spaced across non-consecutive days.\n` +
             `• Teacher Preferred Days: Teachers matched to their chosen available days (+bonus scoring).\n` +
-            `• Daily Caps Enforced: Weekdays max ${maxLessonsPerDay}/day, Weekends max ${maxWeekendLessonsPerDay}/day per teacher.`;
+            `• Weekday 1-Period Rule: Strictly 1 remedial period per day per class on weekdays (Monday - Friday).\n` +
+            `• Weekend Lessons: Up to ${maxWeekendLessonsPerDay} sessions per day on Saturday/Sunday.`;
 
         if (!window.confirm(confirmMsg)) return;
 
@@ -2349,6 +2454,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const isWeekend = ['Saturday', 'Sunday'].includes(day);
                         const courseDayLessonCount = newAllocations.filter(a => a.courseId === course.id && a.dayOfWeek === day).length;
                         
+                        // STRICT 1 PERIOD PER DAY ON WEEKDAYS:
+                        // For any class, weekdays allow strictly a maximum of 1 remedial period per day.
+                        const maxAllowedForClassOnDay = isWeekend ? maxWeekendLessonsPerDay : 1;
+                        if (courseDayLessonCount >= maxAllowedForClassOnDay) {
+                            continue;
+                        }
+
                         let candidateStartTime = weekdayStartTime || '16:00';
                         if (day === 'Saturday') {
                             if (includeSaturdayBreak) {
@@ -2400,10 +2512,46 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         }
                     }
 
-                    // Fallback
+                    // Fallback: Find any day of the week that has not reached the class lesson limit (strictly 1 period/day on weekdays)
                     if (!selectedDay || !selectedTeacher) {
-                        selectedDay = candidateDays[0] || 'Monday';
-                        selectedTeacher = teachersList[0];
+                        for (const fbDay of daysOfWeek) {
+                            const fbIsWeekend = ['Saturday', 'Sunday'].includes(fbDay);
+                            const fbCount = newAllocations.filter(a => a.courseId === course.id && a.dayOfWeek === fbDay).length;
+                            const fbMax = fbIsWeekend ? maxWeekendLessonsPerDay : 1;
+                            if (fbCount >= fbMax) continue; // Already at capacity for this day
+
+                            let fbCandidateStartTime = weekdayStartTime || '16:00';
+                            if (fbDay === 'Saturday') {
+                                fbCandidateStartTime = fbCount === 0 ? (saturdayStartTime || '08:00') : (includeSaturdayBreak ? (saturdayBreakEndTime || '10:30') : '10:00');
+                            } else if (fbDay === 'Sunday') {
+                                fbCandidateStartTime = fbCount === 0 ? (sundayStartTime || '09:00') : (includeSundayBreak ? (sundayBreakEndTime || '11:30') : '11:00');
+                            }
+
+                            const fbCandidates = teachersList.filter(t => {
+                                const dailyCount = teacherDailyCount[t.id]?.[fbDay] || 0;
+                                const tLimit = fbIsWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+                                if (dailyCount >= tLimit) return false;
+                                if (teacherSlotBooked[t.id]?.has(`${fbDay}_${fbCandidateStartTime}`)) return false;
+                                return true;
+                            });
+
+                            if (fbCandidates.length > 0) {
+                                fbCandidates.sort((t1, t2) => {
+                                    const l1 = Object.values(teacherDailyCount[t1.id] || {}).reduce((a, b) => a + b, 0);
+                                    const l2 = Object.values(teacherDailyCount[t2.id] || {}).reduce((a, b) => a + b, 0);
+                                    return l1 - l2;
+                                });
+                                selectedDay = fbDay;
+                                selectedTeacher = fbCandidates[0];
+                                break;
+                            }
+                        }
+                    }
+
+                    // If all days have reached capacity for this class, strictly respect the 1 period per day weekday rule and skip extra occurrence
+                    if (!selectedDay || !selectedTeacher) {
+                        console.warn(`[Timetable Engine] Class ${course.name} has reached maximum weekly remedial capacity. Weekday 1-period-per-day rule strictly enforced; skipping extra occurrence of ${sub.subjectName}.`);
+                        continue;
                     }
 
                     const isWeekend = ['Saturday', 'Sunday'].includes(selectedDay);
@@ -5876,27 +6024,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             .map(a => a.startTime as string)
                     )).sort();
 
-                    if (dayTimes.length <= 1) {
-                        return [
-                            { 
-                                periodNum: 1, 
-                                startTime: dayTimes[0] || weekdayStartTime || '16:00', 
-                                endTime: weekdayEndTime || '18:00', 
-                                label: `P1 (${dayTimes[0] || weekdayStartTime || '16:00'})` 
-                            }
-                        ];
-                    }
-
-                    return dayTimes.map((t, idx) => ({
-                        periodNum: idx + 1,
-                        startTime: t,
-                        endTime: '',
-                        label: `P${idx + 1} (${t})`
-                    }));
+                    // Weekday slots (Mon - Fri): strictly 1 period per day rule
+                    const wStart = dayTimes[0] || weekdayStartTime || '16:00';
+                    const wEnd = weekdayEndTime || '18:00';
+                    return [
+                        { 
+                            periodNum: 1, 
+                            startTime: wStart, 
+                            endTime: wEnd, 
+                            label: `P1 (${wStart})` 
+                        }
+                    ];
                 };
 
                 const matchAllocsForCell = (cls: { className: string; stream: string }, day: string, slot: AscGridSlot) => {
                     if (slot.isBreak) return [];
+                    const isWeekend = day === 'Saturday' || day === 'Sunday';
                     return allocations.filter(a => {
                         if (a.dayOfWeek !== day) return false;
                         const matchCourse = a.courseId === cls.className || a.className === cls.className;
@@ -5904,15 +6047,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const matchStream = matchAllocationStream(a, cls.stream);
                         if (!matchStream) return false;
 
-                        if (slot.startTime && slot.endTime) {
-                            if (a.startTime) {
-                                return a.startTime >= slot.startTime && a.startTime < slot.endTime;
+                        if (isWeekend) {
+                            if (slot.startTime && slot.endTime) {
+                                if (a.startTime) {
+                                    return a.startTime >= slot.startTime && a.startTime < slot.endTime;
+                                }
+                                return true;
+                            }
+                            if (slot.startTime) {
+                                return (a.startTime || '').startsWith(slot.startTime.slice(0, 4)) || a.startTime === slot.startTime;
                             }
                             return true;
                         }
-                        if (slot.startTime) {
-                            return (a.startTime || '').startsWith(slot.startTime.slice(0, 4)) || a.startTime === slot.startTime;
-                        }
+
+                        // Weekdays (Mon-Fri) strictly 1 period slot (P1)
                         return true;
                     });
                 };
@@ -7715,9 +7863,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                                     />
                                 </div>
+                                {isSavingTeacherPrefs ? (
+                                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1 animate-pulse shrink-0">
+                                        <RefreshCw className="w-3 h-3 animate-spin" /> Saving...
+                                    </span>
+                                ) : lastSavedPrefsTime ? (
+                                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 shrink-0" title={`Auto-saved at ${lastSavedPrefsTime}`}>
+                                        <Check className="w-3 h-3" /> Auto-saved
+                                    </span>
+                                ) : null}
                                 <button
                                     onClick={handleSaveRates}
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all shrink-0 flex items-center gap-1.5"
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
                                 >
                                     <CheckCircle2 className="w-3.5 h-3.5" /> Save Preferences
                                 </button>
