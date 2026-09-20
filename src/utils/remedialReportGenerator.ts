@@ -796,18 +796,29 @@ export const matchAllocationStream = (allocation: any, targetStream?: string): b
 export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) => {
     const classMap = new Map<string, { className: string; stream: string; shortCode: string; sortKey: string }>();
 
+    // Normalize 'All Streams' / 'All' / blank to '' so they all share the same map key
+    const normalizeStream = (s: any): string => {
+        const raw = (typeof s === 'object' ? s?.name || '' : String(s ?? '')).trim();
+        return (raw === 'All Streams' || raw === 'All') ? '' : raw;
+    };
+
     courses.forEach(c => {
         const cName = c.name || c.level || 'Class';
         if (Array.isArray(c.streams) && c.streams.length > 0) {
             c.streams.forEach((st: any) => {
-                const sName = typeof st === 'object' ? st.name || '' : String(st);
-                const code = getClassShortCode(cName, sName);
+                const sName = normalizeStream(st);
                 const key = `${cName}_${sName}`;
-                classMap.set(key, { className: cName, stream: sName, shortCode: code, sortKey: `${cName}_${sName}` });
+                if (!classMap.has(key)) {
+                    const code = getClassShortCode(cName, sName);
+                    classMap.set(key, { className: cName, stream: sName, shortCode: code, sortKey: key });
+                }
             });
         } else {
-            const code = getClassShortCode(cName, '');
-            classMap.set(cName, { className: cName, stream: '', shortCode: code, sortKey: cName });
+            const key = cName;
+            if (!classMap.has(key)) {
+                const code = getClassShortCode(cName, '');
+                classMap.set(key, { className: cName, stream: '', shortCode: code, sortKey: key });
+            }
         }
     });
 
@@ -818,7 +829,7 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) 
             const jointStreams = Array.isArray(a.jointStreams) ? a.jointStreams : (Array.isArray(a.joint_streams) ? a.joint_streams : []);
             if (jointStreams.length > 0) {
                 jointStreams.forEach((st: any) => {
-                    const sName = String(st).trim();
+                    const sName = normalizeStream(st);
                     const key = `${cName}_${sName}`;
                     if (!classMap.has(key)) {
                         const code = getClassShortCode(cName, sName);
@@ -828,7 +839,7 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) 
                 return;
             }
         }
-        const sName = a.stream && a.stream !== 'All Streams' ? a.stream : '';
+        const sName = normalizeStream(a.stream);
         const key = `${cName}_${sName}`;
         if (!classMap.has(key)) {
             const code = getClassShortCode(cName, sName);
