@@ -1610,6 +1610,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.cancelledAt;
                     delete copy.confirmationDeadline;
                     delete copy.declinedTeacherIds;
+                    delete copy.updated_at;
+                    delete copy.updatedAt;
 
                     return copy;
                 };
