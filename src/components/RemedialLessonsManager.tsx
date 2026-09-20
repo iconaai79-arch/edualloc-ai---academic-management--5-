@@ -5,7 +5,7 @@ import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
-    DollarSign, AlertCircle, Trash2, Shield, Eye, Award, BookOpen, Layers, UserCheck,
+    DollarSign, AlertCircle, Trash2, Shield, Eye, EyeOff, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
@@ -96,6 +96,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
     const [selectedTimetableTeacher, setSelectedTimetableTeacher] = useState<string>('All');
+    const [autoHideUnallocatedClasses, setAutoHideUnallocatedClasses] = useState<boolean>(true);
     const [allocViewMode, setAllocViewMode] = useState<'asc_grid' | 'day_columns' | 'unallocated'>('asc_grid');
     const [ascDayScope, setAscDayScope] = useState<'all' | 'weekdays' | 'weekend' | 'Saturday' | 'Sunday'>('all');
     const [selectedCellAlloc, setSelectedCellAlloc] = useState<RemedialAllocation | null>(null);
@@ -5692,7 +5693,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (selectedReportType === 'master_timetable') {
             const schoolName = String(currentInstitution?.name || 'KIPKEINO SCHOOL').toUpperCase();
             const docTitle = `${timetableStage ? `${timetableStage} ` : ''}${timetableWeek} ${timetableTerm} ${timetableYear} REMEDIAL TT`.toUpperCase();
-            const distinctClasses = getDistinctTimetableClasses(allocations, courses);
+            const distinctClasses = getDistinctTimetableClasses(allocations, courses, true);
             const weekdayDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
 
             // Weekday rows
@@ -6334,7 +6335,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [allocations, enrichedUsers]);
 
     const classesWithAllocs = useMemo(() => {
-        return getDistinctTimetableClasses(allocations, courses);
+        return getDistinctTimetableClasses(allocations, courses, true);
     }, [allocations, courses]);
 
     // Standard aSc Grid Slots (Periods 1-10 + Breaks)
@@ -8581,7 +8582,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
                 })();
 
-                const allDistinctClasses = getDistinctTimetableClasses(allocations, courses);
+                const allDistinctClasses = getDistinctTimetableClasses(allocations, courses, false);
+                const hasAnyAllocations = allocations.some(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated');
+
+                const countAllocsForClass = (cls: { className: string; stream: string }) => {
+                    return allocations.filter(a =>
+                        !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
+                        (a.className === cls.className || a.courseId === cls.className) &&
+                        matchAllocationStream(a, cls.stream)
+                    ).length;
+                };
+
+                const totalClassesCount = allDistinctClasses.length;
+                const classesWithAllocationsCount = allDistinctClasses.filter(cls => countAllocsForClass(cls) > 0).length;
+                const hiddenClassesCount = totalClassesCount - classesWithAllocationsCount;
+
                 const filteredClasses = allDistinctClasses.filter(cls => {
                     const matchCourse = selectedTimetableClass === 'All' || 
                         cls.className === selectedTimetableClass || 
@@ -8592,6 +8607,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         cls.shortCode.toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
                         cls.className.toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
                         cls.stream.toLowerCase().includes(ascClassSearchQuery.toLowerCase());
+
+                    // Auto-hide classes without allocation when enabled and looking at All classes
+                    if (autoHideUnallocatedClasses && hasAnyAllocations && selectedTimetableClass === 'All') {
+                        if (countAllocsForClass(cls) === 0) {
+                            return false;
+                        }
+                    }
+
                     return matchCourse && matchStream && matchSearch;
                 });
 
@@ -9508,10 +9531,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             }}
                                             className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                                         >
-                                            <option value="All">All Classes ({courses.length})</option>
-                                            {courses.map(c => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
+                                            <option value="All">
+                                                {autoHideUnallocatedClasses && hasAnyAllocations
+                                                    ? `Allocated Classes (${classesWithAllocationsCount})`
+                                                    : `All Classes (${courses.length})`}
+                                            </option>
+                                            {courses.map(c => {
+                                                const cCount = allocations.filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated' && (a.className === c.name || a.courseId === c.id)).length;
+                                                return (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.name} {cCount > 0 ? `(${cCount} allocs)` : '(0)'}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 
@@ -9546,6 +9578,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </button>
                                         )}
                                     </div>
+
+                                    {/* Auto-Hide Unallocated Classes Toggle */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setAutoHideUnallocatedClasses(!autoHideUnallocatedClasses)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all border shrink-0 cursor-pointer ${
+                                            autoHideUnallocatedClasses
+                                                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700/80 shadow-xs'
+                                                : 'bg-slate-50 dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-800 dark:hover:text-white'
+                                        }`}
+                                        title={autoHideUnallocatedClasses ? "Auto-hiding classes that have no allocated remedial lessons. Click to reveal all school classes." : "Currently showing all school classes. Click to auto-hide classes without allocations."}
+                                    >
+                                        {autoHideUnallocatedClasses ? <EyeOff className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> : <Eye className="w-3.5 h-3.5 text-slate-400" />}
+                                        <span>{autoHideUnallocatedClasses ? 'Classes with Allocations' : 'All Classes'}</span>
+                                        {autoHideUnallocatedClasses && hiddenClassesCount > 0 && (
+                                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">
+                                                {hiddenClassesCount} hidden
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
 
                                 {/* Day Scope Pills (Grid View) */}
@@ -12080,7 +12132,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, courses).map(cls => (
+                                                    {getDistinctTimetableClasses(allocations, courses, autoHideUnallocatedClasses).map(cls => (
                                                         <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                                                             <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
                                                                 {cls.shortCode}
@@ -12137,7 +12189,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, courses).map(cls => (
+                                                    {getDistinctTimetableClasses(allocations, courses, autoHideUnallocatedClasses).map(cls => (
                                                         <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                                                             <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
                                                                 {cls.shortCode}
@@ -12206,7 +12258,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, courses).map(cls => (
+                                                    {getDistinctTimetableClasses(allocations, courses, autoHideUnallocatedClasses).map(cls => (
                                                         <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                                                             <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
                                                                 {cls.shortCode}

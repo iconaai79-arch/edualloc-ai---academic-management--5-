@@ -793,7 +793,7 @@ export const matchAllocationStream = (allocation: any, targetStream?: string): b
 };
 
 // Extract distinct sorted classes and streams
-export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) => {
+export const getDistinctTimetableClasses = (allocations: any[], courses: any[], onlyWithAllocations: boolean = false) => {
     const classMap = new Map<string, { className: string; stream: string; shortCode: string; sortKey: string }>();
 
     // Normalize 'All Streams' / 'All' / blank to '' so they all share the same representation
@@ -828,32 +828,37 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[]) 
     // Map canonical className -> Set of valid stream names
     const classStreamsMap = new Map<string, Set<string>>();
 
-    // 1. Collect all streams from courses (both c.streams and c.levels)
-    courses.forEach(c => {
-        const cName = c.name || c.level || 'Class';
-        if (!classStreamsMap.has(cName)) {
-            classStreamsMap.set(cName, new Set<string>());
-        }
-        const sSet = classStreamsMap.get(cName)!;
+    const activeAllocs = (allocations || []).filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated');
+    const hasActiveAllocs = activeAllocs.length > 0;
 
-        // Streams from c.streams
-        if (Array.isArray(c.streams)) {
-            c.streams.forEach((st: any) => {
-                const sName = normalizeStream(st);
-                if (sName) sSet.add(sName);
-            });
-        }
-        // Streams from c.levels (standard in EduAI)
-        if (Array.isArray(c.levels)) {
-            c.levels.forEach((lvl: any) => {
-                const sName = normalizeStream(lvl?.name || lvl);
-                if (sName) sSet.add(sName);
-            });
-        }
-    });
+    // 1. If not restricted to onlyWithAllocations (or if no active allocations exist in the school), collect all streams from courses
+    if (!onlyWithAllocations || !hasActiveAllocs) {
+        courses.forEach(c => {
+            const cName = c.name || c.level || 'Class';
+            if (!classStreamsMap.has(cName)) {
+                classStreamsMap.set(cName, new Set<string>());
+            }
+            const sSet = classStreamsMap.get(cName)!;
+
+            // Streams from c.streams
+            if (Array.isArray(c.streams)) {
+                c.streams.forEach((st: any) => {
+                    const sName = normalizeStream(st);
+                    if (sName) sSet.add(sName);
+                });
+            }
+            // Streams from c.levels (standard in EduAI)
+            if (Array.isArray(c.levels)) {
+                c.levels.forEach((lvl: any) => {
+                    const sName = normalizeStream(lvl?.name || lvl);
+                    if (sName) sSet.add(sName);
+                });
+            }
+        });
+    }
 
     // 2. Also collect any streams from allocations
-    allocations.forEach(a => {
+    activeAllocs.forEach(a => {
         const cName = getCanonicalClassName(a);
         if (!classStreamsMap.has(cName)) {
             classStreamsMap.set(cName, new Set<string>());
@@ -956,7 +961,7 @@ export const generateRemedialMasterTimetablePdf = async ({
     doc.text(docTitle, pageWidth / 2, currentY, { align: 'center' });
     currentY += 8;
 
-    const distinctClasses = getDistinctTimetableClasses(allocations, courses);
+    const distinctClasses = getDistinctTimetableClasses(allocations, courses, true);
 
     // ------------------------------------------------------------
     // TABLE 1: WEEKDAY TIMETABLE (MONDAY - FRIDAY)
@@ -1269,7 +1274,7 @@ export const exportRemedialMasterTimetableToExcel = ({
     sundayDutyStaff?: string;
 }) => {
     try {
-        const distinctClasses = getDistinctTimetableClasses(allocations, courses);
+        const distinctClasses = getDistinctTimetableClasses(allocations, courses, true);
         const workbook = XLSX.utils.book_new();
 
         // Sheet 1: Weekday

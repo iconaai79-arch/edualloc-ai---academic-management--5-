@@ -184,6 +184,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [selectedStream, setSelectedStream] = useState<string>('all');
+    const [autoHideUnallocatedClasses, setAutoHideUnallocatedClasses] = useState<boolean>(false);
     const [isAddingCustomStream, setIsAddingCustomStream] = useState<boolean>(false);
     const [newStreamInput, setNewStreamInput] = useState<string>('');
     const [customStreamsStore, setCustomStreamsStore] = useState<Record<string, string[]>>(() => {
@@ -1437,6 +1438,19 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         );
     }, [allocations, classOptions, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
+    // Filtered classes hiding classes without allocations when toggle is active
+    const displayedClassOptions = useMemo(() => {
+        if (!autoHideUnallocatedClasses) return classOptions;
+        const withAllocs = classOptions.filter(cls => {
+            const classAllocs = (allAllocations || []).filter(a => 
+                (a.className.toLowerCase().trim() === cls.toLowerCase().trim() || a.className.toLowerCase().startsWith(cls.toLowerCase().trim())) &&
+                a.teacherId && a.teacherName && a.teacherName !== 'Unassigned'
+            );
+            return classAllocs.length > 0;
+        });
+        return withAllocs.length > 0 ? withAllocs : classOptions;
+    }, [classOptions, autoHideUnallocatedClasses, allAllocations]);
+
     // Selected Teacher Allocations & Workload
     const selectedTeacherObj = teacherUsers.find(t => t.id === selectedTeacherId);
     const teacherAllocations = useMemo(() => {
@@ -1574,19 +1588,40 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     </button>
                 </div>
 
-                {/* Search Bar */}
-                <div className="relative flex items-center w-full md:w-72">
-                    <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search class, subject or teacher..."
-                        className="pl-9 pr-8 py-2 w-full bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    />
-                    {searchQuery && (
-                        <button type="button" onClick={() => setSearchQuery('')} className="absolute right-3 text-slate-400 hover:text-slate-600 text-xs font-bold">✕</button>
-                    )}
+                <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                    {/* Auto-Hide Unallocated Classes Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setAutoHideUnallocatedClasses(!autoHideUnallocatedClasses)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer border shrink-0 ${
+                            autoHideUnallocatedClasses
+                                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 shadow-xs'
+                                : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                        title={autoHideUnallocatedClasses ? "Currently auto-hiding classes that have no assigned subject teachers. Click to show all classes." : "Currently showing all registered classes. Click to auto-hide classes without allocations."}
+                    >
+                        <span>{autoHideUnallocatedClasses ? 'Allocated Only' : 'All Classes'}</span>
+                        {autoHideUnallocatedClasses && classOptions.length > displayedClassOptions.length && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded-full font-black">
+                                {classOptions.length - displayedClassOptions.length} hidden
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Search Bar */}
+                    <div className="relative flex items-center w-full md:w-72">
+                        <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search class, subject or teacher..."
+                            className="pl-9 pr-8 py-2 w-full bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        />
+                        {searchQuery && (
+                            <button type="button" onClick={() => setSearchQuery('')} className="absolute right-3 text-slate-400 hover:text-slate-600 text-xs font-bold">✕</button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -1595,7 +1630,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 <div className="space-y-6">
                     {/* Class Selector Pills */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
-                        {classOptions.map(cls => {
+                        {displayedClassOptions.map(cls => {
                             const rawApplicable = getApplicableSubjectsForClass(cls);
                             const count = rawApplicable.length;
                             const classAllocs = (allAllocations || []).filter(a => a.className.toLowerCase().trim() === cls.toLowerCase().trim());
@@ -1973,7 +2008,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                                {classOptions.map(cls => {
+                                {displayedClassOptions.map(cls => {
                                     // Collect streams for this class
                                     const classStreams = new Set<string>();
                                     (allocations || []).forEach(a => {
