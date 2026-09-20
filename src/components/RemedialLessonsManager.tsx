@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty } from '../types';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
@@ -9,7 +9,7 @@ import {
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
-    Send, Megaphone, Share2, CheckSquare
+    Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
@@ -91,13 +91,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Approved' | 'Paid'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Pending Headteacher Approval' | 'Pending Operations Payout' | 'Cash Issued to DOS' | 'Approved' | 'Paid'>('all');
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
     const [allocViewMode, setAllocViewMode] = useState<'asc_grid' | 'day_columns'>('asc_grid');
     const [ascDayScope, setAscDayScope] = useState<'all' | 'weekdays' | 'weekend' | 'Saturday' | 'Sunday'>('all');
     const [selectedCellAlloc, setSelectedCellAlloc] = useState<RemedialAllocation | null>(null);
     const [ascClassSearchQuery, setAscClassSearchQuery] = useState('');
+
+    // Weekend Duty Roster State
+    const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>([]);
+    const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
+    const [dutyModalWeek, setDutyModalWeek] = useState('WEEK 1');
+    const [dutyModalTeacherId, setDutyModalTeacherId] = useState('');
+    const [dutyModalCourseId, setDutyModalCourseId] = useState('');
+    const [dutyModalSubjectId, setDutyModalSubjectId] = useState('');
+    const [dutyModalAutoAllocate, setDutyModalAutoAllocate] = useState(true);
+    const [isSavingDuty, setIsSavingDuty] = useState(false);
+
+    // Operations Manager Cash Handover State (Stage 4)
+    const [isOpsCashModalOpen, setIsOpsCashModalOpen] = useState(false);
+    const [opsCashVoucherRef, setOpsCashVoucherRef] = useState('');
+    const [opsDisburseBatch, setOpsDisburseBatch] = useState<{ teacherId: string; teacherName: string; totalAmount: number; totalHours: number; sessionIds: string[] } | null>(null);
+    const [isDisbursingOpsCash, setIsDisbursingOpsCash] = useState(false);
+
+    // DOS Cash Payment with On-Screen Signature State (Stage 5)
+    const [isDosPayModalOpen, setIsDosPayModalOpen] = useState(false);
+    const [dosPayTeacherData, setDosPayTeacherData] = useState<{ teacherId: string; teacherName: string; totalAmount: number; totalHours: number; rate: number; sessionIds: string[]; cashVoucherRef?: string; operationsManagerName?: string } | null>(null);
+    const [isSubmittingDosPayment, setIsSubmittingDosPayment] = useState(false);
+    const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+    const [isCanvasDrawing, setIsCanvasDrawing] = useState(false);
+    const [hasTeacherSigned, setHasTeacherSigned] = useState(false);
+    const [viewingReceiptPayout, setViewingReceiptPayout] = useState<RemedialPayout | null>(null);
     
     // Remedial Timetable Workflow: DOS -> Headteacher Approval -> Dispersed to Teachers
     const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
@@ -315,6 +340,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     const parsed = JSON.parse(cachedSubs);
                     if (Array.isArray(parsed) && parsed.length > 0) setRemedialSubjects(parsed);
                 }
+                const cachedDuty = safeLocalStorage.getItem(`remedial_duty_roster_${institutionId}`);
+                if (cachedDuty) {
+                    const parsed = JSON.parse(cachedDuty);
+                    if (Array.isArray(parsed) && parsed.length > 0) setWeekendDutyRoster(parsed);
+                }
             } catch (err) {
                 // Ignore cache parse warnings
             }
@@ -327,7 +357,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             // 2. Fetch primary remedial operations in parallel (ultra-fast, ~100ms)
-            const [sessResult, ratesResult, payResult, allocResult, remSubResult] = await Promise.allSettled([
+            const [sessResult, ratesResult, payResult, allocResult, remSubResult, dutyResult] = await Promise.allSettled([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
@@ -336,7 +366,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     : apiService.fetchModuleRecords<RemedialAllocation>('school_remedial_allocations', institutionId).catch(() => []),
                 typeof (apiService as any).fetchRemedialSubjects === 'function'
                     ? (apiService as any).fetchRemedialSubjects(institutionId)
-                    : apiService.fetchModuleRecords<RemedialSubject>('school_remedial_subjects', institutionId).catch(() => [])
+                    : apiService.fetchModuleRecords<RemedialSubject>('school_remedial_subjects', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<RemedialWeekendDuty>('school_remedial_duty_roster', institutionId).catch(() => [])
             ]);
 
             const sessList = sessResult.status === 'fulfilled' && Array.isArray(sessResult.value) ? sessResult.value : [];
@@ -344,11 +375,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const payList = payResult.status === 'fulfilled' && Array.isArray(payResult.value) ? payResult.value : [];
             const allocList = allocResult.status === 'fulfilled' && Array.isArray(allocResult.value) ? allocResult.value : [];
             const remSubList = remSubResult.status === 'fulfilled' && Array.isArray(remSubResult.value) ? remSubResult.value : [];
+            const dutyList = dutyResult.status === 'fulfilled' && Array.isArray(dutyResult.value) ? dutyResult.value : [];
 
             setSessions(sessList);
             setPayouts(payList);
             setAllocations(allocList);
             setRemedialSubjects(remSubList);
+            setWeekendDutyRoster(dutyList);
 
             if (rates && rates.length > 0) {
                 applyRateSettings(rates[0]);
@@ -362,6 +395,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
             if (remSubList.length > 0) {
                 safeLocalStorage.setItem(`remedial_subjects_${institutionId}`, JSON.stringify(remSubList));
+            }
+            if (dutyList.length > 0) {
+                safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(dutyList));
             }
 
             // Unblock the user interface immediately!
@@ -776,7 +812,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     }
                 };
                 await apiService.saveModuleRecord('users', updatedUser);
-                setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+                Object.assign(targetStudent, updatedUser);
             }
 
             // 2. Update or create student enrollment
@@ -2012,6 +2048,296 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // Stage 2: Teacher on Duty (TOD) Review & Approval
+    const handleApproveDutySession = async (session: RemedialSession) => {
+        try {
+            const updated: RemedialSession = {
+                ...session,
+                status: 'Pending Headteacher Approval',
+                dutyApproved: true,
+                dutyApprovedAt: new Date().toISOString(),
+                dutyApprovedBy: currentUser?.name || 'Teacher on Duty'
+            };
+            await apiService.saveRemedialSession(updated);
+            onLogAction?.(`[Stage 2] Teacher on Duty approved session for ${session.teacherName} (${session.hours} hrs)`);
+            alert(`Remedial session verified by Teacher on Duty! It is now Pending Headteacher Approval.`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to approve session as Teacher on Duty');
+        }
+    };
+
+    // Stage 3: Headteacher / Principal Authorization
+    const handleHeadteacherAuthorizeSession = async (session: RemedialSession) => {
+        try {
+            const updated: RemedialSession = {
+                ...session,
+                status: 'Pending Operations Payout',
+                headteacherApproved: true,
+                headteacherApprovedAt: new Date().toISOString(),
+                headteacherApprovedBy: currentUser?.name || 'Headteacher / Principal'
+            };
+            await apiService.saveRemedialSession(updated);
+            onLogAction?.(`[Stage 3] Headteacher authorized session for ${session.teacherName} (${session.hours} hrs)`);
+            alert(`Session authorized by Headteacher! Forwarded to Operations Manager for cash payout.`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to authorize session as Headteacher');
+        }
+    };
+
+    // Stage 4: Operations Manager Cash Handover to DOS
+    const handleConfirmOperationsCashHandover = async () => {
+        if (!opsDisburseBatch) return;
+        if (!opsCashVoucherRef.trim()) {
+            alert('Please enter an Official Cash Voucher / Folio Reference Number for the physical cash handed to DOS.');
+            return;
+        }
+
+        try {
+            setIsDisbursingOpsCash(true);
+            const now = new Date().toISOString();
+            const opsManagerName = currentUser?.name || 'Operations Manager';
+            const voucherRef = opsCashVoucherRef.trim();
+
+            for (const sessId of opsDisburseBatch.sessionIds) {
+                const sess = sessions.find(s => s.id === sessId);
+                if (sess) {
+                    const updated: RemedialSession = {
+                        ...sess,
+                        status: 'Cash Issued to DOS',
+                        operationsDisbursed: true,
+                        operationsDisbursedAt: now,
+                        operationsDisbursedBy: opsManagerName,
+                        cashVoucherRef: voucherRef
+                    };
+                    await apiService.saveRemedialSession(updated);
+                }
+            }
+
+            onLogAction?.(`[Stage 4] Operations Manager released cash KES ${opsDisburseBatch.totalAmount.toLocaleString()} to DOS (Voucher #${voucherRef}) for ${opsDisburseBatch.teacherName}`);
+            alert(`Cash successfully recorded as issued to DOS! Voucher Ref: #${voucherRef}. The DOS can now distribute cash to ${opsDisburseBatch.teacherName} and collect on-screen signature.`);
+            setIsOpsCashModalOpen(false);
+            setOpsDisburseBatch(null);
+            setOpsCashVoucherRef('');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to record cash disbursement to DOS');
+        } finally {
+            setIsDisbursingOpsCash(false);
+        }
+    };
+
+    // HTML5 Canvas On-Screen Signature Handlers for DOS Payment
+    const handleCanvasStart = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        ctx.beginPath();
+        ctx.moveTo(clientX - rect.left, clientY - rect.top);
+        setIsCanvasDrawing(true);
+    };
+
+    const handleCanvasDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isCanvasDrawing) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        ctx.lineTo(clientX - rect.left, clientY - rect.top);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        setHasTeacherSigned(true);
+    };
+
+    const handleCanvasStop = () => {
+        setIsCanvasDrawing(false);
+    };
+
+    const handleClearCanvasSignature = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setHasTeacherSigned(false);
+    };
+
+    // Stage 5: Director of Studies (DOS) Cash Handover to Teacher with On-Screen Signature
+    const handleConfirmDosPaymentWithSignature = async () => {
+        if (!dosPayTeacherData) return;
+        if (!hasTeacherSigned || !canvasRef.current) {
+            alert('The teacher must sign on the signature pad before cash payment can be confirmed.');
+            return;
+        }
+
+        try {
+            setIsSubmittingDosPayment(true);
+            const signatureDataUrl = canvasRef.current.toDataURL('image/png');
+            const payoutId = `pay_${Date.now()}`;
+            const dosName = currentUser?.name || 'Director of Studies';
+            const now = new Date().toISOString();
+
+            const newPayout: RemedialPayout = {
+                id: payoutId,
+                teacherId: dosPayTeacherData.teacherId,
+                teacherName: dosPayTeacherData.teacherName,
+                totalHours: dosPayTeacherData.totalHours,
+                hourlyRate: dosPayTeacherData.rate,
+                totalAmount: dosPayTeacherData.totalAmount,
+                payoutDate: now.split('T')[0],
+                status: 'Paid',
+                institutionId,
+                cashVoucherRef: dosPayTeacherData.cashVoucherRef,
+                operationsManagerName: dosPayTeacherData.operationsManagerName,
+                paidByDosName: dosName,
+                paidAt: now,
+                teacherSignatureDataUrl: signatureDataUrl,
+                notes: `Paid in physical cash by DOS (${dosName}). Cash Voucher: #${dosPayTeacherData.cashVoucherRef || 'N/A'}`
+            };
+
+            await apiService.saveRemedialPayout(newPayout);
+
+            // Update all related sessions to Paid with signature & DOS stamp
+            for (const sessId of dosPayTeacherData.sessionIds) {
+                const sess = sessions.find(s => s.id === sessId);
+                if (sess) {
+                    const updated: RemedialSession = {
+                        ...sess,
+                        status: 'Paid',
+                        payoutId: payoutId,
+                        paidByDosName: dosName,
+                        paidAt: now,
+                        teacherSignatureDataUrl: signatureDataUrl
+                    };
+                    await apiService.saveRemedialSession(updated);
+                }
+            }
+
+            onLogAction?.(`[Stage 5] DOS ${dosName} disbursed cash KES ${dosPayTeacherData.totalAmount.toLocaleString()} to ${dosPayTeacherData.teacherName} with on-screen signature`);
+            alert(`Payment completed and signed! Physical cash of KES ${dosPayTeacherData.totalAmount.toLocaleString()} officially receipted.`);
+            setIsDosPayModalOpen(false);
+            setDosPayTeacherData(null);
+            setHasTeacherSigned(false);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to finalize DOS payment with signature');
+        } finally {
+            setIsSubmittingDosPayment(false);
+        }
+    };
+
+    // Weekend Duty Roster: Appoint Duty Teacher & Auto-allocate Sat & Sun Lessons
+    const handleSaveWeekendDuty = async () => {
+        if (!dutyModalTeacherId) {
+            alert('Please select a teacher on duty for the weekend.');
+            return;
+        }
+
+        try {
+            setIsSavingDuty(true);
+            const teacher = users.find(u => u.id === dutyModalTeacherId);
+            const teacherCode = teacher?.name 
+                ? teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 3) 
+                : 'DUT';
+
+            const dutyRecord: RemedialWeekendDuty = {
+                id: `duty_${Date.now()}`,
+                institutionId,
+                weekLabel: dutyModalWeek,
+                teacherId: dutyModalTeacherId,
+                teacherName: teacher?.name || 'Duty Teacher',
+                teacherCode,
+                autoAllocatedSaturday: dutyModalAutoAllocate,
+                autoAllocatedSunday: dutyModalAutoAllocate,
+                saturdaySessionId: '',
+                sundaySessionId: '',
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('school_remedial_duty_roster', dutyRecord);
+
+            // Auto-allocate 1 Saturday lesson and 1 Sunday lesson
+            if (dutyModalAutoAllocate) {
+                const targetCourse = courses.find(c => c.id === dutyModalCourseId) || courses[0];
+                const targetSubject = remedialSubjects.find(s => s.subjectId === dutyModalSubjectId) || remedialSubjects[0];
+
+                const satAlloc: RemedialAllocation = {
+                    id: `alloc_duty_sat_${Date.now()}`,
+                    institutionId,
+                    courseId: targetCourse?.id || 'GENERAL',
+                    className: targetCourse?.name || 'Weekend Remedials',
+                    stream: 'All Streams',
+                    subjectId: targetSubject?.subjectId || 'GENERAL',
+                    subjectName: targetSubject?.subjectName || 'Remedial General Duty',
+                    teacherId: dutyModalTeacherId,
+                    teacherName: teacher?.name || 'Teacher on Duty',
+                    dayOfWeek: 'Saturday',
+                    startTime: saturdayStartTime || '08:00',
+                    endTime: '10:00',
+                    isWeekend: true,
+                    isDutyLesson: true,
+                    priority: 'High',
+                    isManual: true,
+                    is_manual: true,
+                    isAutoGenerated: false,
+                    is_auto_generated: false,
+                    createdAt: new Date().toISOString()
+                };
+
+                const sunAlloc: RemedialAllocation = {
+                    id: `alloc_duty_sun_${Date.now()}`,
+                    institutionId,
+                    courseId: targetCourse?.id || 'GENERAL',
+                    className: targetCourse?.name || 'Weekend Remedials',
+                    stream: 'All Streams',
+                    subjectId: targetSubject?.subjectId || 'GENERAL',
+                    subjectName: targetSubject?.subjectName || 'Remedial General Duty',
+                    teacherId: dutyModalTeacherId,
+                    teacherName: teacher?.name || 'Teacher on Duty',
+                    dayOfWeek: 'Sunday',
+                    startTime: sundayStartTime || '09:00',
+                    endTime: '11:00',
+                    isWeekend: true,
+                    isDutyLesson: true,
+                    priority: 'High',
+                    isManual: true,
+                    is_manual: true,
+                    isAutoGenerated: false,
+                    is_auto_generated: false,
+                    createdAt: new Date().toISOString()
+                };
+
+                await apiService.saveModuleRecord('school_remedial_allocations', satAlloc);
+                await apiService.saveModuleRecord('school_remedial_allocations', sunAlloc);
+
+                // Update timetable weekend duty codes
+                setTimetableSatDuty(teacherCode);
+                setTimetableSunDuty(teacherCode);
+            }
+
+            onLogAction?.(`Appointed ${teacher?.name} as Weekend Teacher on Duty for ${dutyModalWeek} (Allocated 1 Sat + 1 Sun duty lesson)`);
+            alert(`Weekend Duty Teacher ${teacher?.name} appointed for ${dutyModalWeek}! 1 Saturday and 1 Sunday remedial lesson automatically allocated.`);
+            setIsDutyModalOpen(false);
+            setDutyModalTeacherId('');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to save weekend duty assignment');
+        } finally {
+            setIsSavingDuty(false);
+        }
+    };
+
     // Open Create Allocation Modal
     const handleOpenCreateAllocation = () => {
         setEditingAlloc(null);
@@ -2785,6 +3111,80 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             sessionIds: data.sessionIds,
             rate: Math.round(data.totalAmount / (data.totalHours || 1)),
             totalAmount: data.totalAmount
+        }));
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
+
+    // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (Pending Operations Payout)
+    const pendingOpsHandoverBatches = useMemo(() => {
+        const opsSessions = sessions.filter(s => s.status === 'Pending Operations Payout');
+        const grouped: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
+        opsSessions.forEach(s => {
+            if (!grouped[s.teacherId]) {
+                grouped[s.teacherId] = {
+                    teacherName: s.teacherName || 'Unknown Teacher',
+                    totalHours: 0,
+                    totalAmount: 0,
+                    sessionIds: []
+                };
+            }
+            const sHours = s.hours || 1;
+            const dayOfWeek = new Date(s.startTime).getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const applicableRate = isWeekend
+                ? (weekendHourlyRate || 1500)
+                : (weekdayHourlyRate || hourlyRate || 1000);
+
+            grouped[s.teacherId].totalHours += sHours;
+            grouped[s.teacherId].totalAmount += sHours * applicableRate;
+            grouped[s.teacherId].sessionIds.push(s.id);
+        });
+        return Object.entries(grouped).map(([teacherId, data]) => ({
+            teacherId,
+            teacherName: data.teacherName,
+            totalHours: data.totalHours,
+            sessionIds: data.sessionIds,
+            rate: Math.round(data.totalAmount / (data.totalHours || 1)),
+            totalAmount: data.totalAmount
+        }));
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
+
+    // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
+    const cashIssuedToDosBatches = useMemo(() => {
+        const dosSessions = sessions.filter(s => s.status === 'Cash Issued to DOS');
+        const grouped: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[]; cashVoucherRef?: string; operationsManagerName?: string }> = {};
+        dosSessions.forEach(s => {
+            if (!grouped[s.teacherId]) {
+                grouped[s.teacherId] = {
+                    teacherName: s.teacherName || 'Unknown Teacher',
+                    totalHours: 0,
+                    totalAmount: 0,
+                    sessionIds: [],
+                    cashVoucherRef: s.cashVoucherRef,
+                    operationsManagerName: s.operationsDisbursedBy
+                };
+            }
+            const sHours = s.hours || 1;
+            const dayOfWeek = new Date(s.startTime).getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const applicableRate = isWeekend
+                ? (weekendHourlyRate || 1500)
+                : (weekdayHourlyRate || hourlyRate || 1000);
+
+            grouped[s.teacherId].totalHours += sHours;
+            grouped[s.teacherId].totalAmount += sHours * applicableRate;
+            grouped[s.teacherId].sessionIds.push(s.id);
+            if (s.cashVoucherRef) grouped[s.teacherId].cashVoucherRef = s.cashVoucherRef;
+            if (s.operationsDisbursedBy) grouped[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
+        });
+        return Object.entries(grouped).map(([teacherId, data]) => ({
+            teacherId,
+            teacherName: data.teacherName,
+            totalHours: data.totalHours,
+            sessionIds: data.sessionIds,
+            rate: Math.round(data.totalAmount / (data.totalHours || 1)),
+            totalAmount: data.totalAmount,
+            cashVoucherRef: data.cashVoucherRef,
+            operationsManagerName: data.operationsManagerName
         }));
     }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
 
@@ -6493,6 +6893,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                                 <button
+                                    onClick={() => setIsDutyModalOpen(true)}
+                                    className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Calendar className="w-4 h-4" /> Weekend Duty Roster
+                                </button>
+                                <button
                                     onClick={handleAutoGenerateTimetable}
                                     className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-violet-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                                 >
@@ -7262,6 +7668,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             >
                                 <option value="all">All Sessions</option>
                                 <option value="In Progress">In Progress</option>
+                                <option value="Pending Duty Approval">Pending Duty Approval (Stage 2)</option>
+                                <option value="Pending Headteacher Approval">Pending Headteacher Approval (Stage 3)</option>
+                                <option value="Pending Operations Payout">Pending Operations Payout (Stage 4)</option>
+                                <option value="Cash Issued to DOS">Cash Issued to DOS (Stage 5)</option>
                                 <option value="Prefect Confirmed">Prefect Confirmed</option>
                                 <option value="Approved">Approved</option>
                                 <option value="Paid">Paid</option>
@@ -7324,9 +7734,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </td>
                                                 <td className="p-6">
                                                     <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic ${
-                                                        session.status === 'Approved' ? 'bg-indigo-100 text-indigo-600' :
-                                                        session.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-600' :
-                                                        session.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
+                                                        session.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                        session.status === 'Cash Issued to DOS' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300' :
+                                                        session.status === 'Pending Operations Payout' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
+                                                        session.status === 'Pending Headteacher Approval' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                        session.status === 'Pending Duty Approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                        session.status === 'Approved' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
+                                                        session.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
                                                         'bg-slate-100 text-slate-500'
                                                     }`}>
                                                         {session.status}
@@ -7341,14 +7755,80 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             Approve Hours
                                                         </button>
                                                     )}
+                                                    {session.status === 'Pending Duty Approval' && (
+                                                        <button 
+                                                            onClick={() => handleApproveDutySession(session)}
+                                                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 ml-auto"
+                                                        >
+                                                            <ShieldCheck className="w-3 h-3" /> Approve (Duty)
+                                                        </button>
+                                                    )}
+                                                    {session.status === 'Pending Headteacher Approval' && (
+                                                        <button 
+                                                            onClick={() => handleHeadteacherAuthorizeSession(session)}
+                                                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 ml-auto"
+                                                        >
+                                                            <Award className="w-3 h-3" /> Authorize (Principal)
+                                                        </button>
+                                                    )}
+                                                    {session.status === 'Pending Operations Payout' && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                const sHours = session.hours || 1;
+                                                                const dayOfWeek = new Date(session.startTime).getDay();
+                                                                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                                                const applicableRate = isWeekend
+                                                                    ? (weekendHourlyRate || 1500)
+                                                                    : (weekdayHourlyRate || hourlyRate || 1000);
+                                                                setOpsDisburseBatch({
+                                                                    teacherId: session.teacherId,
+                                                                    teacherName: session.teacherName || 'Teacher',
+                                                                    totalHours: sHours,
+                                                                    totalAmount: sHours * applicableRate,
+                                                                    sessionIds: [session.id]
+                                                                });
+                                                                setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
+                                                                setIsOpsCashModalOpen(true);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 ml-auto"
+                                                        >
+                                                            <Banknote className="w-3 h-3" /> Handover to DOS
+                                                        </button>
+                                                    )}
+                                                    {session.status === 'Cash Issued to DOS' && (
+                                                        <button 
+                                                            onClick={() => {
+                                                                const sHours = session.hours || 1;
+                                                                const dayOfWeek = new Date(session.startTime).getDay();
+                                                                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                                                                const applicableRate = isWeekend
+                                                                    ? (weekendHourlyRate || 1500)
+                                                                    : (weekdayHourlyRate || hourlyRate || 1000);
+                                                                setDosPayTeacherData({
+                                                                    teacherId: session.teacherId,
+                                                                    teacherName: session.teacherName || 'Teacher',
+                                                                    totalHours: sHours,
+                                                                    rate: applicableRate,
+                                                                    totalAmount: sHours * applicableRate,
+                                                                    sessionIds: [session.id],
+                                                                    cashVoucherRef: session.cashVoucherRef,
+                                                                    operationsManagerName: session.operationsDisbursedBy
+                                                                });
+                                                                setIsDosPayModalOpen(true);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 ml-auto"
+                                                        >
+                                                            <PenTool className="w-3 h-3" /> Pay Cash &amp; Sign
+                                                        </button>
+                                                    )}
                                                     {session.status === 'Approved' && (
                                                         <span className="text-[9px] text-emerald-600 font-black uppercase tracking-widest flex items-center gap-1 justify-end">
                                                             <Check className="w-3.5 h-3.5" /> Ready for Payout
                                                         </span>
                                                     )}
                                                     {session.status === 'Paid' && (
-                                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1 justify-end">
-                                                            Paid in Voucher
+                                                        <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-widest flex items-center gap-1 justify-end">
+                                                            <CheckCircle2 className="w-3.5 h-3.5" /> Cash Receipted
                                                         </span>
                                                     )}
                                                 </td>
@@ -7365,6 +7845,145 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             {/* TAB: PAYOUTS */}
             {activeTab === 'payouts' && (
                 <div className="space-y-8">
+                    {/* STAGE 4: OPERATIONS MANAGER CASH HANDOVER TO DOS */}
+                    <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-purple-500/20 rounded-2xl text-purple-300">
+                                    <Banknote className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-purple-500/30 text-purple-200">Stage 4: Operations Payout</span>
+                                        <span className="text-xs text-purple-200 font-bold">Physical Cash Handover to DOS</span>
+                                    </div>
+                                    <h4 className="text-sm font-black uppercase tracking-wider mt-0.5">Approved Batches Ready for Cash Release to DOS</h4>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-xs text-purple-200 font-medium">Pending Handover</span>
+                                <p className="text-lg font-black font-mono text-purple-300">
+                                    KES {pendingOpsHandoverBatches.reduce((sum, b) => sum + b.totalAmount, 0).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-slate-100 dark:border-slate-700">
+                                <tr>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Authorized Hours</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Applicable Rate</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash to Disburse</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Operations Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pendingOpsHandoverBatches.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                            No sessions waiting for Operations Cash Handover to DOS.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    pendingOpsHandoverBatches.map(batch => (
+                                        <tr key={batch.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{batch.teacherName}</td>
+                                            <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{batch.totalHours} hrs ({batch.sessionIds.length} lessons)</td>
+                                            <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {batch.rate.toLocaleString()}/hr</td>
+                                            <td className="p-6 text-sm font-black text-purple-600 dark:text-purple-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
+                                            <td className="p-6 text-right">
+                                                <button 
+                                                    onClick={() => {
+                                                        setOpsDisburseBatch(batch);
+                                                        setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
+                                                        setIsOpsCashModalOpen(true);
+                                                    }}
+                                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 ml-auto"
+                                                >
+                                                    <Banknote className="w-3.5 h-3.5" /> Release Cash to DOS
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* STAGE 5: DOS CASH PAYMENT TO TEACHER & ON-SCREEN SIGNATURE */}
+                    <div className="bg-gradient-to-r from-cyan-900 via-teal-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-cyan-500/20 rounded-2xl text-cyan-300">
+                                    <PenTool className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-cyan-500/30 text-cyan-200">Stage 5: DOS Disbursal</span>
+                                        <span className="text-xs text-cyan-200 font-bold">Physical Cash Handover &amp; On-Screen Signature</span>
+                                    </div>
+                                    <h4 className="text-sm font-black uppercase tracking-wider mt-0.5">Cash in DOS Custody - Waiting for Teacher Signature</h4>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-xs text-cyan-200 font-medium">In DOS Custody</span>
+                                <p className="text-lg font-black font-mono text-cyan-300">
+                                    KES {cashIssuedToDosBatches.reduce((sum, b) => sum + b.totalAmount, 0).toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-cyan-50/50 dark:bg-cyan-950/20 border-b border-slate-100 dark:border-slate-700">
+                                <tr>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hours</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voucher Ref &amp; Custody</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Physical Cash Amount</th>
+                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">DOS Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {cashIssuedToDosBatches.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                            No cash batches currently in DOS custody waiting for teacher pickup.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    cashIssuedToDosBatches.map(batch => (
+                                        <tr key={batch.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{batch.teacherName}</td>
+                                            <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{batch.totalHours} hrs ({batch.sessionIds.length} lessons)</td>
+                                            <td className="p-6 text-xs">
+                                                <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">#{batch.cashVoucherRef || 'VOUCHER-N/A'}</span>
+                                                <p className="text-[10px] text-slate-400">Disbursed by: {batch.operationsManagerName || 'Operations'}</p>
+                                            </td>
+                                            <td className="p-6 text-sm font-black text-cyan-600 dark:text-cyan-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
+                                            <td className="p-6 text-right">
+                                                <button 
+                                                    onClick={() => {
+                                                        setDosPayTeacherData(batch);
+                                                        setIsDosPayModalOpen(true);
+                                                    }}
+                                                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 ml-auto"
+                                                >
+                                                    <PenTool className="w-3.5 h-3.5" /> Pay Cash &amp; Sign
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* GENERAL UNPAID APPROVED HOURS */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                         <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Unpaid Approved Hours (Weekly/Monthly calculations)</h4>
                         <p className="text-xs text-slate-500">Below are the accumulated approved remedial hours per teacher waiting for payment voucher issuance.</p>
@@ -7409,7 +8028,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm mt-8">
-                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-4">Payout Vouchers Ledger</h4>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-4">Payout Vouchers &amp; Official Receipts Ledger</h4>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
@@ -7418,13 +8037,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
                                         <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Anonymous Signature</th>
+                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Signature &amp; Proof</th>
+                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Receipt Voucher</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {payouts.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="p-6 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No payouts recorded.</td>
+                                            <td colSpan={6} className="p-6 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No payouts recorded.</td>
                                         </tr>
                                     ) : (
                                         payouts.map(p => (
@@ -7438,11 +8058,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </span>
                                                 </td>
                                                 <td className="p-4">
-                                                    {p.anonymousSignature ? (
+                                                    {p.teacherSignatureDataUrl ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <img src={p.teacherSignatureDataUrl} alt="Signature" className="h-6 w-auto border border-slate-200 dark:border-slate-700 rounded bg-white px-1" />
+                                                            <span className="text-[9px] font-bold text-emerald-600 uppercase">Signed On-Screen</span>
+                                                        </div>
+                                                    ) : p.anonymousSignature ? (
                                                         <span className="font-mono text-xs font-black text-slate-900 dark:text-white">{p.anonymousSignature}</span>
                                                     ) : (
                                                         <span className="text-[10px] text-slate-400 font-bold uppercase italic">Awaiting Signature</span>
                                                     )}
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <button 
+                                                        onClick={() => setViewingReceiptPayout(p)}
+                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ml-auto transition-colors"
+                                                    >
+                                                        <Receipt className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> View Receipt
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))
@@ -10600,6 +11233,579 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 Close
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 5: WEEKEND DUTY ROSTER ASSIGNMENT */}
+        {isDutyModalOpen && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSavingDuty) setIsDutyModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-white/20 rounded-xl">
+                                <Calendar className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Appoint Weekend Duty Teacher
+                                </h3>
+                                <p className="text-[11px] text-amber-100 font-medium">
+                                    Assign Teacher on Duty for Saturday &amp; Sunday Lessons
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsDutyModalOpen(false)}
+                            disabled={isSavingDuty}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Duty Academic Week *
+                            </label>
+                            <select
+                                value={dutyModalWeek}
+                                onChange={e => setDutyModalWeek(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                            >
+                                {Array.from({ length: 14 }, (_, i) => `WEEK ${i + 1}`).map(wk => (
+                                    <option key={wk} value={wk}>{wk}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Select Weekend Teacher on Duty *
+                            </label>
+                            <select
+                                value={dutyModalTeacherId}
+                                onChange={e => setDutyModalTeacherId(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                            >
+                                <option value="">-- Choose Teacher --</option>
+                                {users.filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase())).map(u => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.name} ({u.role || 'Teacher'})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Duty Class
+                                </label>
+                                <select
+                                    value={dutyModalCourseId}
+                                    onChange={e => setDutyModalCourseId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                >
+                                    <option value="">General Weekend</option>
+                                    {courses.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                    Duty Subject
+                                </label>
+                                <select
+                                    value={dutyModalSubjectId}
+                                    onChange={e => setDutyModalSubjectId(e.target.value)}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                >
+                                    <option value="">General Remedials</option>
+                                    {remedialSubjects.map(s => (
+                                        <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800/60 space-y-2">
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={dutyModalAutoAllocate}
+                                    onChange={e => setDutyModalAutoAllocate(e.target.checked)}
+                                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                />
+                                <span className="text-xs font-black uppercase tracking-tight text-amber-900 dark:text-amber-200">
+                                    Auto-allocate 1 Saturday &amp; 1 Sunday Duty Lesson
+                                </span>
+                            </label>
+                            <p className="text-[10px] text-amber-700 dark:text-amber-300 leading-relaxed pl-6">
+                                Creates Saturday (08:00 - 10:00) and Sunday (09:00 - 11:00) remedial sessions automatically and updates the weekend timetable grid code with this teacher&apos;s initials.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsDutyModalOpen(false)}
+                            disabled={isSavingDuty}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isSavingDuty}
+                            onClick={handleSaveWeekendDuty}
+                            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSavingDuty ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Assigning...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Calendar className="w-4 h-4" />
+                                    <span>Appoint &amp; Allocate</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 6: OPERATIONS MANAGER CASH HANDOVER TO DOS */}
+        {isOpsCashModalOpen && opsDisburseBatch && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isDisbursingOpsCash) setIsOpsCashModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-purple-700 via-indigo-800 to-purple-800 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-white/20 rounded-xl">
+                                <Banknote className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Operations Cash Handover to DOS
+                                </h3>
+                                <p className="text-[11px] text-purple-200 font-medium">
+                                    Stage 4: Physical Cash Release to Director of Studies
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsOpsCashModalOpen(false)}
+                            disabled={isDisbursingOpsCash}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        <div className="p-4 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800/60 flex items-center justify-between">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">Teacher Recipient</span>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase mt-0.5">{opsDisburseBatch.teacherName}</h4>
+                                <p className="text-xs text-slate-500 font-bold mt-0.5">{opsDisburseBatch.totalHours} hrs &bull; {opsDisburseBatch.sessionIds.length} approved lessons</p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 dark:text-purple-300">Physical Cash Amount</span>
+                                <p className="text-xl font-black font-mono text-purple-600 dark:text-purple-400">
+                                    KES {opsDisburseBatch.totalAmount.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                Official Cash Voucher / Folio Reference Number *
+                            </label>
+                            <input
+                                type="text"
+                                value={opsCashVoucherRef}
+                                onChange={e => setOpsCashVoucherRef(e.target.value)}
+                                placeholder="e.g. CSH-2026-0042 / FOLIO-78"
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-mono font-bold outline-none focus:border-purple-500 dark:text-white"
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">
+                                Enter the physical paper voucher number or cash ledger folio ref for institutional auditing.
+                            </p>
+                        </div>
+
+                        <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+                            <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                <ShieldCheck className="w-4 h-4 text-purple-600" /> Custody Transfer Notice
+                            </p>
+                            <p>
+                                Submitting this form records that physical cash of <strong>KES {opsDisburseBatch.totalAmount.toLocaleString()}</strong> has been handed to the Director of Studies (DOS). The DOS will distribute the cash to the teacher and collect an on-screen signature.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsOpsCashModalOpen(false)}
+                            disabled={isDisbursingOpsCash}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isDisbursingOpsCash}
+                            onClick={handleConfirmOperationsCashHandover}
+                            className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isDisbursingOpsCash ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Recording Handover...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Banknote className="w-4 h-4" />
+                                    <span>Confirm Handover to DOS</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 7: DOS CASH PAYMENT WITH ON-SCREEN CANVAS SIGNATURE */}
+        {isDosPayModalOpen && dosPayTeacherData && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSubmittingDosPayment) setIsDosPayModalOpen(false);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-gradient-to-r from-cyan-600 via-teal-700 to-cyan-700 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-white/20 rounded-xl">
+                                <PenTool className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Teacher Cash Payment &amp; Signature
+                                </h3>
+                                <p className="text-[11px] text-cyan-100 font-medium">
+                                    Stage 5: DOS Cash Distribution &amp; Physical On-Screen Signing
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setIsDosPayModalOpen(false)}
+                            disabled={isSubmittingDosPayment}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                        <div className="p-4 bg-cyan-50 dark:bg-cyan-950/40 rounded-2xl border border-cyan-200 dark:border-cyan-800/60 flex items-center justify-between">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700 dark:text-cyan-300">Teacher Recipient</span>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase mt-0.5">{dosPayTeacherData.teacherName}</h4>
+                                <p className="text-xs text-slate-500 font-mono mt-0.5">Voucher Ref: #{dosPayTeacherData.cashVoucherRef || 'N/A'}</p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700 dark:text-cyan-300">Net Cash Handover</span>
+                                <p className="text-xl font-black font-mono text-cyan-600 dark:text-cyan-400">
+                                    KES {dosPayTeacherData.totalAmount.toLocaleString()}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-bold">{dosPayTeacherData.totalHours} hrs @ KES {dosPayTeacherData.rate.toLocaleString()}/hr</p>
+                            </div>
+                        </div>
+
+                        {/* Signature Pad */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                    Teacher On-Screen Digital Signature *
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={handleClearCanvasSignature}
+                                    className="text-[10px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                                >
+                                    <RotateCcw className="w-3 h-3" /> Clear Signature
+                                </button>
+                            </div>
+
+                            <div className="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl overflow-hidden bg-white shadow-inner">
+                                <canvas
+                                    ref={canvasRef}
+                                    width={460}
+                                    height={160}
+                                    onMouseDown={handleCanvasStart}
+                                    onMouseMove={handleCanvasDraw}
+                                    onMouseUp={handleCanvasStop}
+                                    onMouseLeave={handleCanvasStop}
+                                    onTouchStart={handleCanvasStart}
+                                    onTouchMove={handleCanvasDraw}
+                                    onTouchEnd={handleCanvasStop}
+                                    className="w-full h-40 cursor-crosshair touch-none bg-white block"
+                                />
+                                {!hasTeacherSigned && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                            <PenTool className="w-4 h-4 opacity-50" /> Draw Signature Here
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 italic">
+                                Teacher must sign on the signature canvas above to acknowledge receipt of physical cash from the Director of Studies.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => setIsDosPayModalOpen(false)}
+                            disabled={isSubmittingDosPayment}
+                            className="px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-700 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isSubmittingDosPayment || !hasTeacherSigned}
+                            onClick={handleConfirmDosPaymentWithSignature}
+                            className="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSubmittingDosPayment ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span>Sealing Payment...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span>Seal Payment &amp; Issue Receipt</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 8: OFFICIAL SIGNED CASH RECEIPT VOUCHER */}
+        {viewingReceiptPayout && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) setViewingReceiptPayout(null);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-xl w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-6 bg-slate-900 text-white flex justify-between items-center border-b border-slate-800">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400">
+                                <Receipt className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight">
+                                    Official Cash Remuneration Voucher
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-mono">
+                                    Voucher #{viewingReceiptPayout.id}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setViewingReceiptPayout(null)}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Printable Receipt Body */}
+                    <div id="remedial-cash-receipt-printable" className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-white">
+                        {/* Letterhead */}
+                        <div className="text-center pb-4 border-b border-slate-200 dark:border-slate-700 space-y-1">
+                            <h2 className="text-lg font-black uppercase tracking-tight">
+                                {currentInstitution?.name || 'SCHOOL ACADEMIC MANAGEMENT'}
+                            </h2>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                                Official Remedial &amp; Academic Intervention Cash Payout Voucher
+                            </p>
+                            <p className="text-[9px] font-mono text-slate-400">
+                                Date Issued: {viewingReceiptPayout.payoutDate || new Date().toISOString().split('T')[0]}
+                            </p>
+                        </div>
+
+                        {/* Payment Details Table */}
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden text-xs">
+                            <table className="w-full text-left">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400 w-1/3">Payee Teacher</td>
+                                        <td className="p-3 font-bold uppercase">{viewingReceiptPayout.teacherName}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Hours Taught</td>
+                                        <td className="p-3 font-bold">{viewingReceiptPayout.totalHours} Hours</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Rate per Hour</td>
+                                        <td className="p-3 font-mono">KES {viewingReceiptPayout.hourlyRate?.toLocaleString() || 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Total Cash Paid</td>
+                                        <td className="p-3 font-black font-mono text-base text-emerald-600 dark:text-emerald-400">
+                                            KES {viewingReceiptPayout.totalAmount.toLocaleString()}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Cash Voucher Folio</td>
+                                        <td className="p-3 font-mono font-bold text-purple-600 dark:text-purple-400">
+                                            #{viewingReceiptPayout.cashVoucherRef || 'N/A'}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Disbursed By (DOS)</td>
+                                        <td className="p-3 font-bold">{viewingReceiptPayout.paidByDosName || 'Director of Studies'}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Signatures Chain */}
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                            <div className="p-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                    Disbursed by (DOS / Operations):
+                                </p>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    {viewingReceiptPayout.paidByDosName || 'Director of Studies'}
+                                </p>
+                                <p className="text-[9px] text-slate-400 font-mono">
+                                    Ref: #{viewingReceiptPayout.cashVoucherRef || 'VOUCHER'}
+                                </p>
+                            </div>
+
+                            <div className="p-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                    Teacher Physical Signature:
+                                </p>
+                                {viewingReceiptPayout.teacherSignatureDataUrl ? (
+                                    <div className="bg-white rounded-lg p-1 border border-slate-200 dark:border-slate-700 inline-block">
+                                        <img
+                                            src={viewingReceiptPayout.teacherSignatureDataUrl}
+                                            alt="Teacher Signature"
+                                            className="h-12 w-auto object-contain"
+                                        />
+                                    </div>
+                                ) : (
+                                    <p className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">
+                                        {viewingReceiptPayout.anonymousSignature || 'Signed in Cash Ledger'}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const printWindow = window.open('', '_blank');
+                                if (printWindow) {
+                                    const content = document.getElementById('remedial-cash-receipt-printable')?.innerHTML;
+                                    printWindow.document.write(`
+                                        <html>
+                                            <head>
+                                                <title>Cash Voucher Receipt - ${viewingReceiptPayout.teacherName}</title>
+                                                <style>
+                                                    body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #0f172a; }
+                                                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                                                    th, td { border: 1px solid #cbd5e1; padding: 10px; font-size: 12px; }
+                                                    td:first-child { background: #f8fafc; font-weight: bold; width: 35%; }
+                                                    .letterhead { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #0f172a; padding-bottom: 15px; }
+                                                    .signatures { display: flex; justify-content: space-between; margin-top: 30px; }
+                                                    .sig-box { border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; width: 45%; }
+                                                </style>
+                                            </head>
+                                            <body>
+                                                ${content}
+                                            </body>
+                                        </html>
+                                    `);
+                                    printWindow.document.close();
+                                    printWindow.focus();
+                                    setTimeout(() => {
+                                        printWindow.print();
+                                        printWindow.close();
+                                    }, 250);
+                                }
+                            }}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-md transition-all"
+                        >
+                            <Printer className="w-3.5 h-3.5" /> Print Receipt
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewingReceiptPayout(null)}
+                            className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-slate-300 transition-colors cursor-pointer"
+                        >
+                            Close
+                        </button>
                     </div>
                 </div>
             </div>,

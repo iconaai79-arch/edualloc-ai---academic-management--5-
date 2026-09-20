@@ -1233,16 +1233,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 const diffMs = end.getTime() - start.getTime();
                                 const calculatedHours = Math.max(1, Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10);
 
-                                const updated = {
+                                const updated: RemedialSession = {
                                     ...session,
                                     endTime: end.toISOString(),
                                     hours: calculatedHours,
-                                    status: 'Prefect Confirmed' as const
+                                    status: 'Pending Duty Approval' as const
                                 };
 
                                 await apiService.saveRemedialSession(updated);
                                 props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calculatedHours} hrs)`);
-                                alert(`Remedial class completed successfully!\nVerified hours: ${calculatedHours} hrs.\nSent for admin approval.`);
+                                alert(`Remedial class completed successfully!\nVerified hours: ${calculatedHours} hrs.\n\nStatus: Pending Teacher on Duty approval before payout.`);
                                 loadRemedialData();
                             } catch (err: any) {
                                 alert(err.message || 'Failed to end remedial session');
@@ -1752,9 +1752,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                         <div className="text-right">
                                                             <p className="text-xs font-black text-slate-900 dark:text-white">{s.hours ? `${s.hours} hrs` : 'In Progress'}</p>
                                                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-block mt-1 ${
-                                                                s.status === 'Approved' ? 'bg-indigo-150 text-indigo-600' :
-                                                                s.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-600' :
-                                                                s.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' :
+                                                                s.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                                s.status === 'Cash Issued to DOS' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300' :
+                                                                s.status === 'Pending Operations Payout' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
+                                                                s.status === 'Pending Headteacher Approval' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                                s.status === 'Pending Duty Approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                                s.status === 'Approved' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
+                                                                s.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
                                                                 'bg-slate-100 text-slate-500'
                                                             }`}>
                                                                 {s.status}
