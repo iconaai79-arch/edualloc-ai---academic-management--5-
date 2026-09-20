@@ -3180,6 +3180,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             priority: cfg?.priority || (isCore ? 'High' : 'Medium'),
                             weeklyOccurrences: cfg?.weeklyOccurrences ? Math.min(Math.max(cfg.weeklyOccurrences, 1), 4) : (isCore ? 2 : 1),
                             preferredDayType: cfg?.preferredDayType || 'any',
+                            allowedDays: cfg?.allowedDays && cfg.allowedDays.length > 0 ? cfg.allowedDays : undefined,
+                            allowedPeriods: cfg?.allowedPeriods && cfg.allowedPeriods.length > 0 ? cfg.allowedPeriods : undefined,
                             manualCount: 0,
                             manualAllocations: []
                         });
@@ -3218,9 +3220,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         for (let occ = 0; occ < neededOccurrences; occ++) {
                             if (subEntry.priority === 'High') totalHighAllocated++;
 
-                            // Candidate days filtered by preferredDayType
+                            // Candidate days filtered by allowedDays (hard restriction) then preferredDayType
                             let candidateDays = [...daysOfWeek];
-                            if (subEntry.preferredDayType === 'weekends') {
+                            if ((subEntry as any).allowedDays?.length > 0) {
+                                // Hard restriction: only these specific days allowed
+                                candidateDays = candidateDays.filter(d => ((subEntry as any).allowedDays as string[]).includes(d));
+                            } else if (subEntry.preferredDayType === 'weekends') {
                                 candidateDays = candidateDays.filter(d => ['Saturday', 'Sunday'].includes(d));
                             } else if (subEntry.preferredDayType === 'weekdays') {
                                 candidateDays = candidateDays.filter(d => !['Saturday', 'Sunday'].includes(d));
@@ -3253,7 +3258,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             // Identify the designated teacher who has the manual allocation for this class & subject
                             const designatedTeacher = users.find(u => u.id === subEntry.teacherId) || teachersList.find(t => t.id === subEntry.teacherId);
 
-                            // Try candidate days first
+                                // Try candidate days first
                             for (const day of candidateDays) {
                                 const isWeekend = ['Saturday', 'Sunday'].includes(day);
                                 const sKey = `${course.id}_${targetStream}`;
@@ -3276,6 +3281,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 } else if (day === 'Sunday') {
                                     candidateStartTime = existingStreamCountOnDay === 0 ? (sundayStartTime || '09:00') : (includeSundayBreak ? (sundayBreakEndTime || '11:30') : '11:00');
                                 }
+
+                                // Enforce allowedPeriods: period number = existingStreamCountOnDay + 1
+                                const thisPeriodNum = existingStreamCountOnDay + 1;
+                                const allowedPeriods = (subEntry as any).allowedPeriods as number[] | undefined;
+                                if (allowedPeriods && allowedPeriods.length > 0 && !allowedPeriods.includes(thisPeriodNum)) continue;
 
                                 // Strictly check designated teacher availability first (teacher cannot teach 2 streams at once)
                                 if (designatedTeacher) {
@@ -7312,6 +7322,100 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         {dt === 'any' ? 'Any' : dt === 'weekdays' ? 'Weekdays' : 'Weekends'}
                                                     </button>
                                                 ))}
+                                            </div>
+                                        </div>
+
+                                        {/* ── Scheduling Restrictions ── */}
+                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 space-y-2">
+                                            {/* Allowed Days */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                                        <Lock className="w-3 h-3 text-rose-400" /> Allowed Days
+                                                    </span>
+                                                    {(remSub.allowedDays?.length ?? 0) > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleUpdateSubjectRule(remSub, { allowedDays: [] })}
+                                                            className="text-[8px] font-black text-rose-500 hover:text-rose-700 uppercase tracking-wider"
+                                                        >Clear</button>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] as const).map(day => {
+                                                        const isSelected = (remSub.allowedDays || []).includes(day);
+                                                        const isWeekend = day === 'Saturday' || day === 'Sunday';
+                                                        return (
+                                                            <button
+                                                                key={day}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const current = remSub.allowedDays || [];
+                                                                    const next = isSelected ? current.filter(d => d !== day) : [...current, day as any];
+                                                                    handleUpdateSubjectRule(remSub, { allowedDays: next });
+                                                                }}
+                                                                className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                                                                    isSelected
+                                                                        ? isWeekend
+                                                                            ? 'bg-amber-500 text-white shadow-sm'
+                                                                            : 'bg-indigo-600 text-white shadow-sm'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                                }`}
+                                                            >
+                                                                {day.slice(0, 3)}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {(remSub.allowedDays?.length ?? 0) > 0 && (
+                                                    <p className="text-[8px] text-rose-500 font-bold mt-0.5">
+                                                        ⛔ Restricted to: {(remSub.allowedDays || []).join(', ')}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Allowed Periods */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                                        <Clock className="w-3 h-3 text-indigo-400" /> Allowed Periods
+                                                    </span>
+                                                    {(remSub.allowedPeriods?.length ?? 0) > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleUpdateSubjectRule(remSub, { allowedPeriods: [] })}
+                                                            className="text-[8px] font-black text-rose-500 hover:text-rose-700 uppercase tracking-wider"
+                                                        >Clear</button>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {[1, 2, 3, 4, 5].map(p => {
+                                                        const isSelected = (remSub.allowedPeriods || []).includes(p);
+                                                        return (
+                                                            <button
+                                                                key={p}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const current = remSub.allowedPeriods || [];
+                                                                    const next = isSelected ? current.filter(x => x !== p) : [...current, p];
+                                                                    handleUpdateSubjectRule(remSub, { allowedPeriods: next });
+                                                                }}
+                                                                className={`w-8 py-0.5 rounded-lg text-[8px] font-black uppercase transition-all ${
+                                                                    isSelected
+                                                                        ? 'bg-violet-600 text-white shadow-sm'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                                }`}
+                                                            >
+                                                                P{p}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {(remSub.allowedPeriods?.length ?? 0) > 0 && (
+                                                    <p className="text-[8px] text-violet-600 dark:text-violet-400 font-bold mt-0.5">
+                                                        🔒 Period(s): {(remSub.allowedPeriods || []).map(p => `P${p}`).join(', ')} only
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
@@ -11796,6 +11900,35 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </select>
                         </div>
 
+                        {/* Subject Scheduling Restrictions Warning */}
+                        {(() => {
+                            const selRemSub = allocSubjectId ? remedialSubjects.find(rs => rs.subjectId === allocSubjectId || rs.id === allocSubjectId) : null;
+                            const hasAllowedDays = (selRemSub?.allowedDays?.length ?? 0) > 0;
+                            const hasAllowedPeriods = (selRemSub?.allowedPeriods?.length ?? 0) > 0;
+                            if (!selRemSub || (!hasAllowedDays && !hasAllowedPeriods)) return null;
+                            const dayViolation = hasAllowedDays && allocDay && !(selRemSub.allowedDays || []).includes(allocDay as any);
+                            return (
+                                <div className={`flex items-start gap-2.5 p-3 rounded-xl border text-[10px] font-bold ${
+                                    dayViolation
+                                        ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                                        : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                                }`}>
+                                    <Lock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                                    <div className="space-y-0.5">
+                                        <p className="font-black uppercase tracking-wider text-[9px]">Scheduling Restriction — {selRemSub.subjectName}</p>
+                                        {hasAllowedDays && (
+                                            <p>Days: <span className="font-black">{(selRemSub.allowedDays || []).join(', ')}</span> only
+                                                {dayViolation ? <span className="ml-1 text-rose-600 dark:text-rose-400"> ⛔ Current day not allowed!</span> : null}
+                                            </p>
+                                        )}
+                                        {hasAllowedPeriods && (
+                                            <p>Periods: <span className="font-black">{(selRemSub.allowedPeriods || []).map(p => `P${p}`).join(', ')}</span> only</p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
                         {/* Teacher */}
                         <div>
                             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Teacher</label>
@@ -11821,10 +11954,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     const fullDay = fullDays[i];
                                     const isWeekend = i >= 5;
                                     const isSelected = allocDay === fullDay;
+                                    const selRemSub2 = allocSubjectId ? remedialSubjects.find(rs => rs.subjectId === allocSubjectId || rs.id === allocSubjectId) : null;
+                                    const isBlocked = (selRemSub2?.allowedDays?.length ?? 0) > 0 && !(selRemSub2?.allowedDays || []).includes(fullDay as any);
                                     return (
                                         <button
                                             key={fullDay}
                                             type="button"
+                                            disabled={isBlocked}
+                                            title={isBlocked ? `${selRemSub2?.subjectName || 'Subject'} cannot be scheduled on ${fullDay}` : fullDay}
                                             onClick={() => {
                                                 setAllocDay(fullDay);
                                                 if (fullDay === 'Saturday') {
@@ -11839,11 +11976,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 }
                                             }}
                                             className={`py-2 rounded-xl text-[9px] font-black uppercase transition-all ${
-                                                isSelected
-                                                    ? isWeekend
-                                                        ? 'bg-amber-500 text-white shadow-md'
-                                                        : 'bg-indigo-600 text-white shadow-md'
-                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
+                                                isBlocked
+                                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 line-through cursor-not-allowed opacity-50'
+                                                    : isSelected
+                                                        ? isWeekend
+                                                            ? 'bg-amber-500 text-white shadow-md'
+                                                            : 'bg-indigo-600 text-white shadow-md'
+                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'
                                             }`}
                                         >
                                             {short}
