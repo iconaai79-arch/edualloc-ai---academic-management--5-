@@ -3006,6 +3006,43 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
 
             if (!allowManualCollisionOverride) {
+                // Strict check: subject day restriction
+                const subCfg = remedialSubjects.find(rs => 
+                    rs.subjectId === allocSubjectId || 
+                    rs.id === allocSubjectId ||
+                    (rs.subjectName && (
+                        rs.subjectName.trim().toLowerCase() === resolvedSubjectName.trim().toLowerCase() ||
+                        rs.subjectName.trim().toLowerCase() === String(allocSubjectId).trim().toLowerCase()
+                    ))
+                );
+                if (subCfg) {
+                    const isAllocWeekend = ['Saturday', 'Sunday'].includes(allocDay);
+                    if (subCfg.preferredDayType === 'weekends' && !isAllocWeekend) {
+                        return alert(
+                            `Subject Day Restriction Violation:\n\n` +
+                            `"${resolvedSubjectName}" is configured to be allocated on WEEKENDS ONLY (Saturday / Sunday).\n` +
+                            `You are attempting to schedule it on ${allocDay} (a weekday).\n\n` +
+                            `Please select Saturday or Sunday, update the subject's day preference in Subject Settings, or check 'Allow overlap / manual override'.`
+                        );
+                    }
+                    if (subCfg.preferredDayType === 'weekdays' && isAllocWeekend) {
+                        return alert(
+                            `Subject Day Restriction Violation:\n\n` +
+                            `"${resolvedSubjectName}" is configured to be allocated on WEEKDAYS ONLY (Monday through Friday).\n` +
+                            `You are attempting to schedule it on ${allocDay} (a weekend).\n\n` +
+                            `Please select Monday through Friday, update the subject's day preference in Subject Settings, or check 'Allow overlap / manual override'.`
+                        );
+                    }
+                    if (subCfg.allowedDays && subCfg.allowedDays.length > 0 && !subCfg.allowedDays.includes(allocDay as any)) {
+                        return alert(
+                            `Subject Day Restriction Violation:\n\n` +
+                            `"${resolvedSubjectName}" is only permitted on: ${subCfg.allowedDays.join(', ')}.\n` +
+                            `Selected day "${allocDay}" is not allowed.\n\n` +
+                            `Please select one of the allowed days or update the subject's settings.`
+                        );
+                    }
+                }
+
                 if (!isWeekend) {
                     // Strict 1 period per day rule for weekdays (Monday through Friday)
                     const existingWeekdayClassAlloc = allocations.find(a => 
@@ -3288,9 +3325,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     if (!sId) return;
 
                     if (!allocatedSubjectsMap.has(sId)) {
-                        const cfg = remedialSubjects.find(rs => rs.subjectId === sId || rs.id === sId);
-                        const schSub = effectiveSchoolSubjects.find(s => s.id === sId);
-                        const name = ma.subjectName || schSub?.name || cfg?.subjectName || 'Subject';
+                        const schSub = effectiveSchoolSubjects.find(s => s.id === sId || (s.name && (s.name.trim().toLowerCase() === String(sId).trim().toLowerCase() || (ma.subjectName && s.name.trim().toLowerCase() === ma.subjectName.trim().toLowerCase()))));
+                        const name = ma.subjectName || schSub?.name || 'Subject';
+                        const cfg = remedialSubjects.find(rs => 
+                            rs.subjectId === sId || 
+                            rs.id === sId ||
+                            (rs.subjectName && (
+                                rs.subjectName.trim().toLowerCase() === name.trim().toLowerCase() ||
+                                rs.subjectName.trim().toLowerCase() === String(sId).trim().toLowerCase() ||
+                                (ma.subjectName && rs.subjectName.trim().toLowerCase() === ma.subjectName.trim().toLowerCase())
+                            ))
+                        );
                         const nameLower = name.toLowerCase();
                         const isCore = nameLower.includes('math') || nameLower.includes('calc') || nameLower.includes('physic') || nameLower.includes('chem') || nameLower.includes('bio') || nameLower.includes('eng') || nameLower.includes('kisw');
 
@@ -3342,7 +3387,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         for (let occ = 0; occ < neededOccurrences; occ++) {
                             if (subEntry.priority === 'High') totalHighAllocated++;
 
-                            // Candidate days filtered by allowedDays (hard restriction) then preferredDayType
+                            // Candidate days strictly filtered by allowedDays (hard restriction) then preferredDayType
                             let candidateDays = [...daysOfWeek];
                             if (subEntry.allowedDays && subEntry.allowedDays.length > 0) {
                                 // Hard restriction: only these specific days allowed
@@ -3380,7 +3425,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             // Identify the designated teacher who has the manual allocation for this class & subject
                             const designatedTeacher = users.find(u => u.id === subEntry.teacherId) || teachersList.find(t => t.id === subEntry.teacherId);
 
-                                // Try candidate days first
+                            // Try candidate days first
                             for (const day of candidateDays) {
                                 const isWeekend = ['Saturday', 'Sunday'].includes(day);
                                 const sKey = `${course.id}_${targetStream}`;
@@ -3423,9 +3468,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 }
                             }
 
-                            // Fallback across any day if preferred candidate days were filled
+                            // Fallback ONLY across strictly permitted days (NEVER violate weekend/weekday restrictions)
                             if (!selectedDay || !selectedTeacher) {
-                                for (const fbDay of daysOfWeek) {
+                                let fallbackDays = [...daysOfWeek];
+                                if (subEntry.allowedDays && subEntry.allowedDays.length > 0) {
+                                    fallbackDays = fallbackDays.filter(d => (subEntry.allowedDays as string[]).includes(d));
+                                } else if (subEntry.preferredDayType === 'weekends') {
+                                    fallbackDays = fallbackDays.filter(d => ['Saturday', 'Sunday'].includes(d));
+                                } else if (subEntry.preferredDayType === 'weekdays') {
+                                    fallbackDays = fallbackDays.filter(d => !['Saturday', 'Sunday'].includes(d));
+                                }
+
+                                for (const fbDay of fallbackDays) {
                                     const fbIsWeekend = ['Saturday', 'Sunday'].includes(fbDay);
                                     const sKey = `${course.id}_${targetStream}`;
                                     if (!fbIsWeekend && streamDayBooked[sKey]?.has(fbDay)) continue;
@@ -3444,6 +3498,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     } else if (fbDay === 'Sunday') {
                                         fbStartTime = fbExistingStreamCount === 0 ? (sundayStartTime || '09:00') : (includeSundayBreak ? (sundayBreakEndTime || '11:30') : '11:00');
                                     }
+
+                                    // Enforce allowedPeriods in fallback as well
+                                    const fbPeriodNum = fbExistingStreamCount + 1;
+                                    if (subEntry.allowedPeriods && subEntry.allowedPeriods.length > 0 && !subEntry.allowedPeriods.includes(fbPeriodNum)) continue;
 
                                     if (designatedTeacher) {
                                         const dailyCount = teacherDailyCount[designatedTeacher.id]?.[fbDay] || 0;
@@ -3778,6 +3836,208 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return acc + (c.allocations.length - 1);
         }, 0);
     }, [detectedCollisions, courses]);
+
+    // Subject Day-Restriction Violations (e.g. Weekend-only allocated on weekdays, or Weekday-only on weekends)
+    const dayViolations = useMemo(() => {
+        return allocations.filter(a => {
+            if (!a.dayOfWeek || a.dayOfWeek === ('Unallocated' as any) || a.isUnallocated || !a.startTime) return false;
+            const subCfg = remedialSubjects.find(rs => 
+                rs.subjectId === a.subjectId || 
+                rs.id === a.subjectId ||
+                (rs.subjectName && (
+                    rs.subjectName.trim().toLowerCase() === (a.subjectName || '').trim().toLowerCase() ||
+                    rs.subjectName.trim().toLowerCase() === String(a.subjectId).trim().toLowerCase()
+                ))
+            );
+            if (!subCfg) return false;
+            const isAllocWeekend = ['Saturday', 'Sunday'].includes(a.dayOfWeek);
+            if (subCfg.preferredDayType === 'weekends' && !isAllocWeekend) return true;
+            if (subCfg.preferredDayType === 'weekdays' && isAllocWeekend) return true;
+            if (subCfg.allowedDays && subCfg.allowedDays.length > 0 && !subCfg.allowedDays.includes(a.dayOfWeek as any)) return true;
+            return false;
+        });
+    }, [allocations, remedialSubjects]);
+
+    // Auto-fix day restriction violations by moving them to weekend slots or unallocated shelf
+    const handleAutoFixDayViolations = async () => {
+        if (dayViolations.length === 0) {
+            alert('No day rule violations detected in the current timetable!');
+            return;
+        }
+
+        const confirmFix = window.confirm(
+            `Found ${dayViolations.length} lesson(s) violating subject day restrictions (e.g. Weekend-only subjects scheduled on weekdays).\n\n` +
+            `Would you like to automatically re-slot them into permitted weekend periods (Saturday/Sunday) or move them to the Unallocated shelf if weekend slots are filled?`
+        );
+        if (!confirmFix) return;
+
+        let relocated = 0;
+        let movedUnallocated = 0;
+        const updatedAllocations = [...allocations];
+
+        for (const viol of dayViolations) {
+            const subCfg = remedialSubjects.find(rs => 
+                rs.subjectId === viol.subjectId || 
+                rs.id === viol.subjectId ||
+                (rs.subjectName && (
+                    rs.subjectName.trim().toLowerCase() === (viol.subjectName || '').trim().toLowerCase() ||
+                    rs.subjectName.trim().toLowerCase() === String(viol.subjectId).trim().toLowerCase()
+                ))
+            );
+
+            let targetDays: ('Saturday' | 'Sunday')[] = ['Saturday', 'Sunday'];
+            if (subCfg?.allowedDays && subCfg.allowedDays.length > 0) {
+                const filtered = subCfg.allowedDays.filter(d => ['Saturday', 'Sunday'].includes(d)) as ('Saturday' | 'Sunday')[];
+                if (filtered.length > 0) targetDays = filtered;
+            }
+
+            let placedDay: 'Saturday' | 'Sunday' | null = null;
+            let placedStart = '';
+            let placedEnd = '';
+
+            for (const d of targetDays) {
+                const existingInClass = updatedAllocations.filter(a => 
+                    a.id !== viol.id &&
+                    !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
+                    a.dayOfWeek === d &&
+                    (a.courseId === viol.courseId || a.className === viol.className) &&
+                    (viol.stream === 'All Streams' || a.stream === 'All Streams' || a.stream === viol.stream || a.isJoint || viol.isJoint)
+                );
+                const limit = maxWeekendLessonsPerDay || 2;
+                if (existingInClass.length < limit) {
+                    let startT = '';
+                    let endT = '';
+                    const streamDayCount = existingInClass.length;
+
+                    if (d === 'Saturday') {
+                        if (includeSaturdayBreak) {
+                            if (streamDayCount === 0) {
+                                startT = saturdayStartTime || '08:00';
+                                endT = saturdayBreakStartTime || '10:00';
+                            } else {
+                                startT = saturdayBreakEndTime || '10:30';
+                                endT = saturdayEndTime || '12:30';
+                            }
+                        } else {
+                            if (streamDayCount === 0) {
+                                startT = saturdayStartTime || '08:00';
+                                endT = '10:00';
+                            } else {
+                                startT = '10:00';
+                                endT = saturdayEndTime || '12:00';
+                            }
+                        }
+                    } else if (d === 'Sunday') {
+                        if (includeSundayBreak) {
+                            if (streamDayCount === 0) {
+                                startT = sundayStartTime || '09:00';
+                                endT = sundayBreakStartTime || '11:00';
+                            } else {
+                                startT = sundayBreakEndTime || '11:30';
+                                endT = sundayEndTime || '13:30';
+                            }
+                        } else {
+                            if (streamDayCount === 0) {
+                                startT = sundayStartTime || '09:00';
+                                endT = '11:00';
+                            } else {
+                                startT = '11:00';
+                                endT = sundayEndTime || '13:00';
+                            }
+                        }
+                    }
+
+                    // Check if teacher is free at this slot
+                    const teacherBusy = updatedAllocations.some(a => 
+                        a.id !== viol.id &&
+                        !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
+                        a.teacherId === viol.teacherId &&
+                        a.dayOfWeek === d &&
+                        ((startT < (a.endTime || '23:59') && endT > (a.startTime || '00:00')) || (startT === a.startTime))
+                    );
+
+                    if (!teacherBusy) {
+                        placedDay = d;
+                        placedStart = startT;
+                        placedEnd = endT;
+                        break;
+                    }
+                }
+            }
+
+            if (placedDay) {
+                const updated: RemedialAllocation = {
+                    ...viol,
+                    dayOfWeek: placedDay,
+                    startTime: placedStart,
+                    endTime: placedEnd,
+                    isWeekend: true,
+                    isUnallocated: false,
+                    unallocatedReason: undefined,
+                    updatedAt: new Date().toISOString()
+                };
+                if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                    await (apiService as any).saveRemedialAllocation(updated);
+                } else {
+                    await apiService.saveModuleRecord('school_remedial_allocations', updated);
+                }
+                const idx = updatedAllocations.findIndex(a => a.id === viol.id);
+                if (idx !== -1) updatedAllocations[idx] = updated;
+                relocated++;
+            } else {
+                // Safely move to unallocated
+                const updated: RemedialAllocation = {
+                    ...viol,
+                    isUnallocated: true,
+                    unallocatedReason: `Moved to Unallocated shelf because "${viol.subjectName}" is restricted to Weekends only, and weekend slots are currently occupied.`,
+                    dayOfWeek: 'Unallocated' as any,
+                    startTime: '',
+                    endTime: '',
+                    isWeekend: false,
+                    updatedAt: new Date().toISOString()
+                };
+                if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                    await (apiService as any).saveRemedialAllocation(updated);
+                } else {
+                    await apiService.saveModuleRecord('school_remedial_allocations', updated);
+                }
+                const idx = updatedAllocations.findIndex(a => a.id === viol.id);
+                if (idx !== -1) updatedAllocations[idx] = updated;
+                movedUnallocated++;
+            }
+        }
+
+        onLogAction?.(`Auto-fixed ${dayViolations.length} day-rule violations (${relocated} relocated to weekend, ${movedUnallocated} moved to unallocated)`);
+        alert(`Fixed ${dayViolations.length} lesson(s):\n• ${relocated} relocated to weekend periods\n• ${movedUnallocated} moved to Unallocated shelf`);
+        await loadData();
+    };
+
+    const handleMoveAllDayViolationsToUnallocated = async () => {
+        if (dayViolations.length === 0) return;
+        if (!window.confirm(`Move all ${dayViolations.length} day-violating lesson(s) to the Unallocated shelf?`)) return;
+
+        for (const viol of dayViolations) {
+            const updated: RemedialAllocation = {
+                ...viol,
+                isUnallocated: true,
+                unallocatedReason: `Moved to Unallocated shelf: "${viol.subjectName}" has day restrictions that conflict with ${viol.dayOfWeek}.`,
+                dayOfWeek: 'Unallocated' as any,
+                startTime: '',
+                endTime: '',
+                isWeekend: false,
+                updatedAt: new Date().toISOString()
+            };
+            if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                await (apiService as any).saveRemedialAllocation(updated);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_allocations', updated);
+            }
+        }
+
+        onLogAction?.(`Moved ${dayViolations.length} day-violating lessons to Unallocated shelf`);
+        alert(`Moved ${dayViolations.length} lesson(s) to the Unallocated shelf!`);
+        await loadData();
+    };
 
     // Move single allocation to another slot
     const handleMoveAllocToSlot = async (alloc: RemedialAllocation, targetDay: string, targetStart: string, targetEnd: string) => {
@@ -8219,6 +8479,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             JT
                                         </span>
                                     )}
+                                    {dayViolations.some(v => v.id === alloc.id) && (
+                                        <span className="text-[6.5px] font-black px-1 rounded bg-rose-600 text-white uppercase tracking-tighter shadow-xs" title="Subject Day Restriction Violation: Subject is restricted to Weekends only">
+                                            ⚠️ VIOLATION
+                                        </span>
+                                    )}
                                     {alloc.priority === 'High' && (
                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 ring-1 ring-white animate-pulse" title="High Priority" />
                                     )}
@@ -9008,6 +9273,44 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
+                        {/* DAY RESTRICTION VIOLATIONS ALERT BANNER */}
+                        {dayViolations.length > 0 && (
+                            <div className="p-4 bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 dark:from-rose-950/40 dark:via-amber-950/20 dark:to-rose-950/40 border-2 border-rose-300 dark:border-rose-700/80 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-rose-900 dark:text-rose-200 shadow-md">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-xs shrink-0 animate-pulse">
+                                        <AlertTriangle className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+                                            <span>{dayViolations.length} Day-Restriction Violation{dayViolations.length > 1 ? 's' : ''} Detected</span>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-200 text-rose-900 dark:bg-rose-900 dark:text-rose-100 font-black">
+                                                Weekend Only Subject Rule
+                                            </span>
+                                        </div>
+                                        <div className="text-[11px] font-medium text-rose-700 dark:text-rose-300 mt-0.5">
+                                            One or more subjects configured for Weekends only (or specific days) are currently scheduled on weekdays.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        onClick={handleAutoFixDayViolations}
+                                        className="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+                                        title="Automatically re-slot them to Saturday/Sunday or move them to the unallocated shelf if weekend is full"
+                                    >
+                                        <Sparkles className="w-3.5 h-3.5" /> Auto-Fix Violations
+                                    </button>
+                                    <button
+                                        onClick={handleMoveAllDayViolationsToUnallocated}
+                                        className="px-3 py-2 bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300 font-bold text-xs rounded-xl hover:bg-rose-50 dark:hover:bg-slate-700 transition-all flex items-center gap-1"
+                                        title="Pull all violating lessons off the weekday grid into the Unallocated shelf"
+                                    >
+                                        <Archive className="w-3.5 h-3.5" /> Move to Unallocated
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* MODE 1: MASTER TIMETABLE GRID (Classes × Periods) */}
                         {allocViewMode === 'asc_grid' && (
                             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-700/60 dark:border-slate-700 shadow-2xl overflow-hidden">
@@ -9452,6 +9755,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </div>
                                         )}
                                     </div>
+
+                                    {dayViolations.some(v => v.id === selectedCellAlloc.id) && (
+                                        <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-800 rounded-2xl space-y-2">
+                                            <div className="flex items-center gap-1.5 text-xs font-black uppercase text-rose-700 dark:text-rose-300">
+                                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                                                <span>Subject Day Restriction Violation</span>
+                                            </div>
+                                            <p className="text-[11px] text-rose-800 dark:text-rose-200">
+                                                This subject is configured for <strong>Weekends only</strong>, but is scheduled on <strong>{selectedCellAlloc.dayOfWeek}</strong>.
+                                            </p>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <button
+                                                    onClick={async () => {
+                                                        const toMove = selectedCellAlloc;
+                                                        setSelectedCellAlloc(null);
+                                                        await handleMoveAllocToUnallocated(toMove, `Moved from weekday to Unallocated shelf because ${toMove.subjectName} is restricted to Weekends only.`);
+                                                    }}
+                                                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                                                >
+                                                    <Archive className="w-3.5 h-3.5" /> Move to Unallocated
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-3 gap-2 pt-2">
                                         <button
