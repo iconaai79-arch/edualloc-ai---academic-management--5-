@@ -2452,7 +2452,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             let data: any = null;
             let error: any = null;
-            let maxRetries = 2;
+            let maxRetries = 3;
             let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
             while (maxRetries >= 0) {
