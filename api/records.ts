@@ -2502,6 +2502,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         continue;
                     }
 
+                    if (moduleName === 'school_remedial_allocations') {
+                        // Extended columns added in newer migrations: if one is missing from PostgREST cache,
+                        // strip ALL extended columns at once into metadata to prevent sequential retries and timeouts.
+                        const EXTENDED_ALLOC_COLS = [
+                            'is_joint', 'joint_streams', 'joint_courses', 'joint_label',
+                            'is_auto_generated', 'is_unallocated', 'unallocated_reason',
+                            'is_manual', 'is_duty_lesson', 'stream', 'priority', 'status',
+                            'substitute_teacher_id', 'substitute_teacher_name',
+                            'original_teacher_id', 'original_teacher_name',
+                            'cancellation_reason', 'cancelled_at',
+                            'confirmation_deadline', 'declined_teacher_ids'
+                        ];
+                        const stripAllocExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            EXTENDED_ALLOC_COLS.forEach(c => {
+                                if (copy[c] !== undefined && copy[c] !== null && copy[c] !== '') {
+                                    meta[c] = copy[c];
+                                    delete copy[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            } else {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripAllocExtended) : stripAllocExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     const stripCol = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
@@ -3376,6 +3410,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             patchTableSupportsMetadata = false;
                         }
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
+                        if (moduleName === 'school_remedial_allocations') {
+                            const EXTENDED_ALLOC_COLS = [
+                                'is_joint', 'joint_streams', 'joint_courses', 'joint_label',
+                                'is_auto_generated', 'is_unallocated', 'unallocated_reason',
+                                'is_manual', 'is_duty_lesson', 'stream', 'priority', 'status',
+                                'substitute_teacher_id', 'substitute_teacher_name',
+                                'original_teacher_id', 'original_teacher_name',
+                                'cancellation_reason', 'cancelled_at',
+                                'confirmation_deadline', 'declined_teacher_ids'
+                            ];
+                            const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
+                            EXTENDED_ALLOC_COLS.forEach(c => {
+                                if (currentUpdateData[c] !== undefined && currentUpdateData[c] !== null && currentUpdateData[c] !== '') {
+                                    meta[c] = currentUpdateData[c];
+                                    delete currentUpdateData[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !patchTableSupportsMetadata) {
+                                delete currentUpdateData.metadata;
+                            } else {
+                                currentUpdateData.metadata = meta;
+                            }
+                            patchRetries--;
+                            continue;
+                        }
+
                         const copy = { ...currentUpdateData };
                         if (patchTableSupportsMetadata && offendingCol !== 'metadata' && copy[offendingCol] !== undefined && copy[offendingCol] !== null) {
                             const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
