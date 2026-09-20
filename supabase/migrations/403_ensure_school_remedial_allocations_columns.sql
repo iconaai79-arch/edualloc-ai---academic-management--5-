@@ -56,6 +56,22 @@ BEGIN
         ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS joint_streams JSONB DEFAULT '[]'::jsonb;
         ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
     END IF;
+    -- Also ensure school_remedial_duty_roster has weekday TOD and pay rate columns
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_duty_roster') THEN
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS duty_type TEXT DEFAULT 'weekend';
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS weekday_day TEXT;
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS weekday_start_time TEXT;
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS weekday_end_time TEXT;
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS weekday_allocated BOOLEAN DEFAULT false;
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS weekday_session_id TEXT;
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS duty_pay_rate NUMERIC;
+        ALTER TABLE public.school_remedial_duty_roster ADD COLUMN IF NOT EXISTS duty_pay_type TEXT DEFAULT 'flat';
+    END IF;
+
+    -- Also ensure school_remedial_rate_settings has weekday_duty_flat_rate
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_rate_settings') THEN
+        ALTER TABLE public.school_remedial_rate_settings ADD COLUMN IF NOT EXISTS weekday_duty_flat_rate NUMERIC DEFAULT 200;
+    END IF;
 END $$;
 
 -- Reload PostgREST schema cache

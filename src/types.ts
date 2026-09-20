@@ -6550,6 +6550,8 @@ export interface RemedialWeekendDuty {
     weekdaySessionId?: string;
     dutyPayRate?: number;
     dutyPayType?: string;
+    duty_pay_rate?: number;
+    duty_pay_type?: string;
     notes?: string;
     createdAt?: string;
     updatedAt?: string;
@@ -6605,6 +6607,8 @@ export interface RemedialRateSetting {
     hourlyRate: number;
     weekdayHourlyRate?: number;
     weekendHourlyRate?: number;
+    weekdayDutyFlatRate?: number;
+    weekday_duty_flat_rate?: number;
     weekdayStartTime?: string;
     weekdayEndTime?: string;
     weekendStartTime?: string;

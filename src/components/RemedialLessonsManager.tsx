@@ -150,6 +150,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [hourlyRate, setHourlyRate] = useState<number>(1000);
     const [weekdayHourlyRate, setWeekdayHourlyRate] = useState<number>(1000);
     const [weekendHourlyRate, setWeekendHourlyRate] = useState<number>(1500);
+    const [weekdayDutyFlatRate, setWeekdayDutyFlatRate] = useState<number>(200);
     const [weekdayStartTime, setWeekdayStartTime] = useState<string>('16:00');
     const [weekdayEndTime, setWeekdayEndTime] = useState<string>('18:00');
     const [weekendStartTime, setWeekendStartTime] = useState<string>('08:00');
@@ -264,6 +265,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
         setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
         setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
+        setWeekdayDutyFlatRate(r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? r.metadata?.weekdayDutyFlatRate ?? 200);
         setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
         setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
         const satStart = r.saturdayStartTime || r.saturday_start_time || r.metadata?.saturdayStartTime || r.metadata?.saturday_start_time || r.weekendStartTime || r.weekend_start_time || '08:00';
@@ -2606,6 +2608,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     ? teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 3)
                     : 'DUT';
 
+                const dutyPayRate = entry.payRate ? parseFloat(entry.payRate) : (weekdayDutyFlatRate || 200);
+                const dutyPayType = entry.payType || 'flat';
+
                 const dutyRecord: RemedialWeekendDuty = {
                     id: `duty_wd_${Date.now()}_${entry.teacherId.slice(-4)}`,
                     institutionId,
@@ -2622,8 +2627,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     weekdayStartTime: startTime,
                     weekdayEndTime: endTime,
                     weekdayAllocated: true,
-                    dutyPayRate: entry.payRate ? parseFloat(entry.payRate) : undefined,
-                    dutyPayType: entry.payType,
+                    dutyPayRate,
+                    dutyPayType,
+                    duty_type: 'weekday',
+                    weekday_day: dutyModalWeekday,
+                    weekday_start_time: startTime,
+                    weekday_end_time: endTime,
+                    weekday_allocated: true,
+                    duty_pay_rate: dutyPayRate,
+                    duty_pay_type: dutyPayType,
                     createdAt: new Date().toISOString(),
                 };
 
@@ -2645,6 +2657,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     endTime,
                     isWeekend: false,
                     isDutyLesson: true,
+                    is_duty_lesson: true,
                     priority: 'High',
                     isManual: true,
                     is_manual: true,
@@ -2654,7 +2667,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
 
                 await apiService.saveModuleRecord('school_remedial_allocations', wdAlloc);
-                onLogAction?.(`Appointed ${teacher.name} as Weekday TOD (${dutyModalWeekday}) for ${dutyModalWeek} — Rate: ${entry.payRate ? `KES ${entry.payRate} (${entry.payType})` : 'Global rate'}`);
+                onLogAction?.(`Appointed ${teacher.name} as Weekday TOD (${dutyModalWeekday}) for ${dutyModalWeek} — Flat Rate: KES ${dutyPayRate}/day`);
             }
 
             alert(`Weekday Duty (${dutyModalWeekday}) saved! ${dutyTeacherList.length} teacher(s) appointed for ${dutyModalWeek}.`);
@@ -4154,6 +4167,45 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // Helper to compute correct payout amount for any session (considering Weekday TOD flat rates vs hourly rates)
+    const computeSessionPayout = useCallback((s: RemedialSession) => {
+        const sHours = s.hours || 1;
+        const sDate = new Date(s.date || s.startTime);
+        const dayIdx = sDate.getDay();
+        const isWeekend = dayIdx === 0 || dayIdx === 6;
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayName = s.dayOfWeek || dayNames[dayIdx];
+
+        // Check if teacher has a duty record for this session
+        const isDuty = s.isDutyLesson || s.is_duty_lesson;
+        const dutyRecord = weekendDutyRoster.find(d =>
+            d.teacherId === s.teacherId && (
+                (d.dutyType === 'weekday' && (d.weekdayDay === dayName || d.weekdayDay?.toLowerCase() === dayName?.toLowerCase())) ||
+                (dayIdx === 6 && (d.saturdayAllocated || d.dutyType === 'weekend')) ||
+                (dayIdx === 0 && (d.sundayAllocated || d.dutyType === 'weekend'))
+            )
+        );
+
+        if (isDuty || dutyRecord) {
+            const recRate = dutyRecord?.dutyPayRate ?? dutyRecord?.duty_pay_rate;
+            const recType = dutyRecord?.dutyPayType || dutyRecord?.duty_pay_type;
+            if (recRate !== undefined && recRate !== null) {
+                return (recType === 'flat' || dutyRecord?.dutyType === 'weekday')
+                    ? Number(recRate)
+                    : sHours * Number(recRate);
+            }
+            if (dutyRecord?.dutyType === 'weekday' || (!isWeekend && isDuty)) {
+                // Weekday TOD default flat rate per teacher per day (e.g. 200)
+                return weekdayDutyFlatRate || 200;
+            }
+        }
+
+        if (isWeekend) {
+            return sHours * (weekendHourlyRate || 1500);
+        }
+        return sHours * (weekdayHourlyRate || hourlyRate || 1000);
+    }, [weekendDutyRoster, weekdayDutyFlatRate, weekendHourlyRate, weekdayHourlyRate, hourlyRate]);
+
     // Calculate accrued unpaid earnings per teacher (distinguishing weekday vs weekend rates)
     const accruedPayouts = useMemo(() => {
         const unpaidApproved = sessions.filter(s => s.status === 'Approved');
@@ -4169,14 +4221,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
             }
             const sHours = s.hours || 1;
-            const dayOfWeek = new Date(s.startTime).getDay();
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const applicableRate = isWeekend
-                ? (weekendHourlyRate || 1500)
-                : (weekdayHourlyRate || hourlyRate || 1000);
-
+            const sessionAmount = computeSessionPayout(s);
             grouped[s.teacherId].totalHours += sHours;
-            grouped[s.teacherId].totalAmount += sHours * applicableRate;
+            grouped[s.teacherId].totalAmount += sessionAmount;
             grouped[s.teacherId].sessionIds.push(s.id);
         });
 
@@ -4188,7 +4235,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             rate: Math.round(data.totalAmount / (data.totalHours || 1)),
             totalAmount: data.totalAmount
         }));
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout]);
 
     // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (Pending Operations Payout)
     const pendingOpsHandoverBatches = useMemo(() => {
@@ -4204,14 +4251,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
             }
             const sHours = s.hours || 1;
-            const dayOfWeek = new Date(s.startTime).getDay();
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const applicableRate = isWeekend
-                ? (weekendHourlyRate || 1500)
-                : (weekdayHourlyRate || hourlyRate || 1000);
-
+            const sessionAmount = computeSessionPayout(s);
             grouped[s.teacherId].totalHours += sHours;
-            grouped[s.teacherId].totalAmount += sHours * applicableRate;
+            grouped[s.teacherId].totalAmount += sessionAmount;
             grouped[s.teacherId].sessionIds.push(s.id);
         });
         return Object.entries(grouped).map(([teacherId, data]) => ({
@@ -4222,7 +4264,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             rate: Math.round(data.totalAmount / (data.totalHours || 1)),
             totalAmount: data.totalAmount
         }));
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout]);
 
     // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
     const cashIssuedToDosBatches = useMemo(() => {
@@ -4240,14 +4282,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
             }
             const sHours = s.hours || 1;
-            const dayOfWeek = new Date(s.startTime).getDay();
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const applicableRate = isWeekend
-                ? (weekendHourlyRate || 1500)
-                : (weekdayHourlyRate || hourlyRate || 1000);
-
+            const sessionAmount = computeSessionPayout(s);
             grouped[s.teacherId].totalHours += sHours;
-            grouped[s.teacherId].totalAmount += sHours * applicableRate;
+            grouped[s.teacherId].totalAmount += sessionAmount;
             grouped[s.teacherId].sessionIds.push(s.id);
             if (s.cashVoucherRef) grouped[s.teacherId].cashVoucherRef = s.cashVoucherRef;
             if (s.operationsDisbursedBy) grouped[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
@@ -4262,7 +4299,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             cashVoucherRef: data.cashVoucherRef,
             operationsManagerName: data.operationsManagerName
         }));
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate]);
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout]);
 
     // Issue Payout Voucher
     const handleIssuePayout = async (accrued: any) => {
@@ -4351,27 +4388,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const sDate = new Date(s.date || s.startTime);
             const isWeekend = sDate.getDay() === 0 || sDate.getDay() === 6;
 
-            // Check for per-teacher duty pay rate override (weekday TOD)
-            let sessionAmount = 0;
-            if (s.isDutyLesson) {
-                const dutyRecord = weekendDutyRoster.find(d =>
-                    d.teacherId === tId && (d.weekdayDay === s.dayOfWeek || d.saturdayAllocated || d.sundayAllocated)
-                );
-                if (dutyRecord?.dutyPayRate) {
-                    // Use the teacher-specific duty rate
-                    sessionAmount = dutyRecord.dutyPayType === 'flat'
-                        ? dutyRecord.dutyPayRate
-                        : hrs * dutyRecord.dutyPayRate;
-                } else if (isWeekend) {
-                    sessionAmount = hrs * (weekendHourlyRate || 1500);
-                } else {
-                    sessionAmount = hrs * (weekdayHourlyRate || hourlyRate || 1000);
-                }
-            } else if (isWeekend) {
-                sessionAmount = hrs * (weekendHourlyRate || 1500);
-            } else {
-                sessionAmount = hrs * (weekdayHourlyRate || hourlyRate || 1000);
-            }
+            const sessionAmount = computeSessionPayout(s);
 
             if (isWeekend) {
                 teacherMap[tId].weekendHours += hrs;
@@ -9448,16 +9465,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         <button 
                                                             onClick={() => {
                                                                 const sHours = session.hours || 1;
-                                                                const dayOfWeek = new Date(session.startTime).getDay();
-                                                                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                                                                const applicableRate = isWeekend
-                                                                    ? (weekendHourlyRate || 1500)
-                                                                    : (weekdayHourlyRate || hourlyRate || 1000);
+                                                                const totalAmount = computeSessionPayout(session);
                                                                 setOpsDisburseBatch({
                                                                     teacherId: session.teacherId,
                                                                     teacherName: session.teacherName || 'Teacher',
                                                                     totalHours: sHours,
-                                                                    totalAmount: sHours * applicableRate,
+                                                                    totalAmount,
                                                                     sessionIds: [session.id]
                                                                 });
                                                                 setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
@@ -9472,17 +9485,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         <button 
                                                             onClick={() => {
                                                                 const sHours = session.hours || 1;
-                                                                const dayOfWeek = new Date(session.startTime).getDay();
-                                                                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                                                                const applicableRate = isWeekend
-                                                                    ? (weekendHourlyRate || 1500)
-                                                                    : (weekdayHourlyRate || hourlyRate || 1000);
+                                                                const totalAmount = computeSessionPayout(session);
                                                                 setDosPayTeacherData({
                                                                     teacherId: session.teacherId,
                                                                     teacherName: session.teacherName || 'Teacher',
                                                                     totalHours: sHours,
-                                                                    rate: applicableRate,
-                                                                    totalAmount: sHours * applicableRate,
+                                                                    rate: Math.round(totalAmount / (sHours || 1)),
+                                                                    totalAmount,
                                                                     sessionIds: [session.id],
                                                                     cashVoucherRef: session.cashVoucherRef,
                                                                     operationsManagerName: session.operationsDisbursedBy
@@ -9846,9 +9855,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
                                     <DollarSign className="w-3.5 h-3.5" /> Teacher Hourly Pay Tariffs
                                 </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Rate (Mon - Fri / hr)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Lesson Rate (/hr)</label>
                                         <div className="relative group">
                                             <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
                                             <input 
@@ -9861,7 +9870,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Rate (Sat & Sun / hr)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Lesson Rate (/hr)</label>
                                         <div className="relative group">
                                             <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
                                             <input 
@@ -9870,6 +9879,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 onChange={e => setWeekendHourlyRate(Number(e.target.value))}
                                                 className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
                                                 placeholder="1500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Duty Flat Rate (per day)</label>
+                                        <div className="relative group">
+                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <input 
+                                                type="number"
+                                                value={weekdayDutyFlatRate}
+                                                onChange={e => setWeekdayDutyFlatRate(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                placeholder="200"
                                             />
                                         </div>
                                     </div>
@@ -13153,7 +13175,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         setDutyModalType(type);
                                         setDutyTeacherList([]);
                                         setDutyTeacherPickId('');
-                                        setDutyTeacherPickRate('');
+                                        setDutyTeacherPickRate(String(weekdayDutyFlatRate || 200));
+                                        setDutyTeacherPickPayType('flat');
                                     }}
                                     className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
                                         dutyModalType === type
@@ -13302,32 +13325,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             ))
                                         }
                                     </select>
+                                    <div className="p-2.5 bg-indigo-100/60 dark:bg-indigo-900/40 rounded-xl border border-indigo-200/80 dark:border-indigo-700/60 flex items-start gap-2">
+                                        <span className="text-xs">💡</span>
+                                        <p className="text-[10px] text-indigo-900 dark:text-indigo-200 leading-tight font-bold">
+                                            Weekday Duty pays a flat daily rate per teacher (e.g. KES 200/day), paid regardless of lesson duration.
+                                        </p>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className="block text-[9px] font-black uppercase text-indigo-500 mb-1">Pay Rate (KES)</label>
+                                            <label className="block text-[9px] font-black uppercase text-indigo-500 mb-1">Flat Rate / Day (KES)</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 step="50"
                                                 value={dutyTeacherPickRate}
                                                 onChange={e => setDutyTeacherPickRate(e.target.value)}
-                                                placeholder={`Global (KES ${weekdayHourlyRate || rateSetting?.weekdayHourlyRate || rateSetting?.hourlyRate || '0'})`}
-                                                className="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 dark:text-white placeholder:text-slate-300"
+                                                placeholder={String(weekdayDutyFlatRate || 200)}
+                                                className="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 dark:text-white placeholder:text-slate-400 font-mono"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-[9px] font-black uppercase text-indigo-500 mb-1">Rate Type</label>
                                             <div className="grid grid-cols-2 gap-1 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-1">
-                                                {(['hourly','flat'] as const).map(t => (
+                                                {(['flat','hourly'] as const).map(t => (
                                                     <button key={t} type="button"
                                                         onClick={() => setDutyTeacherPickPayType(t)}
                                                         className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
                                                             dutyTeacherPickPayType === t
-                                                                ? 'bg-indigo-600 text-white'
-                                                                : 'text-slate-400'
+                                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                                : 'text-slate-400 hover:text-slate-600'
                                                         }`}
                                                     >
-                                                        {t === 'hourly' ? '/hr' : 'Flat'}
+                                                        {t === 'flat' ? 'Flat / Day' : '/hr'}
                                                     </button>
                                                 ))}
                                             </div>
@@ -13338,12 +13367,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         disabled={!dutyTeacherPickId}
                                         onClick={() => {
                                             if (!dutyTeacherPickId) return;
-                                            setDutyTeacherList(prev => [...prev, { teacherId: dutyTeacherPickId, payRate: dutyTeacherPickRate, payType: dutyTeacherPickPayType }]);
+                                            const rateToAdd = dutyTeacherPickRate || String(weekdayDutyFlatRate || 200);
+                                            setDutyTeacherList(prev => [...prev, { teacherId: dutyTeacherPickId, payRate: rateToAdd, payType: dutyTeacherPickPayType }]);
                                             setDutyTeacherPickId('');
-                                            setDutyTeacherPickRate('');
-                                            setDutyTeacherPickPayType('hourly');
+                                            setDutyTeacherPickRate(String(weekdayDutyFlatRate || 200));
+                                            setDutyTeacherPickPayType('flat');
                                         }}
-                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer shadow-sm"
                                     >
                                         + Add to List
                                     </button>
@@ -13366,7 +13396,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         <div>
                                                             <p className="text-[10px] font-black text-slate-800 dark:text-white">{t?.name || entry.teacherId}</p>
                                                             <p className="text-[9px] text-slate-400">
-                                                                {entry.payRate ? `KES ${entry.payRate} (${entry.payType})` : 'Global rate'}
+                                                                {entry.payRate ? `KES ${entry.payRate} (${entry.payType === 'flat' ? 'Flat / day' : '/hr'})` : `KES ${weekdayDutyFlatRate || 200} (Flat / day)`}
                                                             </p>
                                                         </div>
                                                     </div>
