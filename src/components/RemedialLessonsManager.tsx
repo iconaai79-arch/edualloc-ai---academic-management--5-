@@ -9,7 +9,8 @@ import {
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
-    Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox
+    Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
@@ -94,10 +95,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Pending Headteacher Approval' | 'Pending Operations Payout' | 'Cash Issued to DOS' | 'Approved' | 'Paid'>('all');
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
+    const [selectedTimetableTeacher, setSelectedTimetableTeacher] = useState<string>('All');
     const [allocViewMode, setAllocViewMode] = useState<'asc_grid' | 'day_columns' | 'unallocated'>('asc_grid');
     const [ascDayScope, setAscDayScope] = useState<'all' | 'weekdays' | 'weekend' | 'Saturday' | 'Sunday'>('all');
     const [selectedCellAlloc, setSelectedCellAlloc] = useState<RemedialAllocation | null>(null);
     const [ascClassSearchQuery, setAscClassSearchQuery] = useState('');
+    const [showIndividualPreviewModal, setShowIndividualPreviewModal] = useState<boolean>(false);
+    const [individualPreviewType, setIndividualPreviewType] = useState<'teacher' | 'class'>('teacher');
+    const [previewSelectedId, setPreviewSelectedId] = useState<string>('');
+    const previewIframeRef = React.useRef<HTMLIFrameElement | null>(null);
 
     // Unallocated lessons waiting for free timetable periods
     const unallocatedAllocations = useMemo(() => {
@@ -5751,6 +5757,354 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
     
+    // -------------------------------------------------------------
+    // INDIVIDUAL TIMETABLE GENERATION & PRINT SUITE (aSc Timetable Style)
+    // -------------------------------------------------------------
+    const teachersWithAllocs = useMemo(() => {
+        return Array.from(new Map(
+            allocations
+                .filter(a => a.teacherId && !a.isUnallocated && a.dayOfWeek !== 'Unallocated')
+                .map(a => [a.teacherId, { id: a.teacherId, name: enrichedUsers.find((u: any) => u.id === a.teacherId)?.name || a.teacherName || a.teacherId }])
+        ).values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [allocations, enrichedUsers]);
+
+    const classesWithAllocs = useMemo(() => {
+        return getDistinctTimetableClasses(allocations, courses);
+    }, [allocations, courses]);
+
+    // Standard aSc Grid Slots (Periods 1-10 + Breaks)
+    const ascStandardSlots = useMemo(() => [
+        { periodNum: 1,  label: '1',           timeRange: '6:00\u20137:00',   start: '06:00', end: '07:00', isBreak: false },
+        { periodNum: 2,  label: '2',           timeRange: '7:20\u20138:20',   start: '07:20', end: '08:20', isBreak: false },
+        { periodNum: 3,  label: '3',           timeRange: '8:20\u20139:20',   start: '08:20', end: '09:20', isBreak: false },
+        { periodNum: 0,  label: 'BREAK',       timeRange: '9:20\u20139:30',   start: '09:20', end: '09:30', isBreak: true, breakText: 'SHORT BREAK' },
+        { periodNum: 4,  label: '4',           timeRange: '9:30\u201310:30',  start: '09:30', end: '10:30', isBreak: false },
+        { periodNum: 0,  label: 'LONG BREAK',  timeRange: '10:30\u201311:00', start: '10:30', end: '11:00', isBreak: true, breakText: 'LONG BREAK' },
+        { periodNum: 5,  label: '5',           timeRange: '11:00\u201312:00', start: '11:00', end: '12:00', isBreak: false },
+        { periodNum: 6,  label: '6',           timeRange: '12:00\u201313:00', start: '12:00', end: '13:00', isBreak: false },
+        { periodNum: 0,  label: 'LUNCH BREAK', timeRange: '13:00\u201314:00', start: '13:00', end: '14:00', isBreak: true, breakText: 'LUNCH' },
+        { periodNum: 7,  label: '7',           timeRange: '14:00\u201315:00', start: '14:00', end: '15:00', isBreak: false },
+        { periodNum: 8,  label: '8',           timeRange: '15:00\u201316:00', start: '15:00', end: '16:00', isBreak: false },
+        { periodNum: 9,  label: '9',           timeRange: `${weekdayStartTime || '17:00'}\u2013${weekdayEndTime || '18:00'}`, start: weekdayStartTime || '16:00', end: weekdayEndTime || '18:00', isBreak: false },
+        { periodNum: 10, label: '10',          timeRange: '18:30\u201319:30', start: '18:30', end: '19:30', isBreak: false },
+    ], [weekdayStartTime, weekdayEndTime]);
+
+    const matchAllocToSlotAsc = useCallback((a: RemedialAllocation, slot: typeof ascStandardSlots[0]) => {
+        if (slot.isBreak || !a.startTime) return false;
+        const aStart = a.startTime.trim();
+        if (aStart === slot.start) return true;
+        if (slot.start && slot.end && aStart >= slot.start && aStart < slot.end) return true;
+        if (slot.periodNum === 1  && (aStart.startsWith('06:') || aStart.startsWith('6:')))  return true;
+        if (slot.periodNum === 2  && (aStart.startsWith('07:') || aStart.startsWith('7:')))  return true;
+        if (slot.periodNum === 3  && (aStart.startsWith('08:') || aStart.startsWith('8:')))  return true;
+        if (slot.periodNum === 4  && (aStart.startsWith('09:') || aStart.startsWith('9:') || aStart.startsWith('10:0'))) return true;
+        if (slot.periodNum === 5  && aStart.startsWith('11:')) return true;
+        if (slot.periodNum === 6  && aStart.startsWith('12:')) return true;
+        if (slot.periodNum === 7  && aStart.startsWith('14:')) return true;
+        if (slot.periodNum === 8  && aStart.startsWith('15:')) return true;
+        if (slot.periodNum === 9  && (aStart.startsWith('16:') || aStart.startsWith('17:'))) return true;
+        if (slot.periodNum === 10 && (aStart.startsWith('18:') || aStart.startsWith('19:'))) return true;
+        return false;
+    }, []);
+
+    // Generate HTML for a single Teacher Timetable
+    const buildTeacherTimetablePageHtml = useCallback((teacher: { id: string; name: string }, schoolName: string, docWeek: string, docTerm: string, docYear: string) => {
+        const classColorPalette = [
+            { bg: '#0d9488', text: '#ffffff' }, { bg: '#7dd3fc', text: '#000000' },
+            { bg: '#facc15', text: '#000000' }, { bg: '#f97316', text: '#ffffff' },
+            { bg: '#a78bfa', text: '#ffffff' }, { bg: '#4ade80', text: '#000000' },
+            { bg: '#fb7185', text: '#000000' }, { bg: '#38bdf8', text: '#000000' },
+            { bg: '#c084fc', text: '#ffffff' }, { bg: '#86efac', text: '#000000' },
+            { bg: '#fca5a5', text: '#000000' }, { bg: '#67e8f9', text: '#000000' },
+        ];
+        const classColorMap = new Map<string, { bg: string; text: string }>();
+        let colorIdx = 0;
+        const getClassColor = (className: string, stream: string) => {
+            const key = `${className}_${stream}`;
+            if (!classColorMap.has(key)) {
+                classColorMap.set(key, classColorPalette[colorIdx % classColorPalette.length]);
+                colorIdx++;
+            }
+            return classColorMap.get(key)!;
+        };
+
+        const teacherAllocs = allocations.filter(a =>
+            a.teacherId === teacher.id && !a.isUnallocated && a.dayOfWeek !== 'Unallocated'
+        );
+        const hasSat = teacherAllocs.some(a => a.dayOfWeek === 'Saturday');
+        const hasSun = teacherAllocs.some(a => a.dayOfWeek === 'Sunday');
+        const activeDays: { full: string; code: string }[] = [
+            { full: 'Monday', code: 'Mo' }, { full: 'Tuesday', code: 'Tu' },
+            { full: 'Wednesday', code: 'We' }, { full: 'Thursday', code: 'Th' },
+            { full: 'Friday', code: 'Fr' },
+        ];
+        if (hasSat) activeDays.push({ full: 'Saturday', code: 'Sa' });
+        if (hasSun) activeDays.push({ full: 'Sunday', code: 'Su' });
+
+        const rowsHtml = activeDays.map((day, dayIdx) => {
+            let cellsHtml = `<td style="width:55px;min-width:55px;background:#fff;border:1.5px solid #000;text-align:center;vertical-align:middle;padding:4px 2px;"><div style="font-size:26px;font-weight:900;font-family:Arial,sans-serif;color:#000;line-height:1;">${day.code}</div></td>`;
+            ascStandardSlots.forEach(slot => {
+                if (slot.isBreak) {
+                    if (dayIdx === 0) {
+                        cellsHtml += `<td rowspan="${activeDays.length}" style="width:38px;min-width:36px;max-width:42px;background:#fff;border:1.5px solid #000;text-align:center;vertical-align:middle;padding:0;"><div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:17px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#000;font-family:Arial,sans-serif;white-space:nowrap;margin:0 auto;">${slot.breakText || 'BREAK'}</div></td>`;
+                    }
+                } else {
+                    const matches = teacherAllocs.filter(a => a.dayOfWeek === day.full && matchAllocToSlotAsc(a, slot));
+                    if (matches.length === 0) {
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:72px;background:#fff;"></div></td>`;
+                    } else if (matches.length === 1) {
+                        const a = matches[0];
+                        const st = (a.stream && a.stream !== 'All Streams' && a.stream !== 'All') ? a.stream : '';
+                        const clsColor = getClassColor(a.className || '', st);
+                        const classCode = getClassShortCode(a.className, st);
+                        const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;background-color:${clsColor.bg};color:${clsColor.text};position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:4px 2px;overflow:hidden;"><span style="position:absolute;top:3px;left:4px;font-size:8.5px;font-weight:900;font-family:Arial;line-height:1;opacity:0.95;text-transform:uppercase;">${sCode}</span><span style="font-size:24px;font-weight:900;letter-spacing:-0.5px;text-transform:uppercase;font-family:Arial;line-height:1;text-align:center;margin-top:6px;">${classCode}</span></div></td>`;
+                    } else if (matches.length === 2) {
+                        const a1 = matches[0]; const a2 = matches[1];
+                        const st1 = (a1.stream && a1.stream !== 'All Streams' && a1.stream !== 'All') ? a1.stream : '';
+                        const st2 = (a2.stream && a2.stream !== 'All Streams' && a2.stream !== 'All') ? a2.stream : '';
+                        const cl1 = getClassColor(a1.className || '', st1); const cl2 = getClassColor(a2.className || '', st2);
+                        const code1 = getClassShortCode(a1.className, st1); const code2 = getClassShortCode(a2.className, st2);
+                        const sc1 = getSubjectCode(a1.subjectName, a1.subjectId); const sc2 = getSubjectCode(a2.subjectName, a2.subjectId);
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;position:relative;overflow:hidden;"><svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;min-height:72px;display:block;"><polygon points="0,0 100,0 100,100" fill="${cl1.bg}" /><polygon points="0,0 0,100 100,100" fill="${cl2.bg}" /><line x1="0" y1="0" x2="100" y2="100" stroke="#000" stroke-width="1.5" /><text x="68" y="22" fill="${cl1.text}" font-size="7.5" font-weight="900" text-anchor="middle" font-family="Arial">${sc1}</text><text x="72" y="52" fill="${cl1.text}" font-size="16" font-weight="900" text-anchor="middle" font-family="Arial">${code1}</text><text x="28" y="62" fill="${cl2.text}" font-size="7.5" font-weight="900" text-anchor="middle" font-family="Arial">${sc2}</text><text x="28" y="88" fill="${cl2.text}" font-size="16" font-weight="900" text-anchor="middle" font-family="Arial">${code2}</text></svg></div></td>`;
+                    } else {
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;display:flex;flex-direction:column;overflow:hidden;">${matches.map((a, idx) => { const st = (a.stream && a.stream !== 'All Streams' && a.stream !== 'All') ? a.stream : ''; const cl = getClassColor(a.className || '', st); const code = getClassShortCode(a.className, st); const sc = getSubjectCode(a.subjectName, a.subjectId); return `<div style="flex:1;background-color:${cl.bg};color:${cl.text};border-bottom:${idx < matches.length-1 ? '1px solid #000' : 'none'};display:flex;align-items:center;justify-content:space-between;padding:0 4px;box-sizing:border-box;"><span style="font-size:9px;font-weight:900;font-family:Arial;">${sc}</span><span style="font-size:11px;font-weight:900;font-family:Arial;">${code}</span></div>`; }).join('')}</div></td>`;
+                    }
+                }
+            });
+            return `<tr style="height:72px;min-height:72px;">${cellsHtml}</tr>`;
+        }).join('');
+
+        // Legend data
+        const subjMap = new Map<string, string>();
+        const clsMap = new Map<string, { name: string; stream: string; code: string; color: { bg: string; text: string } }>();
+        teacherAllocs.forEach(a => {
+            const sc = getSubjectCode(a.subjectName, a.subjectId);
+            if (sc && a.subjectName) subjMap.set(sc, a.subjectName);
+            const st = (a.stream && a.stream !== 'All Streams' && a.stream !== 'All') ? a.stream : '';
+            const code = getClassShortCode(a.className, st);
+            const key = `${a.className}_${st}`;
+            if (!clsMap.has(key)) clsMap.set(key, { name: a.className || '', stream: st, code, color: getClassColor(a.className || '', st) });
+        });
+        const swatchRows = Array.from(clsMap.values()).map(c => `<tr><td style="width:28px;padding:3px 5px;border:1px solid #000;"><div style="width:20px;height:20px;background:${c.color.bg};border:1px solid #ccc;border-radius:2px;"></div></td><td style="font-weight:900;font-size:10px;padding:3px 5px;border:1px solid #000;">${c.code}</td><td style="font-size:10px;padding:3px 5px;border:1px solid #000;">${c.name}${c.stream ? ` (${c.stream})` : ''}</td></tr>`).join('');
+        const subjRows = Array.from(subjMap.entries()).map(([code, name]) => `<tr><td style="font-weight:900;font-size:10px;padding:3px 5px;border:1px solid #000;text-align:center;">${code}</td><td style="font-size:10px;padding:3px 5px;border:1px solid #000;">${name}</td></tr>`).join('');
+
+        return `
+            <div class="teacher-page individual-tt-page">
+                <div style="text-align:center;margin-bottom:4px;">
+                    <h1 style="font-size:26px;font-weight:900;font-family:Arial,sans-serif;color:#000;margin:0;">Teacher ${teacher.name.toUpperCase()}</h1>
+                </div>
+                <div style="font-size:10px;font-weight:700;font-family:Arial,sans-serif;color:#000;margin-bottom:8px;display:flex;justify-content:space-between;">
+                    <span>${schoolName}</span>
+                    <span>${docWeek} &bull; ${docTerm} ${docYear} &bull; Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>
+                </div>
+                <table style="width:100%;border-collapse:collapse;border:2px solid #000;table-layout:fixed;margin-bottom:12px;">
+                    <thead>
+                        <tr style="background:#fff;border-bottom:2px solid #000;">
+                            <th style="width:55px;min-width:55px;border:1.5px solid #000;padding:4px 2px;"></th>
+                            ${ascStandardSlots.map(slot => `<th style="border:1.5px solid #000;${slot.isBreak ? 'width:38px;min-width:36px;max-width:42px;' : ''}padding:4px 2px;text-align:center;vertical-align:middle;background:#fff;"><div style="font-size:12px;font-weight:900;font-family:Arial;color:#000;line-height:1;">${slot.label}</div>${!slot.isBreak ? `<div style="font-size:7.5px;font-weight:normal;color:#333;font-family:Arial;margin-top:2px;white-space:nowrap;">${slot.timeRange}</div>` : ''}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;">
+                    <div>
+                        <div style="font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;font-family:Arial;">CLASS COLOUR KEY</div>
+                        <table style="width:100%;border-collapse:collapse;border:1px solid #000;font-size:9px;font-family:Arial;">
+                            <thead><tr style="background:#f8fafc;"><th style="padding:2px 4px;border:1px solid #000;">Color</th><th style="padding:2px 4px;border:1px solid #000;">Code</th><th style="padding:2px 4px;border:1px solid #000;">Class</th></tr></thead>
+                            <tbody>${swatchRows || '<tr><td colspan="3" style="text-align:center;padding:4px;color:#64748b;">No allocations</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div style="font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;font-family:Arial;">SUBJECT REFERENCE KEY</div>
+                        <table style="width:100%;border-collapse:collapse;border:1px solid #000;font-size:9px;font-family:Arial;">
+                            <thead><tr style="background:#f8fafc;"><th style="padding:2px 4px;border:1px solid #000;text-align:center;">Code</th><th style="padding:2px 4px;border:1px solid #000;">Subject</th></tr></thead>
+                            <tbody>${subjRows || '<tr><td colspan="2" style="text-align:center;padding:4px;color:#64748b;">-</td></tr>'}</tbody>
+                        </table>
+                        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px;">
+                            <div style="text-align:center;flex:1;"><div style="border-top:1.5px solid #000;padding-top:3px;font-size:9px;font-weight:800;text-transform:uppercase;font-family:Arial;">Director of Studies</div><div style="font-size:8px;color:#64748b;margin-top:1px;">Sign &amp; Date</div></div>
+                            <div style="text-align:center;flex:1;"><div style="border-top:1.5px solid #000;padding-top:3px;font-size:9px;font-weight:800;text-transform:uppercase;font-family:Arial;">Principal / Head</div><div style="font-size:8px;color:#64748b;margin-top:1px;">Official Stamp</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }, [allocations, ascStandardSlots, matchAllocToSlotAsc]);
+
+    // Generate HTML for a single Class Timetable
+    const buildClassTimetablePageHtml = useCallback((cls: { className: string; stream: string; shortCode: string; sortKey: string }, schoolName: string, docWeek: string, docTerm: string, docYear: string) => {
+        const classAllocs = allocations.filter(a =>
+            !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
+            (a.className === cls.className || a.courseId === cls.className) &&
+            matchAllocationStream(a, cls.stream)
+        );
+        const hasSat = classAllocs.some(a => a.dayOfWeek === 'Saturday');
+        const hasSun = classAllocs.some(a => a.dayOfWeek === 'Sunday');
+        const activeDays: { full: string; code: string }[] = [
+            { full: 'Monday', code: 'Mo' }, { full: 'Tuesday', code: 'Tu' },
+            { full: 'Wednesday', code: 'We' }, { full: 'Thursday', code: 'Th' },
+            { full: 'Friday', code: 'Fr' },
+        ];
+        if (hasSat) activeDays.push({ full: 'Saturday', code: 'Sa' });
+        if (hasSun) activeDays.push({ full: 'Sunday', code: 'Su' });
+
+        const rowsHtml = activeDays.map((day, dayIdx) => {
+            let cellsHtml = `<td style="width:55px;min-width:55px;background:#fff;border:1.5px solid #000;text-align:center;vertical-align:middle;padding:4px 2px;"><div style="font-size:26px;font-weight:900;font-family:Arial,sans-serif;color:#000;line-height:1;">${day.code}</div></td>`;
+            ascStandardSlots.forEach(slot => {
+                if (slot.isBreak) {
+                    if (dayIdx === 0) {
+                        cellsHtml += `<td rowspan="${activeDays.length}" style="width:38px;min-width:36px;max-width:42px;background:#fff;border:1.5px solid #000;text-align:center;vertical-align:middle;padding:0;"><div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:17px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#000;font-family:Arial,sans-serif;white-space:nowrap;margin:0 auto;">${slot.breakText || 'BREAK'}</div></td>`;
+                    }
+                } else {
+                    const matches = classAllocs.filter(a => a.dayOfWeek === day.full && matchAllocToSlotAsc(a, slot));
+                    if (matches.length === 0) {
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:72px;background:#fff;"></div></td>`;
+                    } else if (matches.length === 1) {
+                        const a = matches[0];
+                        const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                        const tCode = getTeacherCode(a.teacherId, a.teacherName, users);
+                        const subColor = getAscSubjectColor(a.subjectName, a.subjectId);
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;background-color:${subColor.bg};color:${subColor.text};position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:4px 2px;overflow:hidden;"><span style="position:absolute;top:3px;left:4px;font-size:9px;font-weight:900;font-family:Arial;line-height:1;opacity:0.95;text-transform:uppercase;">${sCode}</span><span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;text-transform:uppercase;font-family:Arial;line-height:1;text-align:center;margin-top:6px;">${tCode}</span></div></td>`;
+                    } else {
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;display:flex;flex-direction:column;overflow:hidden;">${matches.map((a, idx) => { const sCode = getSubjectCode(a.subjectName, a.subjectId); const tCode = getTeacherCode(a.teacherId, a.teacherName, users); const subColor = getAscSubjectColor(a.subjectName, a.subjectId); return `<div style="flex:1;background-color:${subColor.bg};color:${subColor.text};border-bottom:${idx < matches.length-1 ? '1px solid #000' : 'none'};display:flex;align-items:center;justify-content:space-between;padding:0 4px;box-sizing:border-box;"><span style="font-size:9px;font-weight:900;font-family:Arial;">${sCode}</span><span style="font-size:11px;font-weight:900;font-family:Arial;">${tCode}</span></div>`; }).join('')}</div></td>`;
+                    }
+                }
+            });
+            return `<tr style="height:72px;min-height:72px;">${cellsHtml}</tr>`;
+        }).join('');
+
+        // Legend data
+        const subjMap = new Map<string, { name: string; color: { bg: string; text: string } }>();
+        const teacherMap = new Map<string, string>();
+        classAllocs.forEach(a => {
+            const sc = getSubjectCode(a.subjectName, a.subjectId);
+            if (sc && a.subjectName && !subjMap.has(sc)) {
+                subjMap.set(sc, { name: a.subjectName, color: getAscSubjectColor(a.subjectName, a.subjectId) });
+            }
+            const tc = getTeacherCode(a.teacherId, a.teacherName, users);
+            if (tc && a.teacherName && !teacherMap.has(tc)) {
+                teacherMap.set(tc, a.teacherName);
+            }
+        });
+        const subjRows = Array.from(subjMap.entries()).map(([code, item]) => `<tr><td style="width:28px;padding:3px 5px;border:1px solid #000;"><div style="width:20px;height:20px;background:${item.color.bg};border:1px solid #ccc;border-radius:2px;"></div></td><td style="font-weight:900;font-size:10px;padding:3px 5px;border:1px solid #000;text-align:center;">${code}</td><td style="font-size:10px;padding:3px 5px;border:1px solid #000;">${item.name}</td></tr>`).join('');
+        const teacherRows = Array.from(teacherMap.entries()).map(([code, name]) => `<tr><td style="font-weight:900;font-size:10px;padding:3px 5px;border:1px solid #000;text-align:center;">${code}</td><td style="font-size:10px;padding:3px 5px;border:1px solid #000;">${name}</td></tr>`).join('');
+
+        return `
+            <div class="class-page individual-tt-page">
+                <div style="text-align:center;margin-bottom:4px;">
+                    <h1 style="font-size:26px;font-weight:900;font-family:Arial,sans-serif;color:#000;margin:0;">Class ${cls.shortCode} (${cls.className}${cls.stream ? ` - ${cls.stream}` : ''})</h1>
+                </div>
+                <div style="font-size:10px;font-weight:700;font-family:Arial,sans-serif;color:#000;margin-bottom:8px;display:flex;justify-content:space-between;">
+                    <span>${schoolName}</span>
+                    <span>${docWeek} &bull; ${docTerm} ${docYear} &bull; Generated: ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>
+                </div>
+                <table style="width:100%;border-collapse:collapse;border:2px solid #000;table-layout:fixed;margin-bottom:12px;">
+                    <thead>
+                        <tr style="background:#fff;border-bottom:2px solid #000;">
+                            <th style="width:55px;min-width:55px;border:1.5px solid #000;padding:4px 2px;"></th>
+                            ${ascStandardSlots.map(slot => `<th style="border:1.5px solid #000;${slot.isBreak ? 'width:38px;min-width:36px;max-width:42px;' : ''}padding:4px 2px;text-align:center;vertical-align:middle;background:#fff;"><div style="font-size:12px;font-weight:900;font-family:Arial;color:#000;line-height:1;">${slot.label}</div>${!slot.isBreak ? `<div style="font-size:7.5px;font-weight:normal;color:#333;font-family:Arial;margin-top:2px;white-space:nowrap;">${slot.timeRange}</div>` : ''}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;">
+                    <div>
+                        <div style="font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;font-family:Arial;">SUBJECT COLOUR KEY</div>
+                        <table style="width:100%;border-collapse:collapse;border:1px solid #000;font-size:9px;font-family:Arial;">
+                            <thead><tr style="background:#f8fafc;"><th style="padding:2px 4px;border:1px solid #000;">Color</th><th style="padding:2px 4px;border:1px solid #000;">Code</th><th style="padding:2px 4px;border:1px solid #000;">Subject</th></tr></thead>
+                            <tbody>${subjRows || '<tr><td colspan="3" style="text-align:center;padding:4px;color:#64748b;">No allocations</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div style="font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;font-family:Arial;">TEACHER REFERENCE KEY</div>
+                        <table style="width:100%;border-collapse:collapse;border:1px solid #000;font-size:9px;font-family:Arial;">
+                            <thead><tr style="background:#f8fafc;"><th style="padding:2px 4px;border:1px solid #000;text-align:center;">Code</th><th style="padding:2px 4px;border:1px solid #000;">Teacher Name</th></tr></thead>
+                            <tbody>${teacherRows || '<tr><td colspan="2" style="text-align:center;padding:4px;color:#64748b;">-</td></tr>'}</tbody>
+                        </table>
+                        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px;">
+                            <div style="text-align:center;flex:1;"><div style="border-top:1.5px solid #000;padding-top:3px;font-size:9px;font-weight:800;text-transform:uppercase;font-family:Arial;">Director of Studies</div><div style="font-size:8px;color:#64748b;margin-top:1px;">Sign &amp; Date</div></div>
+                            <div style="text-align:center;flex:1;"><div style="border-top:1.5px solid #000;padding-top:3px;font-size:9px;font-weight:800;text-transform:uppercase;font-family:Arial;">Principal / Head</div><div style="font-size:8px;color:#64748b;margin-top:1px;">Official Stamp</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }, [allocations, ascStandardSlots, matchAllocToSlotAsc, users]);
+
+    // Build the complete HTML document for single preview or multi-page printing
+    const generateIndividualTimetableDoc = useCallback((type: 'teacher' | 'class', targetId: string, isPreview: boolean = false) => {
+        const schoolName = String(currentInstitution?.name || 'SCHOOL').toUpperCase();
+        const docWeek = timetableWeek || 'WEEK 1';
+        const docTerm = timetableTerm || 'TERM 1';
+        const docYear = timetableYear || new Date().getFullYear().toString();
+
+        let pagesHtml = '';
+        if (type === 'teacher') {
+            const list = targetId === 'All' ? teachersWithAllocs : teachersWithAllocs.filter(t => t.id === targetId);
+            pagesHtml = (list.length > 0 ? list : teachersWithAllocs.slice(0, 1))
+                .map(t => buildTeacherTimetablePageHtml(t, schoolName, docWeek, docTerm, docYear))
+                .join('');
+        } else {
+            const list = targetId === 'All' ? classesWithAllocs : classesWithAllocs.filter(c => c.sortKey === targetId || `${c.className}_${c.stream}` === targetId);
+            pagesHtml = (list.length > 0 ? list : classesWithAllocs.slice(0, 1))
+                .map(c => buildClassTimetablePageHtml(c, schoolName, docWeek, docTerm, docYear))
+                .join('');
+        }
+
+        if (!pagesHtml) {
+            pagesHtml = `<div style="text-align:center;padding:60px;font-family:Arial;color:#64748b;"><h2>No timetable allocations found for this selection.</h2></div>`;
+        }
+
+        const autoPrintScript = !isPreview ? `<script>window.onload=function(){setTimeout(function(){window.focus();window.print();},350);};</script>` : '';
+
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>${type === 'teacher' ? 'Teacher' : 'Class'} Timetable - ${schoolName}</title>
+    <style>
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+        body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: ${isPreview ? '24px 16px' : '8px'}; background: ${isPreview ? '#f1f5f9' : '#fff'}; color: #000; }
+        .individual-tt-page {
+            background: #fff;
+            padding: ${isPreview ? '28px 32px' : '4px 0 16px 0'};
+            ${isPreview ? 'max-width: 1040px; margin: 0 auto 30px auto; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); border: 1px solid #cbd5e1;' : ''}
+            page-break-after: always;
+            break-after: page;
+        }
+        .individual-tt-page:last-child { page-break-after: avoid; break-after: avoid; margin-bottom: 0; }
+        table { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        @page { size: A4 landscape; margin: 8mm 10mm; }
+        @media print {
+            body { background: #fff !important; padding: 4px !important; }
+            .individual-tt-page { box-shadow: none !important; border: none !important; border-radius: 0 !important; max-width: 100% !important; margin: 0 !important; padding: 4px 0 16px 0 !important; }
+        }
+    </style>
+</head>
+<body>
+    ${pagesHtml}
+    ${autoPrintScript}
+</body>
+</html>`;
+    }, [currentInstitution, timetableWeek, timetableTerm, timetableYear, teachersWithAllocs, classesWithAllocs, buildTeacherTimetablePageHtml, buildClassTimetablePageHtml]);
+
+    // Handle Direct Printing of Individual Timetables
+    const handlePrintIndividualTimetable = useCallback((type: 'teacher' | 'class', targetId: string) => {
+        const fullHtml = generateIndividualTimetableDoc(type, targetId, false);
+        const printWindow = window.open('', '_blank', 'width=1150,height=800');
+        if (printWindow) {
+            printWindow.document.write(fullHtml);
+            printWindow.document.close();
+        } else {
+            window.print();
+        }
+    }, [generateIndividualTimetableDoc]);
+
+    // Backward-compatible shortcut
+    const handlePrintTeacherTimetable = () => {
+        handlePrintIndividualTimetable('teacher', selectedTimetableTeacher);
+    };
+
     // Parent Billing Calculations (Term Fee billing)
     const billingSummary = useMemo(() => {
         const students = users.filter(u => u.role === 'student' && u.institutionId === institutionId);
@@ -8525,14 +8879,50 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     </button>
                                 </div>
 
-                                {/* Print Timetable */}
+                                {/* Print Timetable Grid */}
                                 <button
                                     onClick={handlePrintTimetable}
-                                    className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white hover:opacity-90 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm shrink-0"
+                                    className="px-3.5 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white hover:opacity-90 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+                                    title="Print the full master timetable grid"
                                 >
-                                    <Printer className="w-4 h-4" /> Print Timetable Grid
+                                    <Printer className="w-4 h-4" /> Print Master Grid
                                 </button>
+
+                                {/* Preview & Print Individual Timetable Modal Trigger */}
+                                <button
+                                    onClick={() => {
+                                        setIndividualPreviewType('teacher');
+                                        setPreviewSelectedId(selectedTimetableTeacher !== 'All' ? selectedTimetableTeacher : (teachersWithAllocs[0]?.id || 'All'));
+                                        setShowIndividualPreviewModal(true);
+                                    }}
+                                    className="px-3.5 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+                                    title="Preview and print individual Teacher or Class timetables (aSc layout)"
+                                >
+                                    <Eye className="w-4 h-4" /> Preview Individual TT
+                                </button>
+
+                                {/* Direct Teacher TT Quick-Print */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <select
+                                        value={selectedTimetableTeacher}
+                                        onChange={e => setSelectedTimetableTeacher(e.target.value)}
+                                        className="bg-slate-50 dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-xl px-2 py-1.5 text-xs font-bold outline-none focus:border-emerald-500 dark:text-white max-w-[150px]"
+                                    >
+                                        <option value="All">All Teachers</option>
+                                        {teachersWithAllocs.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={handlePrintTeacherTimetable}
+                                        className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1 shadow-sm shrink-0"
+                                        title="Direct print individual teacher timetable (aSc grid)"
+                                    >
+                                        <Printer className="w-3.5 h-3.5" /> Teacher TT
+                                    </button>
+                                </div>
                             </div>
+
 
                             {/* Filters row */}
                             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/50">
@@ -13912,6 +14302,206 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         >
                             Close
                         </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
+
+        {/* MODAL 9: INDIVIDUAL TIMETABLE PREVIEW & PRINT MODAL (aSc Style) */}
+        {showIndividualPreviewModal && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in duration-200"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget) setShowIndividualPreviewModal(false);
+                }}
+            >
+                <div 
+                    className="bg-slate-900 border border-slate-700/80 rounded-[2rem] w-full max-w-[1280px] h-[94vh] flex flex-col shadow-2xl overflow-hidden relative"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="p-4 sm:px-6 bg-slate-900 text-white flex flex-wrap justify-between items-center gap-3 border-b border-slate-800 shrink-0">
+                        {/* Title & Type Switcher */}
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-2xl text-white shadow-md">
+                                <Eye className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-2">
+                                    Individual Timetable Preview
+                                    <span className="text-[10px] font-bold text-violet-400 bg-violet-950/80 px-2 py-0.5 rounded-full border border-violet-800">
+                                        aSc Grid Style
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-slate-400">
+                                    High-resolution landscape preview &amp; printing for teachers and classes
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Controls: Type Switcher + Target Selector + Pager */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Switcher: Teacher vs Class */}
+                            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+                                <button
+                                    onClick={() => {
+                                        setIndividualPreviewType('teacher');
+                                        setPreviewSelectedId(teachersWithAllocs[0]?.id || 'All');
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                        individualPreviewType === 'teacher'
+                                            ? 'bg-violet-600 text-white shadow-xs'
+                                            : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <Users className="w-3.5 h-3.5" /> Teachers ({teachersWithAllocs.length})
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIndividualPreviewType('class');
+                                        setPreviewSelectedId(classesWithAllocs[0]?.sortKey || 'All');
+                                    }}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                        individualPreviewType === 'class'
+                                            ? 'bg-violet-600 text-white shadow-xs'
+                                            : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" /> Classes ({classesWithAllocs.length})
+                                </button>
+                            </div>
+
+                            {/* Dropdown Selector */}
+                            <div className="flex items-center gap-1">
+                                {individualPreviewType === 'teacher' ? (
+                                    <select
+                                        value={previewSelectedId}
+                                        onChange={e => setPreviewSelectedId(e.target.value)}
+                                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-violet-500 max-w-[200px]"
+                                    >
+                                        <option value="All">All Teachers (Batch Print)</option>
+                                        {teachersWithAllocs.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <select
+                                        value={previewSelectedId}
+                                        onChange={e => setPreviewSelectedId(e.target.value)}
+                                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-violet-500 max-w-[200px]"
+                                    >
+                                        <option value="All">All Classes (Batch Print)</option>
+                                        {classesWithAllocs.map(c => (
+                                            <option key={c.sortKey} value={c.sortKey}>
+                                                {c.shortCode} - {c.className}{c.stream ? ` (${c.stream})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+
+                                {/* Pager arrows (Prev / Next) */}
+                                {individualPreviewType === 'teacher' ? (() => {
+                                    const currentIdx = teachersWithAllocs.findIndex(t => t.id === previewSelectedId);
+                                    const canPrev = currentIdx > 0;
+                                    const canNext = currentIdx >= 0 && currentIdx < teachersWithAllocs.length - 1;
+                                    return (
+                                        <div className="flex items-center gap-0.5">
+                                            <button
+                                                disabled={!canPrev}
+                                                onClick={() => {
+                                                    if (canPrev) setPreviewSelectedId(teachersWithAllocs[currentIdx - 1].id);
+                                                }}
+                                                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
+                                                title="Previous Teacher"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                disabled={!canNext}
+                                                onClick={() => {
+                                                    if (canNext) setPreviewSelectedId(teachersWithAllocs[currentIdx + 1].id);
+                                                }}
+                                                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
+                                                title="Next Teacher"
+                                            >
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    );
+                                })() : (() => {
+                                    const currentIdx = classesWithAllocs.findIndex(c => c.sortKey === previewSelectedId);
+                                    const canPrev = currentIdx > 0;
+                                    const canNext = currentIdx >= 0 && currentIdx < classesWithAllocs.length - 1;
+                                    return (
+                                        <div className="flex items-center gap-0.5">
+                                            <button
+                                                disabled={!canPrev}
+                                                onClick={() => {
+                                                    if (canPrev) setPreviewSelectedId(classesWithAllocs[currentIdx - 1].sortKey);
+                                                }}
+                                                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
+                                                title="Previous Class"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                disabled={!canNext}
+                                                onClick={() => {
+                                                    if (canNext) setPreviewSelectedId(classesWithAllocs[currentIdx + 1].sortKey);
+                                                }}
+                                                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none"
+                                                title="Next Class"
+                                            >
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
+                            {/* Print Selected Button */}
+                            <button
+                                onClick={() => handlePrintIndividualTimetable(individualPreviewType, previewSelectedId)}
+                                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                                title="Print current timetable in landscape A4"
+                            >
+                                <Printer className="w-4 h-4" /> Print Timetable
+                            </button>
+
+                            {/* Print All Batch */}
+                            {previewSelectedId !== 'All' && (
+                                <button
+                                    onClick={() => handlePrintIndividualTimetable(individualPreviewType, 'All')}
+                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+                                    title={`Print all ${individualPreviewType === 'teacher' ? 'teachers' : 'classes'} in batch`}
+                                >
+                                    Print All ({individualPreviewType === 'teacher' ? teachersWithAllocs.length : classesWithAllocs.length})
+                                </button>
+                            )}
+
+                            {/* Close */}
+                            <button
+                                onClick={() => setShowIndividualPreviewModal(false)}
+                                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Preview Body: Embedded sandboxed iframe with true A4 rendering */}
+                    <div className="flex-1 bg-slate-950 p-2 sm:p-4 overflow-hidden flex flex-col">
+                        <iframe
+                            ref={previewIframeRef}
+                            srcDoc={generateIndividualTimetableDoc(
+                                individualPreviewType, 
+                                previewSelectedId || (individualPreviewType === 'teacher' ? teachersWithAllocs[0]?.id || 'All' : classesWithAllocs[0]?.sortKey || 'All'), 
+                                true
+                            )}
+                            className="w-full h-full rounded-2xl border border-slate-800 bg-slate-100 shadow-inner"
+                            title="Individual Timetable Preview"
+                        />
                     </div>
                 </div>
             </div>,
