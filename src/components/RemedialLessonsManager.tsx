@@ -1451,39 +1451,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
 
         // Weekday standard remedial slots:
-        // Period 1: Morning 07:00 - 08:10 (Early Bird remedial period)
-        // Period 2: Evening Early (e.g. 16:00 - 17:00)
-        // Period 3: Evening Late (e.g. 17:00 - 18:00)
+        // STRICT institutional rule: 1 remedial period per weekday per class
         const wStart = weekdayStartTime || '16:00';
         const wEnd = weekdayEndTime || '18:00';
-        const wMid = addMinutesToTime(wStart, 60);
 
         const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [
-            { periodNum: 1, startTime: '07:00', endTime: '08:10', label: 'Period 1 • Early Bird (07:00 - 08:10)' },
-            { periodNum: 2, startTime: wStart, endTime: wMid, label: `Period 2 • Evening A (${wStart} - ${wMid})` },
-            { periodNum: 3, startTime: wMid, endTime: wEnd, label: `Period 3 • Evening B (${wMid} - ${wEnd})` }
+            { periodNum: 1, startTime: wStart, endTime: wEnd, label: `Period 1 • Remedial (${wStart} - ${wEnd})` }
         ];
 
-        // Also add any other active start times on that day
-        const existingTimes = Array.from(new Set(
-            allocations.filter(a => a.dayOfWeek === allocDay && a.startTime).map(a => a.startTime as string)
-        )).sort();
-
-        existingTimes.forEach(t => {
-            if (!slots.some(s => s.startTime === t)) {
-                const matchA = allocations.find(a => a.dayOfWeek === allocDay && a.startTime === t);
-                const endT = matchA?.endTime || addMinutesToTime(t, 60);
-                slots.push({
-                    periodNum: slots.length + 1,
-                    startTime: t,
-                    endTime: endT,
-                    label: `Slot (${t} - ${endT})`
-                });
-            }
-        });
-
         return slots;
-    }, [allocDay, saturdayStartTime, saturdayEndTime, saturdayBreakStartTime, saturdayBreakEndTime, includeSaturdayBreak, sundayStartTime, sundayEndTime, sundayBreakStartTime, sundayBreakEndTime, includeSundayBreak, weekdayStartTime, weekdayEndTime, allocations]);
+    }, [allocDay, saturdayStartTime, saturdayEndTime, saturdayBreakStartTime, saturdayBreakEndTime, includeSaturdayBreak, sundayStartTime, sundayEndTime, sundayBreakStartTime, sundayBreakEndTime, includeSundayBreak, weekdayStartTime, weekdayEndTime]);
 
     // Active slot conflict detection for currently selected start and end time
     const activeModalSlotConflicts = useMemo(() => {
@@ -1535,6 +1512,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return { isAvailable: false, isBreak: true, reason: 'Break / Recess', badgeColor: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300' };
         }
 
+        const isWeekend = ['Saturday', 'Sunday'].includes(allocDay);
+
         const classConflicts = allocations.filter(a => {
             if (a.dayOfWeek !== allocDay) return false;
             if (editingAlloc && a.id === editingAlloc.id) return false;
@@ -1550,6 +1529,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
             if (!streamOverlaps) return false;
 
+            // On weekdays: strict 1 period per day rule applies
+            if (!isWeekend) return true;
+
             const aStart = a.startTime || '00:00';
             const aEnd = a.endTime || '23:59';
             return (slot.startTime === aStart) || (slot.startTime < aEnd && slot.endTime > aStart);
@@ -1561,7 +1543,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 isAvailable: false,
                 isClassOccupied: true,
                 count: classConflicts.length,
-                reason: `${first.subjectName || 'Subject'} (${first.teacherName || 'Teacher'})`,
+                reason: isWeekend ? `${first.subjectName || 'Subject'} (${first.teacherName || 'Teacher'})` : `${first.subjectName || 'Subject'} already scheduled on ${allocDay}`,
                 conflicts: classConflicts,
                 badgeColor: 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
             };
@@ -1597,6 +1579,204 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             badgeColor: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
         };
     };
+
+    // Auto-find next conflict-free available slot for class & teacher in manual modal
+    const handleAutoFindBestSlotForModal = useCallback(() => {
+        if (!allocCourseId) {
+            alert('Please select a Class / Grade first so the system can evaluate available slots.');
+            return;
+        }
+
+        const selCourse = courses.find(c => c.id === allocCourseId);
+        const courseName = selCourse?.name || '';
+        const effectiveStream = isJointAlloc ? (jointStreamsSelected[0] || 'All Streams') : (allocStream === '__custom__' ? customAllocStream.trim() : allocStream);
+
+        // Subject restrictions
+        const subCfg = remedialSubjects.find(rs => 
+            rs.subjectId === allocSubjectId || 
+            rs.id === allocSubjectId ||
+            (rs.subjectName && (
+                rs.subjectName.trim().toLowerCase() === (customSubjectName || '').trim().toLowerCase() ||
+                rs.subjectName.trim().toLowerCase() === String(allocSubjectId).trim().toLowerCase()
+            ))
+        );
+
+        let candidateDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[] = [
+            'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+        ];
+
+        if (subCfg?.allowedDays && subCfg.allowedDays.length > 0) {
+            candidateDays = candidateDays.filter(d => (subCfg.allowedDays as string[]).includes(d));
+        } else if (subCfg?.preferredDayType === 'weekends') {
+            candidateDays = ['Saturday', 'Sunday'];
+        } else if (subCfg?.preferredDayType === 'weekdays') {
+            candidateDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        }
+
+        if (candidateDays.length === 0) {
+            alert('No permitted days configured for this subject. Please check Subject Settings.');
+            return;
+        }
+
+        let foundMatch: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string } | null = null;
+
+        for (const day of candidateDays) {
+            const isWeekend = ['Saturday', 'Sunday'].includes(day);
+
+            if (!isWeekend) {
+                // Strict 1 period per day rule for weekdays
+                const classHasWeekdayLesson = allocations.some(a => {
+                    if (editingAlloc && a.id === editingAlloc.id) return false;
+                    if (a.dayOfWeek !== day) return false;
+                    const sameCourse = a.courseId === allocCourseId || a.className === courseName;
+                    if (!sameCourse) return false;
+                    if (isJointAlloc) {
+                        return jointStreamsSelected.some(js => matchAllocationStream(a, js) || matchAllocationStream({ stream: js }, a.stream));
+                    }
+                    return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
+                });
+
+                if (classHasWeekdayLesson) continue;
+
+                const startT = weekdayStartTime || '16:00';
+                const endT = weekdayEndTime || '18:00';
+
+                // Check teacher availability if teacher is selected
+                let teacherBusy = false;
+                if (allocTeacherId) {
+                    teacherBusy = allocations.some(a => {
+                        if (editingAlloc && a.id === editingAlloc.id) return false;
+                        if (a.teacherId !== allocTeacherId) return false;
+                        if (a.dayOfWeek !== day) return false;
+                        if (isJointAlloc && (a.courseId === allocCourseId || a.className === courseName)) return false;
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        return (startT === aStart) || (startT < aEnd && endT > aStart);
+                    });
+                }
+
+                if (!teacherBusy) {
+                    foundMatch = { day, startTime: startT, endTime: endT };
+                    break;
+                }
+            } else if (day === 'Saturday') {
+                const satAllocs = allocations.filter(a => {
+                    if (editingAlloc && a.id === editingAlloc.id) return false;
+                    if (a.dayOfWeek !== 'Saturday') return false;
+                    const sameCourse = a.courseId === allocCourseId || a.className === courseName;
+                    if (!sameCourse) return false;
+                    return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
+                });
+
+                const limit = maxWeekendLessonsPerDay || 2;
+                if (satAllocs.length >= limit) continue;
+
+                // Candidate slots for Saturday
+                const satSlots: { start: string; end: string; periodNum: number }[] = [];
+                if (includeSaturdayBreak) {
+                    satSlots.push({ start: saturdayStartTime || '08:00', end: saturdayBreakStartTime || '10:00', periodNum: 1 });
+                    satSlots.push({ start: saturdayBreakEndTime || '10:30', end: saturdayEndTime || '12:30', periodNum: 2 });
+                } else {
+                    satSlots.push({ start: saturdayStartTime || '08:00', end: '10:00', periodNum: 1 });
+                    satSlots.push({ start: '10:00', end: saturdayEndTime || '12:00', periodNum: 2 });
+                }
+
+                for (const slot of satSlots) {
+                    if (subCfg?.allowedPeriods && subCfg.allowedPeriods.length > 0 && !subCfg.allowedPeriods.includes(slot.periodNum)) {
+                        continue;
+                    }
+                    const slotOccupied = satAllocs.some(a => {
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        return (slot.start === aStart) || (slot.start < aEnd && slot.end > aStart);
+                    });
+                    if (slotOccupied) continue;
+
+                    let tBusy = false;
+                    if (allocTeacherId) {
+                        tBusy = allocations.some(a => {
+                            if (editingAlloc && a.id === editingAlloc.id) return false;
+                            if (a.teacherId !== allocTeacherId) return false;
+                            if (a.dayOfWeek !== 'Saturday') return false;
+                            if (isJointAlloc && (a.courseId === allocCourseId || a.className === courseName)) return false;
+                            const aStart = a.startTime || '00:00';
+                            const aEnd = a.endTime || '23:59';
+                            return (slot.start === aStart) || (slot.start < aEnd && slot.end > aStart);
+                        });
+                    }
+
+                    if (!tBusy) {
+                        foundMatch = { day: 'Saturday', startTime: slot.start, endTime: slot.end };
+                        break;
+                    }
+                }
+                if (foundMatch) break;
+            } else if (day === 'Sunday') {
+                const sunAllocs = allocations.filter(a => {
+                    if (editingAlloc && a.id === editingAlloc.id) return false;
+                    if (a.dayOfWeek !== 'Sunday') return false;
+                    const sameCourse = a.courseId === allocCourseId || a.className === courseName;
+                    if (!sameCourse) return false;
+                    return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
+                });
+
+                const limit = maxWeekendLessonsPerDay || 2;
+                if (sunAllocs.length >= limit) continue;
+
+                // Candidate slots for Sunday
+                const sunSlots: { start: string; end: string; periodNum: number }[] = [];
+                if (includeSundayBreak) {
+                    sunSlots.push({ start: sundayStartTime || '09:00', end: sundayBreakStartTime || '11:00', periodNum: 1 });
+                    sunSlots.push({ start: sundayBreakEndTime || '11:30', end: sundayEndTime || '13:30', periodNum: 2 });
+                } else {
+                    sunSlots.push({ start: sundayStartTime || '09:00', end: '11:00', periodNum: 1 });
+                    sunSlots.push({ start: '11:00', end: sundayEndTime || '13:00', periodNum: 2 });
+                }
+
+                for (const slot of sunSlots) {
+                    if (subCfg?.allowedPeriods && subCfg.allowedPeriods.length > 0 && !subCfg.allowedPeriods.includes(slot.periodNum)) {
+                        continue;
+                    }
+                    const slotOccupied = sunAllocs.some(a => {
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        return (slot.start === aStart) || (slot.start < aEnd && slot.end > aStart);
+                    });
+                    if (slotOccupied) continue;
+
+                    let tBusy = false;
+                    if (allocTeacherId) {
+                        tBusy = allocations.some(a => {
+                            if (editingAlloc && a.id === editingAlloc.id) return false;
+                            if (a.teacherId !== allocTeacherId) return false;
+                            if (a.dayOfWeek !== 'Sunday') return false;
+                            if (isJointAlloc && (a.courseId === allocCourseId || a.className === courseName)) return false;
+                            const aStart = a.startTime || '00:00';
+                            const aEnd = a.endTime || '23:59';
+                            return (slot.start === aStart) || (slot.start < aEnd && slot.end > aStart);
+                        });
+                    }
+
+                    if (!tBusy) {
+                        foundMatch = { day: 'Sunday', startTime: slot.start, endTime: slot.end };
+                        break;
+                    }
+                }
+                if (foundMatch) break;
+            }
+        }
+
+        if (foundMatch) {
+            setAllocDay(foundMatch.day);
+            setAllocStartTime(foundMatch.startTime);
+            setAllocEndTime(foundMatch.endTime);
+            setAllowManualCollisionOverride(false);
+            const teacherName = teachersList.find(t => t.id === allocTeacherId)?.name || 'Selected Teacher';
+            alert(`⚡ Auto-Allocated Free Slot:\n\n• Day: ${foundMatch.day}\n• Time: ${foundMatch.startTime} - ${foundMatch.endTime}\n• Class: ${courseName} (${effectiveStream})\n• Teacher: ${teacherName}\n\nBoth class and teacher are completely free at this period.`);
+        } else {
+            alert(`No conflict-free slots found across permitted days (${candidateDays.join(', ')}) for this class and teacher.\n\nAll candidate periods are already booked. You can check the Unallocated shelf or enable 'Allow manual override'.`);
+        }
+    }, [allocCourseId, courses, isJointAlloc, jointStreamsSelected, allocStream, customAllocStream, remedialSubjects, allocSubjectId, customSubjectName, allocations, editingAlloc, weekdayStartTime, weekdayEndTime, allocTeacherId, maxWeekendLessonsPerDay, includeSaturdayBreak, saturdayStartTime, saturdayBreakStartTime, saturdayBreakEndTime, saturdayEndTime, includeSundayBreak, sundayStartTime, sundayBreakStartTime, sundayBreakEndTime, sundayEndTime, teachersList]);
 
     // Available streams for manual session log modal
     const availableStreamsForManualLog = useMemo(() => {
@@ -12853,7 +13033,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                         {/* Day of Week */}
                         <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Day of Week</label>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Day of Week</label>
+                                <button
+                                    type="button"
+                                    onClick={handleAutoFindBestSlotForModal}
+                                    className="text-[9.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1"
+                                    title="Auto-scan all days and pick the first free day & slot"
+                                >
+                                    <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                    Auto-Find Free Day
+                                </button>
+                            </div>
                             <div className="grid grid-cols-7 gap-1">
                                 {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const).map((short, i) => {
                                     const fullDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
@@ -12905,9 +13096,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
                                     Available Periods ({allocDay})
                                 </label>
-                                <span className="text-[9px] font-bold text-slate-400">
-                                    Click any free slot to apply
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleAutoFindBestSlotForModal}
+                                        className="px-2.5 py-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs hover:shadow-xs transition-all active:scale-95"
+                                        title="Automatically find and apply the next conflict-free slot for this class and teacher"
+                                    >
+                                        <Zap className="w-3 h-3 fill-amber-300 text-amber-300" />
+                                        Auto-Allocate Free Slot
+                                    </button>
+                                    <span className="text-[9px] font-bold text-slate-400 hidden sm:inline">
+                                        Click slot to apply
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
