@@ -9,7 +9,7 @@ import {
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
-    Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt
+    Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
@@ -94,10 +94,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Pending Headteacher Approval' | 'Pending Operations Payout' | 'Cash Issued to DOS' | 'Approved' | 'Paid'>('all');
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
-    const [allocViewMode, setAllocViewMode] = useState<'asc_grid' | 'day_columns'>('asc_grid');
+    const [allocViewMode, setAllocViewMode] = useState<'asc_grid' | 'day_columns' | 'unallocated'>('asc_grid');
     const [ascDayScope, setAscDayScope] = useState<'all' | 'weekdays' | 'weekend' | 'Saturday' | 'Sunday'>('all');
     const [selectedCellAlloc, setSelectedCellAlloc] = useState<RemedialAllocation | null>(null);
     const [ascClassSearchQuery, setAscClassSearchQuery] = useState('');
+
+    // Unallocated lessons waiting for free timetable periods
+    const unallocatedAllocations = useMemo(() => {
+        return allocations.filter(a => a.isUnallocated || a.dayOfWeek === ('Unallocated' as any) || !a.dayOfWeek || !a.startTime);
+    }, [allocations]);
 
     // Weekend Duty Roster State
     const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>([]);
@@ -3374,6 +3379,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         allDistinctCls.forEach(cls => {
             days.forEach(day => {
                 const classDayAllocs = allocations.filter(a =>
+                    !a.isUnallocated && a.dayOfWeek !== 'Unallocated' && !!a.startTime &&
                     a.dayOfWeek === day &&
                     (a.courseId === cls.className || a.className === cls.className) &&
                     matchAllocationStream(a, cls.stream)
@@ -3422,7 +3428,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         // 2. Detect Teacher Double-Booking Collisions
         days.forEach(day => {
             const teacherMap = new Map<string, RemedialAllocation[]>();
-            allocations.filter(a => a.dayOfWeek === day && a.teacherId).forEach(a => {
+            allocations.filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated' && !!a.startTime && a.dayOfWeek === day && a.teacherId).forEach(a => {
                 const list = teacherMap.get(a.teacherId) || [];
                 list.push(a);
                 teacherMap.set(a.teacherId, list);
@@ -3489,6 +3495,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 startTime: targetStart,
                 endTime: targetEnd,
                 isWeekend,
+                isUnallocated: false,
+                unallocatedReason: undefined,
                 updatedAt: new Date().toISOString()
             };
             if (typeof (apiService as any).saveRemedialAllocation === 'function') {
@@ -3507,6 +3515,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             await loadData();
         } catch (err: any) {
             alert('Failed to move allocation: ' + (err as any).message);
+        }
+    };
+
+    // Move single allocation to unallocated pool
+    const handleMoveAllocToUnallocated = async (alloc: RemedialAllocation, reason?: string) => {
+        try {
+            const updated: RemedialAllocation = {
+                ...alloc,
+                isUnallocated: true,
+                unallocatedReason: reason || 'Manually moved to Unallocated shelf to ensure 1 lesson per period',
+                dayOfWeek: 'Unallocated' as any,
+                startTime: '',
+                endTime: '',
+                isWeekend: false,
+                updatedAt: new Date().toISOString()
+            };
+            if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                await (apiService as any).saveRemedialAllocation(updated);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_allocations', updated);
+            }
+            onLogAction?.(`Moved ${alloc.subjectName} allocation to Unallocated tab`);
+            alert(`Moved ${alloc.subjectName} to Unallocated tab! The timetable slot is now cleared.`);
+            setMultiAllocCellItems(prev => {
+                if (!prev) return null;
+                const remaining = prev.allocations.filter(a => a.id !== alloc.id);
+                if (remaining.length <= 1) return null;
+                return { ...prev, allocations: remaining };
+            });
+            await loadData();
+        } catch (err: any) {
+            alert('Failed to move to unallocated: ' + (err as any).message);
         }
     };
 
@@ -3532,11 +3572,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const totalToMove = targetsToResolve.reduce((acc, t) => acc + t.others.length, 0);
         const confirmMsg = 
             `Auto-Spread & Resolve Timetable Overlaps?\n\n` +
-            `• Conflicting Lessons to Move: ${totalToMove}\n` +
-            `• Strategy: The 1st lesson in each conflicting slot remains in place.\n` +
-            `• Destination: Duplicate lessons will be intelligently spread across unoccupied remedial slots (Wednesday, Thursday, Friday, Saturday, Sunday).\n` +
-            `• Guarantee: Strict zero-clash policy for both classes and teachers.\n\n` +
-            `Proceed with automatic redistribution?`;
+            `• Overlapping Lessons to Resolve: ${totalToMove}\n` +
+            `• Rule: Exactly 1 lesson per period (apart from joint subjects).\n` +
+            `• Redistribution: Moves lessons to free periods across Wed, Thu, Fri, Mon, Sat, Sun.\n` +
+            `• Safety Fallback: Any lessons with no free slots will be moved to the 'Unallocated' tab.\n\n` +
+            `Proceed with auto-spread?`;
 
         if (!window.confirm(confirmMsg)) return;
 
@@ -3544,6 +3584,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         try {
             let workingSet = [...allocations];
             const updatedAllocs: RemedialAllocation[] = [];
+            let redistributedCount = 0;
+            let unallocatedCount = 0;
 
             // Candidate slots in order of priority:
             const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
@@ -3586,6 +3628,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         // Class collision check
                         const classBusy = workingSet.some(a => {
                             if (a.id === allocToMove.id) return false;
+                            if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
                             if (a.dayOfWeek !== candidate.day) return false;
                             const sameCourse = a.courseId === classId || a.className === className;
                             if (!sameCourse) return false;
@@ -3600,6 +3643,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         // Teacher collision check
                         const teacherBusy = workingSet.some(a => {
                             if (a.id === allocToMove.id) return false;
+                            if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
                             if (a.teacherId !== allocToMove.teacherId) return false;
                             if (a.dayOfWeek !== candidate.day) return false;
                             const aStart = a.startTime || '00:00';
@@ -3620,10 +3664,28 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             startTime: assignedSlot.startTime,
                             endTime: assignedSlot.endTime,
                             isWeekend: assignedSlot.isWeekend,
+                            isUnallocated: false,
+                            unallocatedReason: undefined,
                             updatedAt: new Date().toISOString()
                         };
                         workingSet = workingSet.map(a => a.id === updated.id ? updated : a);
                         updatedAllocs.push(updated);
+                        redistributedCount++;
+                    } else {
+                        // NO OPEN SLOT FOUND: Move to Unallocated tab so original period only has 1 lesson!
+                        const updated: RemedialAllocation = {
+                            ...allocToMove,
+                            isUnallocated: true,
+                            unallocatedReason: `Moved to Unallocated Tab: All alternative slots on Wed, Thu, Fri, Mon, Sat, Sun were occupied or clashing.`,
+                            dayOfWeek: 'Unallocated' as any,
+                            startTime: '',
+                            endTime: '',
+                            isWeekend: false,
+                            updatedAt: new Date().toISOString()
+                        };
+                        workingSet = workingSet.map(a => a.id === updated.id ? updated : a);
+                        updatedAllocs.push(updated);
+                        unallocatedCount++;
                     }
                 }
             }
@@ -3637,18 +3699,133 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
             }
 
-            onLogAction?.(`Auto-resolved ${updatedAllocs.length} overlapping remedial lessons across timetable.`);
-            alert(
-                `Timetable Overlaps Resolved Successfully!\n\n` +
-                `• ${updatedAllocs.length} overlapping lesson(s) have been redistributed to free slots across the week.\n` +
-                `• All conflicting slots have been spread cleanly.`
-            );
+            onLogAction?.(`Auto-resolved overlaps: ${redistributedCount} redistributed to free periods, ${unallocatedCount} moved to unallocated tab.`);
+            
+            let summaryMsg = `Timetable Overlaps Resolved Successfully!\n\n`;
+            if (redistributedCount > 0) {
+                summaryMsg += `• ${redistributedCount} lesson(s) successfully redistributed to open periods.\n`;
+            }
+            if (unallocatedCount > 0) {
+                summaryMsg += `• ${unallocatedCount} extra lesson(s) had no open slots and were safely moved to the 'Unallocated' tab.\n`;
+            }
+            summaryMsg += `• Result: Every period on the Master Timetable now strictly has 1 subject (apart from joint classes)!`;
+            alert(summaryMsg);
+
             setShowOverlapModal(false);
             setMultiAllocCellItems(null);
             await loadData();
         } catch (err: any) {
             console.error('Error auto-resolving overlaps:', err);
             alert('Failed to resolve overlaps: ' + (err as any).message);
+        } finally {
+            setIsResolvingOverlaps(false);
+        }
+    };
+
+    // Auto-Spread all unallocated lessons to open slots
+    const handleAutoSpreadUnallocated = async () => {
+        if (unallocatedAllocations.length === 0) {
+            alert('There are no unallocated lessons to distribute.');
+            return;
+        }
+
+        setIsResolvingOverlaps(true);
+        try {
+            let workingSet = [...allocations];
+            const updatedAllocs: RemedialAllocation[] = [];
+            let placedCount = 0;
+
+            const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
+                { day: 'Wednesday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Thursday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Friday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Monday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Monday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Wednesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Thursday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Friday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Saturday', startTime: saturdayStartTime || '08:00', endTime: '09:00', isWeekend: true },
+                { day: 'Saturday', startTime: '09:00', endTime: saturdayBreakStartTime || '10:00', isWeekend: true },
+                { day: 'Saturday', startTime: saturdayBreakEndTime || '10:30', endTime: '11:30', isWeekend: true },
+                { day: 'Saturday', startTime: '11:30', endTime: '12:30', isWeekend: true },
+                { day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: '10:00', isWeekend: true },
+                { day: 'Sunday', startTime: '10:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
+                { day: 'Sunday', startTime: sundayBreakEndTime || '11:30', endTime: '12:30', isWeekend: true },
+                { day: 'Sunday', startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true }
+            ];
+
+            for (const allocToMove of unallocatedAllocations) {
+                const cMatch = courses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
+                const classId = cMatch?.id || allocToMove.courseId;
+                const className = cMatch?.name || allocToMove.className;
+
+                let assignedSlot: typeof candidateSlots[0] | null = null;
+                for (const candidate of candidateSlots) {
+                    const classBusy = workingSet.some(a => {
+                        if (a.id === allocToMove.id) return false;
+                        if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
+                        if (a.dayOfWeek !== candidate.day) return false;
+                        const sameCourse = a.courseId === classId || a.className === className;
+                        if (!sameCourse) return false;
+                        const streamMatch = matchAllocationStream(a, allocToMove.stream) || matchAllocationStream(allocToMove, a.stream);
+                        if (!streamMatch) return false;
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        return (candidate.startTime < aEnd && candidate.endTime > aStart) || (candidate.startTime === aStart);
+                    });
+                    if (classBusy) continue;
+
+                    const teacherBusy = workingSet.some(a => {
+                        if (a.id === allocToMove.id) return false;
+                        if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
+                        if (a.teacherId !== allocToMove.teacherId) return false;
+                        if (a.dayOfWeek !== candidate.day) return false;
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        return (candidate.startTime < aEnd && candidate.endTime > aStart) || (candidate.startTime === aStart);
+                    });
+                    if (teacherBusy) continue;
+
+                    assignedSlot = candidate;
+                    break;
+                }
+
+                if (assignedSlot) {
+                    const updated: RemedialAllocation = {
+                        ...allocToMove,
+                        dayOfWeek: assignedSlot.day,
+                        startTime: assignedSlot.startTime,
+                        endTime: assignedSlot.endTime,
+                        isWeekend: assignedSlot.isWeekend,
+                        isUnallocated: false,
+                        unallocatedReason: undefined,
+                        updatedAt: new Date().toISOString()
+                    };
+                    workingSet = workingSet.map(a => a.id === updated.id ? updated : a);
+                    updatedAllocs.push(updated);
+                    placedCount++;
+                }
+            }
+
+            if (placedCount === 0) {
+                alert(`No free collision-free periods were found for the unallocated lessons.\n\nPlease check teacher availability or open additional periods.`);
+                return;
+            }
+
+            for (const upd of updatedAllocs) {
+                if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                    await (apiService as any).saveRemedialAllocation(upd);
+                } else {
+                    await apiService.saveModuleRecord('school_remedial_allocations', upd);
+                }
+            }
+
+            onLogAction?.(`Auto-spread allocated ${placedCount} previously unallocated lessons.`);
+            alert(`Auto-Spread Complete!\n\n• ${placedCount} lesson(s) placed into open timetable periods.\n• ${unallocatedAllocations.length - placedCount} lesson(s) remain unallocated.`);
+            await loadData();
+        } catch (err: any) {
+            alert('Failed to auto-spread unallocated: ' + (err as any).message);
         } finally {
             setIsResolvingOverlaps(false);
         }
@@ -7124,6 +7301,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const matchAllocsForCell = (cls: { className: string; stream: string }, day: string, slot: AscGridSlot) => {
                     if (slot.isBreak) return [];
                     return allocations.filter(a => {
+                        if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
                         if (a.dayOfWeek !== day) return false;
                         const matchCourse = a.courseId === cls.className || a.className === cls.className;
                         if (!matchCourse) return false;
@@ -7455,6 +7633,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             className="text-[8px] font-bold text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 flex items-center gap-0.5 transition-colors"
                                         >
                                             <UserPlus className="w-2.5 h-2.5" /> Reassign
+                                        </button>
+                                        <button 
+                                            onClick={() => handleMoveAllocToUnallocated(alloc)}
+                                            className="text-[8px] font-bold text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 flex items-center gap-0.5 transition-colors"
+                                            title="Move this lesson to Unallocated tab"
+                                        >
+                                            <Archive className="w-2.5 h-2.5" /> Unallocate
                                         </button>
                                     </div>
                                 )}
@@ -7834,6 +8019,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     >
                                         <Calendar className="w-3.5 h-3.5" /> Day Columns
                                     </button>
+                                    <button
+                                        onClick={() => setAllocViewMode('unallocated')}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                                            allocViewMode === 'unallocated'
+                                                ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        <Archive className="w-3.5 h-3.5" />
+                                        <span>Unallocated</span>
+                                        {unallocatedAllocations.length > 0 && (
+                                            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                                                allocViewMode === 'unallocated'
+                                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                                    : 'bg-amber-500 text-white animate-pulse'
+                                            }`}>
+                                                {unallocatedAllocations.length}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
 
                                 {/* Print Timetable */}
@@ -8133,6 +8338,133 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         );
                                     })}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* MODE 3: UNALLOCATED LESSONS SHELF VIEW */}
+                        {allocViewMode === 'unallocated' && (
+                            <div className="space-y-6 animate-in fade-in">
+                                {/* Banner & Actions */}
+                                <div className="bg-gradient-to-r from-amber-500/10 via-violet-500/10 to-indigo-500/10 p-6 rounded-[2.5rem] border border-amber-300 dark:border-amber-800/80 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-lg shadow-amber-500/30 shrink-0">
+                                            <Archive className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                    Unallocated Remedial Lessons Shelf
+                                                </h4>
+                                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider">
+                                                    {unallocatedAllocations.length} Pending
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
+                                                Lessons placed here were offloaded during Auto-Spread because their original period was overcrowded and all alternative slots were full. Only <strong>one subject</strong> is scheduled per period on the Master Timetable. You can allocate them whenever slots become available.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2.5 w-full md:w-auto">
+                                        <button
+                                            type="button"
+                                            disabled={isResolvingOverlaps || unallocatedAllocations.length === 0}
+                                            onClick={handleAutoSpreadUnallocated}
+                                            className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            <Sparkles className="w-4 h-4" />
+                                            {isResolvingOverlaps ? 'Spreading...' : 'Auto-Spread All Unallocated'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Unallocated Cards Grid */}
+                                {unallocatedAllocations.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {unallocatedAllocations.map(alloc => {
+                                            const color = getAscSubjectColor(alloc.subjectName || '');
+                                            const subCode = getSubjectCode(alloc.subjectId, alloc.subjectName || 'SUB', effectiveSchoolSubjects);
+                                            const tCode = teacherCodes[alloc.teacherId] || getTeacherCode(alloc.teacherId, alloc.teacherName || 'Teacher', teachersList);
+
+                                            return (
+                                                <div
+                                                    key={alloc.id}
+                                                    className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:shadow-md transition-all space-y-3 flex flex-col justify-between"
+                                                >
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <div
+                                                                    style={{ backgroundColor: color.bg, color: color.text, borderColor: color.border }}
+                                                                    className="px-2.5 py-1 rounded-lg border text-xs font-black uppercase shadow-2xs select-none"
+                                                                >
+                                                                    {subCode}
+                                                                </div>
+                                                                <div>
+                                                                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">
+                                                                        {alloc.subjectName}
+                                                                    </h5>
+                                                                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">
+                                                                        {alloc.className} {alloc.stream && alloc.stream !== 'All Streams' ? `(${alloc.stream})` : ''}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[8.5px] font-black uppercase tracking-wider shrink-0">
+                                                                Unallocated
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 space-y-1">
+                                                            <div className="flex items-center justify-between text-[9.5px]">
+                                                                <span className="text-slate-400 font-bold uppercase">Teacher:</span>
+                                                                <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                                                                    {alloc.teacherName || 'Not specified'}
+                                                                    <span className="text-[8px] font-mono font-black px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                                        {tCode}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                            {alloc.unallocatedReason && (
+                                                                <p className="text-[9px] text-amber-700 dark:text-amber-300 font-medium italic pt-1 border-t border-slate-200/50 dark:border-slate-700/50">
+                                                                    {alloc.unallocatedReason}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDeleteAllocation(alloc.id)}
+                                                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                        >
+                                                            <Trash2 className="w-3 h-3" /> Delete
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenEditAllocation(alloc)}
+                                                            className="px-4 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-xs transition-all active:scale-95 flex items-center gap-1.5"
+                                                        >
+                                                            <Calendar className="w-3 h-3" /> Assign Slot
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-700 text-center space-y-3">
+                                        <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-xl">
+                                            <CheckCircle2 className="w-7 h-7" />
+                                        </div>
+                                        <h5 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                            No Unallocated Lessons!
+                                        </h5>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                                            All remedial lessons are cleanly placed into valid periods on the Master Timetable with zero collisions.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         )}
 
