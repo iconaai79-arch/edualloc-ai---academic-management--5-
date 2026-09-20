@@ -194,6 +194,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [jointStreamsSelected, setJointStreamsSelected] = useState<string[]>([]);
     const [jointCoursesSelected, setJointCoursesSelected] = useState<string[]>([]);
     const [customJointStream, setCustomJointStream] = useState<string>('');
+    const [allowManualCollisionOverride, setAllowManualCollisionOverride] = useState<boolean>(false);
+
+    // Timetable Collision & Overlap Resolution State
+    const [showOverlapModal, setShowOverlapModal] = useState<boolean>(false);
+    const [isResolvingOverlaps, setIsResolvingOverlaps] = useState<boolean>(false);
+    const [multiAllocCellItems, setMultiAllocCellItems] = useState<{
+        className: string;
+        stream: string;
+        day: string;
+        startTime: string;
+        endTime: string;
+        allocations: RemedialAllocation[];
+    } | null>(null);
 
     // QR Print / Preview State
     const [printingPrefect, setPrintingPrefect] = useState<User | null>(null);
@@ -1306,6 +1319,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
     }, [sessions, searchQuery, statusFilter]);
 
+    // Helper to calculate end time by adding minutes safely
+    const addMinutesToTime = (timeStr: string, minutes: number = 60): string => {
+        if (!timeStr) return '';
+        const parts = timeStr.split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1] || '0', 10);
+        if (isNaN(h)) return '';
+        const totalMin = h * 60 + m + minutes;
+        const newH = Math.floor((totalMin / 60) % 24);
+        const newM = totalMin % 60;
+        return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+    };
+
     // Available streams for manual allocation modal
     const availableStreamsForAlloc = useMemo(() => {
         if (!allocCourseId) return [];
@@ -1341,6 +1367,215 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     }, [allocCourseId, courses, users, currentInstitution]);
+
+    // Selected course name for allocation conflict detection
+    const selectedAllocCourseName = useMemo(() => {
+        return courses.find(c => c.id === allocCourseId)?.name || allocCourseId;
+    }, [courses, allocCourseId]);
+
+    // Effective stream for allocation modal
+    const effectiveModalAllocStream = useMemo(() => {
+        if (isJointAlloc) {
+            return jointStreamsSelected.length > 0 ? jointStreamsSelected[0] : 'All Streams';
+        }
+        return allocStream === '__custom__' ? customAllocStream.trim() : allocStream;
+    }, [isJointAlloc, jointStreamsSelected, allocStream, customAllocStream]);
+
+    // Candidate timetable slots for the selected day in manual allocation modal
+    const modalCandidateSlots = useMemo(() => {
+        if (!allocDay) return [];
+        const isSat = allocDay === 'Saturday';
+        const isSun = allocDay === 'Sunday';
+
+        if (isSat) {
+            const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [
+                { periodNum: 1, startTime: saturdayStartTime || '08:00', endTime: '09:00', label: `Period 1 (${saturdayStartTime || '08:00'} - 09:00)` },
+                { periodNum: 2, startTime: '09:00', endTime: saturdayBreakStartTime || '10:00', label: `Period 2 (09:00 - ${saturdayBreakStartTime || '10:00'})` },
+            ];
+            if (includeSaturdayBreak) {
+                slots.push({
+                    periodNum: 0,
+                    startTime: saturdayBreakStartTime || '10:00',
+                    endTime: saturdayBreakEndTime || '10:30',
+                    label: `Recess (${saturdayBreakStartTime || '10:00'} - ${saturdayBreakEndTime || '10:30'})`,
+                    isBreak: true
+                });
+            }
+            slots.push(
+                { periodNum: 3, startTime: saturdayBreakEndTime || '10:30', endTime: '11:30', label: `Period 3 (${saturdayBreakEndTime || '10:30'} - 11:30)` },
+                { periodNum: 4, startTime: '11:30', endTime: saturdayEndTime || '12:30', label: `Period 4 (11:30 - ${saturdayEndTime || '12:30'})` }
+            );
+            return slots;
+        }
+
+        if (isSun) {
+            const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [
+                { periodNum: 1, startTime: sundayStartTime || '09:00', endTime: '10:00', label: `Period 1 (${sundayStartTime || '09:00'} - 10:00)` },
+                { periodNum: 2, startTime: '10:00', endTime: sundayBreakStartTime || '11:00', label: `Period 2 (10:00 - ${sundayBreakStartTime || '11:00'})` },
+            ];
+            if (includeSundayBreak) {
+                slots.push({
+                    periodNum: 0,
+                    startTime: sundayBreakStartTime || '11:00',
+                    endTime: sundayBreakEndTime || '11:30',
+                    label: `Recess (${sundayBreakStartTime || '11:00'} - ${sundayBreakEndTime || '11:30'})`,
+                    isBreak: true
+                });
+            }
+            slots.push(
+                { periodNum: 3, startTime: sundayBreakEndTime || '11:30', endTime: '12:30', label: `Period 3 (${sundayBreakEndTime || '11:30'} - 12:30)` },
+                { periodNum: 4, startTime: '12:30', endTime: sundayEndTime || '13:30', label: `Period 4 (12:30 - ${sundayEndTime || '13:30'})` }
+            );
+            return slots;
+        }
+
+        // Weekday standard remedial slots:
+        // Period 1: Morning 07:00 - 08:10 (Early Bird remedial period)
+        // Period 2: Evening Early (e.g. 16:00 - 17:00)
+        // Period 3: Evening Late (e.g. 17:00 - 18:00)
+        const wStart = weekdayStartTime || '16:00';
+        const wEnd = weekdayEndTime || '18:00';
+        const wMid = addMinutesToTime(wStart, 60);
+
+        const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [
+            { periodNum: 1, startTime: '07:00', endTime: '08:10', label: 'Period 1 • Early Bird (07:00 - 08:10)' },
+            { periodNum: 2, startTime: wStart, endTime: wMid, label: `Period 2 • Evening A (${wStart} - ${wMid})` },
+            { periodNum: 3, startTime: wMid, endTime: wEnd, label: `Period 3 • Evening B (${wMid} - ${wEnd})` }
+        ];
+
+        // Also add any other active start times on that day
+        const existingTimes = Array.from(new Set(
+            allocations.filter(a => a.dayOfWeek === allocDay && a.startTime).map(a => a.startTime as string)
+        )).sort();
+
+        existingTimes.forEach(t => {
+            if (!slots.some(s => s.startTime === t)) {
+                const matchA = allocations.find(a => a.dayOfWeek === allocDay && a.startTime === t);
+                const endT = matchA?.endTime || addMinutesToTime(t, 60);
+                slots.push({
+                    periodNum: slots.length + 1,
+                    startTime: t,
+                    endTime: endT,
+                    label: `Slot (${t} - ${endT})`
+                });
+            }
+        });
+
+        return slots;
+    }, [allocDay, saturdayStartTime, saturdayEndTime, saturdayBreakStartTime, saturdayBreakEndTime, includeSaturdayBreak, sundayStartTime, sundayEndTime, sundayBreakStartTime, sundayBreakEndTime, includeSundayBreak, weekdayStartTime, weekdayEndTime, allocations]);
+
+    // Active slot conflict detection for currently selected start and end time
+    const activeModalSlotConflicts = useMemo(() => {
+        if (!allocDay || !allocStartTime || !allocEndTime) {
+            return { classConflicts: [] as RemedialAllocation[], teacherConflicts: [] as RemedialAllocation[] };
+        }
+
+        const classConflicts = allocations.filter(a => {
+            if (a.dayOfWeek !== allocDay) return false;
+            if (editingAlloc && a.id === editingAlloc.id) return false;
+            
+            // Course match
+            const isSameCourse = allocCourseId && (a.courseId === allocCourseId || a.className === selectedAllocCourseName);
+            if (!isSameCourse) return false;
+
+            // Stream match
+            let streamOverlaps = false;
+            if (isJointAlloc) {
+                streamOverlaps = jointStreamsSelected.some(js => matchAllocationStream(a, js) || matchAllocationStream({ stream: js }, a.stream));
+            } else {
+                streamOverlaps = matchAllocationStream(a, effectiveModalAllocStream) || matchAllocationStream({ stream: effectiveModalAllocStream }, a.stream);
+            }
+            if (!streamOverlaps) return false;
+
+            const aStart = a.startTime || '00:00';
+            const aEnd = a.endTime || '23:59';
+            return (allocStartTime === aStart) || (allocStartTime < aEnd && allocEndTime > aStart);
+        });
+
+        const teacherConflicts = allocTeacherId ? allocations.filter(a => {
+            if (a.dayOfWeek !== allocDay) return false;
+            if (editingAlloc && a.id === editingAlloc.id) return false;
+            if (a.teacherId !== allocTeacherId) return false;
+
+            // If it's a joint lesson under same course, don't flag as clash
+            if (isJointAlloc && (a.courseId === allocCourseId || a.className === selectedAllocCourseName)) return false;
+
+            const aStart = a.startTime || '00:00';
+            const aEnd = a.endTime || '23:59';
+            return (allocStartTime === aStart) || (allocStartTime < aEnd && allocEndTime > aStart);
+        }) : [];
+
+        return { classConflicts, teacherConflicts };
+    }, [allocDay, allocStartTime, allocEndTime, allocCourseId, selectedAllocCourseName, isJointAlloc, jointStreamsSelected, effectiveModalAllocStream, allocTeacherId, editingAlloc, allocations]);
+
+    // Helper to evaluate slot status for the visual picker
+    const getModalSlotAvailability = (slot: { startTime: string; endTime: string; isBreak?: boolean }) => {
+        if (slot.isBreak) {
+            return { isAvailable: false, isBreak: true, reason: 'Break / Recess', badgeColor: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300' };
+        }
+
+        const classConflicts = allocations.filter(a => {
+            if (a.dayOfWeek !== allocDay) return false;
+            if (editingAlloc && a.id === editingAlloc.id) return false;
+
+            const isSameCourse = allocCourseId && (a.courseId === allocCourseId || a.className === selectedAllocCourseName);
+            if (!isSameCourse) return false;
+
+            let streamOverlaps = false;
+            if (isJointAlloc) {
+                streamOverlaps = jointStreamsSelected.some(js => matchAllocationStream(a, js) || matchAllocationStream({ stream: js }, a.stream));
+            } else {
+                streamOverlaps = matchAllocationStream(a, effectiveModalAllocStream) || matchAllocationStream({ stream: effectiveModalAllocStream }, a.stream);
+            }
+            if (!streamOverlaps) return false;
+
+            const aStart = a.startTime || '00:00';
+            const aEnd = a.endTime || '23:59';
+            return (slot.startTime === aStart) || (slot.startTime < aEnd && slot.endTime > aStart);
+        });
+
+        if (classConflicts.length > 0) {
+            const first = classConflicts[0];
+            return {
+                isAvailable: false,
+                isClassOccupied: true,
+                count: classConflicts.length,
+                reason: `${first.subjectName || 'Subject'} (${first.teacherName || 'Teacher'})`,
+                conflicts: classConflicts,
+                badgeColor: 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+            };
+        }
+
+        const teacherConflicts = allocTeacherId ? allocations.filter(a => {
+            if (a.dayOfWeek !== allocDay) return false;
+            if (editingAlloc && a.id === editingAlloc.id) return false;
+            if (a.teacherId !== allocTeacherId) return false;
+
+            if (isJointAlloc && (a.courseId === allocCourseId || a.className === selectedAllocCourseName)) return false;
+
+            const aStart = a.startTime || '00:00';
+            const aEnd = a.endTime || '23:59';
+            return (slot.startTime === aStart) || (slot.startTime < aEnd && slot.endTime > aStart);
+        }) : [];
+
+        if (teacherConflicts.length > 0) {
+            const first = teacherConflicts[0];
+            return {
+                isAvailable: false,
+                isTeacherBusy: true,
+                count: teacherConflicts.length,
+                reason: `${first.teacherName || 'Teacher'} in ${first.courseName || first.className || 'Class'}`,
+                conflicts: teacherConflicts,
+                badgeColor: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+            };
+        }
+
+        return {
+            isAvailable: true,
+            reason: 'Available (No Conflict)',
+            badgeColor: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+        };
+    };
 
     // Available streams for manual session log modal
     const availableStreamsForManualLog = useMemo(() => {
@@ -2353,6 +2588,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setAllocDay('Monday');
         setAllocStartTime(weekdayStartTime || '16:00');
         setAllocEndTime(weekdayEndTime || '18:00');
+        setAllowManualCollisionOverride(false);
         setShowAllocModal(true);
     };
 
@@ -2373,6 +2609,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const isWeekend = ['Saturday', 'Sunday'].includes(day || '');
         setAllocStartTime(startTime || (isWeekend ? '08:00' : (weekdayStartTime || '16:00')));
         setAllocEndTime(endTime || (isWeekend ? '09:00' : (weekdayEndTime || '18:00')));
+        setAllowManualCollisionOverride(false);
         setShowAllocModal(true);
     };
 
@@ -2391,6 +2628,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setAllocDay('Monday');
         setAllocStartTime(weekdayStartTime || '16:00');
         setAllocEndTime(weekdayEndTime || '18:00');
+        setAllowManualCollisionOverride(false);
         setShowAllocModal(true);
     };
 
@@ -2522,6 +2760,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setAllocDay((alloc.dayOfWeek as any) || 'Monday');
         setAllocStartTime(alloc.startTime || (['Saturday', 'Sunday'].includes(alloc.dayOfWeek) ? (alloc.dayOfWeek === 'Sunday' ? (sundayStartTime || '09:00') : (saturdayStartTime || '08:00')) : (weekdayStartTime || '16:00')));
         setAllocEndTime(alloc.endTime || (['Saturday', 'Sunday'].includes(alloc.dayOfWeek) ? (alloc.dayOfWeek === 'Sunday' ? (sundayEndTime || '13:00') : (saturdayEndTime || '12:00')) : (weekdayEndTime || '18:00')));
+        setAllowManualCollisionOverride(false);
         setShowAllocModal(true);
     };
 
@@ -2561,44 +2800,74 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
             }
 
-            if (!isWeekend) {
-                // Strict 1 period per day rule for weekdays (Monday through Friday)
-                const existingWeekdayClassAlloc = allocations.find(a => 
-                    a.id !== editingAlloc?.id &&
-                    a.dayOfWeek === allocDay &&
-                    (a.courseId === allocCourseId || a.className === course?.name) &&
-                    (
-                        a.stream === effectiveStream ||
-                        a.stream === 'All Streams' ||
-                        effectiveStream === 'All Streams' ||
-                        isJointAlloc ||
-                        a.isJoint
-                    )
-                );
+            if (!allowManualCollisionOverride) {
+                if (!isWeekend) {
+                    // Strict 1 period per day rule for weekdays (Monday through Friday)
+                    const existingWeekdayClassAlloc = allocations.find(a => 
+                        a.id !== editingAlloc?.id &&
+                        a.dayOfWeek === allocDay &&
+                        (a.courseId === allocCourseId || a.className === course?.name) &&
+                        (
+                            a.stream === effectiveStream ||
+                            a.stream === 'All Streams' ||
+                            effectiveStream === 'All Streams' ||
+                            isJointAlloc ||
+                            a.isJoint
+                        )
+                    );
 
-                if (existingWeekdayClassAlloc) {
+                    if (existingWeekdayClassAlloc) {
+                        return alert(
+                            `Weekday Rule Violation:\n\n` +
+                            `${course?.name || 'This class'} (${effectiveStream}) already has a remedial period scheduled on ${allocDay}:\n` +
+                            `• ${existingWeekdayClassAlloc.subjectName} (${existingWeekdayClassAlloc.startTime} - ${existingWeekdayClassAlloc.endTime})\n\n` +
+                            `Weekdays strictly follow the 1 period per day rule per class. Choose another day or check 'Allow overlap / joint lesson override'.`
+                        );
+                    }
+                }
+
+                // Universal slot overlap check for the class:
+                const existingClassSlotCollision = allocations.find(a => {
+                    if (a.id === editingAlloc?.id) return false;
+                    if (a.dayOfWeek !== allocDay) return false;
+                    const sameClass = a.courseId === allocCourseId || a.className === course?.name;
+                    if (!sameClass) return false;
+                    const streamConflict = matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
+                    if (!streamConflict) return false;
+                    const aStart = a.startTime || '00:00';
+                    const aEnd = a.endTime || '23:59';
+                    const newStart = allocStartTime || '00:00';
+                    const newEnd = allocEndTime || '23:59';
+                    return (newStart < aEnd && newEnd > aStart) || (newStart === aStart);
+                });
+
+                if (existingClassSlotCollision) {
                     return alert(
-                        `Weekday Rule Violation:\n\n` +
-                        `${course?.name || 'This class'} (${effectiveStream}) already has a remedial period scheduled on ${allocDay}:\n` +
-                        `• ${existingWeekdayClassAlloc.subjectName} (${existingWeekdayClassAlloc.startTime} - ${existingWeekdayClassAlloc.endTime})\n\n` +
-                        `Weekdays strictly follow the 1 period per day rule per class.`
+                        `Slot Overlap Conflict:\n\n` +
+                        `${course?.name || 'This class'} (${effectiveStream}) already has a lesson scheduled at this time on ${allocDay}:\n` +
+                        `• ${existingClassSlotCollision.subjectName} with ${existingClassSlotCollision.teacherName} (${existingClassSlotCollision.startTime} - ${existingClassSlotCollision.endTime})\n\n` +
+                        `Please choose an available slot or select another day/time.`
                     );
                 }
-            }
 
-            // Teacher conflict check at the exact same day and time
-            const existingTeacherCollision = allocations.find(a =>
-                a.id !== editingAlloc?.id &&
-                a.teacherId === allocTeacherId &&
-                a.dayOfWeek === allocDay &&
-                a.startTime === allocStartTime
-            );
-            if (existingTeacherCollision) {
-                return alert(
-                    `Teacher Conflict:\n\n` +
-                    `${teacher?.name || 'Selected teacher'} is already allocated to teach ${existingTeacherCollision.className} (${existingTeacherCollision.subjectName}) on ${allocDay} at ${allocStartTime}.\n\n` +
-                    `Please select a different teacher or time slot.`
-                );
+                // Teacher conflict check at the exact same day and time
+                const existingTeacherCollision = allocations.find(a => {
+                    if (a.id === editingAlloc?.id) return false;
+                    if (a.teacherId !== allocTeacherId) return false;
+                    if (a.dayOfWeek !== allocDay) return false;
+                    const aStart = a.startTime || '00:00';
+                    const aEnd = a.endTime || '23:59';
+                    const newStart = allocStartTime || '00:00';
+                    const newEnd = allocEndTime || '23:59';
+                    return (newStart < aEnd && newEnd > aStart) || (newStart === aStart);
+                });
+                if (existingTeacherCollision) {
+                    return alert(
+                        `Teacher Conflict:\n\n` +
+                        `${teacher?.name || 'Selected teacher'} is already allocated to teach ${existingTeacherCollision.className} (${existingTeacherCollision.subjectName}) on ${allocDay} at ${existingTeacherCollision.startTime} - ${existingTeacherCollision.endTime}.\n\n` +
+                        `Please select a different teacher or time slot.`
+                    );
+                }
             }
 
             const payloadAlloc: RemedialAllocation = {
@@ -3075,6 +3344,313 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to delete allocation');
+        }
+    };
+
+    // Timetable Collision Detection
+    const detectedCollisions = useMemo(() => {
+        interface TimetableCollision {
+            id: string;
+            type: 'class_slot' | 'teacher_slot';
+            title: string;
+            dayOfWeek: string;
+            startTime: string;
+            endTime: string;
+            className?: string;
+            stream?: string;
+            teacherId?: string;
+            teacherName?: string;
+            allocations: RemedialAllocation[];
+        }
+
+        const collisions: TimetableCollision[] = [];
+        const processedClassKeys = new Set<string>();
+        const processedTeacherKeys = new Set<string>();
+
+        const allDistinctCls = getDistinctTimetableClasses(allocations, courses);
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+        // 1. Detect Class Slot Overlaps
+        allDistinctCls.forEach(cls => {
+            days.forEach(day => {
+                const classDayAllocs = allocations.filter(a =>
+                    a.dayOfWeek === day &&
+                    (a.courseId === cls.className || a.className === cls.className) &&
+                    matchAllocationStream(a, cls.stream)
+                );
+
+                const grouped: RemedialAllocation[][] = [];
+                classDayAllocs.forEach(a => {
+                    let found = false;
+                    for (const grp of grouped) {
+                        const ref = grp[0];
+                        const refStart = ref.startTime || '00:00';
+                        const refEnd = ref.endTime || '23:59';
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        if (aStart === refStart || (aStart < refEnd && aEnd > refStart)) {
+                            grp.push(a);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) grouped.push([a]);
+                });
+
+                grouped.forEach(grp => {
+                    if (grp.length > 1) {
+                        const key = `class_${cls.className}_${cls.stream}_${day}_${grp[0].startTime}`;
+                        if (!processedClassKeys.has(key)) {
+                            processedClassKeys.add(key);
+                            collisions.push({
+                                id: key,
+                                type: 'class_slot',
+                                title: `${cls.shortCode} • ${day} ${grp[0].startTime} - ${grp[0].endTime || ''}`,
+                                dayOfWeek: day,
+                                startTime: grp[0].startTime || '',
+                                endTime: grp[0].endTime || '',
+                                className: cls.className,
+                                stream: cls.stream,
+                                allocations: grp
+                            });
+                        }
+                    }
+                });
+            });
+        });
+
+        // 2. Detect Teacher Double-Booking Collisions
+        days.forEach(day => {
+            const teacherMap = new Map<string, RemedialAllocation[]>();
+            allocations.filter(a => a.dayOfWeek === day && a.teacherId).forEach(a => {
+                const list = teacherMap.get(a.teacherId) || [];
+                list.push(a);
+                teacherMap.set(a.teacherId, list);
+            });
+
+            teacherMap.forEach((tAllocs, tId) => {
+                const grouped: RemedialAllocation[][] = [];
+                tAllocs.forEach(a => {
+                    let found = false;
+                    for (const grp of grouped) {
+                        const ref = grp[0];
+                        const refStart = ref.startTime || '00:00';
+                        const refEnd = ref.endTime || '23:59';
+                        const aStart = a.startTime || '00:00';
+                        const aEnd = a.endTime || '23:59';
+                        if (aStart === refStart || (aStart < refEnd && aEnd > refStart)) {
+                            grp.push(a);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) grouped.push([a]);
+                });
+
+                grouped.forEach(grp => {
+                    if (grp.length > 1) {
+                        const isSharedJoint = grp.every(a => (a.isJoint || a.is_joint) && grp[0].courseId === a.courseId);
+                        if (!isSharedJoint) {
+                            const key = `teacher_${tId}_${day}_${grp[0].startTime}`;
+                            if (!processedTeacherKeys.has(key)) {
+                                processedTeacherKeys.add(key);
+                                collisions.push({
+                                    id: key,
+                                    type: 'teacher_slot',
+                                    title: `${grp[0].teacherName || 'Teacher'} • ${day} ${grp[0].startTime} - ${grp[0].endTime || ''}`,
+                                    dayOfWeek: day,
+                                    startTime: grp[0].startTime || '',
+                                    endTime: grp[0].endTime || '',
+                                    teacherId: tId,
+                                    teacherName: grp[0].teacherName,
+                                    allocations: grp
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+        });
+
+        return collisions;
+    }, [allocations, courses]);
+
+    const totalOverlappingLessons = useMemo(() => {
+        return detectedCollisions.reduce((acc, c) => acc + (c.allocations.length - 1), 0);
+    }, [detectedCollisions]);
+
+    // Move single allocation to another slot
+    const handleMoveAllocToSlot = async (alloc: RemedialAllocation, targetDay: string, targetStart: string, targetEnd: string) => {
+        try {
+            const isWeekend = ['Saturday', 'Sunday'].includes(targetDay);
+            const updated: RemedialAllocation = {
+                ...alloc,
+                dayOfWeek: targetDay as any,
+                startTime: targetStart,
+                endTime: targetEnd,
+                isWeekend,
+                updatedAt: new Date().toISOString()
+            };
+            if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                await (apiService as any).saveRemedialAllocation(updated);
+            } else {
+                await apiService.saveModuleRecord('school_remedial_allocations', updated);
+            }
+            onLogAction?.(`Moved ${alloc.subjectName} allocation to ${targetDay} (${targetStart} - ${targetEnd})`);
+            alert(`Moved ${alloc.subjectName} to ${targetDay} ${targetStart} - ${targetEnd}!`);
+            setMultiAllocCellItems(prev => {
+                if (!prev) return null;
+                const remaining = prev.allocations.filter(a => a.id !== alloc.id);
+                if (remaining.length <= 1) return null;
+                return { ...prev, allocations: remaining };
+            });
+            await loadData();
+        } catch (err: any) {
+            alert('Failed to move allocation: ' + (err as any).message);
+        }
+    };
+
+    // Auto-Spread overlapping lessons across unoccupied periods
+    const handleAutoSpreadOverlaps = async (specificAllocationsToSpread?: RemedialAllocation[]) => {
+        let targetsToResolve: { original: RemedialAllocation; others: RemedialAllocation[] }[] = [];
+
+        if (specificAllocationsToSpread && specificAllocationsToSpread.length > 1) {
+            targetsToResolve = [{
+                original: specificAllocationsToSpread[0],
+                others: specificAllocationsToSpread.slice(1)
+            }];
+        } else if (detectedCollisions.length > 0) {
+            targetsToResolve = detectedCollisions.map(col => ({
+                original: col.allocations[0],
+                others: col.allocations.slice(1)
+            }));
+        } else {
+            alert('No overlapping timetable sessions found to resolve.');
+            return;
+        }
+
+        const totalToMove = targetsToResolve.reduce((acc, t) => acc + t.others.length, 0);
+        const confirmMsg = 
+            `Auto-Spread & Resolve Timetable Overlaps?\n\n` +
+            `• Conflicting Lessons to Move: ${totalToMove}\n` +
+            `• Strategy: The 1st lesson in each conflicting slot remains in place.\n` +
+            `• Destination: Duplicate lessons will be intelligently spread across unoccupied remedial slots (Wednesday, Thursday, Friday, Saturday, Sunday).\n` +
+            `• Guarantee: Strict zero-clash policy for both classes and teachers.\n\n` +
+            `Proceed with automatic redistribution?`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsResolvingOverlaps(true);
+        try {
+            let workingSet = [...allocations];
+            const updatedAllocs: RemedialAllocation[] = [];
+
+            // Candidate slots in order of priority:
+            const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
+                // Weekday morning 07:00 - 08:10
+                { day: 'Wednesday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Thursday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Friday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                { day: 'Monday', startTime: '07:00', endTime: '08:10', isWeekend: false },
+                
+                // Weekday evening (16:00 - 17:00 or weekdayStartTime)
+                { day: 'Monday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Wednesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Thursday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+                { day: 'Friday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
+
+                // Saturday slots
+                { day: 'Saturday', startTime: saturdayStartTime || '08:00', endTime: '09:00', isWeekend: true },
+                { day: 'Saturday', startTime: '09:00', endTime: saturdayBreakStartTime || '10:00', isWeekend: true },
+                { day: 'Saturday', startTime: saturdayBreakEndTime || '10:30', endTime: '11:30', isWeekend: true },
+                { day: 'Saturday', startTime: '11:30', endTime: '12:30', isWeekend: true },
+                { day: 'Saturday', startTime: '12:30', endTime: saturdayEndTime || '13:30', isWeekend: true },
+
+                // Sunday slots
+                { day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: '10:00', isWeekend: true },
+                { day: 'Sunday', startTime: '10:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
+                { day: 'Sunday', startTime: sundayBreakEndTime || '11:30', endTime: '12:30', isWeekend: true },
+                { day: 'Sunday', startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true }
+            ];
+
+            for (const target of targetsToResolve) {
+                for (const allocToMove of target.others) {
+                    const cMatch = courses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
+                    const classId = cMatch?.id || allocToMove.courseId;
+                    const className = cMatch?.name || allocToMove.className;
+
+                    let assignedSlot: typeof candidateSlots[0] | null = null;
+
+                    for (const candidate of candidateSlots) {
+                        // Class collision check
+                        const classBusy = workingSet.some(a => {
+                            if (a.id === allocToMove.id) return false;
+                            if (a.dayOfWeek !== candidate.day) return false;
+                            const sameCourse = a.courseId === classId || a.className === className;
+                            if (!sameCourse) return false;
+                            const streamMatch = matchAllocationStream(a, allocToMove.stream) || matchAllocationStream(allocToMove, a.stream);
+                            if (!streamMatch) return false;
+                            const aStart = a.startTime || '00:00';
+                            const aEnd = a.endTime || '23:59';
+                            return (candidate.startTime < aEnd && candidate.endTime > aStart) || (candidate.startTime === aStart);
+                        });
+                        if (classBusy) continue;
+
+                        // Teacher collision check
+                        const teacherBusy = workingSet.some(a => {
+                            if (a.id === allocToMove.id) return false;
+                            if (a.teacherId !== allocToMove.teacherId) return false;
+                            if (a.dayOfWeek !== candidate.day) return false;
+                            const aStart = a.startTime || '00:00';
+                            const aEnd = a.endTime || '23:59';
+                            return (candidate.startTime < aEnd && candidate.endTime > aStart) || (candidate.startTime === aStart);
+                        });
+                        if (teacherBusy) continue;
+
+                        // Slot is available!
+                        assignedSlot = candidate;
+                        break;
+                    }
+
+                    if (assignedSlot) {
+                        const updated: RemedialAllocation = {
+                            ...allocToMove,
+                            dayOfWeek: assignedSlot.day,
+                            startTime: assignedSlot.startTime,
+                            endTime: assignedSlot.endTime,
+                            isWeekend: assignedSlot.isWeekend,
+                            updatedAt: new Date().toISOString()
+                        };
+                        workingSet = workingSet.map(a => a.id === updated.id ? updated : a);
+                        updatedAllocs.push(updated);
+                    }
+                }
+            }
+
+            // Save to storage / API
+            for (const upd of updatedAllocs) {
+                if (typeof (apiService as any).saveRemedialAllocation === 'function') {
+                    await (apiService as any).saveRemedialAllocation(upd);
+                } else {
+                    await apiService.saveModuleRecord('school_remedial_allocations', upd);
+                }
+            }
+
+            onLogAction?.(`Auto-resolved ${updatedAllocs.length} overlapping remedial lessons across timetable.`);
+            alert(
+                `Timetable Overlaps Resolved Successfully!\n\n` +
+                `• ${updatedAllocs.length} overlapping lesson(s) have been redistributed to free slots across the week.\n` +
+                `• All conflicting slots have been spread cleanly.`
+            );
+            setShowOverlapModal(false);
+            setMultiAllocCellItems(null);
+            await loadData();
+        } catch (err: any) {
+            console.error('Error auto-resolving overlaps:', err);
+            alert('Failed to resolve overlaps: ' + (err as any).message);
+        } finally {
+            setIsResolvingOverlaps(false);
         }
     };
 
@@ -6658,13 +7234,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                         return (
                             <div
-                                onClick={() => setSelectedCellAlloc(a1)}
+                                onClick={() => setMultiAllocCellItems({
+                                    className: cls.className,
+                                    stream: cls.stream,
+                                    day,
+                                    startTime: slot.startTime,
+                                    endTime: slot.endTime,
+                                    allocations: matches
+                                })}
                                 style={{
                                     background: `linear-gradient(135deg, ${c1.bg} 0%, ${c1.bg} 49%, #0f172a 49.5%, #0f172a 50.5%, ${c2.bg} 51%, ${c2.bg} 100%)`,
                                     borderColor: '#334155'
                                 }}
                                 className="w-full h-full min-h-[56px] rounded p-1 border shadow-xs hover:shadow-lg relative cursor-pointer hover:scale-[1.04] hover:z-20 transition-all flex flex-col justify-between select-none group"
-                                title={`${a1.subjectName} (${code1}) / ${a2.subjectName} (${code2})`}
+                                title={`${a1.subjectName} (${code1}) / ${a2.subjectName} (${code2})\nClick to inspect or manage both overlapping lessons`}
                             >
                                 <div className="flex justify-between items-start leading-none">
                                     <span style={{ color: c1.text }} className="text-[9.5px] font-black uppercase drop-shadow-xs">
@@ -6688,12 +7271,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         );
                     }
 
-                    // 3+ subjects (e.g. AGR / HS / CS / BST)
+                    // 3+ subjects (e.g. multiple lessons crammed into one slot)
                     return (
                         <div 
-                            onClick={() => setSelectedCellAlloc(matches[0])}
-                            className="w-full h-full min-h-[56px] rounded border border-slate-700 shadow-xs hover:shadow-lg overflow-hidden flex flex-col cursor-pointer hover:scale-[1.04] hover:z-20 transition-all"
+                            onClick={() => setMultiAllocCellItems({
+                                className: cls.className,
+                                stream: cls.stream,
+                                day,
+                                startTime: slot.startTime,
+                                endTime: slot.endTime,
+                                allocations: matches
+                            })}
+                            className="w-full h-full min-h-[56px] rounded border-2 border-rose-500 shadow-xs hover:shadow-lg overflow-hidden flex flex-col cursor-pointer hover:scale-[1.04] hover:z-20 transition-all relative group"
+                            title={`⚠️ Overlap: ${matches.length} lessons in this slot!\nClick to inspect, edit, or auto-spread.`}
                         >
+                            <div className="absolute top-0 right-0 z-30 bg-rose-600 text-white font-black text-[6.5px] px-1 rounded-bl shadow-xs flex items-center gap-0.5">
+                                <AlertTriangle className="w-2 h-2" /> {matches.length}
+                            </div>
                             {matches.map((a, idx) => {
                                 const c = getAscSubjectColor(a.subjectName, a.subjectId);
                                 const code = getSubjectCode(a.subjectName, a.subjectId);
@@ -6892,6 +7486,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                {totalOverlappingLessons > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowOverlapModal(true)}
+                                        className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 animate-pulse"
+                                    >
+                                        <AlertTriangle className="w-4 h-4" /> Fix Overlaps ({totalOverlappingLessons})
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setIsDutyModalOpen(true)}
                                     className="flex-1 md:flex-none px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -6912,6 +7515,47 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </button>
                             </div>
                         </div>
+
+                        {/* OVERLAP DETECTION ALERT BANNER */}
+                        {totalOverlappingLessons > 0 && (
+                            <div className="bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-rose-500/15 border-2 border-rose-400 dark:border-rose-800 rounded-3xl p-5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
+                                <div className="flex items-center gap-3.5">
+                                    <div className="w-11 h-11 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black shadow-lg shadow-rose-600/30 shrink-0">
+                                        <AlertTriangle className="w-6 h-6 animate-bounce" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                Timetable Overlaps Detected
+                                            </h5>
+                                            <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider shadow-xs">
+                                                {totalOverlappingLessons} Conflicting Lesson{totalOverlappingLessons === 1 ? '' : 's'}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 max-w-xl">
+                                            Multiple lessons have been allocated into the same period (e.g. {detectedCollisions[0]?.title || 'same slot'}). Click <strong>Auto-Spread Overlaps</strong> to redistribute them across unoccupied periods with zero collisions.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2.5 w-full md:w-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowOverlapModal(true)}
+                                        className="flex-1 md:flex-none px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl text-xs font-black uppercase tracking-wider border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-center gap-1.5 transition-all"
+                                    >
+                                        <Eye className="w-3.5 h-3.5 text-slate-500" /> View Overlaps
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={isResolvingOverlaps}
+                                        onClick={() => handleAutoSpreadOverlaps()}
+                                        className="flex-1 md:flex-none px-5 py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-500/20 flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                        <Sparkles className="w-4 h-4" /> {isResolvingOverlaps ? 'Resolving...' : 'Auto-Spread Overlaps'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* TIMETABLE WORKFLOW APPROVAL & DISPERSAL BANNER */}
                         <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-700 shadow-md p-5 sm:p-6 space-y-4 overflow-hidden relative">
@@ -7635,6 +8279,279 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         >
                                             <Trash2 className="w-3.5 h-3.5" /> Delete
                                         </button>
+                                    </div>
+                                </div>
+                            </div>,
+                            document.body
+                        )}
+
+                        {/* MULTI-LESSON OVERLAP CELL INSPECTOR MODAL */}
+                        {multiAllocCellItems && typeof document !== 'undefined' && createPortal(
+                            <div 
+                                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in overflow-y-auto"
+                                onClick={() => setMultiAllocCellItems(null)}
+                            >
+                                <div 
+                                    className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-7 max-w-xl w-full shadow-2xl border-2 border-rose-400 dark:border-rose-900 space-y-5 relative my-auto animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {/* Modal Header */}
+                                    <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-black shrink-0">
+                                                <AlertTriangle className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                                        Overlapping Lessons Inspector
+                                                    </h4>
+                                                    <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
+                                                        {multiAllocCellItems.allocations.length} Lessons
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                    {multiAllocCellItems.className} {multiAllocCellItems.stream && multiAllocCellItems.stream !== 'All Streams' ? `(${multiAllocCellItems.stream})` : ''} • {multiAllocCellItems.day} {multiAllocCellItems.startTime} - {multiAllocCellItems.endTime}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setMultiAllocCellItems(null)}
+                                            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    {/* Auto-Spread Call to Action */}
+                                    <div className="bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-rose-500/10 border border-rose-300 dark:border-rose-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-black text-rose-900 dark:text-rose-200 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Sparkles className="w-4 h-4 text-rose-600" /> Fix All Overlaps in This Period
+                                            </p>
+                                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                                                Keeps the 1st lesson here and automatically spreads the other {multiAllocCellItems.allocations.length - 1} lessons across free days/slots.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={isResolvingOverlaps}
+                                            onClick={() => handleAutoSpreadOverlaps(multiAllocCellItems.allocations)}
+                                            className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md flex items-center justify-center gap-1.5 shrink-0 active:scale-95 transition-all disabled:opacity-50"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5" /> Auto-Spread These
+                                        </button>
+                                    </div>
+
+                                    {/* Allocations List */}
+                                    <div className="space-y-2.5">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                            All {multiAllocCellItems.allocations.length} Lessons Scheduled in this Slot:
+                                        </p>
+                                        {multiAllocCellItems.allocations.map((alloc, idx) => {
+                                            const c = getAscSubjectColor(alloc.subjectName, alloc.subjectId);
+                                            const code = getSubjectCode(alloc.subjectName, alloc.subjectId);
+                                            const tCode = getTeacherCode(alloc.teacherId, alloc.teacherName, enrichedUsers);
+                                            const isJoint = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
+
+                                            return (
+                                                <div 
+                                                    key={alloc.id}
+                                                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div 
+                                                            style={{ backgroundColor: c.bg, color: c.text, borderColor: c.border }} 
+                                                            className="w-10 h-10 rounded-xl border flex flex-col items-center justify-center font-black text-xs shrink-0 select-none shadow-xs"
+                                                        >
+                                                            {code}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase leading-tight">
+                                                                    {alloc.subjectName}
+                                                                </h5>
+                                                                {idx === 0 && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[8px] font-black uppercase">
+                                                                        Slot Anchor
+                                                                    </span>
+                                                                )}
+                                                                {idx > 0 && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 text-[8px] font-black uppercase">
+                                                                        Overlapping #{idx + 1}
+                                                                    </span>
+                                                                )}
+                                                                {isJoint && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[8px] font-black uppercase">
+                                                                        Joint
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
+                                                                <span>Teacher: <strong>{alloc.teacherName}</strong></span>
+                                                                <span className="px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-[8.5px] font-mono font-bold">
+                                                                    {tCode}
+                                                                </span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setMultiAllocCellItems(null);
+                                                                handleOpenEditAllocation(alloc);
+                                                            }}
+                                                            className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:bg-indigo-50 dark:hover:bg-indigo-950 flex items-center gap-1 transition-all"
+                                                        >
+                                                            <Pencil className="w-3 h-3" /> Edit
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                handleDeleteAllocation(alloc.id);
+                                                            }}
+                                                            className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-rose-600 dark:text-rose-400 text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-950 flex items-center gap-1 transition-all"
+                                                        >
+                                                            <Trash2 className="w-3 h-3" /> Delete
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>,
+                            document.body
+                        )}
+
+                        {/* GLOBAL TIMETABLE OVERLAP RESOLVER MODAL */}
+                        {showOverlapModal && typeof document !== 'undefined' && createPortal(
+                            <div 
+                                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in overflow-y-auto"
+                                onClick={() => setShowOverlapModal(false)}
+                            >
+                                <div 
+                                    className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 sm:p-7 max-w-2xl w-full shadow-2xl border-2 border-rose-400 dark:border-rose-900 space-y-5 relative my-auto animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {/* Modal Header */}
+                                    <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-black shrink-0">
+                                                <AlertTriangle className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                                    Timetable Collision &amp; Overlap Manager
+                                                </h4>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                                    {detectedCollisions.length} Conflicting Slot(s) • {totalOverlappingLessons} Overlapping Lessons Detected
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            onClick={() => setShowOverlapModal(false)}
+                                            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    {/* One-Click Resolution Master Banner */}
+                                    <div className="bg-gradient-to-r from-rose-500/15 via-amber-500/15 to-rose-500/15 border-2 border-rose-300 dark:border-rose-800 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <div>
+                                            <h5 className="text-xs font-black text-rose-900 dark:text-rose-200 uppercase tracking-wider flex items-center gap-1.5">
+                                                <Sparkles className="w-4 h-4 text-rose-600" /> One-Click Automatic Overlap Resolution
+                                            </h5>
+                                            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-md">
+                                                Automatically keeps 1 lesson per period and redistributes all other conflicting lessons to free slots across the week with zero teacher or class clashes.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            disabled={isResolvingOverlaps || totalOverlappingLessons === 0}
+                                            onClick={() => handleAutoSpreadOverlaps()}
+                                            className="px-6 py-3.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-rose-600/30 flex items-center justify-center gap-2 shrink-0 active:scale-95 transition-all disabled:opacity-50"
+                                        >
+                                            <Sparkles className="w-4 h-4" /> {isResolvingOverlaps ? 'Redistributing...' : 'Auto-Spread All Overlaps'}
+                                        </button>
+                                    </div>
+
+                                    {/* Collisions Breakdown List */}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                            Detected Collision Groups:
+                                        </p>
+                                        {detectedCollisions.map((col, idx) => (
+                                            <div 
+                                                key={col.id} 
+                                                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3"
+                                            >
+                                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-6 h-6 rounded-lg bg-rose-600 text-white font-black text-xs flex items-center justify-center">
+                                                            {idx + 1}
+                                                        </span>
+                                                        <h6 className="text-xs font-black text-slate-900 dark:text-white uppercase">
+                                                            {col.title}
+                                                        </h6>
+                                                        <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 text-[8.5px] font-black uppercase">
+                                                            {col.allocations.length} Lessons Crammed
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setMultiAllocCellItems({
+                                                                className: col.className || '',
+                                                                stream: col.stream || '',
+                                                                day: col.dayOfWeek,
+                                                                startTime: col.startTime,
+                                                                endTime: col.endTime,
+                                                                allocations: col.allocations
+                                                            });
+                                                            setShowOverlapModal(false);
+                                                        }}
+                                                        className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                    >
+                                                        Inspect Slot
+                                                    </button>
+                                                </div>
+
+                                                {/* Lessons in this group */}
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
+                                                    {col.allocations.map(a => {
+                                                        const c = getAscSubjectColor(a.subjectName, a.subjectId);
+                                                        const code = getSubjectCode(a.subjectName, a.subjectId);
+                                                        const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                                                        return (
+                                                            <div 
+                                                                key={a.id}
+                                                                style={{ backgroundColor: c.bg, color: c.text, borderColor: c.border }}
+                                                                className="p-2 rounded-xl border flex items-center justify-between text-[9px] font-black uppercase select-none shadow-xs"
+                                                            >
+                                                                <span>{code}</span>
+                                                                <span className="opacity-80 font-mono text-[8px]">{tCode}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {detectedCollisions.length === 0 && (
+                                            <div className="p-8 text-center bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl">
+                                                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                                                <h5 className="text-xs font-black text-emerald-900 dark:text-emerald-200 uppercase tracking-wider">
+                                                    Zero Timetable Collisions!
+                                                </h5>
+                                                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-1">
+                                                    All classes and teachers have distinct, clash-free remedial schedules.
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>,
@@ -10046,15 +10963,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         {/* ===== MANUAL ALLOCATION MODAL ===== */}
         {showAllocModal && (
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col overflow-hidden">
                     {/* Modal Header */}
-                    <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between px-7 pt-7 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
                         <div>
                             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-violet-500" /> {editingAlloc ? 'Edit Allocation' : 'Manual Allocation'}
                             </h3>
                             <p className="text-[10px] text-slate-400 mt-0.5">
-                                {editingAlloc ? 'Modify scheduling, subject, class, stream, or teacher' : 'Assign a subject & teacher to a specific day slot'}
+                                {editingAlloc ? 'Modify scheduling, subject, class, stream, or teacher' : 'Assign a subject & teacher with instant slot conflict protection'}
                             </p>
                         </div>
                         <button
@@ -10066,7 +10983,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
 
                     {/* Modal Form */}
-                    <form onSubmit={handleCreateManualAllocation} className="p-7 space-y-5">
+                    <form onSubmit={handleCreateManualAllocation} className="p-7 space-y-5 overflow-y-auto">
                         {/* Class & Stream Selection with Joint Class Support */}
                         <div className="space-y-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -10408,8 +11325,99 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
-                        {/* Time Window */}
-                        <div className="space-y-2">
+                        {/* Interactive Slot Availability Selector */}
+                        <div className="space-y-2.5 pt-1">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                                    Available Periods ({allocDay})
+                                </label>
+                                <span className="text-[9px] font-bold text-slate-400">
+                                    Click any free slot to apply
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {modalCandidateSlots.map((s, idx) => {
+                                    const avail = getModalSlotAvailability(s);
+                                    const isSelected = allocStartTime === s.startTime && allocEndTime === s.endTime;
+
+                                    if (s.isBreak) {
+                                        return (
+                                            <div
+                                                key={`break-${idx}`}
+                                                className="p-2.5 rounded-xl border border-dashed border-amber-300/80 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 flex items-center justify-between opacity-70 select-none col-span-1 sm:col-span-2"
+                                            >
+                                                <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                                                    <Coffee className="w-3.5 h-3.5" /> {s.label}
+                                                </span>
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                                    Recess
+                                                </span>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <button
+                                            key={`${s.startTime}-${idx}`}
+                                            type="button"
+                                            onClick={() => {
+                                                if (avail.isAvailable || allowManualCollisionOverride) {
+                                                    setAllocStartTime(s.startTime);
+                                                    setAllocEndTime(s.endTime);
+                                                } else {
+                                                    if (window.confirm(
+                                                        `Slot Overlap Notice:\n\n• ${avail.reason}\n\n` +
+                                                        `This period already has a lesson scheduled. To place another lesson here, you must enable collision override.\n\n` +
+                                                        `Select this slot and enable override?`
+                                                    )) {
+                                                        setAllocStartTime(s.startTime);
+                                                        setAllocEndTime(s.endTime);
+                                                        setAllowManualCollisionOverride(true);
+                                                    }
+                                                }
+                                            }}
+                                            className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between gap-1.5 ${
+                                                isSelected
+                                                    ? 'ring-2 ring-indigo-600 bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500 shadow-sm'
+                                                    : avail.isAvailable
+                                                        ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400 hover:shadow-xs'
+                                                        : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/80 opacity-90'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-1">
+                                                <span className="text-[11px] font-black tracking-tight text-slate-800 dark:text-white flex items-center gap-1">
+                                                    {s.startTime} - {s.endTime}
+                                                </span>
+                                                <span className={`text-[8.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                                    avail.isAvailable
+                                                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                                                        : avail.isClassOccupied
+                                                            ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                                                            : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                                }`}>
+                                                    {avail.isAvailable ? 'Free Slot' : avail.isClassOccupied ? `Occupied (${avail.count})` : 'Teacher Busy'}
+                                                </span>
+                                            </div>
+
+                                            <p className={`text-[9.5px] font-semibold truncate ${
+                                                avail.isAvailable 
+                                                    ? 'text-emerald-600 dark:text-emerald-400' 
+                                                    : avail.isClassOccupied 
+                                                        ? 'text-rose-600 dark:text-rose-400' 
+                                                        : 'text-amber-600 dark:text-amber-400'
+                                            }`}>
+                                                {avail.isAvailable ? '✓ Ready for allocation' : `✗ ${avail.reason}`}
+                                            </p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Time Window Custom Adjuster */}
+                        <div className="space-y-2 pt-1">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Start Time</label>
@@ -10524,6 +11532,62 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             )}
                         </div>
 
+                        {/* Live Collision Warning Banner & Override Control */}
+                        {(activeModalSlotConflicts.classConflicts.length > 0 || activeModalSlotConflicts.teacherConflicts.length > 0) && (
+                            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/80 space-y-3 animate-in fade-in">
+                                <div className="flex items-start gap-2.5">
+                                    <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                                    <div className="text-xs">
+                                        <p className="font-black text-rose-900 dark:text-rose-200 uppercase tracking-wider">
+                                            Slot Collision Detected ({activeModalSlotConflicts.classConflicts.length + activeModalSlotConflicts.teacherConflicts.length} Clash{activeModalSlotConflicts.classConflicts.length + activeModalSlotConflicts.teacherConflicts.length > 1 ? 'es' : ''})
+                                        </p>
+                                        {activeModalSlotConflicts.classConflicts.length > 0 && (
+                                            <div className="text-rose-800 dark:text-rose-300 mt-1 space-y-0.5">
+                                                <p className="font-bold">Class already scheduled at this time:</p>
+                                                <ul className="list-disc list-inside text-[11px] text-rose-700 dark:text-rose-300">
+                                                    {activeModalSlotConflicts.classConflicts.map(c => (
+                                                        <li key={c.id}>
+                                                            <strong>{c.subjectName || 'Subject'}</strong> taught by {c.teacherName || 'Teacher'} ({c.startTime} - {c.endTime})
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {activeModalSlotConflicts.teacherConflicts.length > 0 && (
+                                            <div className="text-amber-800 dark:text-amber-300 mt-1.5 space-y-0.5">
+                                                <p className="font-bold">Teacher double-booked:</p>
+                                                <ul className="list-disc list-inside text-[11px] text-amber-700 dark:text-amber-300">
+                                                    {activeModalSlotConflicts.teacherConflicts.map(c => (
+                                                        <li key={c.id}>
+                                                            {c.teacherName || 'Teacher'} is teaching <strong>{c.courseName || c.className} {c.stream || ''}</strong> ({c.startTime} - {c.endTime})
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Override Checkbox */}
+                                <label className="flex items-center gap-2.5 pt-2 border-t border-rose-200 dark:border-rose-900/60 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={allowManualCollisionOverride}
+                                        onChange={e => setAllowManualCollisionOverride(e.target.checked)}
+                                        className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-rose-300"
+                                    />
+                                    <div>
+                                        <span className="text-xs font-black text-rose-900 dark:text-rose-200 uppercase tracking-wide">
+                                            Allow Manual Collision Override
+                                        </span>
+                                        <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium">
+                                            I understand multiple lessons will share this exact time period.
+                                        </p>
+                                    </div>
+                                </label>
+                            </div>
+                        )}
+
                         {/* Tariff Badge */}
                         <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${
                             ['Saturday', 'Sunday'].includes(allocDay)
@@ -10550,10 +11614,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </button>
                             <button
                                 type="submit"
-                                className="flex-1 py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                disabled={(activeModalSlotConflicts.classConflicts.length > 0 || activeModalSlotConflicts.teacherConflicts.length > 0) && !allowManualCollisionOverride}
+                                className={`flex-1 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                                    (activeModalSlotConflicts.classConflicts.length > 0 || activeModalSlotConflicts.teacherConflicts.length > 0) && !allowManualCollisionOverride
+                                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg shadow-indigo-500/20 active:scale-95'
+                                }`}
                             >
                                 {editingAlloc ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                                {editingAlloc ? 'Update Allocation' : 'Save Allocation'}
+                                {(activeModalSlotConflicts.classConflicts.length > 0 || activeModalSlotConflicts.teacherConflicts.length > 0) && !allowManualCollisionOverride
+                                    ? 'Blocked: Slot Conflict'
+                                    : (editingAlloc ? 'Update Allocation' : 'Save Allocation')
+                                }
                             </button>
                         </div>
                     </form>
