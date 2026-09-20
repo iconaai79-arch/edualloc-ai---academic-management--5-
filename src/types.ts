@@ -6435,6 +6435,10 @@ export interface RemedialSession {
     hours?: number;
     durationMinutes?: number;
     date?: string;
+    dayOfWeek?: string;
+    day_of_week?: string;
+    isDutyLesson?: boolean;
+    is_duty_lesson?: boolean;
     qrToken?: string;
     verifiedAt?: string;
     status: RemedialSessionStatus;
@@ -6543,11 +6547,17 @@ export interface RemedialWeekendDuty {
     saturdaySessionId?: string;
     sundaySessionId?: string;
     dutyType?: string;
+    duty_type?: string;
     weekdayDay?: string;
+    weekday_day?: string;
     weekdayStartTime?: string;
+    weekday_start_time?: string;
     weekdayEndTime?: string;
+    weekday_end_time?: string;
     weekdayAllocated?: boolean;
+    weekday_allocated?: boolean;
     weekdaySessionId?: string;
+    weekday_session_id?: string;
     dutyPayRate?: number;
     dutyPayType?: string;
     duty_pay_rate?: number;
