@@ -1,10 +1,14 @@
 -- Migration 403: Comprehensive column and schema synchronization for school_remedial_allocations
--- Description: Ensures all core, joint, substitution, priority, and automation columns natively exist on 
+-- Description: Ensures all core, joint, substitution, priority, automation, and timestamp columns natively exist on 
 -- public.school_remedial_allocations with safe defaults, preventing PGRST204 un-cached column retries.
 
 DO $$ 
 BEGIN 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_allocations') THEN
+        -- 0. Timestamps
+        ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+        ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
         -- 1. Stream & Classification
         ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS stream TEXT;
         ALTER TABLE public.school_remedial_allocations ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'Medium';
@@ -46,10 +50,11 @@ BEGIN
         END IF;
     END IF;
 
-    -- Also ensure school_remedial_sessions has is_joint and joint_streams
+    -- Also ensure school_remedial_sessions has is_joint, joint_streams, and updated_at
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'school_remedial_sessions') THEN
         ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS is_joint BOOLEAN DEFAULT false;
         ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS joint_streams JSONB DEFAULT '[]'::jsonb;
+        ALTER TABLE public.school_remedial_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
     END IF;
 END $$;
 

@@ -2512,7 +2512,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             'substitute_teacher_id', 'substitute_teacher_name',
                             'original_teacher_id', 'original_teacher_name',
                             'cancellation_reason', 'cancelled_at',
-                            'confirmation_deadline', 'declined_teacher_ids'
+                            'confirmation_deadline', 'declined_teacher_ids',
+                            'updated_at', 'created_at'
                         ];
                         const stripAllocExtended = (item: any) => {
                             if (!item || typeof item !== 'object') return item;
@@ -3418,7 +3419,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 'substitute_teacher_id', 'substitute_teacher_name',
                                 'original_teacher_id', 'original_teacher_name',
                                 'cancellation_reason', 'cancelled_at',
-                                'confirmation_deadline', 'declined_teacher_ids'
+                                'confirmation_deadline', 'declined_teacher_ids',
+                                'updated_at', 'created_at'
                             ];
                             const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
                             EXTENDED_ALLOC_COLS.forEach(c => {
