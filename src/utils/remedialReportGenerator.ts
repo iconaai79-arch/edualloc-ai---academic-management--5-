@@ -775,17 +775,24 @@ export const matchAllocationStream = (allocation: any, targetStream?: string): b
     if (!targetStream || targetStream === 'All Streams' || targetStream === 'All') return true;
     if (!allocation) return false;
     if (!allocation.stream || allocation.stream === 'All Streams') return true;
-    if (allocation.stream.toLowerCase().trim() === targetStream.toLowerCase().trim()) return true;
+
+    const target = targetStream.toLowerCase().trim();
+    const allocStream = String(allocation.stream || '').toLowerCase().trim();
+    if (allocStream === target) return true;
+
+    // Check delimited streams (e.g. "East, West" or "East / West" or "East & West")
+    const parts = allocStream.split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
+    if (parts.includes(target) || parts.some(p => p === target || target.includes(p))) return true;
 
     const isJoint = !!(allocation.isJoint || allocation.is_joint || (allocation.jointStreams && allocation.jointStreams.length > 0));
     if (isJoint) {
         const jointStreams = Array.isArray(allocation.jointStreams)
             ? allocation.jointStreams
             : (Array.isArray(allocation.joint_streams) ? allocation.joint_streams : []);
-        if (jointStreams.some((s: string) => String(s).toLowerCase().trim() === targetStream.toLowerCase().trim())) {
+        if (jointStreams.some((s: string) => String(s).toLowerCase().trim() === target)) {
             return true;
         }
-        if (allocation.stream && allocation.stream.toLowerCase().includes(targetStream.toLowerCase().trim())) {
+        if (allocStream && allocStream.includes(target)) {
             return true;
         }
     }

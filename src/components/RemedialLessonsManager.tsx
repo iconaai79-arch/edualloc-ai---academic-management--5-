@@ -111,6 +111,41 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         return allocations.filter(a => a.isUnallocated || a.dayOfWeek === ('Unallocated' as any) || !a.dayOfWeek || !a.startTime);
     }, [allocations]);
 
+    // Filtered unallocated lessons respecting Class, Stream, Teacher, and Search filters
+    const filteredUnallocatedAllocations = useMemo(() => {
+        return unallocatedAllocations.filter(a => {
+            // 1. Class filter
+            const selectedCourse = courses.find(c => c.id === selectedTimetableClass);
+            const matchClass = selectedTimetableClass === 'All' || 
+                a.courseId === selectedTimetableClass || 
+                a.className === selectedTimetableClass || 
+                (selectedCourse && a.className === selectedCourse.name);
+            if (!matchClass) return false;
+
+            // 2. Stream filter
+            const matchStream = matchAllocationStream(a, selectedTimetableStream);
+            if (!matchStream) return false;
+
+            // 3. Teacher filter
+            const matchTeacher = selectedTimetableTeacher === 'All' || a.teacherId === selectedTimetableTeacher;
+            if (!matchTeacher) return false;
+
+            // 4. Quick Search query
+            if (ascClassSearchQuery) {
+                const q = ascClassSearchQuery.toLowerCase().trim();
+                const matchSearch = 
+                    (a.className || '').toLowerCase().includes(q) ||
+                    (a.stream || '').toLowerCase().includes(q) ||
+                    (a.subjectName || '').toLowerCase().includes(q) ||
+                    (a.teacherName || '').toLowerCase().includes(q) ||
+                    (a.unallocatedReason || '').toLowerCase().includes(q);
+                if (!matchSearch) return false;
+            }
+
+            return true;
+        });
+    }, [unallocatedAllocations, selectedTimetableClass, selectedTimetableStream, selectedTimetableTeacher, ascClassSearchQuery, courses]);
+
     // Weekend & Weekday Duty Roster State
     const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>([]);
     const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
@@ -1857,25 +1892,59 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Distinct streams for Timetable Filter Bar
     const distinctTimetableStreams = useMemo(() => {
         const streamSet = new Set<string>();
+
+        const addStreamName = (raw: any) => {
+            if (!raw) return;
+            const str = (typeof raw === 'string' ? raw : (raw?.name ? String(raw.name) : '')).trim();
+            if (!str || str === 'All Streams' || str === 'All') return;
+            // If composite stream string (e.g. "East, West" or "East / West"), add individual parts as well
+            const parts = str.split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
+            if (parts.length > 1) {
+                parts.forEach(p => streamSet.add(p));
+            }
+            streamSet.add(str.replace(/[()]/g, '').trim());
+        };
+
+        const selectedCourse = courses.find(c => c.id === selectedTimetableClass);
+
         allocations.forEach(a => {
-            if (selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass) {
-                if (a.stream && a.stream !== 'All Streams') {
-                    streamSet.add(a.stream);
+            const matchClass = selectedTimetableClass === 'All' || 
+                a.courseId === selectedTimetableClass || 
+                a.className === selectedTimetableClass || 
+                (selectedCourse && a.className === selectedCourse.name);
+
+            if (matchClass) {
+                if (a.stream) addStreamName(a.stream);
+                if (Array.isArray(a.jointStreams)) {
+                    a.jointStreams.forEach(s => addStreamName(s));
                 }
             }
         });
 
         if (selectedTimetableClass !== 'All') {
-            const course = courses.find(c => c.id === selectedTimetableClass);
-            if (course?.levels && Array.isArray(course.levels)) {
-                course.levels.forEach(l => {
-                    if (l.name) streamSet.add(l.name.trim());
-                });
+            if (selectedCourse?.levels && Array.isArray(selectedCourse.levels)) {
+                selectedCourse.levels.forEach((l: any) => addStreamName(l));
+            }
+            if ((selectedCourse as any)?.streams && Array.isArray((selectedCourse as any).streams)) {
+                (selectedCourse as any).streams.forEach((s: any) => addStreamName(s));
+            }
+        } else {
+            courses.forEach(c => {
+                if (c.levels && Array.isArray(c.levels)) {
+                    c.levels.forEach((l: any) => addStreamName(l));
+                }
+                if ((c as any)?.streams && Array.isArray((c as any).streams)) {
+                    (c as any).streams.forEach((s: any) => addStreamName(s));
+                }
+            });
+            const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
+            if (Array.isArray(instStreams)) {
+                instStreams.forEach(s => addStreamName(s));
             }
         }
 
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [allocations, selectedTimetableClass, courses]);
+    }, [allocations, selectedTimetableClass, courses, currentInstitution]);
 
     // Open Create Subject Modal
     const handleOpenCreateSubject = () => {
@@ -4623,8 +4692,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     };
 
     // Auto-Spread all unallocated lessons to open slots
-    const handleAutoSpreadUnallocated = async () => {
-        if (unallocatedAllocations.length === 0) {
+    const handleAutoSpreadUnallocated = async (targetAllocs?: RemedialAllocation[]) => {
+        const allocsToSpread = targetAllocs && targetAllocs.length > 0 ? targetAllocs : unallocatedAllocations;
+        if (allocsToSpread.length === 0) {
             alert('There are no unallocated lessons to distribute.');
             return;
         }
@@ -4657,7 +4727,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 { day: 'Sunday', startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true }
             ];
 
-            for (const allocToMove of unallocatedAllocations) {
+            for (const allocToMove of allocsToSpread) {
                 const cMatch = courses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
                 const classId = cMatch?.id || allocToMove.courseId;
                 const className = cMatch?.name || allocToMove.className;
@@ -4730,7 +4800,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
 
             onLogAction?.(`Auto-spread allocated ${placedCount} previously unallocated lessons.`);
-            alert(`Auto-Spread Complete!\n\n• ${placedCount} lesson(s) placed into open timetable periods.\n• ${unallocatedAllocations.length - placedCount} lesson(s) remain unallocated.`);
+            alert(`Auto-Spread Complete!\n\n• ${placedCount} lesson(s) placed into open timetable periods.\n• ${allocsToSpread.length - placedCount} lesson(s) remain unallocated.`);
             await loadData();
         } catch (err: any) {
             alert('Failed to auto-spread unallocated: ' + (err as any).message);
@@ -9466,7 +9536,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                                                     : 'bg-amber-500 text-white animate-pulse'
                                             }`}>
-                                                {unallocatedAllocations.length}
+                                                {filteredUnallocatedAllocations.length !== unallocatedAllocations.length
+                                                    ? `${filteredUnallocatedAllocations.length}/${unallocatedAllocations.length}`
+                                                    : unallocatedAllocations.length}
                                             </span>
                                         )}
                                     </button>
@@ -9885,13 +9957,39 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <Archive className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
                                                     Unallocated Remedial Lessons Shelf
                                                 </h4>
                                                 <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider">
-                                                    {unallocatedAllocations.length} Pending
+                                                    {filteredUnallocatedAllocations.length !== unallocatedAllocations.length
+                                                        ? `${filteredUnallocatedAllocations.length} of ${unallocatedAllocations.length} Pending`
+                                                        : `${unallocatedAllocations.length} Pending`}
                                                 </span>
+                                                {selectedTimetableStream !== 'All' && (
+                                                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 text-[9px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                                                        Stream: {selectedTimetableStream}
+                                                        <button 
+                                                            onClick={() => setSelectedTimetableStream('All')}
+                                                            className="hover:text-indigo-900 dark:hover:text-white ml-0.5"
+                                                            title="Clear stream filter"
+                                                        >
+                                                            <X className="w-2.5 h-2.5" />
+                                                        </button>
+                                                    </span>
+                                                )}
+                                                {selectedTimetableClass !== 'All' && (
+                                                    <span className="px-2.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 text-[9px] font-black uppercase tracking-wider border border-violet-200 dark:border-violet-800 flex items-center gap-1">
+                                                        Class: {courses.find(c => c.id === selectedTimetableClass)?.name || selectedTimetableClass}
+                                                        <button 
+                                                            onClick={() => setSelectedTimetableClass('All')}
+                                                            className="hover:text-violet-900 dark:hover:text-white ml-0.5"
+                                                            title="Clear class filter"
+                                                        >
+                                                            <X className="w-2.5 h-2.5" />
+                                                        </button>
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
                                                 Lessons placed here were offloaded during Auto-Spread because their original period was overcrowded and all alternative slots were full. Only <strong>one subject</strong> is scheduled per period on the Master Timetable. You can allocate them whenever slots become available.
@@ -9902,20 +10000,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <div className="flex items-center gap-2.5 w-full md:w-auto">
                                         <button
                                             type="button"
-                                            disabled={isResolvingOverlaps || unallocatedAllocations.length === 0}
-                                            onClick={handleAutoSpreadUnallocated}
+                                            disabled={isResolvingOverlaps || filteredUnallocatedAllocations.length === 0}
+                                            onClick={() => handleAutoSpreadUnallocated(filteredUnallocatedAllocations)}
                                             className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
                                             <Sparkles className="w-4 h-4" />
-                                            {isResolvingOverlaps ? 'Spreading...' : 'Auto-Spread All Unallocated'}
+                                            {isResolvingOverlaps 
+                                                ? 'Spreading...' 
+                                                : (filteredUnallocatedAllocations.length !== unallocatedAllocations.length && filteredUnallocatedAllocations.length > 0
+                                                    ? `Auto-Spread Filtered (${filteredUnallocatedAllocations.length})` 
+                                                    : 'Auto-Spread All Unallocated')}
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Unallocated Cards Grid */}
-                                {unallocatedAllocations.length > 0 ? (
+                                {filteredUnallocatedAllocations.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {unallocatedAllocations.map(alloc => {
+                                        {filteredUnallocatedAllocations.map(alloc => {
                                             const color = getAscSubjectColor(alloc.subjectName || '');
                                             const subCode = getSubjectCode(alloc.subjectName || '', alloc.subjectId);
                                             const tCode = teacherCodes[alloc.teacherId] || getTeacherCode(alloc.teacherId, alloc.teacherName || 'Teacher', teachersList);
@@ -9985,6 +10087,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </div>
                                             );
                                         })}
+                                    </div>
+                                ) : unallocatedAllocations.length > 0 ? (
+                                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-700 text-center space-y-3">
+                                        <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto text-xl">
+                                            <Filter className="w-7 h-7" />
+                                        </div>
+                                        <h5 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                            No Unallocated Lessons Match Selected Filter
+                                        </h5>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                                            There are {unallocatedAllocations.length} unallocated lesson(s), but none match the stream &ldquo;{selectedTimetableStream}&rdquo; or current filter criteria.
+                                        </p>
+                                        <div className="pt-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedTimetableStream('All');
+                                                    setSelectedTimetableClass('All');
+                                                    setSelectedTimetableTeacher('All');
+                                                    setAscClassSearchQuery('');
+                                                }}
+                                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                                            >
+                                                Reset All Timetable Filters
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-12 border border-slate-100 dark:border-slate-700 text-center space-y-3">
