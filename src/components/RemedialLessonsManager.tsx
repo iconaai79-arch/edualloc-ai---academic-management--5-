@@ -5362,73 +5362,330 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return;
         }
 
-        const institutionName = currentInstitution?.name || 'School Remedial Program';
-        const className = selectedTimetableClass === 'All' ? 'All Classes' : (courses.find(c => c.id === selectedTimetableClass)?.name || selectedTimetableClass);
-        const streamName = selectedTimetableStream === 'All' ? 'All Streams' : selectedTimetableStream;
+        // ── CLASS TIMETABLE PRINTOUT (PER-CLASS aSc GRID) ──
+        const schoolName = String(currentInstitution?.name || 'KIPKEINO SCHOOL').toUpperCase();
+        const docYear = timetableYear || new Date().getFullYear();
+        const docTerm = timetableTerm || 'TERM 1';
+        const docWeek = timetableWeek || 'WEEK 1';
 
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+        // Authentic subject color scheme matching aSc Timetables template
+        const getPrintAscSubjectColor = (subjectName?: string, subjectId?: string) => {
+            const code = getSubjectCode(subjectName, subjectId).toUpperCase();
+            if (code === 'ENG') return { bg: '#facc15', text: '#000000' }; // Bright Yellow
+            if (code === 'MAT') return { bg: '#d946ef', text: '#000000' }; // Vivid Magenta
+            if (code === 'KIS') return { bg: '#1d4ed8', text: '#ffffff' }; // Royal Blue
+            if (code === 'CHE') return { bg: '#22c55e', text: '#000000' }; // Grass Green
+            if (code === 'BIO') return { bg: '#38bdf8', text: '#000000' }; // Sky Blue
+            if (code === 'PHY') return { bg: '#bae6fd', text: '#000000' }; // Pale Ice Blue
+            if (code === 'HIST') return { bg: '#1e40af', text: '#ffffff' }; // Deep Navy Blue
+            if (code === 'GEO') return { bg: '#d9f99d', text: '#000000' }; // Lime Yellow-Green
+            if (code === 'CRE') return { bg: '#f97316', text: '#ffffff' }; // Warm Orange
+            if (code === 'IRE') return { bg: '#f59e0b', text: '#000000' }; // Amber
+            if (code === 'AGRI' || code === 'AGR') return { bg: '#fb7185', text: '#000000' }; // Coral Red
+            if (code === 'HS') return { bg: '#c026d3', text: '#ffffff' }; // Deep Rose Magenta
+            if (code === 'CS') return { bg: '#86efac', text: '#000000' }; // Mint Pale Green
+            if (code === 'BST') return { bg: '#10b981', text: '#000000' }; // Emerald Green
+            if (code === 'FRE' || code === 'GER') return { bg: '#818cf8', text: '#ffffff' }; // Indigo
+            if (code === 'CA' || code === 'MUSIC') return { bg: '#f472b6', text: '#000000' }; // Pink
+            return getAscSubjectColor(subjectName, subjectId);
+        };
 
-        // Build HTML for each day's column
-        const daysHtml = days.map(day => {
-            const isWeekend = ['Saturday', 'Sunday'].includes(day);
-            const dayAllocations = allocations.filter(a => {
-                const matchDay = a.dayOfWeek === day;
-                const matchClass = selectedTimetableClass === 'All' || a.courseId === selectedTimetableClass;
-                const matchStream = matchAllocationStream(a, selectedTimetableStream);
-                return matchDay && matchClass && matchStream;
-            }).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+        // 10 Period slots matching the exact school timetable structure in the photo
+        const standardSlots = [
+            { periodNum: 1, label: '1', timeRange: '6:00 - 7:00', start: '06:00', end: '07:00', isBreak: false },
+            { periodNum: 2, label: '2', timeRange: '7:20 - 8:20', start: '07:20', end: '08:20', isBreak: false },
+            { periodNum: 3, label: '3', timeRange: '8:20 - 9:20', start: '08:20', end: '09:20', isBreak: false },
+            { periodNum: 0, label: 'BREAK', timeRange: '9:20 - 9:30', start: '09:20', end: '09:30', isBreak: true, breakText: 'SHORT BREAK' },
+            { periodNum: 4, label: '4', timeRange: '9:30 - 10:30', start: '09:30', end: '10:30', isBreak: false },
+            { periodNum: 0, label: 'LONG BREAK', timeRange: '10:30 - 11:00', start: '10:30', end: '11:00', isBreak: true, breakText: 'LONG BREAK' },
+            { periodNum: 5, label: '5', timeRange: '11:00 - 12:00', start: '11:00', end: '12:00', isBreak: false },
+            { periodNum: 6, label: '6', timeRange: '12:00 - 13:00', start: '12:00', end: '13:00', isBreak: false },
+            { periodNum: 0, label: 'LUNCH BREAK', timeRange: '13:00 - 14:00', start: '13:00', end: '14:00', isBreak: true, breakText: 'LUNCH' },
+            { periodNum: 7, label: '7', timeRange: '14:00 - 15:00', start: '14:00', end: '15:00', isBreak: false },
+            { periodNum: 8, label: '8', timeRange: '15:00 - 16:00', start: '15:00', end: '16:00', isBreak: false },
+            { periodNum: 9, label: '9', timeRange: `${weekdayStartTime || '17:00'} - ${weekdayEndTime || '18:00'}`, start: weekdayStartTime || '16:00', end: weekdayEndTime || '18:00', isBreak: false },
+            { periodNum: 10, label: '10', timeRange: '18:30 - 19:30', start: '18:30', end: '19:30', isBreak: false }
+        ];
 
-            let lessonsHtml = '';
+        // Determine list of classes to print
+        let classesToRender: { id: string; name: string; stream: string }[] = [];
+        if (selectedTimetableClass === 'All') {
+            const distinct = getDistinctTimetableClasses(allocations, courses);
+            classesToRender = distinct.map(d => ({
+                id: d.className,
+                name: d.className,
+                stream: d.stream || 'All Streams'
+            }));
+            if (classesToRender.length === 0) {
+                classesToRender = courses.map(c => ({ id: c.id, name: c.name, stream: 'All Streams' }));
+            }
+        } else {
+            const courseObj = courses.find(c => c.id === selectedTimetableClass);
+            classesToRender = [{
+                id: selectedTimetableClass,
+                name: courseObj?.name || selectedTimetableClass,
+                stream: selectedTimetableStream || 'All Streams'
+            }];
+        }
 
-            const renderAllocCard = (alloc: RemedialAllocation) => {
-                const isJoint = !!(alloc.isJoint || alloc.is_joint || (alloc.jointStreams && alloc.jointStreams.length > 0));
+        // Helper to match an allocation to a period slot
+        const matchAllocToSlot = (a: RemedialAllocation, slot: typeof standardSlots[0]) => {
+            if (slot.isBreak || !a.startTime) return false;
+            const aStart = a.startTime.trim();
+            if (aStart === slot.start) return true;
+            if (slot.start && slot.end && aStart >= slot.start && aStart < slot.end) return true;
+            if (slot.periodNum === 1 && (aStart.startsWith('06:') || aStart.startsWith('6:'))) return true;
+            if (slot.periodNum === 2 && (aStart.startsWith('07:') || aStart.startsWith('7:'))) return true;
+            if (slot.periodNum === 3 && (aStart.startsWith('08:') || aStart.startsWith('8:'))) return true;
+            if (slot.periodNum === 4 && (aStart.startsWith('09:') || aStart.startsWith('9:') || aStart.startsWith('10:0'))) return true;
+            if (slot.periodNum === 5 && aStart.startsWith('11:')) return true;
+            if (slot.periodNum === 6 && aStart.startsWith('12:')) return true;
+            if (slot.periodNum === 7 && aStart.startsWith('14:')) return true;
+            if (slot.periodNum === 8 && aStart.startsWith('15:')) return true;
+            if (slot.periodNum === 9 && (aStart.startsWith('16:') || aStart.startsWith('17:'))) return true;
+            if (slot.periodNum === 10 && (aStart.startsWith('18:') || aStart.startsWith('19:'))) return true;
+            return false;
+        };
+
+        // Render cell box content
+        const renderGridCell = (matches: RemedialAllocation[]) => {
+            if (!matches || matches.length === 0) {
+                return '<div style="width:100%;height:100%;min-height:72px;background:#ffffff;"></div>';
+            }
+
+            // 1 Lesson: Solid Color Box with bold centered code and bottom-right teacher code
+            if (matches.length === 1) {
+                const a = matches[0];
+                const c = getPrintAscSubjectColor(a.subjectName, a.subjectId);
+                const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                const isJoint = !!(a.isJoint || a.is_joint || (a.jointStreams && a.jointStreams.length > 0));
+
                 return `
-                <div class="lesson-card ${alloc.priority === 'High' ? 'priority-high' : ''}">
-                    <div class="lesson-subject">${alloc.subjectName} ${alloc.priority === 'High' ? '<span class="tag-high">High</span>' : ''}</div>
-                    <div class="lesson-class">${alloc.className} ${alloc.stream && alloc.stream !== 'All Streams' ? `(${alloc.stream})` : ''} ${isJoint ? '<span style="display:inline-block;padding:1px 5px;border-radius:4px;background:#d1fae5;color:#065f46;font-size:7.5px;font-weight:bold;margin-left:4px;">Joint Class</span>' : ''}</div>
-                    <div class="lesson-teacher">Teacher: ${alloc.teacherName}</div>
-                    <div class="lesson-time">${alloc.startTime} - ${alloc.endTime}</div>
-                </div>
-            `;
-            };
-
-            const hasDayBreak = (day === 'Saturday' && includeSaturdayBreak) || (day === 'Sunday' && includeSundayBreak);
-            const dayBreakStart = day === 'Saturday' ? (saturdayBreakStartTime || '10:00') : (sundayBreakStartTime || '11:00');
-            const dayBreakEnd = day === 'Saturday' ? (saturdayBreakEndTime || '10:30') : (sundayBreakEndTime || '11:30');
-            const dayBreakLabel = day === 'Saturday' ? (saturdayBreakLabel || 'Saturday Refreshment Break') : (sundayBreakLabel || 'Sunday Recess Break');
-
-            if (hasDayBreak) {
-                const preBreak = dayAllocations.filter(a => (a.startTime || '') < dayBreakStart);
-                const postBreak = dayAllocations.filter(a => (a.startTime || '') >= dayBreakStart);
-
-                const preBreakHtml = preBreak.length > 0 ? preBreak.map(renderAllocCard).join('') : '<div class="empty-slot">No pre-break sessions</div>';
-                const postBreakHtml = postBreak.length > 0 ? postBreak.map(renderAllocCard).join('') : '<div class="empty-slot">No post-break sessions</div>';
-
-                const breakCardHtml = `
-                    <div class="break-card">
-                        <div class="break-title">&#9749; ${dayBreakLabel}</div>
-                        <div class="break-time">${dayBreakStart} – ${dayBreakEnd}</div>
-                        <div class="break-sub">${day} Recess</div>
+                    <div style="width:100%;height:100%;min-height:72px;background-color:${c.bg};color:${c.text};position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:2px;overflow:hidden;">
+                        ${isJoint ? '<span style="position:absolute;top:2px;left:3px;font-size:7px;font-weight:900;padding:1px 3px;background:rgba(0,0,0,0.2);border-radius:2px;">JOINT</span>' : ''}
+                        <span style="font-size:18px;font-weight:900;letter-spacing:-0.5px;text-transform:uppercase;font-family:Arial,sans-serif;line-height:1;text-align:center;">
+                            ${sCode}
+                        </span>
+                        <span style="position:absolute;right:4px;bottom:3px;font-size:11px;font-weight:bold;font-family:Arial,sans-serif;line-height:1;opacity:0.95;">
+                            ${tCode}
+                        </span>
                     </div>
                 `;
+            }
 
-                lessonsHtml = preBreakHtml + breakCardHtml + postBreakHtml;
-            } else {
-                if (dayAllocations.length === 0) {
-                    lessonsHtml = '<div class="empty-slot">No lessons scheduled</div>';
-                } else {
-                    lessonsHtml = dayAllocations.map(renderAllocCard).join('');
-                }
+            // 2 Lessons: Diagonal Split Card (SVG Dual Triangles matching image)
+            if (matches.length === 2) {
+                const a1 = matches[0];
+                const a2 = matches[1];
+                const c1 = getPrintAscSubjectColor(a1.subjectName, a1.subjectId);
+                const c2 = getPrintAscSubjectColor(a2.subjectName, a2.subjectId);
+                const code1 = getSubjectCode(a1.subjectName, a1.subjectId);
+                const code2 = getSubjectCode(a2.subjectName, a2.subjectId);
+                const tCode1 = getTeacherCode(a1.teacherId, a1.teacherName, enrichedUsers);
+                const tCode2 = getTeacherCode(a2.teacherId, a2.teacherName, enrichedUsers);
+
+                return `
+                    <div style="width:100%;height:100%;min-height:72px;position:relative;overflow:hidden;">
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;min-height:72px;display:block;">
+                            <!-- Top-Right Triangle -->
+                            <polygon points="0,0 100,0 100,100" fill="${c1.bg}" />
+                            <!-- Bottom-Left Triangle -->
+                            <polygon points="0,0 0,100 100,100" fill="${c2.bg}" />
+                            <!-- Diagonal dividing line -->
+                            <line x1="0" y1="0" x2="100" y2="100" stroke="#000000" stroke-width="1.5" />
+                            <!-- Subject 1 Top-Right -->
+                            <text x="73" y="32" fill="${c1.text}" font-size="15" font-weight="900" text-anchor="middle" font-family="Arial, sans-serif">${code1}</text>
+                            <text x="76" y="52" fill="${c1.text}" font-size="9.5" font-weight="bold" text-anchor="middle" font-family="Arial, sans-serif">${tCode1}</text>
+                            <!-- Subject 2 Bottom-Left -->
+                            <text x="27" y="68" fill="${c2.text}" font-size="15" font-weight="900" text-anchor="middle" font-family="Arial, sans-serif">${code2}</text>
+                            <text x="30" y="88" fill="${c2.text}" font-size="9.5" font-weight="bold" text-anchor="middle" font-family="Arial, sans-serif">${tCode2}</text>
+                        </svg>
+                    </div>
+                `;
+            }
+
+            // 3+ Lessons: Horizontal Stacked Slices (matching image Tuesday period 4)
+            return `
+                <div style="width:100%;height:100%;min-height:72px;display:flex;flex-direction:column;overflow:hidden;">
+                    ${matches.map((a, idx) => {
+                        const c = getPrintAscSubjectColor(a.subjectName, a.subjectId);
+                        const code = getSubjectCode(a.subjectName, a.subjectId);
+                        const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                        const isLast = idx === matches.length - 1;
+                        return `
+                            <div style="flex:1;background-color:${c.bg};color:${c.text};border-bottom:${isLast ? 'none' : '1px solid #000000'};display:flex;align-items:center;justify-content:space-between;padding:1px 4px;box-sizing:border-box;">
+                                <span style="font-size:11px;font-weight:900;font-family:Arial,sans-serif;line-height:1;">${code}</span>
+                                <span style="font-size:9px;font-weight:bold;font-family:Arial,sans-serif;line-height:1;">${tCode}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        };
+
+        // Generate full HTML page for each class
+        const pagesHtml = classesToRender.map(cls => {
+            const classAllocs = allocations.filter(a => {
+                const matchCourse = a.courseId === cls.id || a.className === cls.name || a.courseId === cls.name;
+                const matchStream = !cls.stream || cls.stream === 'All Streams' || matchAllocationStream(a, cls.stream);
+                return matchCourse && matchStream && !a.isUnallocated && a.dayOfWeek !== 'Unallocated';
+            });
+
+            // Days to display (Mo - Fr by default; add Sa, Su if allocations exist)
+            const hasSat = classAllocs.some(a => a.dayOfWeek === 'Saturday');
+            const hasSun = classAllocs.some(a => a.dayOfWeek === 'Sunday');
+            const activeDays: { full: string; code: string }[] = [
+                { full: 'Monday', code: 'Mo' },
+                { full: 'Tuesday', code: 'Tu' },
+                { full: 'Wednesday', code: 'We' },
+                { full: 'Thursday', code: 'Th' },
+                { full: 'Friday', code: 'Fr' },
+            ];
+            if (hasSat) activeDays.push({ full: 'Saturday', code: 'Sa' });
+            if (hasSun) activeDays.push({ full: 'Sunday', code: 'Su' });
+
+            // Build grid rows
+            const rowsHtml = activeDays.map((day, dayIdx) => {
+                let cellsHtml = `
+                    <td style="width:55px;min-width:55px;background:#ffffff;border:1.5px solid #000000;text-align:center;vertical-align:middle;padding:0;">
+                        <div style="font-size:28px;font-weight:900;font-family:Arial,sans-serif;color:#000000;line-height:1;">
+                            ${day.code}
+                        </div>
+                    </td>
+                `;
+
+                standardSlots.forEach(slot => {
+                    if (slot.isBreak) {
+                        // Spans across all day rows with rotated vertical text on row 0
+                        if (dayIdx === 0) {
+                            cellsHtml += `
+                                <td rowspan="${activeDays.length}" style="width:36px;min-width:34px;max-width:40px;background:#ffffff;border:1.5px solid #000000;text-align:center;vertical-align:middle;padding:0;">
+                                    <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:20px;font-weight:900;letter-spacing:5px;text-transform:uppercase;color:#000000;font-family:Arial,sans-serif;white-space:nowrap;margin:0 auto;">
+                                        ${slot.breakText || 'BREAK'}
+                                    </div>
+                                </td>
+                            `;
+                        }
+                    } else {
+                        // Lesson Cell
+                        const matches = classAllocs.filter(a => a.dayOfWeek === day.full && matchAllocToSlot(a, slot));
+                        cellsHtml += `
+                            <td style="border:1.5px solid #000000;padding:0;margin:0;vertical-align:middle;height:72px;min-height:72px;">
+                                ${renderGridCell(matches)}
+                            </td>
+                        `;
+                    }
+                });
+
+                return `<tr style="height:72px;min-height:72px;">${cellsHtml}</tr>`;
+            }).join('');
+
+            // Staff & Subject Legend for this class
+            const subMap = new Map<string, string>();
+            const tMap = new Map<string, string>();
+            classAllocs.forEach(a => {
+                const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                if (sCode && a.subjectName) subMap.set(sCode, a.subjectName);
+                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                if (tCode && a.teacherName) tMap.set(tCode, a.teacherName);
+            });
+
+            const subArr = Array.from(subMap.entries());
+            const tArr = Array.from(tMap.entries());
+            const maxL = Math.max(subArr.length, tArr.length);
+            let legendRows = '';
+            for (let i = 0; i < maxL; i++) {
+                const s = subArr[i];
+                const t = tArr[i];
+                legendRows += `
+                    <tr>
+                        <td style="font-weight:900;border:1px solid #000000;padding:3px 6px;text-align:center;">${s ? s[0] : ''}</td>
+                        <td style="border:1px solid #000000;padding:3px 6px;">${s ? s[1] : ''}</td>
+                        <td style="font-weight:900;border:1px solid #000000;padding:3px 6px;text-align:center;">${t ? t[0] : ''}</td>
+                        <td style="border:1px solid #000000;padding:3px 6px;">${t ? t[1] : ''}</td>
+                    </tr>
+                `;
             }
 
             return `
-                <div class="day-column ${isWeekend ? 'weekend-column' : ''}">
-                    <div class="day-header">
-                        <div class="day-name">${day}</div>
-                        <div class="day-tag">${isWeekend ? 'Weekend' : 'Weekday'}</div>
+                <div class="class-page">
+                    <!-- Top Header -->
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;border-bottom:2px solid #000000;padding-bottom:6px;">
+                        <div>
+                            <h1 style="font-size:22px;font-weight:900;text-transform:uppercase;margin:0;letter-spacing:0.5px;font-family:Arial,sans-serif;color:#000000;">
+                                ${schoolName}
+                            </h1>
+                            <div style="font-size:14px;font-weight:800;text-transform:uppercase;color:#1e293b;margin-top:2px;font-family:Arial,sans-serif;">
+                                CLASS: ${cls.name} ${cls.stream && cls.stream !== 'All Streams' ? `(${cls.stream})` : ''} &bull; REMEDIAL TIMETABLE
+                            </div>
+                        </div>
+                        <div style="text-align:right;font-family:Arial,sans-serif;font-size:11px;font-weight:bold;color:#334155;">
+                            <div>${docWeek} &bull; ${docTerm} ${docYear}</div>
+                            <div style="font-size:10px;color:#64748b;margin-top:2px;">Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                        </div>
                     </div>
-                    <div class="day-content">
-                        ${lessonsHtml}
+
+                    <!-- Timetable Matrix Grid -->
+                    <table style="width:100%;border-collapse:collapse;border:2px solid #000000;table-layout:fixed;margin-bottom:12px;">
+                        <thead>
+                            <tr style="background:#ffffff;border-bottom:2px solid #000000;">
+                                <th style="width:55px;min-width:55px;border:1.5px solid #000000;padding:4px 2px;"></th>
+                                ${standardSlots.map(slot => `
+                                    <th style="border:1.5px solid #000000;${slot.isBreak ? 'width:36px;min-width:34px;max-width:40px;' : ''}padding:4px 2px;text-align:center;vertical-align:middle;background:#ffffff;">
+                                        <div style="font-size:13px;font-weight:900;font-family:Arial,sans-serif;color:#000000;line-height:1;">
+                                            ${slot.label}
+                                        </div>
+                                        <div style="font-size:8.5px;font-weight:normal;color:#333333;font-family:Arial,sans-serif;margin-top:3px;white-space:nowrap;">
+                                            ${slot.timeRange}
+                                        </div>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+
+                    <!-- Legend & Signatures -->
+                    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-top:8px;">
+                        <div>
+                            <div style="font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;color:#000000;font-family:Arial,sans-serif;">
+                                STAFF &amp; SUBJECT REFERENCE KEY
+                            </div>
+                            <table style="width:100%;border-collapse:collapse;border:1px solid #000000;font-size:9px;font-family:Arial,sans-serif;">
+                                <thead>
+                                    <tr style="background:#f8fafc;border-bottom:1px solid #000000;">
+                                        <th style="width:14%;padding:2px 4px;border:1px solid #000000;text-align:center;">CODE</th>
+                                        <th style="width:36%;padding:2px 4px;border:1px solid #000000;text-align:left;">SUBJECT</th>
+                                        <th style="width:14%;padding:2px 4px;border:1px solid #000000;text-align:center;">TEACHER</th>
+                                        <th style="width:36%;padding:2px 4px;border:1px solid #000000;text-align:left;">NAME</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${legendRows || '<tr><td colspan="4" style="text-align:center;padding:4px;color:#64748b;">No allocated subjects recorded</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Certification Signatures -->
+                        <div style="display:flex;flex-direction:column;justify-content:space-between;">
+                            <div style="display:flex;justify-content:space-between;gap:10px;margin-top:auto;">
+                                <div style="text-align:center;flex:1;">
+                                    <div style="border-top:1.5px solid #000000;margin-top:35px;padding-top:3px;font-size:9.5px;font-weight:800;text-transform:uppercase;font-family:Arial,sans-serif;">
+                                        Director of Studies
+                                    </div>
+                                    <div style="font-size:8px;color:#64748b;margin-top:1px;">Sign &amp; Date</div>
+                                </div>
+                                <div style="text-align:center;flex:1;">
+                                    <div style="border-top:1.5px solid #000000;margin-top:35px;padding-top:3px;font-size:9.5px;font-weight:800;text-transform:uppercase;font-family:Arial,sans-serif;">
+                                        Principal / Head
+                                    </div>
+                                    <div style="font-size:8px;color:#64748b;margin-top:1px;">Official Stamp &amp; Seal</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -5441,256 +5698,42 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 <html>
                 <head>
                     <meta charset="utf-8" />
-                    <title>Remedial Timetable - ${className}</title>
+                    <title>Remedial Timetable - ${schoolName}</title>
                     <style>
                         @page {
                             size: A4 landscape;
-                            margin: 10mm;
+                            margin: 8mm 10mm;
                         }
                         * {
                             box-sizing: border-box;
-                            -webkit-print-color-adjust: exact;
-                            print-color-adjust: exact;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                            color-adjust: exact !important;
                         }
                         body {
-                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                            font-family: Arial, Helvetica, sans-serif;
                             margin: 0;
-                            padding: 16px;
+                            padding: 8px;
                             background: #ffffff;
-                            color: #0f172a;
+                            color: #000000;
                         }
-                        .header {
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: center;
-                            border-bottom: 2px solid #334155;
-                            padding-bottom: 12px;
-                            margin-bottom: 16px;
+                        .class-page {
+                            page-break-after: always;
+                            break-after: page;
+                            padding: 4px 0 16px 0;
                         }
-                        .inst-title {
-                            font-size: 20px;
-                            font-weight: 900;
-                            text-transform: uppercase;
-                            letter-spacing: -0.5px;
-                            margin: 0 0 4px 0;
-                            color: #1e1b4b;
+                        .class-page:last-child {
+                            page-break-after: avoid;
+                            break-after: avoid;
                         }
-                        .doc-title {
-                            font-size: 13px;
-                            font-weight: 800;
-                            text-transform: uppercase;
-                            letter-spacing: 1.5px;
-                            color: #4f46e5;
-                            margin: 0;
-                        }
-                        .meta-box {
-                            text-align: right;
-                            font-size: 11px;
-                            font-weight: 600;
-                            color: #475569;
-                        }
-                        .meta-pill {
-                            display: inline-block;
-                            background: #eef2ff;
-                            color: #4338ca;
-                            padding: 3px 10px;
-                            border-radius: 999px;
-                            font-size: 10px;
-                            font-weight: 800;
-                            margin-top: 4px;
-                            text-transform: uppercase;
-                        }
-                        .grid-container {
-                            display: grid;
-                            grid-template-columns: repeat(7, 1fr);
-                            gap: 8px;
-                            margin-bottom: 20px;
-                        }
-                        .day-column {
-                            border: 1px solid #cbd5e1;
-                            border-radius: 12px;
-                            background: #f8fafc;
-                            display: flex;
-                            flex-direction: column;
-                            overflow: hidden;
-                        }
-                        .weekend-column {
-                            background: #fffbeb;
-                            border-color: #fde68a;
-                        }
-                        .day-header {
-                            padding: 8px 6px;
-                            text-align: center;
-                            border-bottom: 1px solid #cbd5e1;
-                            background: #f1f5f9;
-                        }
-                        .weekend-column .day-header {
-                            background: #fef3c7;
-                            border-bottom-color: #fde68a;
-                        }
-                        .day-name {
-                            font-size: 12px;
-                            font-weight: 900;
-                            text-transform: uppercase;
-                            letter-spacing: 0.5px;
-                            color: #0f172a;
-                        }
-                        .day-tag {
-                            font-size: 8px;
-                            font-weight: 800;
-                            text-transform: uppercase;
-                            color: #64748b;
-                        }
-                        .weekend-column .day-tag {
-                            color: #b45309;
-                        }
-                        .day-content {
-                            padding: 6px;
-                            display: flex;
-                            flex-direction: column;
-                            gap: 6px;
-                            flex: 1;
-                        }
-                        .lesson-card {
-                            background: #ffffff;
-                            border: 1px solid #e2e8f0;
-                            border-radius: 8px;
-                            padding: 6px 7px;
-                            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-                        }
-                        .lesson-card.priority-high {
-                            border-left: 3px solid #e11d48;
-                        }
-                        .tag-high {
-                            display: inline-block;
-                            background: #ffe4e6;
-                            color: #be123c;
-                            font-size: 7.5px;
-                            font-weight: 800;
-                            padding: 1px 4px;
-                            border-radius: 4px;
-                            text-transform: uppercase;
-                            margin-left: 3px;
-                        }
-                        .lesson-subject {
-                            font-size: 10.5px;
-                            font-weight: 900;
-                            text-transform: uppercase;
-                            color: #0f172a;
-                            margin-bottom: 2px;
-                        }
-                        .lesson-class {
-                            font-size: 9px;
-                            font-weight: 700;
-                            color: #4f46e5;
-                            text-transform: uppercase;
-                            margin-bottom: 2px;
-                        }
-                        .lesson-teacher {
-                            font-size: 8.5px;
-                            color: #475569;
-                            margin-bottom: 3px;
-                        }
-                        .lesson-time {
-                            font-size: 8.5px;
-                            font-family: monospace;
-                            font-weight: 800;
-                            color: #0f172a;
-                            background: #f1f5f9;
-                            padding: 2px 4px;
-                            border-radius: 4px;
-                            display: inline-block;
-                        }
-                        .break-card {
-                            background: #fef3c7;
-                            border: 1.5px dashed #f59e0b;
-                            border-radius: 8px;
-                            padding: 7px 5px;
-                            text-align: center;
-                            margin: 2px 0;
-                        }
-                        .break-title {
-                            font-size: 9.5px;
-                            font-weight: 900;
-                            text-transform: uppercase;
-                            color: #92400e;
-                            letter-spacing: 0.3px;
-                            margin-bottom: 1px;
-                        }
-                        .break-time {
-                            font-size: 9px;
-                            font-family: monospace;
-                            font-weight: 900;
-                            color: #b45309;
-                        }
-                        .break-sub {
-                            font-size: 7.5px;
-                            font-weight: 800;
-                            text-transform: uppercase;
-                            color: #d97706;
-                            letter-spacing: 0.5px;
-                        }
-                        .empty-slot {
-                            font-size: 9px;
-                            color: #94a3b8;
-                            font-style: italic;
-                            text-align: center;
-                            padding: 12px 0;
-                        }
-                        .footer {
-                            border-top: 1.5px solid #e2e8f0;
-                            padding-top: 12px;
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: flex-end;
-                            font-size: 9.5px;
-                            color: #64748b;
-                        }
-                        .sig-line {
-                            width: 180px;
-                            border-top: 1px solid #334155;
-                            margin-top: 24px;
-                            text-align: center;
-                            font-size: 9px;
-                            font-weight: 800;
-                            text-transform: uppercase;
-                            color: #0f172a;
+                        table {
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
                         }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
-                        <div>
-                            <h1 class="inst-title">${institutionName}</h1>
-                            <p class="doc-title">Weekly Remedial Tuition &amp; Revision Timetable</p>
-                        </div>
-                        <div class="meta-box">
-                            <div>Class: <strong>${className}</strong> | Stream: <strong>${streamName}</strong></div>
-                            <div>Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                            <div class="meta-pill">Official Academic Schedule</div>
-                        </div>
-                    </div>
-
-                    <div class="grid-container">
-                        ${daysHtml}
-                    </div>
-
-                    <div class="footer">
-                        <div>
-                            <div><strong>Guidelines:</strong> Weekday tuition starts at ${weekdayStartTime} to ${weekdayEndTime}.</div>
-                            <div>Weekend tuition window: Saturday ${saturdayStartTime} to ${saturdayEndTime} ${includeSaturdayBreak ? `(Break: ${saturdayBreakStartTime}–${saturdayBreakEndTime} ${saturdayBreakLabel})` : '(No Break)'} | Sunday ${sundayStartTime} to ${sundayEndTime} ${includeSundayBreak ? `(Break: ${sundayBreakStartTime}–${sundayBreakEndTime} ${sundayBreakLabel})` : '(No Break)'}.</div>
-                            <div style="margin-top: 3px; font-size: 8.5px; color: #94a3b8;">All remedial sessions require prefect QR authentication upon session initiation and conclusion.</div>
-                        </div>
-                        <div style="display: flex; gap: 32px;">
-                            <div>
-                                <div class="sig-line">Director of Studies</div>
-                            </div>
-                            <div>
-                                <div class="sig-line">Principal / Headteacher</div>
-                            </div>
-                        </div>
-                    </div>
-
+                    ${pagesHtml}
                     <script>
                         window.onload = function() {
                             setTimeout(function() {
