@@ -1569,7 +1569,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 isAvailable: false,
                 isTeacherBusy: true,
                 count: teacherConflicts.length,
-                reason: `${first.teacherName || 'Teacher'} in ${first.courseName || first.className || 'Class'}`,
+                reason: `${first.teacherName || 'Teacher'} in ${first.className || 'Class'}`,
                 conflicts: teacherConflicts,
                 badgeColor: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
             };
@@ -8579,7 +8579,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {unallocatedAllocations.map(alloc => {
                                             const color = getAscSubjectColor(alloc.subjectName || '');
-                                            const subCode = getSubjectCode(alloc.subjectId, alloc.subjectName || 'SUB', effectiveSchoolSubjects);
+                                            const subCode = getSubjectCode(alloc.subjectName || '', alloc.subjectId);
                                             const tCode = teacherCodes[alloc.teacherId] || getTeacherCode(alloc.teacherId, alloc.teacherName || 'Teacher', teachersList);
 
                                             return (
@@ -12087,7 +12087,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 <ul className="list-disc list-inside text-[11px] text-amber-700 dark:text-amber-300">
                                                     {activeModalSlotConflicts.teacherConflicts.map(c => (
                                                         <li key={c.id}>
-                                                            {c.teacherName || 'Teacher'} is teaching <strong>{c.courseName || c.className} {c.stream || ''}</strong> ({c.startTime} - {c.endTime})
+                                                            {c.teacherName || 'Teacher'} is teaching <strong>{c.className} {c.stream || ''}</strong> ({c.startTime} - {c.endTime})
                                                         </li>
                                                     ))}
                                                 </ul>
