@@ -203,10 +203,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [sundayEndTime, setSundayEndTime] = useState<string>('13:00');
     const [maxLessonsPerClassPerDay, setMaxLessonsPerClassPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerClassPerDay, setMaxWeekendLessonsPerClassPerDay] = useState<number>(2);
+    const [maxSaturdayLessonsPerClassPerDay, setMaxSaturdayLessonsPerClassPerDay] = useState<number>(3);
+    const [maxSundayLessonsPerClassPerDay, setMaxSundayLessonsPerClassPerDay] = useState<number>(2);
     const [maxLessonsPerTeacherPerDay, setMaxLessonsPerTeacherPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerTeacherPerDay, setMaxWeekendLessonsPerTeacherPerDay] = useState<number>(2);
+    const [maxSaturdayLessonsPerTeacherPerDay, setMaxSaturdayLessonsPerTeacherPerDay] = useState<number>(3);
+    const [maxSundayLessonsPerTeacherPerDay, setMaxSundayLessonsPerTeacherPerDay] = useState<number>(2);
     const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerDay, setMaxWeekendLessonsPerDay] = useState<number>(2);
+    const [saturdayPeriodsCount, setSaturdayPeriodsCount] = useState<number>(5);
+    const [sundayPeriodsCount, setSundayPeriodsCount] = useState<number>(4);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
     const [weekendBreakStartTime, setWeekendBreakStartTime] = useState<string>('10:00');
@@ -333,15 +339,29 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 2;
         const classWdLimit = r.maxLessonsPerClassPerDay ?? r.max_lessons_per_class_per_day ?? r.metadata?.maxLessonsPerClassPerDay ?? r.metadata?.max_lessons_per_class_per_day ?? 1;
         const classWeLimit = r.maxWeekendLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? r.metadata?.maxWeekendLessonsPerClassPerDay ?? r.metadata?.max_weekend_lessons_per_class_per_day ?? weekendLimitVal;
+        const classSatLimit = r.maxSaturdayLessonsPerClassPerDay ?? r.max_saturday_lessons_per_class_per_day ?? r.metadata?.maxSaturdayLessonsPerClassPerDay ?? r.metadata?.max_saturday_lessons_per_class_per_day ?? classWeLimit ?? 3;
+        const classSunLimit = r.maxSundayLessonsPerClassPerDay ?? r.max_sunday_lessons_per_class_per_day ?? r.metadata?.maxSundayLessonsPerClassPerDay ?? r.metadata?.max_sunday_lessons_per_class_per_day ?? classWeLimit ?? 2;
+
         const teacherWdLimit = r.maxLessonsPerTeacherPerDay ?? r.max_lessons_per_teacher_per_day ?? r.maxLessonsPerDay ?? r.max_lessons_per_day ?? r.metadata?.maxLessonsPerTeacherPerDay ?? r.metadata?.max_lessons_per_teacher_per_day ?? 1;
         const teacherWeLimit = r.maxWeekendLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? weekendLimitVal;
+        const teacherSatLimit = r.maxSaturdayLessonsPerTeacherPerDay ?? r.max_saturday_lessons_per_teacher_per_day ?? r.metadata?.maxSaturdayLessonsPerTeacherPerDay ?? r.metadata?.max_saturday_lessons_per_teacher_per_day ?? teacherWeLimit ?? 3;
+        const teacherSunLimit = r.maxSundayLessonsPerTeacherPerDay ?? r.max_sunday_lessons_per_teacher_per_day ?? r.metadata?.maxSundayLessonsPerTeacherPerDay ?? r.metadata?.max_sunday_lessons_per_teacher_per_day ?? teacherWeLimit ?? 2;
+
+        const satPeriods = r.saturdayPeriodsCount ?? r.saturday_periods_count ?? r.metadata?.saturdayPeriodsCount ?? r.metadata?.saturday_periods_count ?? 5;
+        const sunPeriods = r.sundayPeriodsCount ?? r.sunday_periods_count ?? r.metadata?.sundayPeriodsCount ?? r.metadata?.sunday_periods_count ?? 4;
 
         setMaxLessonsPerClassPerDay(classWdLimit);
         setMaxWeekendLessonsPerClassPerDay(classWeLimit);
+        setMaxSaturdayLessonsPerClassPerDay(classSatLimit);
+        setMaxSundayLessonsPerClassPerDay(classSunLimit);
         setMaxLessonsPerTeacherPerDay(teacherWdLimit);
         setMaxWeekendLessonsPerTeacherPerDay(teacherWeLimit);
+        setMaxSaturdayLessonsPerTeacherPerDay(teacherSatLimit);
+        setMaxSundayLessonsPerTeacherPerDay(teacherSunLimit);
         setMaxLessonsPerDay(teacherWdLimit);
         setMaxWeekendLessonsPerDay(teacherWeLimit);
+        setSaturdayPeriodsCount(satPeriods);
+        setSundayPeriodsCount(sunPeriods);
         setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
         setTermFee(r.termFee ?? r.term_fee ?? 3000);
         const legBreakStart = r.weekendBreakStartTime || r.weekend_break_start_time || r.metadata?.weekendBreakStartTime || r.metadata?.weekend_break_start_time || '10:00';
@@ -1728,7 +1748,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
-                const classSatLimit = maxWeekendLessonsPerClassPerDay || 2;
+                const classSatLimit = maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3;
                 if (satAllocs.length >= classSatLimit) continue;
 
                 if (allocTeacherId) {
@@ -1736,7 +1756,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         if (editingAlloc && a.id === editingAlloc.id) return false;
                         return a.teacherId === allocTeacherId && a.dayOfWeek === 'Saturday';
                     });
-                    const teacherSatLimit = maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
+                    const teacherSatLimit = maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3;
                     if (teacherSatAllocs.length >= teacherSatLimit) continue;
                 }
 
@@ -1789,7 +1809,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
-                const classSunLimit = maxWeekendLessonsPerClassPerDay || 2;
+                const classSunLimit = maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2;
                 if (sunAllocs.length >= classSunLimit) continue;
 
                 if (allocTeacherId) {
@@ -1797,7 +1817,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         if (editingAlloc && a.id === editingAlloc.id) return false;
                         return a.teacherId === allocTeacherId && a.dayOfWeek === 'Sunday';
                     });
-                    const teacherSunLimit = maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
+                    const teacherSunLimit = maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
                     if (teacherSunAllocs.length >= teacherSunLimit) continue;
                 }
 
@@ -2295,6 +2315,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay));
             safeLocalStorage.setItem(`eduai_remedial_class_wd_max_${institutionId}`, String(maxLessonsPerClassPerDay));
             safeLocalStorage.setItem(`eduai_remedial_class_we_max_${institutionId}`, String(maxWeekendLessonsPerClassPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_class_sat_max_${institutionId}`, String(maxSaturdayLessonsPerClassPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_class_sun_max_${institutionId}`, String(maxSundayLessonsPerClassPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_teacher_sat_max_${institutionId}`, String(maxSaturdayLessonsPerTeacherPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_teacher_sun_max_${institutionId}`, String(maxSundayLessonsPerTeacherPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_sat_periods_${institutionId}`, String(saturdayPeriodsCount));
+            safeLocalStorage.setItem(`eduai_remedial_sun_periods_${institutionId}`, String(sundayPeriodsCount));
             safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(teacherPreferences));
             const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
             const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') ? rateSetting.metadata : {};
@@ -2328,10 +2354,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 max_lessons_per_class_per_day: maxLessonsPerClassPerDay,
                 maxWeekendLessonsPerClassPerDay,
                 max_weekend_lessons_per_class_per_day: maxWeekendLessonsPerClassPerDay,
+                maxSaturdayLessonsPerClassPerDay,
+                max_saturday_lessons_per_class_per_day: maxSaturdayLessonsPerClassPerDay,
+                maxSundayLessonsPerClassPerDay,
+                max_sunday_lessons_per_class_per_day: maxSundayLessonsPerClassPerDay,
                 maxLessonsPerTeacherPerDay,
                 max_lessons_per_teacher_per_day: maxLessonsPerTeacherPerDay,
                 maxWeekendLessonsPerTeacherPerDay,
                 max_weekend_lessons_per_teacher_per_day: maxWeekendLessonsPerTeacherPerDay,
+                maxSaturdayLessonsPerTeacherPerDay,
+                max_saturday_lessons_per_teacher_per_day: maxSaturdayLessonsPerTeacherPerDay,
+                maxSundayLessonsPerTeacherPerDay,
+                max_sunday_lessons_per_teacher_per_day: maxSundayLessonsPerTeacherPerDay,
+                saturdayPeriodsCount,
+                saturday_periods_count: saturdayPeriodsCount,
+                sundayPeriodsCount,
+                sunday_periods_count: sundayPeriodsCount,
                 maxLessonsPerDay: maxLessonsPerTeacherPerDay,
                 max_lessons_per_day: maxLessonsPerTeacherPerDay,
                 maxWeekendLessonsPerDay: maxWeekendLessonsPerTeacherPerDay,
@@ -2380,10 +2418,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     max_lessons_per_class_per_day: maxLessonsPerClassPerDay,
                     maxWeekendLessonsPerClassPerDay,
                     max_weekend_lessons_per_class_per_day: maxWeekendLessonsPerClassPerDay,
+                    maxSaturdayLessonsPerClassPerDay,
+                    max_saturday_lessons_per_class_per_day: maxSaturdayLessonsPerClassPerDay,
+                    maxSundayLessonsPerClassPerDay,
+                    max_sunday_lessons_per_class_per_day: maxSundayLessonsPerClassPerDay,
                     maxLessonsPerTeacherPerDay,
                     max_lessons_per_teacher_per_day: maxLessonsPerTeacherPerDay,
                     maxWeekendLessonsPerTeacherPerDay,
                     max_weekend_lessons_per_teacher_per_day: maxWeekendLessonsPerTeacherPerDay,
+                    maxSaturdayLessonsPerTeacherPerDay,
+                    max_saturday_lessons_per_teacher_per_day: maxSaturdayLessonsPerTeacherPerDay,
+                    maxSundayLessonsPerTeacherPerDay,
+                    max_sunday_lessons_per_teacher_per_day: maxSundayLessonsPerTeacherPerDay,
+                    saturdayPeriodsCount,
+                    saturday_periods_count: saturdayPeriodsCount,
+                    sundayPeriodsCount,
+                    sunday_periods_count: sundayPeriodsCount,
                     maxLessonsPerDay: maxLessonsPerTeacherPerDay,
                     max_lessons_per_day: maxLessonsPerTeacherPerDay,
                     maxWeekendLessonsPerDay: maxWeekendLessonsPerTeacherPerDay,
@@ -2584,11 +2634,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return alert('Please fill in all fields');
         }
 
-        // Daily Lesson Limit Check (weekday vs weekend) for both Teacher and Class/Stream
+        // Daily Lesson Limit Check (weekday vs Saturday vs Sunday) for both Teacher and Class/Stream
         const manualDateObj = new Date(manualDate);
         const dayStr = manualDateObj.toDateString();
-        const isWeekendDate = [0, 6].includes(manualDateObj.getDay());
-        const limitLabel = isWeekendDate ? 'weekend' : 'weekday';
+        const isSaturday = manualDateObj.getDay() === 6;
+        const isSunday = manualDateObj.getDay() === 0;
+        const isWeekendDate = isSaturday || isSunday;
+        const limitLabel = isSaturday ? 'Saturday' : (isSunday ? 'Sunday' : 'weekday');
 
         // 1. Check Class / Stream Daily Limit
         const existingClassSessionsOnDate = sessions.filter(s => {
@@ -2598,7 +2650,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (!sameCourse) return false;
             return manualStream === 'All Streams' || s.stream === manualStream || s.stream === 'All Streams';
         });
-        const effectiveClassDailyLimit = isWeekendDate ? (maxWeekendLessonsPerClassPerDay || 2) : (maxLessonsPerClassPerDay || 1);
+        const effectiveClassDailyLimit = isSaturday
+            ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+            : isSunday
+                ? (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2)
+                : (maxLessonsPerClassPerDay || 1);
         if (existingClassSessionsOnDate.length >= effectiveClassDailyLimit) {
             const courseName = courses.find(c => c.id === manualCourseId)?.name || 'Class';
             return alert(`Daily Class Quota Exceeded: ${courseName} (${manualStream}) has already reached the maximum ${limitLabel} limit of ${effectiveClassDailyLimit} remedial lesson(s) on ${manualDate}.`);
@@ -2608,7 +2664,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const existingTeacherSessionsOnDate = sessions.filter(s => {
             return s.teacherId === manualTeacherId && new Date(s.startTime).toDateString() === dayStr;
         });
-        const effectiveTeacherDailyLimit = isWeekendDate ? (maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2) : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+        const effectiveTeacherDailyLimit = isSaturday
+            ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+            : isSunday
+                ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
         if (existingTeacherSessionsOnDate.length >= effectiveTeacherDailyLimit) {
             const teacherName = users.find(u => u.id === manualTeacherId)?.name || 'Teacher';
             return alert(`Daily Teacher Quota Exceeded: ${teacherName} has already reached the maximum ${limitLabel} limit of ${effectiveTeacherDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
@@ -3575,8 +3635,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             `• Allocated Classes: ${allocatedCourses.map(c => c.name).join(', ')}\n` +
             `• Unallocated Classes: Strictly skipped (will not be generated).\n` +
             `• Designated Teachers: Lessons generated strictly to teachers with manual allocations for each class & subject.\n` +
-            `• Class Daily Limits: Up to ${maxLessonsPerClassPerDay || 1} lesson(s)/day on weekdays, and ${maxWeekendLessonsPerClassPerDay || 2} lesson(s)/day on weekends.\n` +
-            `• Teacher Daily Limits: Up to ${maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1} lesson(s)/day on weekdays, and ${maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2} lesson(s)/day on weekends.\n` +
+            `• Class Daily Limits: Up to ${maxLessonsPerClassPerDay || 1} lesson(s)/day on weekdays, ${maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3} on Saturdays, and ${maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2} on Sundays.\n` +
+            `• Teacher Daily Limits: Up to ${maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1} lesson(s)/day on weekdays, ${maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3} on Saturdays, and ${maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2} on Sundays.\n` +
             `• Preservation: Existing manual allocations are kept intact.`;
 
         if (!window.confirm(confirmMsg)) return;
@@ -3797,7 +3857,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                             // Try candidate days first
                             for (const day of candidateDays) {
-                                const isWeekend = ['Saturday', 'Sunday'].includes(day);
+                                const isSaturday = day === 'Saturday';
+                                const isSunday = day === 'Sunday';
                                 const sKey = `${course.id}_${targetStream}`;
 
                                 const existingStreamCountOnDay = [...manualAllocs, ...newAllocations].filter(a =>
@@ -3806,7 +3867,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     a.dayOfWeek === day
                                 ).length;
 
-                                const maxAllowedOnDay = isWeekend ? (maxWeekendLessonsPerClassPerDay || 2) : (maxLessonsPerClassPerDay || 1);
+                                const maxAllowedOnDay = isSaturday
+                                    ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+                                    : isSunday
+                                        ? (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2)
+                                        : (maxLessonsPerClassPerDay || 1);
                                 if (existingStreamCountOnDay >= maxAllowedOnDay) continue;
 
                                 let candidateStartTime = weekdayStartTime || '16:00';
@@ -3824,7 +3889,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 // Strictly check designated teacher availability first (teacher cannot teach 2 streams at once)
                                 if (designatedTeacher) {
                                     const dailyCount = teacherDailyCount[designatedTeacher.id]?.[day] || 0;
-                                    const tLimit = isWeekend ? (maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2) : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+                                    const tLimit = isSaturday
+                                        ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                                        : isSunday
+                                            ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                                            : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
                                     const isTimeSlotFree = !teacherSlotBooked[designatedTeacher.id]?.has(`${day}_${candidateStartTime}`);
 
                                     if (dailyCount < tLimit && isTimeSlotFree) {
@@ -3847,7 +3916,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 }
 
                                 for (const fbDay of fallbackDays) {
-                                    const fbIsWeekend = ['Saturday', 'Sunday'].includes(fbDay);
+                                    const fbIsSaturday = fbDay === 'Saturday';
+                                    const fbIsSunday = fbDay === 'Sunday';
                                     const sKey = `${course.id}_${targetStream}`;
 
                                     const fbExistingStreamCount = [...manualAllocs, ...newAllocations].filter(a =>
@@ -3855,7 +3925,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         (targetStream === 'All Streams' || a.stream === targetStream || a.stream === 'All Streams' || a.isJoint || a.is_joint) &&
                                         a.dayOfWeek === fbDay
                                     ).length;
-                                    const fbMax = fbIsWeekend ? (maxWeekendLessonsPerClassPerDay || 2) : (maxLessonsPerClassPerDay || 1);
+                                    const fbMax = fbIsSaturday
+                                        ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+                                        : fbIsSunday
+                                            ? (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2)
+                                            : (maxLessonsPerClassPerDay || 1);
                                     if (fbExistingStreamCount >= fbMax) continue;
 
                                     let fbStartTime = weekdayStartTime || '16:00';
@@ -3871,7 +3945,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                                     if (designatedTeacher) {
                                         const dailyCount = teacherDailyCount[designatedTeacher.id]?.[fbDay] || 0;
-                                        const tLimit = fbIsWeekend ? (maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2) : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+                                        const tLimit = fbIsSaturday
+                                            ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                                            : fbIsSunday
+                                                ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                                                : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
                                         const isTimeSlotFree = !teacherSlotBooked[designatedTeacher.id]?.has(`${fbDay}_${fbStartTime}`);
 
                                         if (dailyCount < tLimit && isTimeSlotFree) {
@@ -4269,7 +4347,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     (a.courseId === viol.courseId || a.className === viol.className) &&
                     (viol.stream === 'All Streams' || a.stream === 'All Streams' || a.stream === viol.stream || a.isJoint || viol.isJoint)
                 );
-                const limit = maxWeekendLessonsPerClassPerDay || maxWeekendLessonsPerDay || 2;
+                const isSat = d === 'Saturday';
+                const limit = isSat
+                    ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+                    : (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2);
                 if (existingInClass.length < limit) {
                     const teacherWeekendCount = updatedAllocations.filter(a => 
                         a.id !== viol.id &&
@@ -4277,7 +4358,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         a.teacherId === viol.teacherId &&
                         a.dayOfWeek === d
                     ).length;
-                    const tWeekendLimit = maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
+                    const tWeekendLimit = isSat
+                        ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                        : (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2);
                     if (teacherWeekendCount >= tWeekendLimit) continue;
 
                     let startT = '';
@@ -11166,53 +11249,97 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             />
                                         </div>
                                     </div>
-                                    {/* Saturday Hours */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
-                                            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                                            Saturday Remedial Hours (Start – End)
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <input 
-                                                type="time"
-                                                value={saturdayStartTime}
-                                                onChange={e => {
-                                                    setSaturdayStartTime(e.target.value);
-                                                    setWeekendStartTime(e.target.value);
-                                                }}
-                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
-                                            />
-                                            <input 
-                                                type="time"
-                                                value={saturdayEndTime}
-                                                onChange={e => {
-                                                    setSaturdayEndTime(e.target.value);
-                                                    setWeekendEndTime(e.target.value);
-                                                }}
-                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
-                                            />
+                                    {/* Saturday Hours & Periods */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                                <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                                                Saturday Remedial Hours (Start – End)
+                                            </label>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <input 
+                                                    type="time"
+                                                    value={saturdayStartTime}
+                                                    onChange={e => {
+                                                        setSaturdayStartTime(e.target.value);
+                                                        setWeekendStartTime(e.target.value);
+                                                    }}
+                                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                                />
+                                                <input 
+                                                    type="time"
+                                                    value={saturdayEndTime}
+                                                    onChange={e => {
+                                                        setSaturdayEndTime(e.target.value);
+                                                        setWeekendEndTime(e.target.value);
+                                                    }}
+                                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5 flex items-center gap-1.5">
+                                                <Layers className="w-3.5 h-3.5" />
+                                                Saturday Periods / Day
+                                            </label>
+                                            <select
+                                                value={saturdayPeriodsCount}
+                                                onChange={e => setSaturdayPeriodsCount(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/60 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            >
+                                                <option value={1}>1 Period</option>
+                                                <option value={2}>2 Periods</option>
+                                                <option value={3}>3 Periods</option>
+                                                <option value={4}>4 Periods</option>
+                                                <option value={5}>5 Periods (Standard)</option>
+                                                <option value={6}>6 Periods</option>
+                                                <option value={7}>7 Periods</option>
+                                                <option value={8}>8 Periods</option>
+                                            </select>
                                         </div>
                                     </div>
 
-                                    {/* Sunday Hours */}
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
-                                            <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                                            Sunday Remedial Hours (Start – End)
-                                        </label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <input 
-                                                type="time"
-                                                value={sundayStartTime}
-                                                onChange={e => setSundayStartTime(e.target.value)}
-                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
-                                            />
-                                            <input 
-                                                type="time"
-                                                value={sundayEndTime}
-                                                onChange={e => setSundayEndTime(e.target.value)}
-                                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
-                                            />
+                                    {/* Sunday Hours & Periods */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1.5">
+                                                <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                                                Sunday Remedial Hours (Start – End)
+                                            </label>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <input 
+                                                    type="time"
+                                                    value={sundayStartTime}
+                                                    onChange={e => setSundayStartTime(e.target.value)}
+                                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                                />
+                                                <input 
+                                                    type="time"
+                                                    value={sundayEndTime}
+                                                    onChange={e => setSundayEndTime(e.target.value)}
+                                                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5 flex items-center gap-1.5">
+                                                <Layers className="w-3.5 h-3.5" />
+                                                Sunday Periods / Day
+                                            </label>
+                                            <select
+                                                value={sundayPeriodsCount}
+                                                onChange={e => setSundayPeriodsCount(Number(e.target.value))}
+                                                className="w-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                            >
+                                                <option value={1}>1 Period</option>
+                                                <option value={2}>2 Periods</option>
+                                                <option value={3}>3 Periods</option>
+                                                <option value={4}>4 Periods (Standard)</option>
+                                                <option value={5}>5 Periods</option>
+                                                <option value={6}>6 Periods</option>
+                                                <option value={7}>7 Periods</option>
+                                                <option value={8}>8 Periods</option>
+                                            </select>
                                         </div>
                                     </div>
 
@@ -11374,10 +11501,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <p className="text-[9px] text-slate-400 font-medium">Limits how many remedial lessons a single class or stream can have on a given day.</p>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                                         <div>
                                             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                                                🗓️ Weekday Max Lessons per Class
+                                                🗓️ Weekday Max Lessons
                                             </label>
                                             <select 
                                                 value={maxLessonsPerClassPerDay}
@@ -11393,12 +11520,39 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Mon – Fri to each stream.</p>
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
-                                                📅 Weekend Max Lessons per Class
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5">
+                                                📅 Saturday Max Lessons
                                             </label>
                                             <select 
-                                                value={maxWeekendLessonsPerClassPerDay}
-                                                onChange={e => setMaxWeekendLessonsPerClassPerDay(Number(e.target.value))}
+                                                value={maxSaturdayLessonsPerClassPerDay}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setMaxSaturdayLessonsPerClassPerDay(val);
+                                                    setMaxWeekendLessonsPerClassPerDay(Math.max(val, maxSundayLessonsPerClassPerDay));
+                                                }}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-indigo-200 dark:border-indigo-800/60 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            >
+                                                <option value={1}>1 Lesson per Day</option>
+                                                <option value={2}>2 Lessons per Day</option>
+                                                <option value={3}>3 Lessons per Day (Standard)</option>
+                                                <option value={4}>4 Lessons per Day</option>
+                                                <option value={5}>5 Lessons per Day</option>
+                                                <option value={6}>6 Lessons per Day</option>
+                                                <option value={99}>Unlimited (No Cap)</option>
+                                            </select>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Saturday to each stream.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
+                                                🌅 Sunday Max Lessons
+                                            </label>
+                                            <select 
+                                                value={maxSundayLessonsPerClassPerDay}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setMaxSundayLessonsPerClassPerDay(val);
+                                                    setMaxWeekendLessonsPerClassPerDay(Math.max(val, maxSaturdayLessonsPerClassPerDay));
+                                                }}
                                                 className="w-full bg-slate-50 dark:bg-slate-800/80 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                             >
                                                 <option value={1}>1 Lesson per Day</option>
@@ -11409,7 +11563,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 <option value={6}>6 Lessons per Day</option>
                                                 <option value={99}>Unlimited (No Cap)</option>
                                             </select>
-                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Sat &amp; Sun to each stream.</p>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Sunday to each stream.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -11425,10 +11579,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <p className="text-[9px] text-slate-400 font-medium">Limits total lessons an educator can teach across all classes in one day.</p>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                                         <div>
                                             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                                                🗓️ Weekday Max Lessons per Teacher
+                                                🗓️ Weekday Max Lessons
                                             </label>
                                             <select 
                                                 value={maxLessonsPerTeacherPerDay}
@@ -11449,27 +11603,52 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <p className="text-[9px] text-slate-400 mt-1 font-medium">Prevents teacher fatigue Mon – Fri.</p>
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
-                                                📅 Weekend Max Lessons per Teacher
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-1.5">
+                                                📅 Saturday Max Lessons
                                             </label>
                                             <select 
-                                                value={maxWeekendLessonsPerTeacherPerDay}
+                                                value={maxSaturdayLessonsPerTeacherPerDay}
                                                 onChange={e => {
                                                     const val = Number(e.target.value);
-                                                    setMaxWeekendLessonsPerTeacherPerDay(val);
-                                                    setMaxWeekendLessonsPerDay(val);
+                                                    setMaxSaturdayLessonsPerTeacherPerDay(val);
+                                                    setMaxWeekendLessonsPerTeacherPerDay(Math.max(val, maxSundayLessonsPerTeacherPerDay));
+                                                    setMaxWeekendLessonsPerDay(Math.max(val, maxSundayLessonsPerTeacherPerDay));
+                                                }}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-indigo-200 dark:border-indigo-800/60 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            >
+                                                <option value={1}>1 Lesson per Day</option>
+                                                <option value={2}>2 Lessons per Day</option>
+                                                <option value={3}>3 Lessons per Day (Standard)</option>
+                                                <option value={4}>4 Lessons per Day</option>
+                                                <option value={5}>5 Lessons per Day</option>
+                                                <option value={6}>6 Lessons per Day</option>
+                                                <option value={99}>Unlimited (No Cap)</option>
+                                            </select>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Maximum sessions per teacher on Saturday.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
+                                                🌅 Sunday Max Lessons
+                                            </label>
+                                            <select 
+                                                value={maxSundayLessonsPerTeacherPerDay}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setMaxSundayLessonsPerTeacherPerDay(val);
+                                                    setMaxWeekendLessonsPerTeacherPerDay(Math.max(val, maxSaturdayLessonsPerTeacherPerDay));
+                                                    setMaxWeekendLessonsPerDay(Math.max(val, maxSaturdayLessonsPerTeacherPerDay));
                                                 }}
                                                 className="w-full bg-slate-50 dark:bg-slate-800/80 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                             >
                                                 <option value={1}>1 Lesson per Day</option>
-                                                <option value={2}>2 Lessons per Day</option>
+                                                <option value={2}>2 Lessons per Day (Standard)</option>
                                                 <option value={3}>3 Lessons per Day</option>
                                                 <option value={4}>4 Lessons per Day</option>
                                                 <option value={5}>5 Lessons per Day</option>
                                                 <option value={6}>6 Lessons per Day</option>
                                                 <option value={99}>Unlimited (No Cap)</option>
                                             </select>
-                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Maximum sessions per teacher on Sat &amp; Sun.</p>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Maximum sessions per teacher on Sunday.</p>
                                         </div>
                                     </div>
                                 </div>

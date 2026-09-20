@@ -5406,8 +5406,14 @@ export const apiService = {
             const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? meta.includeSundayBreak ?? meta.include_sunday_break ?? r.includeWeekendBreak ?? r.include_weekend_break ?? true;
             const maxClassWeekday = r.maxLessonsPerClassPerDay ?? r.max_lessons_per_class_per_day ?? meta.maxLessonsPerClassPerDay ?? meta.max_lessons_per_class_per_day ?? 1;
             const maxClassWeekend = r.maxWeekendLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? meta.maxWeekendLessonsPerClassPerDay ?? meta.max_weekend_lessons_per_class_per_day ?? 2;
+            const maxClassSat = r.maxSaturdayLessonsPerClassPerDay ?? r.max_saturday_lessons_per_class_per_day ?? meta.maxSaturdayLessonsPerClassPerDay ?? meta.max_saturday_lessons_per_class_per_day ?? maxClassWeekend ?? 3;
+            const maxClassSun = r.maxSundayLessonsPerClassPerDay ?? r.max_sunday_lessons_per_class_per_day ?? meta.maxSundayLessonsPerClassPerDay ?? meta.max_sunday_lessons_per_class_per_day ?? maxClassWeekend ?? 2;
             const maxTeacherWeekday = r.maxLessonsPerTeacherPerDay ?? r.max_lessons_per_teacher_per_day ?? meta.maxLessonsPerTeacherPerDay ?? meta.max_lessons_per_teacher_per_day ?? r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1;
             const maxTeacherWeekend = r.maxWeekendLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? meta.maxWeekendLessonsPerTeacherPerDay ?? meta.max_weekend_lessons_per_teacher_per_day ?? r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? 2;
+            const maxTeacherSat = r.maxSaturdayLessonsPerTeacherPerDay ?? r.max_saturday_lessons_per_teacher_per_day ?? meta.maxSaturdayLessonsPerTeacherPerDay ?? meta.max_saturday_lessons_per_teacher_per_day ?? maxTeacherWeekend ?? 3;
+            const maxTeacherSun = r.maxSundayLessonsPerTeacherPerDay ?? r.max_sunday_lessons_per_teacher_per_day ?? meta.maxSundayLessonsPerTeacherPerDay ?? meta.max_sunday_lessons_per_teacher_per_day ?? maxTeacherWeekend ?? 2;
+            const satPeriods = r.saturdayPeriodsCount ?? r.saturday_periods_count ?? meta.saturdayPeriodsCount ?? meta.saturday_periods_count ?? 5;
+            const sunPeriods = r.sundayPeriodsCount ?? r.sunday_periods_count ?? meta.sundayPeriodsCount ?? meta.sunday_periods_count ?? 4;
 
             return {
                 ...r,
@@ -5443,10 +5449,22 @@ export const apiService = {
                 max_lessons_per_class_per_day: maxClassWeekday,
                 maxWeekendLessonsPerClassPerDay: maxClassWeekend,
                 max_weekend_lessons_per_class_per_day: maxClassWeekend,
+                maxSaturdayLessonsPerClassPerDay: maxClassSat,
+                max_saturday_lessons_per_class_per_day: maxClassSat,
+                maxSundayLessonsPerClassPerDay: maxClassSun,
+                max_sunday_lessons_per_class_per_day: maxClassSun,
                 maxLessonsPerTeacherPerDay: maxTeacherWeekday,
                 max_lessons_per_teacher_per_day: maxTeacherWeekday,
                 maxWeekendLessonsPerTeacherPerDay: maxTeacherWeekend,
                 max_weekend_lessons_per_teacher_per_day: maxTeacherWeekend,
+                maxSaturdayLessonsPerTeacherPerDay: maxTeacherSat,
+                max_saturday_lessons_per_teacher_per_day: maxTeacherSat,
+                maxSundayLessonsPerTeacherPerDay: maxTeacherSun,
+                max_sunday_lessons_per_teacher_per_day: maxTeacherSun,
+                saturdayPeriodsCount: satPeriods,
+                saturday_periods_count: satPeriods,
+                sundayPeriodsCount: sunPeriods,
+                sunday_periods_count: sunPeriods,
                 cancellationCutoffHours: r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? meta.cancellation_cutoff_hours ?? 3,
                 cancellation_cutoff_hours: r.cancellation_cutoff_hours ?? r.cancellationCutoffHours ?? meta.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? 3,
                 confirmationTimeoutMinutes: r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? meta.confirmationTimeoutMinutes ?? meta.confirmation_timeout_minutes ?? 45,
