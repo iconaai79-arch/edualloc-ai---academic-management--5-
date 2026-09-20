@@ -104,7 +104,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         return allocations.filter(a => a.isUnallocated || a.dayOfWeek === ('Unallocated' as any) || !a.dayOfWeek || !a.startTime);
     }, [allocations]);
 
-    // Weekend Duty Roster State
+    // Weekend & Weekday Duty Roster State
     const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>([]);
     const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
     const [dutyModalWeek, setDutyModalWeek] = useState('WEEK 1');
@@ -113,6 +113,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [dutyModalSubjectId, setDutyModalSubjectId] = useState('');
     const [dutyModalAutoAllocate, setDutyModalAutoAllocate] = useState(true);
     const [isSavingDuty, setIsSavingDuty] = useState(false);
+    // Weekday duty specific state
+    const [dutyModalType, setDutyModalType] = useState<'weekend' | 'weekday'>('weekend');
+    const [dutyModalWeekday, setDutyModalWeekday] = useState<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday'>('Monday');
+    // Bulk teacher list for weekday duty: [{teacherId, payRate, payType}]
+    const [dutyTeacherList, setDutyTeacherList] = useState<{ teacherId: string; payRate: string; payType: 'hourly' | 'flat' }[]>([]);
+    const [dutyTeacherPickId, setDutyTeacherPickId] = useState('');
+    const [dutyTeacherPickRate, setDutyTeacherPickRate] = useState('');
+    const [dutyTeacherPickPayType, setDutyTeacherPickPayType] = useState<'hourly' | 'flat'>('hourly');
 
     // Operations Manager Cash Handover State (Stage 4)
     const [isOpsCashModalOpen, setIsOpsCashModalOpen] = useState(false);
@@ -2578,6 +2586,99 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // Save Weekday Duty — one record per teacher, one allocation per teacher for the chosen weekday
+    const handleSaveWeekdayDuty = async () => {
+        if (dutyTeacherList.length === 0) {
+            alert('Please add at least one teacher to the weekday duty list.');
+            return;
+        }
+        try {
+            setIsSavingDuty(true);
+            const targetCourse = courses.find(c => c.id === dutyModalCourseId) || courses[0];
+            const targetSubject = remedialSubjects.find(s => s.subjectId === dutyModalSubjectId) || remedialSubjects[0];
+            const startTime = weekdayStartTime || '16:00';
+            const endTime = weekdayEndTime || '18:00';
+
+            for (const entry of dutyTeacherList) {
+                const teacher = users.find(u => u.id === entry.teacherId);
+                if (!teacher) continue;
+                const teacherCode = teacher.name
+                    ? teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 3)
+                    : 'DUT';
+
+                const dutyRecord: RemedialWeekendDuty = {
+                    id: `duty_wd_${Date.now()}_${entry.teacherId.slice(-4)}`,
+                    institutionId,
+                    weekLabel: dutyModalWeek,
+                    teacherId: entry.teacherId,
+                    teacherName: teacher.name || 'Duty Teacher',
+                    teacherCode,
+                    courseId: targetCourse?.id,
+                    className: targetCourse?.name,
+                    subjectId: targetSubject?.subjectId,
+                    subjectName: targetSubject?.subjectName,
+                    dutyType: 'weekday',
+                    weekdayDay: dutyModalWeekday,
+                    weekdayStartTime: startTime,
+                    weekdayEndTime: endTime,
+                    weekdayAllocated: true,
+                    dutyPayRate: entry.payRate ? parseFloat(entry.payRate) : undefined,
+                    dutyPayType: entry.payType,
+                    createdAt: new Date().toISOString(),
+                };
+
+                await apiService.saveModuleRecord('school_remedial_duty_roster', dutyRecord);
+
+                // Auto-allocate one duty lesson on the selected weekday
+                const wdAlloc: RemedialAllocation = {
+                    id: `alloc_duty_wd_${Date.now()}_${entry.teacherId.slice(-4)}`,
+                    institutionId,
+                    courseId: targetCourse?.id || 'GENERAL',
+                    className: targetCourse?.name || 'Weekday Remedials',
+                    stream: 'All Streams',
+                    subjectId: targetSubject?.subjectId || 'GENERAL',
+                    subjectName: targetSubject?.subjectName || 'Remedial General Duty',
+                    teacherId: entry.teacherId,
+                    teacherName: teacher.name || 'Teacher on Duty',
+                    dayOfWeek: dutyModalWeekday,
+                    startTime,
+                    endTime,
+                    isWeekend: false,
+                    isDutyLesson: true,
+                    priority: 'High',
+                    isManual: true,
+                    is_manual: true,
+                    isAutoGenerated: false,
+                    is_auto_generated: false,
+                    createdAt: new Date().toISOString(),
+                };
+
+                await apiService.saveModuleRecord('school_remedial_allocations', wdAlloc);
+                onLogAction?.(`Appointed ${teacher.name} as Weekday TOD (${dutyModalWeekday}) for ${dutyModalWeek} — Rate: ${entry.payRate ? `KES ${entry.payRate} (${entry.payType})` : 'Global rate'}`);
+            }
+
+            alert(`Weekday Duty (${dutyModalWeekday}) saved! ${dutyTeacherList.length} teacher(s) appointed for ${dutyModalWeek}.`);
+            setIsDutyModalOpen(false);
+            setDutyTeacherList([]);
+            setDutyTeacherPickId('');
+            setDutyTeacherPickRate('');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to save weekday duty assignment');
+        } finally {
+            setIsSavingDuty(false);
+        }
+    };
+
+    // Unified duty save dispatcher
+    const handleSaveDuty = () => {
+        if (dutyModalType === 'weekday') {
+            handleSaveWeekdayDuty();
+        } else {
+            handleSaveWeekendDuty();
+        }
+    };
+
     // Open Create Allocation Modal
     const handleOpenCreateAllocation = () => {
         setEditingAlloc(null);
@@ -4250,20 +4351,41 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const sDate = new Date(s.date || s.startTime);
             const isWeekend = sDate.getDay() === 0 || sDate.getDay() === 6;
 
+            // Check for per-teacher duty pay rate override (weekday TOD)
+            let sessionAmount = 0;
+            if (s.isDutyLesson) {
+                const dutyRecord = weekendDutyRoster.find(d =>
+                    d.teacherId === tId && (d.weekdayDay === s.dayOfWeek || d.saturdayAllocated || d.sundayAllocated)
+                );
+                if (dutyRecord?.dutyPayRate) {
+                    // Use the teacher-specific duty rate
+                    sessionAmount = dutyRecord.dutyPayType === 'flat'
+                        ? dutyRecord.dutyPayRate
+                        : hrs * dutyRecord.dutyPayRate;
+                } else if (isWeekend) {
+                    sessionAmount = hrs * (weekendHourlyRate || 1500);
+                } else {
+                    sessionAmount = hrs * (weekdayHourlyRate || hourlyRate || 1000);
+                }
+            } else if (isWeekend) {
+                sessionAmount = hrs * (weekendHourlyRate || 1500);
+            } else {
+                sessionAmount = hrs * (weekdayHourlyRate || hourlyRate || 1000);
+            }
+
             if (isWeekend) {
                 teacherMap[tId].weekendHours += hrs;
-                teacherMap[tId].totalAmount += hrs * (weekendHourlyRate || 1500);
             } else {
                 teacherMap[tId].weekdayHours += hrs;
-                teacherMap[tId].totalAmount += hrs * (weekdayHourlyRate || hourlyRate || 1000);
             }
+            teacherMap[tId].totalAmount += sessionAmount;
             teacherMap[tId].totalHours += hrs;
             teacherMap[tId].sessionCount += 1;
             if (s.status === 'Paid') teacherMap[tId].status = 'Paid';
         });
 
         return Object.values(teacherMap);
-    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, users]);
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, users, weekendDutyRoster]);
 
     // 2. Report: Prefect QR Audit Trail Data
     const reportPrefectAuditData = useMemo(() => {
@@ -12980,7 +13102,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             document.body
         )}
 
-        {/* MODAL 5: WEEKEND DUTY ROSTER ASSIGNMENT */}
+        {/* MODAL 5: TOD ASSIGNMENT — WEEKEND & WEEKDAY */}
         {isDutyModalOpen && typeof document !== 'undefined' && createPortal(
             <div 
                 className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
@@ -12993,17 +13115,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="p-6 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white flex justify-between items-center">
+                    <div className={`p-6 text-white flex justify-between items-center ${dutyModalType === 'weekday' ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700' : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600'}`}>
                         <div className="flex items-center gap-2.5">
                             <div className="p-2 bg-white/20 rounded-xl">
                                 <Calendar className="w-5 h-5 text-white" />
                             </div>
                             <div>
                                 <h3 className="text-base font-black uppercase tracking-tight">
-                                    Appoint Weekend Duty Teacher
+                                    {dutyModalType === 'weekday' ? 'Weekday Duty Teachers' : 'Appoint Weekend Duty Teacher'}
                                 </h3>
-                                <p className="text-[11px] text-amber-100 font-medium">
-                                    Assign Teacher on Duty for Saturday &amp; Sunday Lessons
+                                <p className="text-[11px] text-white/80 font-medium">
+                                    {dutyModalType === 'weekday'
+                                        ? 'Assign multiple teachers on duty for a weekday — each with their own rate'
+                                        : 'Assign Teacher on Duty for Saturday & Sunday Lessons'}
                                 </p>
                             </div>
                         </div>
@@ -13018,6 +13142,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                     {/* Content */}
                     <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+
+                        {/* ── Duty Type Toggle ── */}
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl">
+                            {(['weekend', 'weekday'] as const).map(type => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                        setDutyModalType(type);
+                                        setDutyTeacherList([]);
+                                        setDutyTeacherPickId('');
+                                        setDutyTeacherPickRate('');
+                                    }}
+                                    className={`py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                        dutyModalType === type
+                                            ? type === 'weekday'
+                                                ? 'bg-indigo-600 text-white shadow-md'
+                                                : 'bg-amber-500 text-white shadow-md'
+                                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
+                                    }`}
+                                >
+                                    {type === 'weekend' ? '🌅 Weekend (Sat/Sun)' : '📅 Weekday (Mon–Fri)'}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* ── Academic Week ── */}
                         <div>
                             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
                                 Duty Academic Week *
@@ -13033,24 +13184,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </select>
                         </div>
 
-                        <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                Select Weekend Teacher on Duty *
-                            </label>
-                            <select
-                                value={dutyModalTeacherId}
-                                onChange={e => setDutyModalTeacherId(e.target.value)}
-                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
-                            >
-                                <option value="">-- Choose Teacher --</option>
-                                {users.filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase())).map(u => (
-                                    <option key={u.id} value={u.id}>
-                                        {u.name} ({u.role || 'Teacher'})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
+                        {/* ── Duty Class / Subject ── */}
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
@@ -13061,13 +13195,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     onChange={e => setDutyModalCourseId(e.target.value)}
                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                 >
-                                    <option value="">General Weekend</option>
+                                    <option value="">General</option>
                                     {courses.map(c => (
                                         <option key={c.id} value={c.id}>{c.name}</option>
                                     ))}
                                 </select>
                             </div>
-
                             <div>
                                 <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
                                     Duty Subject
@@ -13085,22 +13218,177 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
-                        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800/60 space-y-2">
-                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={dutyModalAutoAllocate}
-                                    onChange={e => setDutyModalAutoAllocate(e.target.checked)}
-                                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-                                />
-                                <span className="text-xs font-black uppercase tracking-tight text-amber-900 dark:text-amber-200">
-                                    Auto-allocate 1 Saturday &amp; 1 Sunday Duty Lesson
-                                </span>
-                            </label>
-                            <p className="text-[10px] text-amber-700 dark:text-amber-300 leading-relaxed pl-6">
-                                Creates Saturday (08:00 - 10:00) and Sunday (09:00 - 11:00) remedial sessions automatically and updates the weekend timetable grid code with this teacher&apos;s initials.
-                            </p>
-                        </div>
+                        {/* ══ WEEKEND MODE ══ */}
+                        {dutyModalType === 'weekend' && (
+                            <>
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                        Select Weekend Teacher on Duty *
+                                    </label>
+                                    <select
+                                        value={dutyModalTeacherId}
+                                        onChange={e => setDutyModalTeacherId(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                    >
+                                        <option value="">-- Choose Teacher --</option>
+                                        {users.filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase())).map(u => (
+                                            <option key={u.id} value={u.id}>
+                                                {u.name} ({u.role || 'Teacher'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800/60 space-y-2">
+                                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={dutyModalAutoAllocate}
+                                            onChange={e => setDutyModalAutoAllocate(e.target.checked)}
+                                            className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                        />
+                                        <span className="text-xs font-black uppercase tracking-tight text-amber-900 dark:text-amber-200">
+                                            Auto-allocate 1 Saturday &amp; 1 Sunday Duty Lesson
+                                        </span>
+                                    </label>
+                                    <p className="text-[10px] text-amber-700 dark:text-amber-300 leading-relaxed pl-6">
+                                        Creates Saturday ({saturdayStartTime || '08:00'}) and Sunday ({sundayStartTime || '09:00'}) remedial sessions automatically.
+                                    </p>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ══ WEEKDAY MODE ══ */}
+                        {dutyModalType === 'weekday' && (
+                            <>
+                                {/* Day picker */}
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                                        Duty Weekday *
+                                    </label>
+                                    <div className="grid grid-cols-5 gap-1.5">
+                                        {(['Monday','Tuesday','Wednesday','Thursday','Friday'] as const).map(day => (
+                                            <button
+                                                key={day}
+                                                type="button"
+                                                onClick={() => setDutyModalWeekday(day)}
+                                                className={`py-2 rounded-xl text-[9px] font-black uppercase transition-all ${
+                                                    dutyModalWeekday === day
+                                                        ? 'bg-indigo-600 text-white shadow-md'
+                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                {day.slice(0, 3)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Add teacher row */}
+                                <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-800/60 space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                                        Add Teacher to Duty List
+                                    </p>
+                                    <select
+                                        value={dutyTeacherPickId}
+                                        onChange={e => setDutyTeacherPickId(e.target.value)}
+                                        className="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 dark:text-white"
+                                    >
+                                        <option value="">-- Select Teacher --</option>
+                                        {users
+                                            .filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase()))
+                                            .filter(u => !dutyTeacherList.some(e => e.teacherId === u.id))
+                                            .map(u => (
+                                                <option key={u.id} value={u.id}>{u.name} ({u.role || 'Teacher'})</option>
+                                            ))
+                                        }
+                                    </select>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-[9px] font-black uppercase text-indigo-500 mb-1">Pay Rate (KES)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="50"
+                                                value={dutyTeacherPickRate}
+                                                onChange={e => setDutyTeacherPickRate(e.target.value)}
+                                                placeholder={`Global (KES ${weekdayHourlyRate || rateSetting?.weekdayHourlyRate || rateSetting?.hourlyRate || '0'})`}
+                                                className="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 dark:text-white placeholder:text-slate-300"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] font-black uppercase text-indigo-500 mb-1">Rate Type</label>
+                                            <div className="grid grid-cols-2 gap-1 bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-1">
+                                                {(['hourly','flat'] as const).map(t => (
+                                                    <button key={t} type="button"
+                                                        onClick={() => setDutyTeacherPickPayType(t)}
+                                                        className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
+                                                            dutyTeacherPickPayType === t
+                                                                ? 'bg-indigo-600 text-white'
+                                                                : 'text-slate-400'
+                                                        }`}
+                                                    >
+                                                        {t === 'hourly' ? '/hr' : 'Flat'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={!dutyTeacherPickId}
+                                        onClick={() => {
+                                            if (!dutyTeacherPickId) return;
+                                            setDutyTeacherList(prev => [...prev, { teacherId: dutyTeacherPickId, payRate: dutyTeacherPickRate, payType: dutyTeacherPickPayType }]);
+                                            setDutyTeacherPickId('');
+                                            setDutyTeacherPickRate('');
+                                            setDutyTeacherPickPayType('hourly');
+                                        }}
+                                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                                    >
+                                        + Add to List
+                                    </button>
+                                </div>
+
+                                {/* Teacher bulk list */}
+                                {dutyTeacherList.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                            Duty Teachers — {dutyModalWeekday} ({dutyTeacherList.length})
+                                        </p>
+                                        {dutyTeacherList.map((entry, idx) => {
+                                            const t = users.find(u => u.id === entry.teacherId);
+                                            return (
+                                                <div key={entry.teacherId} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-[9px] font-black text-indigo-600 dark:text-indigo-300">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-slate-800 dark:text-white">{t?.name || entry.teacherId}</p>
+                                                            <p className="text-[9px] text-slate-400">
+                                                                {entry.payRate ? `KES ${entry.payRate} (${entry.payType})` : 'Global rate'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDutyTeacherList(prev => prev.filter((_, i) => i !== idx))}
+                                                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {dutyTeacherList.length === 0 && (
+                                    <div className="text-center py-3 text-[10px] text-slate-400 font-bold">
+                                        No teachers added yet — use the form above
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     {/* Footer */}
@@ -13115,9 +13403,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </button>
                         <button
                             type="button"
-                            disabled={isSavingDuty}
-                            onClick={handleSaveWeekendDuty}
-                            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                            disabled={isSavingDuty || (dutyModalType === 'weekday' ? dutyTeacherList.length === 0 : !dutyModalTeacherId)}
+                            onClick={handleSaveDuty}
+                            className={`px-5 py-2.5 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 cursor-pointer ${
+                                dutyModalType === 'weekday'
+                                    ? 'bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 shadow-indigo-500/20'
+                                    : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-amber-500/20'
+                            }`}
                         >
                             {isSavingDuty ? (
                                 <>
@@ -13127,7 +13419,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             ) : (
                                 <>
                                     <Calendar className="w-4 h-4" />
-                                    <span>Appoint &amp; Allocate</span>
+                                    <span>{dutyModalType === 'weekday' ? `Appoint ${dutyTeacherList.length} Teacher(s)` : 'Appoint & Allocate'}</span>
                                 </>
                             )}
                         </button>

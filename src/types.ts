@@ -6520,28 +6520,36 @@ export interface RemedialAllocation {
 export interface RemedialWeekendDuty {
     id: string;
     institutionId: string;
-    term?: string;               // e.g. "TERM 1", "TERM 2", "TERM 3"
-    weekNumber?: string;         // e.g. "WEEK 1", "WEEK 2", "WEEK 3"
-    weekLabel?: string;          // e.g. "WEEK 1", "WEEK 2", "WEEK 3"
-    year?: string;              // e.g. "2026"
+    term?: string;
+    weekNumber?: string;
+    weekLabel?: string;
+    year?: string;
     teacherId: string;
     teacherName: string;
     teacherCode?: string;
-    courseId?: string;          // Class allocated for duty lessons
+    courseId?: string;
     className?: string;
-    subjectId?: string;         // Subject allocated for duty lessons
+    subjectId?: string;
     subjectName?: string;
     stream?: string;
-    saturdayStartTime?: string; // Default 08:00
-    saturdayEndTime?: string;   // Default 10:00
-    sundayStartTime?: string;   // Default 09:00
-    sundayEndTime?: string;     // Default 11:00
+    saturdayStartTime?: string;
+    saturdayEndTime?: string;
+    sundayStartTime?: string;
+    sundayEndTime?: string;
     saturdayAllocated?: boolean;
     sundayAllocated?: boolean;
     autoAllocatedSaturday?: boolean;
     autoAllocatedSunday?: boolean;
     saturdaySessionId?: string;
     sundaySessionId?: string;
+    dutyType?: string;
+    weekdayDay?: string;
+    weekdayStartTime?: string;
+    weekdayEndTime?: string;
+    weekdayAllocated?: boolean;
+    weekdaySessionId?: string;
+    dutyPayRate?: number;
+    dutyPayType?: string;
     notes?: string;
     createdAt?: string;
     updatedAt?: string;
