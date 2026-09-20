@@ -3157,6 +3157,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     priority: 'High' | 'Medium' | 'Low';
                     weeklyOccurrences: number;
                     preferredDayType: 'any' | 'weekdays' | 'weekends';
+                    allowedDays?: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];
+                    allowedPeriods?: number[];
                     manualCount: number;
                     manualAllocations: RemedialAllocation[];
                 }>();
@@ -3222,9 +3224,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                             // Candidate days filtered by allowedDays (hard restriction) then preferredDayType
                             let candidateDays = [...daysOfWeek];
-                            if ((subEntry as any).allowedDays?.length > 0) {
+                            if (subEntry.allowedDays && subEntry.allowedDays.length > 0) {
                                 // Hard restriction: only these specific days allowed
-                                candidateDays = candidateDays.filter(d => ((subEntry as any).allowedDays as string[]).includes(d));
+                                candidateDays = candidateDays.filter(d => (subEntry.allowedDays as string[]).includes(d));
                             } else if (subEntry.preferredDayType === 'weekends') {
                                 candidateDays = candidateDays.filter(d => ['Saturday', 'Sunday'].includes(d));
                             } else if (subEntry.preferredDayType === 'weekdays') {
@@ -3284,7 +3286,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                                 // Enforce allowedPeriods: period number = existingStreamCountOnDay + 1
                                 const thisPeriodNum = existingStreamCountOnDay + 1;
-                                const allowedPeriods = (subEntry as any).allowedPeriods as number[] | undefined;
+                                const allowedPeriods = subEntry.allowedPeriods;
                                 if (allowedPeriods && allowedPeriods.length > 0 && !allowedPeriods.includes(thisPeriodNum)) continue;
 
                                 // Strictly check designated teacher availability first (teacher cannot teach 2 streams at once)
